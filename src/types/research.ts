@@ -27,6 +27,61 @@ export interface Competitor {
   weaknesses: string[]
 }
 
+// Extended competitor types for Competitor Intelligence module
+export interface CompetitorDetailed {
+  name: string
+  website: string | null
+  description: string
+  positioning: string
+  targetAudience: string
+  pricingModel: string | null
+  pricingRange: string | null
+  strengths: string[]
+  weaknesses: string[]
+  differentiators: string[]
+}
+
+export interface CompetitorGap {
+  gap: string
+  description: string
+  opportunity: string
+  difficulty: 'low' | 'medium' | 'high'
+}
+
+export interface PositioningRecommendation {
+  strategy: string
+  description: string
+  targetNiche: string
+  keyDifferentiators: string[]
+  messagingAngles: string[]
+}
+
+export interface CompetitorIntelligenceResult {
+  hypothesis: string
+  marketOverview: {
+    marketSize: string
+    growthTrend: string
+    maturityLevel: 'emerging' | 'growing' | 'mature' | 'declining'
+    competitionIntensity: 'low' | 'medium' | 'high'
+    summary: string
+  }
+  competitors: CompetitorDetailed[]
+  competitorMatrix: {
+    categories: string[]
+    comparison: {
+      competitorName: string
+      scores: { category: string; score: number; notes: string }[]
+    }[]
+  }
+  gaps: CompetitorGap[]
+  positioningRecommendations: PositioningRecommendation[]
+  metadata: {
+    competitorsAnalyzed: number
+    processingTimeMs: number
+    timestamp: string
+  }
+}
+
 export interface InterviewGuide {
   intro_questions: string[]
   pain_exploration: string[]

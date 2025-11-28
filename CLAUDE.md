@@ -51,10 +51,10 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 | Module | Status | Completion | Notes |
 |--------|--------|------------|-------|
 | Community Voice Mining | DONE | 100% | Full Reddit analysis via Arctic Shift + Claude |
-| Competitor Intelligence | NOT STARTED | 0% | Defined in spec, no code yet |
-| Interview Prep Generator | PARTIAL | 40% | Questions embedded in Community Voice, needs standalone |
+| Competitor Intelligence | DONE | 100% | Full competitive landscape analysis via Claude |
+| Interview Prep Generator | PARTIAL | 70% | Questions embedded in Community Voice tabs |
 
-### Overall MVP Completion: ~65-70%
+### Overall MVP Completion: ~90%
 
 ---
 
@@ -62,14 +62,14 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 
 Based on `docs/PVRE_DESIGN_SPEC.md`:
 
-1. **Competitor Intelligence module** - Not implemented
-   - Spec calls for: competitive landscape, positioning, pricing analysis
-   - Priority: HIGH
+1. ~~**Competitor Intelligence module** - Not implemented~~ **DONE**
+   - Implemented at `/research/competitors`
+   - Includes: market overview, competitor matrix, gap analysis, positioning recommendations
 
 2. **Interview Prep standalone** - Partial
-   - Currently embedded in Community Voice output
-   - Needs dedicated module with structured interview scripts
-   - Priority: MEDIUM
+   - Currently embedded in Community Voice output (3 sections: Context, Problem, Solution)
+   - Could benefit from dedicated module with more structured interview scripts
+   - Priority: LOW (current implementation is functional)
 
 3. **PDF Export** - Not implemented
    - Users should be able to export research as PDF
@@ -87,21 +87,20 @@ Based on `docs/PVRE_DESIGN_SPEC.md`:
 
 ## Priority Roadmap
 
-1. **Module 2: Competitor Intelligence**
-   - Complexity: HIGH
-   - Dependencies: Claude API, web search integration
+1. ~~**Module 2: Competitor Intelligence**~~ **DONE**
+   - Implemented with Claude API analysis
 
-2. **Module 3: Complete Interview Prep**
-   - Complexity: MEDIUM
-   - Dependencies: Community Voice data
-
-3. **PDF Export**
+2. **PDF Export**
    - Complexity: LOW-MEDIUM
    - Dependencies: react-pdf or similar
 
-4. **Test Suite**
+3. **Test Suite**
    - Complexity: MEDIUM
    - Dependencies: Jest/Vitest setup
+
+4. **Interview Prep standalone** (optional enhancement)
+   - Complexity: LOW
+   - Current implementation is functional
 
 ---
 
@@ -114,14 +113,21 @@ src/
 │   ├── (dashboard)/         # Authenticated pages
 │   │   ├── dashboard/       # User dashboard with research history
 │   │   └── research/        # Research input + results pages
-│   │       └── [id]/        # Individual research detail view
+│   │       ├── [id]/        # Individual research detail view
+│   │       └── competitors/ # Competitor intelligence page
 │   ├── api/
 │   │   ├── dev/login/       # Dev-only auth bypass
 │   │   └── research/
-│   │       ├── community-voice/ # Main research endpoint
+│   │       ├── community-voice/       # Community Voice research endpoint
+│   │       ├── competitor-intelligence/ # Competitor analysis endpoint
 │   │       └── jobs/        # Job management CRUD
 │   └── auth/                # Auth callbacks
-├── components/              # React components
+├── components/
+│   └── research/
+│       ├── community-voice-results.tsx
+│       ├── competitor-results.tsx     # NEW
+│       ├── hypothesis-form.tsx
+│       └── pain-score-card.tsx
 ├── lib/
 │   ├── supabase/
 │   │   ├── admin.ts         # Service role client (bypasses RLS)
@@ -141,6 +147,7 @@ src/
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/research/community-voice` | POST | Run community voice research |
+| `/api/research/competitor-intelligence` | POST | Run competitor analysis |
 | `/api/research/jobs` | POST | Create new research job |
 | `/api/research/jobs` | GET | List user's research jobs |
 | `/api/research/jobs` | PATCH | Update job status |

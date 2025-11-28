@@ -123,9 +123,12 @@ export default async function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 mb-4">
               Get insights on existing solutions and identify market gaps.
             </p>
+            <Link href="/research/competitors">
+              <Button variant="outline" className="w-full">Run Competitor Analysis</Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
