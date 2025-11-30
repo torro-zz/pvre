@@ -481,4 +481,173 @@ Let's start with step 1.
 
 ---
 
+## 📊 VIABILITY VERDICT SCORING FRAMEWORK
+
+*Added: November 2024*
+
+The Viability Verdict is a composite score that combines multiple research dimensions into a single, actionable assessment of market viability.
+
+### The Formula
+
+```
+VIABILITY SCORE = (Pain × 0.35) + (Market × 0.25) + (Competition × 0.25) + (Timing × 0.15)
+```
+
+### MVP Formula (Currently Implemented)
+
+With Pain and Competition modules:
+```javascript
+// Normalized weights for 2 dimensions
+MVP_SCORE = (Pain × 0.58) + (Competition × 0.42)
+// Rationale: 35/(35+25) = 0.58, 25/(35+25) = 0.42
+```
+
+---
+
+### Dimension 1: Pain Score (35% weight)
+
+**Purpose:** Measure how intensely users feel the problem you're solving.
+
+**Scoring Factors:**
+
+| Factor | Weight | Description |
+|--------|--------|-------------|
+| High Intensity Keywords | 3 points | Nightmare, hate, frustrated, desperate, exhausted |
+| Medium Intensity Keywords | 2 points | Struggle, difficult, problem, stuck, failing |
+| Low Intensity Keywords | 1 point | Wondering, curious, considering |
+| Solution Seeking | 2 points | Looking for, recommendations, need help |
+| Willingness to Pay | 4 points | Would pay, worth paying, budget, pricing |
+
+**Keyword Detection:**
+- Uses regex word boundaries (`\b${keyword}\b`) to prevent false positives
+- Engagement multiplier: High upvote posts carry more weight
+- 150+ keywords across 5 tiers
+
+**WTP Confidence Levels:**
+- **Strong Intent:** "would pay", "shut up and take my money", "where do I sign up"
+- **Financial Discussion:** "budget", "pricing", "cost", "worth paying"
+- **Purchase Intent:** "looking to buy", "want to purchase", "need to invest"
+- **Value Signals:** "worth it", "good investment", "save money"
+
+**Data Confidence:**
+| Posts Analyzed | Confidence |
+|----------------|------------|
+| < 50 | Very Low |
+| 50-100 | Low |
+| 100-200 | Medium |
+| 200+ | High |
+
+---
+
+### Dimension 2: Competition Score (25% weight)
+
+**Purpose:** Assess how favorable the competitive landscape is for a new entrant.
+
+**Scoring Factors:**
+
+| Factor | Impact | Description |
+|--------|--------|-------------|
+| Competitor Count | ±2 | 0 = +2 (greenfield), 1-3 = +1, 4-7 = 0, 8+ = -1.5 |
+| Funding Levels | ±1.5 | Well-funded (Series B+) = -1.5, Bootstrapped = +0.5 |
+| User Satisfaction | ±2 | Avg < 3/5 = +2 (opportunity), > 4.5/5 = -1 (hard to displace) |
+| Market Gaps | ±1 | 2+ high-opportunity gaps = +1 |
+| Price Headroom | +0.5 | Premium pricing exists = opportunity |
+| Market Intensity | ±0.5 | High intensity = -0.5, Low = +0.5 |
+
+**Threat Assessment:**
+Each competitor rated as low/medium/high threat based on:
+- Market share estimate
+- Funding level
+- User satisfaction
+
+---
+
+### Dimension 3: Market Score (25% weight) - POST-MVP
+
+**Purpose:** Estimate if the market is large enough for your revenue goals.
+
+**AI-Estimated with 3 Scenarios:**
+- Conservative (worst case)
+- Moderate (base case)
+- Optimistic (best case)
+
+**User-Adjustable Sliders:**
+- TAM (Total Addressable Market)
+- SAM (Serviceable Available Market)
+- SOM (Serviceable Obtainable Market)
+- MSC (Minimum Success Criteria - your revenue goal)
+
+**Scoring Algorithm:**
+| Market Penetration Required | Score |
+|-----------------------------|-------|
+| < 5% | 9/10 (highly achievable) |
+| 5-10% | 7.5/10 (achievable) |
+| 10-25% | 5.5/10 (challenging) |
+| 25-50% | 3.5/10 (difficult) |
+| > 50% | 1.5/10 (unlikely viable) |
+
+---
+
+### Dimension 4: Timing Score (15% weight) - POST-MVP
+
+**Purpose:** Assess if market conditions favor launching now.
+
+**Data Sources:**
+- Google Trends API (real search interest data)
+- AI analysis of tailwinds/headwinds
+
+**Scoring Algorithm:**
+```javascript
+let score = 5; // Start neutral
+
+// Google Trends impact
+if (trend === "rising_strong") score += 2;
+else if (trend === "rising") score += 1;
+else if (trend === "falling") score -= 1;
+else if (trend === "falling_strong") score -= 2;
+
+// AI signals
+score += tailwinds.length * 0.5;  // Cap at +2
+score -= headwinds.length * 0.5;  // Cap at -2
+```
+
+---
+
+### Verdict Thresholds
+
+| Score | Verdict | Color | Recommendation |
+|-------|---------|-------|----------------|
+| 7.5-10 | 🟢 STRONG SIGNAL | Green | Proceed to interviews with confidence |
+| 5.0-7.4 | 🟡 MIXED SIGNAL | Yellow | Refine hypothesis, investigate weak areas |
+| 2.5-4.9 | 🟠 WEAK SIGNAL | Orange | Major concerns - consider pivoting |
+| 0-2.4 | 🔴 NO SIGNAL | Red | Likely not viable - pivot or abandon |
+
+### Dealbreaker Detection
+
+If any single dimension scores below 3/10, it's flagged as a **dealbreaker** requiring immediate attention before proceeding.
+
+---
+
+### Implementation Files
+
+| File | Purpose |
+|------|---------|
+| `src/lib/analysis/viability-calculator.ts` | Score combination, verdict generation |
+| `src/lib/analysis/pain-detector.ts` | Enhanced pain scoring with keywords |
+| `src/components/research/viability-verdict.tsx` | Verdict dashboard UI |
+| `src/components/research/community-voice-results.tsx` | Pain transparency display |
+| `src/components/research/competitor-results.tsx` | Competition score display |
+| `src/app/(dashboard)/research/[id]/page.tsx` | Integrated results with tabs |
+
+---
+
+### Future Enhancements
+
+1. **Market Sizing Module** - AI-estimated TAM/SAM/SOM with adjustable sliders
+2. **Timing Module** - Google Trends integration + AI tailwinds/headwinds
+3. **Historical Tracking** - Track viability scores over time as hypothesis evolves
+4. **PDF Export** - Export full Viability Verdict report
+
+---
+
 You're ready to build! 🚀

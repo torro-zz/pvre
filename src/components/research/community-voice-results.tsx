@@ -24,15 +24,22 @@ import {
   DollarSign,
   Copy,
   Check,
+  ArrowRight,
+  Building2,
 } from 'lucide-react'
+import Link from 'next/link'
 import { PainScoreCard, PainScoreCardCompact } from './pain-score-card'
+import { PainScoreDisplay } from './pain-score-display'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 
 interface CommunityVoiceResultsProps {
   results: CommunityVoiceResult
+  jobId?: string
+  hypothesis?: string
+  showNextStep?: boolean
 }
 
-export function CommunityVoiceResults({ results }: CommunityVoiceResultsProps) {
+export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep = true }: CommunityVoiceResultsProps) {
   const [showAllSignals, setShowAllSignals] = useState(false)
   const [copiedSection, setCopiedSection] = useState<string | null>(null)
 
@@ -234,6 +241,21 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 
         {/* Pain Signals Tab */}
         <TabsContent value="signals" className="space-y-4">
+          {/* Pain Score Display - Inspired by clean minimal design */}
+          <PainScoreDisplay
+            score={results.themeAnalysis.overallPainScore}
+            confidence={(results.painSummary as { dataConfidence?: 'very_low' | 'low' | 'medium' | 'high' }).dataConfidence || 'medium'}
+            summary={{
+              ...results.painSummary,
+              dataConfidence: (results.painSummary as { dataConfidence?: 'very_low' | 'low' | 'medium' | 'high' }).dataConfidence || 'medium',
+              strongestSignals: (results.painSummary as { strongestSignals?: string[] }).strongestSignals || [],
+              wtpQuotes: (results.painSummary as { wtpQuotes?: { text: string; subreddit: string }[] }).wtpQuotes || [],
+            }}
+            postsAnalyzed={results.metadata.postsAnalyzed}
+            strongestSignal={(results.painSummary as { strongestSignals?: string[] }).strongestSignals?.[0]}
+            wtpQuote={(results.painSummary as { wtpQuotes?: { text: string; subreddit: string }[] }).wtpQuotes?.[0]}
+          />
+
           {/* Intensity Breakdown */}
           <Card>
             <CardHeader>
@@ -471,6 +493,92 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Next Step CTA - Enhanced Competitor Analysis Banner */}
+      {showNextStep && hypothesis && (
+        <div className="relative overflow-hidden rounded-xl border-2 border-foreground/10 bg-gradient-to-r from-muted/50 via-background to-muted/50">
+          {/* Progress indicator */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-muted">
+            <div className="h-full w-1/2 bg-foreground rounded-r transition-all duration-500" />
+          </div>
+
+          <div className="p-6 pt-8">
+            {/* Step indicator */}
+            <div className="flex items-center gap-2 mb-4">
+              <Badge variant="secondary" className="text-xs font-medium">
+                Step 1 of 2 Complete
+              </Badge>
+              {results.themeAnalysis.alternativesMentioned.length > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  {results.themeAnalysis.alternativesMentioned.length} competitors found
+                </Badge>
+              )}
+            </div>
+
+            {/* Main content */}
+            <div className="flex flex-col md:flex-row md:items-center gap-6">
+              <div className="flex-1 space-y-3">
+                <h3 className="text-xl font-semibold tracking-tight">
+                  Continue to Competitor Analysis
+                </h3>
+                <p className="text-muted-foreground">
+                  Analyze your competitive landscape to find positioning opportunities and market gaps.
+                </p>
+
+                {/* What you'll discover */}
+                <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-foreground/40" />
+                    Market overview
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-foreground/40" />
+                    Competitor matrix
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-foreground/40" />
+                    Gap analysis
+                  </span>
+                </div>
+
+                {/* Competitors teaser */}
+                {results.themeAnalysis.alternativesMentioned.length > 0 && (
+                  <div className="pt-2">
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Competitors mentioned in discussions:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {results.themeAnalysis.alternativesMentioned.slice(0, 4).map((alt, i) => (
+                        <Badge key={i} variant="outline" className="text-xs">
+                          {alt}
+                        </Badge>
+                      ))}
+                      {results.themeAnalysis.alternativesMentioned.length > 4 && (
+                        <Badge variant="outline" className="text-xs text-muted-foreground">
+                          +{results.themeAnalysis.alternativesMentioned.length - 4} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* CTA Button */}
+              <div className="flex-shrink-0">
+                <Link
+                  href={`/research/competitors?${jobId ? `jobId=${jobId}&` : ''}hypothesis=${encodeURIComponent(hypothesis)}`}
+                >
+                  <Button size="lg" className="w-full md:w-auto gap-2 text-base px-6">
+                    <Building2 className="h-5 w-5" />
+                    Run Competitor Analysis
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET - List user's research jobs
-export async function GET() {
+// GET - List user's research jobs or fetch a single job by ID
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -66,7 +66,36 @@ export async function GET() {
       )
     }
 
-    // Fetch user's research jobs ordered by creation date
+    const searchParams = request.nextUrl.searchParams
+    const jobId = searchParams.get('id')
+
+    // If ID is provided, fetch single job
+    if (jobId) {
+      const { data: job, error: fetchError } = await supabase
+        .from('research_jobs')
+        .select('*')
+        .eq('id', jobId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+          return NextResponse.json(
+            { error: 'Job not found' },
+            { status: 404 }
+          )
+        }
+        console.error('Failed to fetch research job:', fetchError)
+        return NextResponse.json(
+          { error: 'Failed to fetch research job' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json(job)
+    }
+
+    // Otherwise, fetch all user's research jobs ordered by creation date
     const { data: jobs, error: fetchError } = await supabase
       .from('research_jobs')
       .select('*')

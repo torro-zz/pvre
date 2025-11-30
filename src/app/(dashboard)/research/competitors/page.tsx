@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Header } from '@/components/layout/header'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { CompetitorResults } from '@/components/research/competitor-results'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,8 +11,11 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { AlertCircle, CheckCircle2, Loader2, Building2, Plus, X } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { AlertCircle, CheckCircle2, Loader2, Building2, Plus, X, Lightbulb, ArrowLeft, Sparkles, Target, TrendingUp } from 'lucide-react'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
+import { CompetitorSuggestion, CompetitorSuggestionsResult } from '@/app/api/research/competitor-suggestions/route'
+import Link from 'next/link'
 
 type ResearchStatus = 'idle' | 'loading' | 'success' | 'error'
 
@@ -21,7 +24,19 @@ interface ProgressStep {
   status: 'pending' | 'active' | 'complete'
 }
 
-export default function CompetitorResearchPage() {
+interface ExistingResearchData {
+  hypothesis: string
+  suggestedCompetitors: string[]
+  smartSuggestions: CompetitorSuggestion[]
+  jobId: string
+}
+
+// Wrapper component that uses useSearchParams
+function CompetitorResearchContent() {
+  const searchParams = useSearchParams()
+  const jobId = searchParams.get('jobId')
+  const hypothesisParam = searchParams.get('hypothesis')
+
   const [status, setStatus] = useState<ResearchStatus>('idle')
   const [results, setResults] = useState<CompetitorIntelligenceResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -29,6 +44,57 @@ export default function CompetitorResearchPage() {
   const [hypothesis, setHypothesis] = useState('')
   const [knownCompetitors, setKnownCompetitors] = useState<string[]>([])
   const [competitorInput, setCompetitorInput] = useState('')
+  const [existingResearch, setExistingResearch] = useState<ExistingResearchData | null>(null)
+  const [loadingExisting, setLoadingExisting] = useState(false)
+
+  // Load existing research data if jobId is provided
+  useEffect(() => {
+    async function loadExistingResearch() {
+      if (!jobId) {
+        // Check if hypothesis was passed as URL param
+        if (hypothesisParam) {
+          setHypothesis(decodeURIComponent(hypothesisParam))
+        }
+        return
+      }
+
+      setLoadingExisting(true)
+      try {
+        // Fetch job details to get hypothesis
+        const jobResponse = await fetch(`/api/research/jobs?id=${jobId}`)
+        if (!jobResponse.ok) throw new Error('Failed to fetch job')
+        const jobData = await jobResponse.json()
+
+        // Fetch smart competitor suggestions from our new endpoint
+        const suggestionsResponse = await fetch(`/api/research/competitor-suggestions?jobId=${jobId}`)
+        let suggestedCompetitors: string[] = []
+        let smartSuggestions: CompetitorSuggestion[] = []
+
+        if (suggestionsResponse.ok) {
+          const suggestionsData: CompetitorSuggestionsResult = await suggestionsResponse.json()
+          smartSuggestions = suggestionsData.suggestions || []
+          suggestedCompetitors = suggestionsData.rawMentions || []
+        }
+
+        setExistingResearch({
+          hypothesis: jobData.hypothesis,
+          suggestedCompetitors,
+          smartSuggestions,
+          jobId,
+        })
+
+        // Pre-fill hypothesis
+        setHypothesis(jobData.hypothesis)
+      } catch (err) {
+        console.error('Failed to load existing research:', err)
+        // Non-critical error - just continue without pre-fill
+      } finally {
+        setLoadingExisting(false)
+      }
+    }
+
+    loadExistingResearch()
+  }, [jobId, hypothesisParam])
 
   const addCompetitor = () => {
     if (competitorInput.trim() && !knownCompetitors.includes(competitorInput.trim())) {
@@ -79,6 +145,7 @@ export default function CompetitorResearchPage() {
         body: JSON.stringify({
           hypothesis: hypothesis.trim(),
           knownCompetitors: knownCompetitors.length > 0 ? knownCompetitors : undefined,
+          jobId: existingResearch?.jobId || undefined,
         }),
       })
 
@@ -115,14 +182,22 @@ export default function CompetitorResearchPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="max-w-4xl mx-auto">
         <div className="mb-8">
+          {existingResearch && (
+            <Link href={`/research/${existingResearch.jobId}`}>
+              <Button variant="ghost" size="sm" className="mb-4">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Research
+              </Button>
+            </Link>
+          )}
           <h1 className="text-3xl font-bold mb-2">Competitor Intelligence</h1>
           <p className="text-muted-foreground">
             Analyze your competitive landscape to identify market gaps and positioning opportunities.
-            Enter your business hypothesis to discover competitors and strategic insights.
+            {existingResearch
+              ? ' We\'ve pre-filled your hypothesis from your previous research.'
+              : ' Enter your business hypothesis to discover competitors and strategic insights.'}
           </p>
         </div>
 
@@ -221,6 +296,148 @@ export default function CompetitorResearchPage() {
               </p>
             </div>
 
+            {/* Smart Competitor Suggestions */}
+            {existingResearch && existingResearch.smartSuggestions.length > 0 && (
+              <div className="space-y-4 p-4 bg-muted/30 border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-foreground/70" />
+                  <Label className="font-medium">
+                    AI-Suggested Competitors
+                  </Label>
+                  <Badge variant="secondary" className="text-xs">
+                    from Community Voice
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  These competitors were identified from Reddit discussions. Click to add:
+                </p>
+
+                {/* Direct Competitors */}
+                {existingResearch.smartSuggestions.filter(s => s.type === 'direct_competitor' && s.isActualProduct).length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Target className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Direct Competitors
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {existingResearch.smartSuggestions
+                        .filter(s => s.type === 'direct_competitor' && s.isActualProduct && !knownCompetitors.includes(s.name))
+                        .map((suggestion) => (
+                          <div
+                            key={suggestion.name}
+                            className="flex items-center justify-between p-2 bg-background rounded-md border hover:border-foreground/20 transition-colors"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{suggestion.name}</span>
+                                <Badge
+                                  variant={suggestion.confidence === 'high' ? 'default' : 'outline'}
+                                  className="text-xs"
+                                >
+                                  {suggestion.confidence}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {suggestion.context}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setKnownCompetitors([...knownCompetitors, suggestion.name])}
+                              disabled={status === 'loading'}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Adjacent Solutions */}
+                {existingResearch.smartSuggestions.filter(s => s.type === 'adjacent_solution' && s.isActualProduct).length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Adjacent Solutions
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {existingResearch.smartSuggestions
+                        .filter(s => s.type === 'adjacent_solution' && s.isActualProduct && !knownCompetitors.includes(s.name))
+                        .map((suggestion) => (
+                          <Button
+                            key={suggestion.name}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setKnownCompetitors([...knownCompetitors, suggestion.name])}
+                            disabled={status === 'loading'}
+                            className="text-xs"
+                            title={suggestion.context}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            {suggestion.name}
+                          </Button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* All smart suggestions added */}
+                {existingResearch.smartSuggestions
+                  .filter(s => s.isActualProduct)
+                  .every((s) => knownCompetitors.includes(s.name)) && (
+                  <p className="text-sm text-muted-foreground italic">
+                    All suggested competitors have been added.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Fallback: Raw Suggested Competitors from Community Voice (when no smart suggestions) */}
+            {existingResearch &&
+             existingResearch.suggestedCompetitors.length > 0 &&
+             existingResearch.smartSuggestions.length === 0 && (
+              <div className="space-y-2 p-4 bg-muted/30 border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 text-foreground/70" />
+                  <Label className="font-medium">
+                    Suggested from Community Voice
+                  </Label>
+                </div>
+                <p className="text-sm text-muted-foreground mb-2">
+                  These alternatives were mentioned in Reddit discussions. Click to add:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {existingResearch.suggestedCompetitors
+                    .filter((comp) => !knownCompetitors.includes(comp))
+                    .map((competitor) => (
+                      <Button
+                        key={competitor}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setKnownCompetitors([...knownCompetitors, competitor])}
+                        disabled={status === 'loading'}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        {competitor}
+                      </Button>
+                    ))}
+                </div>
+                {existingResearch.suggestedCompetitors.every((comp) =>
+                  knownCompetitors.includes(comp)
+                ) && (
+                  <p className="text-sm text-muted-foreground italic">
+                    All suggested competitors have been added.
+                  </p>
+                )}
+              </div>
+            )}
+
             <Button
               onClick={runResearch}
               disabled={status === 'loading' || !hypothesis.trim()}
@@ -308,7 +525,38 @@ export default function CompetitorResearchPage() {
         {status === 'success' && results && (
           <CompetitorResults results={results} />
         )}
-      </main>
     </div>
+  )
+}
+
+// Loading fallback component
+function CompetitorResearchLoading() {
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-8">
+        <Skeleton className="h-10 w-64 mb-2" />
+        <Skeleton className="h-5 w-96" />
+      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-72" />
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// Main page component wrapped in Suspense
+export default function CompetitorResearchPage() {
+  return (
+    <Suspense fallback={<CompetitorResearchLoading />}>
+      <CompetitorResearchContent />
+    </Suspense>
   )
 }

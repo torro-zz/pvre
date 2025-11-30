@@ -26,6 +26,11 @@ import {
   Users,
   Zap,
   AlertTriangle,
+  Shield,
+  Info,
+  Sparkles,
+  TrendingDown,
+  CircleDot,
 } from 'lucide-react'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 
@@ -81,6 +86,47 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
     }
   }
 
+  const getScoreColor = (score: number) => {
+    if (score >= 7.5) return 'text-green-600'
+    if (score >= 5) return 'text-yellow-600'
+    if (score >= 2.5) return 'text-orange-600'
+    return 'text-red-600'
+  }
+
+  const getScoreBgColor = (score: number) => {
+    if (score >= 7.5) return 'bg-green-500'
+    if (score >= 5) return 'bg-yellow-500'
+    if (score >= 2.5) return 'bg-orange-500'
+    return 'bg-red-500'
+  }
+
+  const getImpactColor = (impact: number) => {
+    if (impact > 0) return 'text-green-600'
+    if (impact < 0) return 'text-red-600'
+    return 'text-gray-500'
+  }
+
+  const getImpactIcon = (impact: number) => {
+    if (impact > 0) return <TrendingUp className="h-3 w-3" />
+    if (impact < 0) return <TrendingDown className="h-3 w-3" />
+    return <CircleDot className="h-3 w-3" />
+  }
+
+  // Type-safe access to competition score
+  const competitionScore = (results as { competitionScore?: {
+    score: number
+    confidence: 'low' | 'medium' | 'high'
+    reasoning: string
+    factors: {
+      competitorCount: { value: number; impact: number }
+      fundingLevels: { description: string; impact: number }
+      userSatisfaction: { average: number; impact: number }
+      marketGaps: { count: number; impact: number }
+      priceHeadroom: { exists: boolean; impact: number }
+    }
+    threats: string[]
+  }}).competitionScore
+
   return (
     <div className="space-y-6">
       {/* Summary Stats */}
@@ -133,6 +179,177 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Competition Score Analysis - NEW for Viability Verdict */}
+      {competitionScore && (
+        <Card className="border-2 border-primary/20">
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Competition Score Analysis
+                </CardTitle>
+                <CardDescription>
+                  Competitive landscape assessment for market entry viability
+                </CardDescription>
+              </div>
+              <div className="text-right">
+                <div className={`text-3xl font-bold ${getScoreColor(competitionScore.score)}`}>
+                  {competitionScore.score}/10
+                </div>
+                <Badge
+                  variant="outline"
+                  className={
+                    competitionScore.confidence === 'high'
+                      ? 'bg-green-50 text-green-700 border-green-200'
+                      : competitionScore.confidence === 'medium'
+                      ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                      : 'bg-gray-50 text-gray-700 border-gray-200'
+                  }
+                >
+                  {competitionScore.confidence} confidence
+                </Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Score Progress Bar */}
+            <div className="space-y-1">
+              <Progress
+                value={competitionScore.score * 10}
+                className="h-3"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Difficult Entry</span>
+                <span>Easy Entry</span>
+              </div>
+            </div>
+
+            {/* Reasoning */}
+            <div className="bg-muted/50 rounded-lg p-3">
+              <p className="text-sm text-muted-foreground">{competitionScore.reasoning}</p>
+            </div>
+
+            {/* Factor Breakdown */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Score Factors
+              </h4>
+              <div className="grid gap-2">
+                {/* Competitor Count */}
+                <div className="flex items-center justify-between py-2 border-b">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Competitor Count</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{competitionScore.factors.competitorCount.value} competitors</span>
+                    <span className={`flex items-center gap-1 text-xs ${getImpactColor(competitionScore.factors.competitorCount.impact)}`}>
+                      {getImpactIcon(competitionScore.factors.competitorCount.impact)}
+                      {competitionScore.factors.competitorCount.impact > 0 ? '+' : ''}{competitionScore.factors.competitorCount.impact}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Funding Levels */}
+                <div className="flex items-center justify-between py-2 border-b">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Funding Levels</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{competitionScore.factors.fundingLevels.description || 'Unknown'}</span>
+                    <span className={`flex items-center gap-1 text-xs ${getImpactColor(competitionScore.factors.fundingLevels.impact)}`}>
+                      {getImpactIcon(competitionScore.factors.fundingLevels.impact)}
+                      {competitionScore.factors.fundingLevels.impact > 0 ? '+' : ''}{competitionScore.factors.fundingLevels.impact}
+                    </span>
+                  </div>
+                </div>
+
+                {/* User Satisfaction */}
+                <div className="flex items-center justify-between py-2 border-b">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">User Satisfaction</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      {competitionScore.factors.userSatisfaction.average > 0
+                        ? `${competitionScore.factors.userSatisfaction.average}/5 avg`
+                        : 'Unknown'}
+                    </span>
+                    <span className={`flex items-center gap-1 text-xs ${getImpactColor(competitionScore.factors.userSatisfaction.impact)}`}>
+                      {getImpactIcon(competitionScore.factors.userSatisfaction.impact)}
+                      {competitionScore.factors.userSatisfaction.impact > 0 ? '+' : ''}{competitionScore.factors.userSatisfaction.impact}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Market Gaps */}
+                <div className="flex items-center justify-between py-2 border-b">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Market Gaps</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{competitionScore.factors.marketGaps.count} identified</span>
+                    <span className={`flex items-center gap-1 text-xs ${getImpactColor(competitionScore.factors.marketGaps.impact)}`}>
+                      {getImpactIcon(competitionScore.factors.marketGaps.impact)}
+                      {competitionScore.factors.marketGaps.impact > 0 ? '+' : ''}{competitionScore.factors.marketGaps.impact}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Price Headroom */}
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Price Headroom</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      {competitionScore.factors.priceHeadroom.exists ? 'Yes' : 'Limited'}
+                    </span>
+                    <span className={`flex items-center gap-1 text-xs ${getImpactColor(competitionScore.factors.priceHeadroom.impact)}`}>
+                      {getImpactIcon(competitionScore.factors.priceHeadroom.impact)}
+                      {competitionScore.factors.priceHeadroom.impact > 0 ? '+' : ''}{competitionScore.factors.priceHeadroom.impact}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Threats */}
+            {competitionScore.threats.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium flex items-center gap-2 text-orange-600">
+                  <AlertTriangle className="h-4 w-4" />
+                  Threats to Watch
+                </h4>
+                <ul className="space-y-1">
+                  {competitionScore.threats.map((threat, i) => (
+                    <li key={i} className="text-sm flex items-start gap-2">
+                      <span className="text-orange-500 mt-0.5">!</span>
+                      <span className="text-muted-foreground">{threat}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Info */}
+            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-blue-50 rounded p-2">
+              <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+              <span>
+                Higher scores indicate easier market entry. This score factors into your overall Viability Verdict
+                (25% weight). Positive impacts improve your score, negative impacts indicate challenges.
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Market Overview */}
       <Card>

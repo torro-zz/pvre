@@ -12,10 +12,21 @@ export interface Theme {
   examples: string[]
 }
 
+export interface CompetitorInsight {
+  name: string
+  type: 'direct_competitor' | 'adjacent_solution' | 'workaround'
+  mentionCount: number
+  sentiment: 'positive' | 'negative' | 'mixed' | 'neutral'
+  context: string // Why users mention it
+  isActualProduct: boolean // AI-determined if this is a real product/company
+  confidence: 'high' | 'medium' | 'low'
+}
+
 export interface ThemeAnalysis {
   themes: Theme[]
   customerLanguage: string[]
   alternativesMentioned: string[]
+  competitorInsights?: CompetitorInsight[] // Enhanced competitor data
   willingnessToPaySignals: string[]
   overallPainScore: number
   keyQuotes: {
@@ -59,9 +70,15 @@ Your task is to analyze Reddit posts/comments and extract actionable insights fo
 Focus on:
 - Identifying recurring pain themes
 - Extracting the exact language customers use
-- Finding mentions of existing solutions/alternatives
+- Finding mentions of existing solutions, alternatives, competitors, tools, products, or services (be thorough - these are critical for competitive analysis)
 - Identifying signals that people would pay for a solution
 - Selecting powerful quotes that illustrate key pain points
+
+When identifying alternatives/competitors:
+- Look for product names, tool names, app names, service names
+- Include both direct competitors and adjacent solutions
+- Include both positive and negative mentions (e.g., "I tried X but it didn't work", "I use Y for this")
+- Include generic category terms if no specific names are found (e.g., "spreadsheets", "manual tracking")
 
 Be specific and actionable. Avoid generic observations.`
 
@@ -83,7 +100,7 @@ Provide a structured analysis in JSON format:
     }
   ],
   "customerLanguage": ["exact phrases customers use to describe their problems"],
-  "alternativesMentioned": ["existing solutions or competitors mentioned"],
+  "alternativesMentioned": ["Product Name", "Tool Name", "Service Name" - list ALL products, tools, apps, services, or solutions mentioned in the discussions, even if mentioned negatively],
   "willingnessToPaySignals": ["quotes or signals showing people would pay for a solution"],
   "overallPainScore": <0-10 assessment of overall pain intensity>,
   "keyQuotes": [

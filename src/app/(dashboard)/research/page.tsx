@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Header } from '@/components/layout/header'
 import { HypothesisForm } from '@/components/research/hypothesis-form'
 import { CommunityVoiceResults } from '@/components/research/community-voice-results'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -23,6 +22,8 @@ export default function ResearchPage() {
   const [results, setResults] = useState<CommunityVoiceResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([])
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
+  const [currentHypothesis, setCurrentHypothesis] = useState<string | null>(null)
 
   const runResearch = async (hypothesis: string) => {
     setStatus('loading')
@@ -56,6 +57,8 @@ export default function ResearchPage() {
 
       const job = await jobResponse.json()
       const jobId = job.id
+      setCurrentJobId(jobId)
+      setCurrentHypothesis(hypothesis)
 
       // Mark first step complete, start second
       setProgressSteps((prev) => {
@@ -141,9 +144,7 @@ export default function ResearchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Community Voice Research</h1>
           <p className="text-muted-foreground">
@@ -223,9 +224,12 @@ export default function ResearchPage() {
 
         {/* Results */}
         {status === 'success' && results && (
-          <CommunityVoiceResults results={results} />
+          <CommunityVoiceResults
+            results={results}
+            jobId={currentJobId || undefined}
+            hypothesis={currentHypothesis || undefined}
+          />
         )}
-      </main>
     </div>
   )
 }

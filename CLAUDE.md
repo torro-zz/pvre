@@ -188,3 +188,4 @@ Required in `.env.local`:
 - `/review` - Review codebase against design spec, update this file
 - `/test-flow` - Run autonomous test of the research flow
 - `/improve` - Identify and implement the next priority improvement
+- `/update-overview` - Update `docs/TECHNICAL_OVERVIEW.md` with current codebase state (run weekly)

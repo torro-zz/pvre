@@ -76,6 +76,7 @@ export default async function DashboardPage() {
     .limit(10)
 
   const researchJobs = (jobs || []) as ResearchJob[]
+  const mostRecentCompletedJob = researchJobs.find(job => job.status === 'completed')
 
   return (
     <div className="space-y-8">
@@ -126,9 +127,19 @@ export default async function DashboardPage() {
             <p className="text-sm text-gray-500 mb-4">
               Get insights on existing solutions and identify market gaps.
             </p>
-            <Link href="/research/competitors">
-              <Button variant="outline" className="w-full">Run Competitor Analysis</Button>
-            </Link>
+            {mostRecentCompletedJob ? (
+              <Link href={`/research/competitors?jobId=${mostRecentCompletedJob.id}&hypothesis=${encodeURIComponent(mostRecentCompletedJob.hypothesis)}`}>
+                <Button variant="outline" className="w-full">
+                  Continue with Competitor Analysis
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/research">
+                <Button variant="outline" className="w-full">
+                  Start with Community Voice First
+                </Button>
+              </Link>
+            )}
           </CardContent>
         </Card>
       </div>
