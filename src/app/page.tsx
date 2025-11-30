@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, Zap, Target, MessageSquare, TrendingUp, Clock, FileSearch, Brain, X, Check, ChevronRight, Sparkles } from 'lucide-react'
+import { ArrowRight, Zap, Target, MessageSquare, TrendingUp, Clock, FileSearch, Brain, X, Check, ChevronRight } from 'lucide-react'
 
 // Scroll-triggered fade in
 function useFadeIn() {
@@ -24,29 +24,6 @@ function useFadeIn() {
   }, [])
 
   return { ref, isVisible }
-}
-
-// Floating badge component for hero - shows sample outputs
-function FloatingBadge({
-  children,
-  className = '',
-  delay = 0
-}: {
-  children: React.ReactNode
-  className?: string
-  delay?: number
-}) {
-  return (
-    <div
-      className={`absolute bg-white/95 backdrop-blur-md border border-border/60 rounded-xl px-4 py-3 shadow-xl shadow-black/5 animate-float ${className}`}
-      style={{
-        animationDelay: `${delay}ms`,
-        animationDuration: '4s'
-      }}
-    >
-      {children}
-    </div>
-  )
 }
 
 export default function Home() {
@@ -149,72 +126,6 @@ export default function Home() {
                 Free to start · No credit card required
               </span>
             </div>
-          </div>
-
-          {/* Floating proof elements - Sample outputs preview */}
-          <div className="hidden lg:block pointer-events-none">
-            {/* Pain Signal */}
-            <FloatingBadge className="top-24 left-[5%] xl:left-[10%]" delay={600}>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Sample output</div>
-                  <div className="text-sm font-semibold text-foreground">Pain signal detected</div>
-                </div>
-              </div>
-            </FloatingBadge>
-
-            {/* WTP Signal */}
-            <FloatingBadge className="top-36 right-[3%] xl:right-[8%]" delay={900}>
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">💰</span>
-                <div>
-                  <div className="text-xs text-muted-foreground">Willingness to pay</div>
-                  <div className="text-sm font-semibold text-foreground">High confidence</div>
-                </div>
-              </div>
-            </FloatingBadge>
-
-            {/* Pain Score */}
-            <FloatingBadge className="bottom-32 left-[8%] xl:left-[12%]" delay={1200}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Pain Score</div>
-                  <div className="text-lg font-bold font-mono text-foreground">7.2<span className="text-muted-foreground text-sm">/10</span></div>
-                </div>
-              </div>
-            </FloatingBadge>
-
-            {/* Competitors */}
-            <FloatingBadge className="bottom-44 right-[6%] xl:right-[10%]" delay={1500}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-chart-4/10 flex items-center justify-center">
-                  <Target className="w-5 h-5 text-chart-4" />
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Competitors found</div>
-                  <div className="text-sm font-semibold text-foreground">4 direct · 2 gaps</div>
-                </div>
-              </div>
-            </FloatingBadge>
-
-            {/* Verdict Preview */}
-            <FloatingBadge className="top-1/2 -translate-y-1/2 right-[2%] xl:right-[5%]" delay={1800}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-chart-2/10 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-chart-2" />
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Verdict</div>
-                  <div className="text-sm font-semibold text-chart-2">Proceed ✓</div>
-                </div>
-              </div>
-            </FloatingBadge>
           </div>
         </div>
 
