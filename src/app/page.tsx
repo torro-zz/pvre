@@ -231,15 +231,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* What You Get - Features */}
+      {/* What You Get - Features (Bento Grid) */}
       <section
         ref={featuresRef.ref}
-        className={`py-24 bg-muted/40 border-y border-border/50 transition-all duration-700 ${
+        className={`py-24 bg-gradient-to-b from-muted/30 via-muted/50 to-muted/30 transition-all duration-700 ${
           featuresRef.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
         }`}
       >
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center mb-16">
+            <span className="inline-block text-sm font-semibold text-primary uppercase tracking-widest mb-4">Your Research Suite</span>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-5">
               What you get
             </h2>
@@ -248,28 +249,141 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <FeatureCard
-              icon={<MessageSquare className="w-5 h-5" />}
-              title="Community Voice Mining"
-              description="Real pain points from Reddit discussions. See intensity scores, willingness-to-pay signals, and the exact words customers use."
-              accentColor="var(--community-voice)"
-              sample="Pain Score: 7.2/10 · 3 WTP signals"
-            />
-            <FeatureCard
-              icon={<Target className="w-5 h-5" />}
-              title="Competitor Intelligence"
-              description="Map existing solutions. Discover market gaps, positioning opportunities, and threats — all analyzed by AI."
-              accentColor="var(--competitors)"
-              sample="4 direct competitors · 2 gaps"
-            />
-            <FeatureCard
-              icon={<TrendingUp className="w-5 h-5" />}
-              title="Go/No-Go Verdict"
-              description="Clear recommendation based on pain intensity and competition. Know whether to proceed, pivot, or pass."
-              accentColor="var(--verdict)"
-              sample="Verdict: Proceed · Score: 6.8/10"
-            />
+          {/* Bento Grid Layout */}
+          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Featured Card - Community Voice Mining */}
+            <div className="md:row-span-2 group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-2xl transition-all duration-500">
+              {/* Gradient overlay */}
+              <div
+                className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity"
+                style={{
+                  background: 'linear-gradient(135deg, var(--community-voice) 0%, transparent 60%)'
+                }}
+              />
+
+              <div className="relative p-8 h-full flex flex-col">
+                {/* Icon with glow */}
+                <div className="relative mb-6">
+                  <div
+                    className="absolute inset-0 blur-2xl opacity-30"
+                    style={{ backgroundColor: 'var(--community-voice)' }}
+                  />
+                  <div
+                    className="relative w-14 h-14 rounded-2xl flex items-center justify-center"
+                    style={{ backgroundColor: 'color-mix(in oklch, var(--community-voice) 15%, transparent)' }}
+                  >
+                    <MessageSquare className="w-6 h-6" style={{ color: 'var(--community-voice)' }} />
+                  </div>
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold mb-3 text-foreground">Community Voice Mining</h3>
+                  <p className="text-muted-foreground leading-relaxed mb-6">
+                    Real pain points from Reddit discussions. See intensity scores, willingness-to-pay signals, and the exact words your customers use.
+                  </p>
+                </div>
+
+                {/* Sample Output - Visual */}
+                <div className="mt-auto pt-6 border-t border-border/50">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Sample Output</div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-foreground font-medium">Pain Score</span>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-0.5">
+                          {[...Array(7)].map((_, i) => (
+                            <div key={i} className="w-2 h-4 rounded-sm" style={{ backgroundColor: 'var(--community-voice)' }} />
+                          ))}
+                          {[...Array(3)].map((_, i) => (
+                            <div key={i} className="w-2 h-4 rounded-sm bg-border/50" />
+                          ))}
+                        </div>
+                        <span className="text-sm font-mono font-bold" style={{ color: 'var(--community-voice)' }}>7.2</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-foreground font-medium">WTP Signals</span>
+                      <span className="text-sm font-mono font-semibold text-chart-2">3 found</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Competitor Intelligence Card */}
+            <div className="group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-xl transition-all duration-500">
+              <div
+                className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity"
+                style={{
+                  background: 'linear-gradient(135deg, var(--competitors) 0%, transparent 60%)'
+                }}
+              />
+
+              <div className="relative p-7 h-full flex flex-col">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
+                  style={{ backgroundColor: 'color-mix(in oklch, var(--competitors) 15%, transparent)' }}
+                >
+                  <Target className="w-5 h-5" style={{ color: 'var(--competitors)' }} />
+                </div>
+
+                <h3 className="text-xl font-bold mb-2 text-foreground">Competitor Intelligence</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+                  Map existing solutions. Discover market gaps and positioning opportunities.
+                </p>
+
+                {/* Compact sample */}
+                <div className="mt-5 flex items-center gap-3 text-xs">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--competitors)' }} />
+                    <span className="font-medium">4 direct</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-chart-2" />
+                    <span className="font-medium">2 gaps</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Go/No-Go Verdict Card */}
+            <div className="group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-xl transition-all duration-500">
+              <div
+                className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity"
+                style={{
+                  background: 'linear-gradient(135deg, var(--verdict) 0%, transparent 60%)'
+                }}
+              />
+
+              <div className="relative p-7 h-full flex flex-col">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
+                  style={{ backgroundColor: 'color-mix(in oklch, var(--verdict) 15%, transparent)' }}
+                >
+                  <TrendingUp className="w-5 h-5" style={{ color: 'var(--verdict)' }} />
+                </div>
+
+                <h3 className="text-xl font-bold mb-2 text-foreground">Go/No-Go Verdict</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+                  Clear recommendation based on pain intensity and competition.
+                </p>
+
+                {/* Verdict badge */}
+                <div className="mt-5 flex items-center gap-3">
+                  <div
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold"
+                    style={{
+                      backgroundColor: 'color-mix(in oklch, var(--verdict) 12%, transparent)',
+                      color: 'var(--verdict)'
+                    }}
+                  >
+                    <Check className="w-4 h-4" />
+                    Proceed
+                  </div>
+                  <span className="text-sm text-muted-foreground font-mono">6.8/10</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -401,53 +515,6 @@ function StepCard({
       </div>
       <h3 className="text-xl font-semibold mb-3 text-foreground">{title}</h3>
       <p className="text-muted-foreground leading-relaxed">{description}</p>
-    </div>
-  )
-}
-
-// Feature card component
-function FeatureCard({
-  icon,
-  title,
-  description,
-  accentColor,
-  sample
-}: {
-  icon: React.ReactNode
-  title: string
-  description: string
-  accentColor: string
-  sample: string
-}) {
-  return (
-    <div
-      className="group relative bg-card border border-border/60 rounded-2xl p-7 transition-all duration-300 hover:border-border hover:shadow-xl hover:-translate-y-1"
-      style={{
-        borderLeftColor: accentColor,
-        borderLeftWidth: '4px'
-      }}
-    >
-      <div
-        className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-5"
-        style={{ backgroundColor: `color-mix(in oklch, ${accentColor} 12%, transparent)` }}
-      >
-        <div style={{ color: accentColor }}>{icon}</div>
-      </div>
-
-      <h3 className="text-xl font-semibold mb-3 text-foreground">{title}</h3>
-      <p className="text-muted-foreground leading-relaxed mb-5">{description}</p>
-
-      {/* Sample output */}
-      <div
-        className="text-xs font-mono px-4 py-2.5 rounded-lg border"
-        style={{
-          backgroundColor: `color-mix(in oklch, ${accentColor} 5%, transparent)`,
-          borderColor: `color-mix(in oklch, ${accentColor} 20%, transparent)`,
-          color: accentColor
-        }}
-      >
-        {sample}
-      </div>
     </div>
   )
 }
