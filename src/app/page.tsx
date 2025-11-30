@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, Zap, Target, MessageSquare, TrendingUp, Clock, FileSearch, Brain, X, Check, ChevronRight } from 'lucide-react'
+import { ArrowRight, Zap, Target, MessageSquare, TrendingUp, Clock, FileSearch, Brain, X, Check, ChevronRight, Sparkles } from 'lucide-react'
 
 // Scroll-triggered fade in
 function useFadeIn() {
@@ -26,6 +26,29 @@ function useFadeIn() {
   return { ref, isVisible }
 }
 
+// Floating badge component for hero - shows sample outputs
+function FloatingBadge({
+  children,
+  className = '',
+  delay = 0
+}: {
+  children: React.ReactNode
+  className?: string
+  delay?: number
+}) {
+  return (
+    <div
+      className={`absolute bg-white/95 backdrop-blur-md border border-border/60 rounded-xl px-4 py-3 shadow-xl shadow-black/5 animate-float ${className}`}
+      style={{
+        animationDelay: `${delay}ms`,
+        animationDuration: '4s'
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 export default function Home() {
   const oldWayRef = useFadeIn()
   const newWayRef = useFadeIn()
@@ -35,10 +58,10 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background overflow-hidden">
       {/* Public Navigation */}
-      <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-border/50 bg-background/80 backdrop-blur-md sticky top-0 z-50">
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
-            <Link href="/" className="font-bold text-xl text-foreground">
+            <Link href="/" className="font-bold text-xl text-foreground tracking-tight">
               PVRE
             </Link>
             <nav className="flex items-center gap-6">
@@ -49,34 +72,51 @@ export default function Home() {
                 Sign In
               </Link>
               <Link href="/login">
-                <Button size="sm">Get Started</Button>
+                <Button size="sm" className="font-medium">Get Started</Button>
               </Link>
             </nav>
           </div>
         </div>
       </header>
 
-      {/* Hero Section - Pain-Focused */}
-      <section className="relative">
-        {/* Subtle grid background */}
+      {/* Hero Section - Pain-Focused with Floating Proof */}
+      <section className="relative min-h-[85vh] flex items-center">
+        {/* Animated gradient background */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div
+            className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-gradient-to-br from-primary/8 via-primary/4 to-transparent rounded-full blur-3xl animate-pulse-slow"
+          />
+          <div
+            className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-tl from-chart-2/8 via-chart-2/4 to-transparent rounded-full blur-3xl animate-pulse-slow"
+            style={{ animationDelay: '2s' }}
+          />
+        </div>
+
+        {/* Subtle grid pattern */}
         <div
-          className="absolute inset-0 opacity-[0.03]"
+          className="absolute inset-0 opacity-[0.025]"
           style={{
             backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
-            backgroundSize: '32px 32px'
+            backgroundSize: '40px 40px'
           }}
         />
 
-        <div className="container mx-auto px-4 pt-20 pb-16 relative">
+        <div className="container mx-auto px-4 py-20 relative">
           <div className="max-w-4xl mx-auto text-center">
             {/* Eyebrow with urgency */}
-            <div className="inline-flex items-center gap-2 bg-destructive/10 border border-destructive/20 rounded-full px-4 py-1.5 mb-8 animate-fade-in">
+            <div
+              className="inline-flex items-center gap-2 bg-destructive/10 border border-destructive/20 rounded-full px-4 py-1.5 mb-8 animate-fade-in"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive/60 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"></span>
+              </span>
               <span className="text-sm font-medium text-destructive">90% of startups fail from building the wrong thing</span>
             </div>
 
             {/* Pain-focused headline */}
             <h1
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-fade-in"
+              className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight mb-6 animate-fade-in"
               style={{ animationDelay: '100ms' }}
             >
               <span className="block text-foreground">Know if your idea has legs</span>
@@ -87,7 +127,7 @@ export default function Home() {
 
             {/* Subheadline - value prop */}
             <p
-              className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed animate-fade-in"
+              className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed animate-fade-in"
               style={{ animationDelay: '200ms' }}
             >
               Enter your business hypothesis. Get real pain signals from Reddit,
@@ -100,9 +140,9 @@ export default function Home() {
               style={{ animationDelay: '300ms' }}
             >
               <Link href="/login">
-                <Button size="lg" className="group px-8 h-12 text-base font-medium">
+                <Button size="lg" className="group px-8 h-14 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all">
                   Run Free Research
-                  <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
+                  <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" />
                 </Button>
               </Link>
               <span className="text-sm text-muted-foreground">
@@ -110,26 +150,99 @@ export default function Home() {
               </span>
             </div>
           </div>
+
+          {/* Floating proof elements - Sample outputs preview */}
+          <div className="hidden lg:block pointer-events-none">
+            {/* Pain Signal */}
+            <FloatingBadge className="top-24 left-[5%] xl:left-[10%]" delay={600}>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Sample output</div>
+                  <div className="text-sm font-semibold text-foreground">Pain signal detected</div>
+                </div>
+              </div>
+            </FloatingBadge>
+
+            {/* WTP Signal */}
+            <FloatingBadge className="top-36 right-[3%] xl:right-[8%]" delay={900}>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">💰</span>
+                <div>
+                  <div className="text-xs text-muted-foreground">Willingness to pay</div>
+                  <div className="text-sm font-semibold text-foreground">High confidence</div>
+                </div>
+              </div>
+            </FloatingBadge>
+
+            {/* Pain Score */}
+            <FloatingBadge className="bottom-32 left-[8%] xl:left-[12%]" delay={1200}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Pain Score</div>
+                  <div className="text-lg font-bold font-mono text-foreground">7.2<span className="text-muted-foreground text-sm">/10</span></div>
+                </div>
+              </div>
+            </FloatingBadge>
+
+            {/* Competitors */}
+            <FloatingBadge className="bottom-44 right-[6%] xl:right-[10%]" delay={1500}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-chart-4/10 flex items-center justify-center">
+                  <Target className="w-5 h-5 text-chart-4" />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Competitors found</div>
+                  <div className="text-sm font-semibold text-foreground">4 direct · 2 gaps</div>
+                </div>
+              </div>
+            </FloatingBadge>
+
+            {/* Verdict Preview */}
+            <FloatingBadge className="top-1/2 -translate-y-1/2 right-[2%] xl:right-[5%]" delay={1800}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-chart-2/10 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-chart-2" />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Verdict</div>
+                  <div className="text-sm font-semibold text-chart-2">Proceed ✓</div>
+                </div>
+              </div>
+            </FloatingBadge>
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+          <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center pt-2">
+            <div className="w-1 h-2 rounded-full bg-muted-foreground/50" />
+          </div>
         </div>
       </section>
 
       {/* The Old Way - Problem Section */}
       <section
         ref={oldWayRef.ref}
-        className={`py-20 bg-muted/30 border-y border-border/50 transition-all duration-700 ${
-          oldWayRef.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        className={`py-24 bg-muted/40 border-y border-border/50 transition-all duration-700 ${
+          oldWayRef.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
         }`}
       >
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-12">
-              <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">The Old Way</span>
-              <h2 className="text-3xl sm:text-4xl font-bold mt-3 text-foreground">
+            <div className="text-center mb-14">
+              <span className="inline-block text-sm font-semibold text-muted-foreground uppercase tracking-widest mb-4">The Old Way</span>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground">
                 Manual validation is a time sink
               </h2>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-2 gap-5">
               <PainPoint
                 icon={<Clock className="w-5 h-5" />}
                 title="30+ hours browsing Reddit"
@@ -156,11 +269,12 @@ export default function Home() {
       </section>
 
       {/* The Switch */}
-      <section className="py-8 bg-primary text-primary-foreground">
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-lg font-medium flex items-center justify-center gap-3">
+      <section className="py-6 bg-primary text-primary-foreground relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 to-primary" />
+        <div className="container mx-auto px-4 text-center relative">
+          <p className="text-lg font-semibold flex items-center justify-center gap-3">
             <span>There&apos;s a better way</span>
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-5 h-5 animate-pulse" />
           </p>
         </div>
       </section>
@@ -169,20 +283,20 @@ export default function Home() {
       <section
         id="how-it-works"
         ref={newWayRef.ref}
-        className={`py-20 transition-all duration-700 ${
-          newWayRef.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        className={`py-24 transition-all duration-700 ${
+          newWayRef.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
         }`}
       >
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-16">
-              <span className="text-sm font-medium text-primary uppercase tracking-wider">The New Way</span>
-              <h2 className="text-3xl sm:text-4xl font-bold mt-3">
+              <span className="inline-block text-sm font-semibold text-primary uppercase tracking-widest mb-4">The New Way</span>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold">
                 From hypothesis to insights in 3 steps
               </h2>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8">
+            <div className="grid md:grid-cols-3 gap-10">
               <StepCard
                 number="01"
                 title="Describe your idea"
@@ -209,13 +323,13 @@ export default function Home() {
       {/* What You Get - Features */}
       <section
         ref={featuresRef.ref}
-        className={`py-20 bg-muted/30 border-y border-border/50 transition-all duration-700 ${
-          featuresRef.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        className={`py-24 bg-muted/40 border-y border-border/50 transition-all duration-700 ${
+          featuresRef.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
         }`}
       >
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-5">
               What you get
             </h2>
             <p className="text-lg text-muted-foreground">
@@ -229,21 +343,21 @@ export default function Home() {
               title="Community Voice Mining"
               description="Real pain points from Reddit discussions. See intensity scores, willingness-to-pay signals, and the exact words customers use."
               accentColor="var(--community-voice)"
-              sample="Sample output: 'Pain Score: 7.2/10 · 3 WTP signals found'"
+              sample="Pain Score: 7.2/10 · 3 WTP signals"
             />
             <FeatureCard
               icon={<Target className="w-5 h-5" />}
               title="Competitor Intelligence"
               description="Map existing solutions. Discover market gaps, positioning opportunities, and threats — all analyzed by AI."
               accentColor="var(--competitors)"
-              sample="Sample output: '4 direct competitors · 2 underserved gaps'"
+              sample="4 direct competitors · 2 gaps"
             />
             <FeatureCard
               icon={<TrendingUp className="w-5 h-5" />}
               title="Go/No-Go Verdict"
               description="Clear recommendation based on pain intensity and competition. Know whether to proceed, pivot, or pass."
               accentColor="var(--verdict)"
-              sample="Sample output: 'Verdict: Proceed with caution · Score: 6.8/10'"
+              sample="Verdict: Proceed · Score: 6.8/10"
             />
           </div>
         </div>
@@ -252,14 +366,14 @@ export default function Home() {
       {/* Social Proof - Testimonials */}
       <section
         ref={testimonialsRef.ref}
-        className={`py-20 transition-all duration-700 ${
-          testimonialsRef.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        className={`py-24 transition-all duration-700 ${
+          testimonialsRef.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
         }`}
       >
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl sm:text-4xl font-bold">
+            <div className="text-center mb-14">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold">
                 What founders are saying
               </h2>
             </div>
@@ -281,33 +395,36 @@ export default function Home() {
       </section>
 
       {/* Final CTA */}
-      <section className="py-24 relative overflow-hidden">
-        {/* Background gradient */}
+      <section className="py-28 relative overflow-hidden">
+        {/* Background effects */}
         <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br from-primary/10 via-transparent to-chart-2/10 rounded-full blur-3xl opacity-50"
+        />
 
         <div className="container mx-auto px-4 relative">
           <div className="max-w-2xl mx-auto text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-6">
-              <Zap className="w-6 h-6 text-primary" />
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-8">
+              <Zap className="w-7 h-7 text-primary" />
             </div>
 
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-5">
               Stop guessing. Start validating.
             </h2>
 
-            <p className="text-lg text-muted-foreground mb-8">
+            <p className="text-lg text-muted-foreground mb-10">
               Your next idea deserves real evidence, not gut feelings.
               Find out if it has legs — in the next 5 minutes.
             </p>
 
             <Link href="/login">
-              <Button size="lg" className="group px-8 h-12 text-base font-medium">
+              <Button size="lg" className="group px-10 h-14 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all">
                 Run Free Research
-                <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" />
               </Button>
             </Link>
 
-            <p className="text-sm text-muted-foreground mt-4">
+            <p className="text-sm text-muted-foreground mt-5">
               No credit card required · Results in ~5 minutes
             </p>
           </div>
@@ -315,10 +432,10 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 py-8 bg-muted/20">
+      <footer className="border-t border-border/50 py-10 bg-muted/20">
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="font-semibold text-foreground">PVRE</div>
+            <div className="font-bold text-lg text-foreground">PVRE</div>
             <p className="text-sm text-muted-foreground">
               &copy; {new Date().getFullYear()} Pre-Validation Research Engine
             </p>
@@ -340,13 +457,13 @@ function PainPoint({
   description: string
 }) {
   return (
-    <div className="flex items-start gap-4 p-4 bg-background border border-border/50 rounded-lg">
-      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
+    <div className="flex items-start gap-4 p-5 bg-background border border-border/60 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-destructive/10 flex items-center justify-center text-destructive">
         {icon}
       </div>
       <div>
         <h3 className="font-semibold text-foreground">{title}</h3>
-        <p className="text-sm text-muted-foreground mt-1">{description}</p>
+        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{description}</p>
       </div>
     </div>
   )
@@ -366,13 +483,13 @@ function StepCard({
 }) {
   return (
     <div className="text-center md:text-left">
-      <div className="text-5xl font-bold text-primary/20 font-mono mb-3">{number}</div>
-      <div className="inline-flex items-center gap-2 bg-primary/10 text-primary text-xs font-medium px-2 py-1 rounded mb-3">
-        <Check className="w-3 h-3" />
+      <div className="text-6xl font-bold text-primary/15 font-mono mb-4">{number}</div>
+      <div className="inline-flex items-center gap-2 bg-primary/10 text-primary text-xs font-semibold px-3 py-1.5 rounded-full mb-4">
+        <Check className="w-3.5 h-3.5" />
         {highlight}
       </div>
-      <h3 className="text-lg font-semibold mb-2 text-foreground">{title}</h3>
-      <p className="text-muted-foreground text-sm">{description}</p>
+      <h3 className="text-xl font-semibold mb-3 text-foreground">{title}</h3>
+      <p className="text-muted-foreground leading-relaxed">{description}</p>
     </div>
   )
 }
@@ -393,24 +510,31 @@ function FeatureCard({
 }) {
   return (
     <div
-      className="group relative bg-card border border-border/50 rounded-xl p-6 transition-all duration-300 hover:border-border hover:shadow-lg"
+      className="group relative bg-card border border-border/60 rounded-2xl p-7 transition-all duration-300 hover:border-border hover:shadow-xl hover:-translate-y-1"
       style={{
         borderLeftColor: accentColor,
-        borderLeftWidth: '3px'
+        borderLeftWidth: '4px'
       }}
     >
       <div
-        className="inline-flex items-center justify-center w-10 h-10 rounded-lg mb-4"
-        style={{ backgroundColor: `color-mix(in oklch, ${accentColor} 15%, transparent)` }}
+        className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-5"
+        style={{ backgroundColor: `color-mix(in oklch, ${accentColor} 12%, transparent)` }}
       >
         <div style={{ color: accentColor }}>{icon}</div>
       </div>
 
-      <h3 className="text-lg font-semibold mb-2 text-foreground">{title}</h3>
-      <p className="text-muted-foreground text-sm leading-relaxed mb-4">{description}</p>
+      <h3 className="text-xl font-semibold mb-3 text-foreground">{title}</h3>
+      <p className="text-muted-foreground leading-relaxed mb-5">{description}</p>
 
       {/* Sample output */}
-      <div className="text-xs font-mono text-muted-foreground bg-muted/50 px-3 py-2 rounded border border-border/50">
+      <div
+        className="text-xs font-mono px-4 py-2.5 rounded-lg border"
+        style={{
+          backgroundColor: `color-mix(in oklch, ${accentColor} 5%, transparent)`,
+          borderColor: `color-mix(in oklch, ${accentColor} 20%, transparent)`,
+          color: accentColor
+        }}
+      >
         {sample}
       </div>
     </div>
@@ -428,15 +552,15 @@ function TestimonialCard({
   role: string
 }) {
   return (
-    <div className="bg-card border border-border/50 rounded-xl p-6">
-      <p className="text-foreground leading-relaxed mb-4">&ldquo;{quote}&rdquo;</p>
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+    <div className="bg-card border border-border/60 rounded-2xl p-7 shadow-sm hover:shadow-lg transition-shadow">
+      <p className="text-foreground leading-relaxed mb-6 text-lg">&ldquo;{quote}&rdquo;</p>
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-chart-2/20 flex items-center justify-center text-primary font-bold text-lg">
           {name.charAt(0)}
         </div>
         <div>
-          <div className="font-semibold text-foreground text-sm">{name}</div>
-          <div className="text-xs text-muted-foreground">{role}</div>
+          <div className="font-semibold text-foreground">{name}</div>
+          <div className="text-sm text-muted-foreground">{role}</div>
         </div>
       </div>
     </div>
