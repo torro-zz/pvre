@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { Clock, ArrowRight, FileText, CheckCircle2, Loader2, XCircle } from 'lucide-react'
+import { Clock, ArrowRight, FileText, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,6 +78,19 @@ export default async function DashboardPage() {
   const researchJobs = (jobs || []) as ResearchJob[]
   const mostRecentCompletedJob = researchJobs.find(job => job.status === 'completed')
 
+  // Check if the most recent completed job needs competitor analysis
+  let needsCompetitorAnalysis = false
+  if (mostRecentCompletedJob) {
+    const { data: competitorResult } = await supabase
+      .from('research_results')
+      .select('id')
+      .eq('job_id', mostRecentCompletedJob.id)
+      .eq('module_type', 'competitor-intelligence')
+      .single()
+
+    needsCompetitorAnalysis = !competitorResult
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -87,61 +100,61 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Card 1: Start New Research */}
         <Card>
           <CardHeader>
-            <CardTitle>New Research</CardTitle>
+            <CardTitle>Start New Research</CardTitle>
             <CardDescription>
-              Start a new pre-validation research project
+              Validate your business hypothesis with AI-powered analysis
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <TrendingUp className="h-4 w-4 text-green-600" />
+                <span>Pain Score</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Target className="h-4 w-4 text-blue-600" />
+                <span>Market Size</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Hourglass className="h-4 w-4 text-amber-600" />
+                <span>Timing</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Users className="h-4 w-4 text-purple-600" />
+                <span>Competition</span>
+              </div>
+            </div>
             <Link href="/research">
               <Button className="w-full">Start Research</Button>
             </Link>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Community Voice Mining</CardTitle>
-            <CardDescription>
-              Discover pain points from Reddit discussions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-500">
-              Our AI analyzes Reddit to find real customer pain points related to your hypothesis.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Competitor Analysis</CardTitle>
-            <CardDescription>
-              Understand your competitive landscape
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-500 mb-4">
-              Get insights on existing solutions and identify market gaps.
-            </p>
-            {mostRecentCompletedJob ? (
+        {/* Card 2: Complete Your Research (only shown if needed) */}
+        {needsCompetitorAnalysis && mostRecentCompletedJob && (
+          <Card className="border-amber-200 bg-amber-50/50">
+            <CardHeader>
+              <CardTitle className="text-amber-900">Complete Your Research</CardTitle>
+              <CardDescription className="text-amber-700">
+                Add competitor analysis to get your full Viability Verdict
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-amber-800 font-medium line-clamp-2">
+                "{truncateText(mostRecentCompletedJob.hypothesis, 80)}"
+              </p>
               <Link href={`/research/competitors?jobId=${mostRecentCompletedJob.id}&hypothesis=${encodeURIComponent(mostRecentCompletedJob.hypothesis)}`}>
-                <Button variant="outline" className="w-full">
-                  Continue with Competitor Analysis
+                <Button variant="outline" className="w-full border-amber-300 hover:bg-amber-100">
+                  Add Competitor Analysis
                 </Button>
               </Link>
-            ) : (
-              <Link href="/research">
-                <Button variant="outline" className="w-full">
-                  Start with Community Voice First
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <Card>
