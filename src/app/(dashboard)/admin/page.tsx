@@ -18,6 +18,9 @@ import {
   AlertCircle,
   RefreshCw,
   FileText,
+  BarChart3,
+  TrendingUp,
+  Activity,
 } from 'lucide-react'
 
 interface User {
@@ -37,9 +40,36 @@ interface WaitlistEntry {
   created_at: string
 }
 
+interface AnalyticsData {
+  overview: {
+    totalUsers: number
+    newUsersThisMonth: number
+    totalResearchRuns: number
+    activeUsers30d: number
+    activeUsers7d: number
+    returnRate: number
+  }
+  revenue: {
+    totalRevenue: number
+    revenueThisMonth: number
+    avgCreditsPerUser: number
+    creditsByType: { starter: number; builder: number; founder: number; other: number }
+  }
+  usage: {
+    totalCreditsUsed: number
+    totalCreditsPurchased: number
+    avgRunsPerUser: number
+    jobsByStatus: Record<string, number>
+  }
+  topUsers: { email: string; runs: number; credits: number; purchased: number }[]
+  generatedAt: string
+}
+
 export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([])
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([])
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -75,6 +105,21 @@ export default function AdminPage() {
       setWaitlist(data.waitlist || [])
     } catch (err) {
       console.error('Failed to fetch waitlist:', err)
+    }
+  }
+
+  // Fetch analytics
+  const fetchAnalytics = async () => {
+    setAnalyticsLoading(true)
+    try {
+      const res = await fetch('/api/admin/analytics')
+      if (!res.ok) throw new Error('Failed to fetch analytics')
+      const data = await res.json()
+      setAnalytics(data)
+    } catch (err) {
+      console.error('Failed to fetch analytics:', err)
+    } finally {
+      setAnalyticsLoading(false)
     }
   }
 
@@ -238,6 +283,10 @@ export default function AdminPage() {
           <TabsTrigger value="research" className="gap-2">
             <FileText className="h-4 w-4" />
             Research
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="gap-2" onClick={() => !analytics && fetchAnalytics()}>
+            <BarChart3 className="h-4 w-4" />
+            Analytics
           </TabsTrigger>
         </TabsList>
 
@@ -502,6 +551,219 @@ export default function AdminPage() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="mt-4 space-y-6">
+          {analyticsLoading ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                <p>Loading analytics...</p>
+              </CardContent>
+            </Card>
+          ) : analytics ? (
+            <>
+              {/* Overview Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                      <Users className="h-4 w-4" />
+                      Total Users
+                    </div>
+                    <div className="text-2xl font-bold">{analytics.overview.totalUsers}</div>
+                    <div className="text-xs text-green-600">
+                      +{analytics.overview.newUsersThisMonth} this month
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                      <Activity className="h-4 w-4" />
+                      Active (30d)
+                    </div>
+                    <div className="text-2xl font-bold">{analytics.overview.activeUsers30d}</div>
+                    <div className="text-xs text-gray-500">
+                      {analytics.overview.activeUsers7d} this week
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                      <TrendingUp className="h-4 w-4" />
+                      Return Rate
+                    </div>
+                    <div className="text-2xl font-bold">{analytics.overview.returnRate}%</div>
+                    <div className="text-xs text-gray-500">users with &gt;1 research</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                      <FileText className="h-4 w-4" />
+                      Research Runs
+                    </div>
+                    <div className="text-2xl font-bold">{analytics.overview.totalResearchRuns}</div>
+                    <div className="text-xs text-gray-500">
+                      {analytics.usage.avgRunsPerUser} avg/user
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                      <CreditCard className="h-4 w-4" />
+                      Credits Used
+                    </div>
+                    <div className="text-2xl font-bold">{analytics.usage.totalCreditsUsed}</div>
+                    <div className="text-xs text-gray-500">
+                      of {analytics.usage.totalCreditsPurchased} purchased
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-green-50">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-2 text-sm text-green-700 mb-1">
+                      <BarChart3 className="h-4 w-4" />
+                      Revenue
+                    </div>
+                    <div className="text-2xl font-bold text-green-700">
+                      ${analytics.revenue.totalRevenue.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-green-600">
+                      ${analytics.revenue.revenueThisMonth.toFixed(2)} this month
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Credit Packs Breakdown */}
+              <div className="grid md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Credit Pack Sales</CardTitle>
+                    <CardDescription>Breakdown by pack type</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-medium">Starter Pack (3 credits)</div>
+                          <div className="text-sm text-gray-500">$4.99</div>
+                        </div>
+                        <Badge variant="secondary">{analytics.revenue.creditsByType.starter} sold</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-medium">Builder Pack (10 credits)</div>
+                          <div className="text-sm text-gray-500">$14.99</div>
+                        </div>
+                        <Badge variant="secondary">{analytics.revenue.creditsByType.builder} sold</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-medium">Founder Pack (30 credits)</div>
+                          <div className="text-sm text-gray-500">$39.99</div>
+                        </div>
+                        <Badge variant="secondary">{analytics.revenue.creditsByType.founder} sold</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Research Status</CardTitle>
+                    <CardDescription>Jobs by completion status</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {Object.entries(analytics.usage.jobsByStatus).map(([status, count]) => (
+                        <div key={status} className="flex justify-between items-center">
+                          <Badge
+                            variant={
+                              status === 'completed'
+                                ? 'default'
+                                : status === 'failed'
+                                ? 'destructive'
+                                : 'secondary'
+                            }
+                          >
+                            {status}
+                          </Badge>
+                          <span className="font-medium">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Top Users */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Top Users by Research Activity</CardTitle>
+                    <CardDescription>Most active researchers</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={fetchAnalytics}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">User</th>
+                          <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Runs</th>
+                          <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Balance</th>
+                          <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Purchased</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {analytics.topUsers.map((user, i) => (
+                          <tr key={user.email} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-400 font-mono text-sm">#{i + 1}</span>
+                                <span className="font-medium">{user.email}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium">{user.runs}</td>
+                            <td className="px-4 py-3 text-right">
+                              <Badge variant={user.credits > 0 ? 'default' : 'secondary'}>
+                                {user.credits}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-right text-gray-600">{user.purchased}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-4 text-xs text-gray-500 text-right">
+                    Last updated: {new Date(analytics.generatedAt).toLocaleString()}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-gray-500 mb-4">Click to load analytics data</p>
+                <Button onClick={fetchAnalytics}>
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Load Analytics
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

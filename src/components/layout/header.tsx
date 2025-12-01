@@ -6,7 +6,14 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useMemo } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { CreditCard, User as UserIcon, Settings, LogOut, ChevronDown } from 'lucide-react'
+import { CreditCard, User as UserIcon, Settings, LogOut, ChevronDown, Shield } from 'lucide-react'
+
+// Check if user is admin (client-side)
+function isAdminEmail(email: string | null | undefined): boolean {
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
+  if (!adminEmail || !email) return false
+  return email.toLowerCase() === adminEmail.toLowerCase()
+}
 
 export function Header() {
   const [user, setUser] = useState<User | null>(null)
@@ -122,6 +129,16 @@ export function Header() {
                         <Settings className="w-4 h-4" />
                         Settings
                       </Link>
+                      {isAdminEmail(user?.email) && (
+                        <Link
+                          href="/dashboard/admin"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-purple-700 hover:bg-purple-50"
+                        >
+                          <Shield className="w-4 h-4" />
+                          Admin
+                        </Link>
+                      )}
                       <hr className="my-1" />
                       <button
                         onClick={() => {
