@@ -131,7 +131,7 @@ export function Header() {
                       </Link>
                       {isAdminEmail(user?.email) && (
                         <Link
-                          href="/dashboard/admin"
+                          href="/admin"
                           onClick={() => setMenuOpen(false)}
                           className="flex items-center gap-2 px-4 py-2 text-sm text-purple-700 hover:bg-purple-50"
                         >
