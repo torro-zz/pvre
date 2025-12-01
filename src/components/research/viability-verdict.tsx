@@ -21,6 +21,7 @@ import {
   Info,
   ArrowRight,
   Target,
+  PieChart,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -177,6 +178,10 @@ export function ViabilityVerdictDisplay({
                   <div className="flex items-center gap-2">
                     {dim.name === 'Pain Score' ? (
                       <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    ) : dim.name === 'Market Score' ? (
+                      <PieChart className="h-4 w-4 text-muted-foreground" />
+                    ) : dim.name === 'Timing Score' ? (
+                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
                     ) : (
                       <Shield className="h-4 w-4 text-muted-foreground" />
                     )}
@@ -241,6 +246,18 @@ export function ViabilityVerdictDisplay({
                       Run Competitor Intelligence
                     </Link>
                   </Button>
+                )}
+                {!verdict.dimensions.find((d) => d.name === 'Market Score') && (
+                  <Badge variant="outline" className="text-xs py-1 px-2">
+                    <PieChart className="h-3 w-3 mr-1" />
+                    Market Score auto-runs with Community Voice
+                  </Badge>
+                )}
+                {!verdict.dimensions.find((d) => d.name === 'Timing Score') && (
+                  <Badge variant="outline" className="text-xs py-1 px-2">
+                    <BarChart3 className="h-3 w-3 mr-1" />
+                    Timing Score auto-runs with Community Voice
+                  </Badge>
                 )}
               </div>
             </div>
@@ -326,12 +343,12 @@ export function ViabilityVerdictDisplay({
             <div className="space-y-2 text-sm text-blue-700">
               <p className="font-medium">About the Viability Verdict</p>
               <p>
-                This score combines multiple research dimensions using weighted averages.
-                Currently using the MVP formula: Pain Score (58%) + Competition Score (42%).
+                This score combines multiple research dimensions using dynamically weighted averages.
+                Full formula: Pain (35%) + Market (25%) + Competition (25%) + Timing (15%).
               </p>
               <p>
-                Future updates will add Market Sizing and Timing Analysis dimensions
-                for a complete 4-factor viability assessment.
+                Market Sizing analyzes TAM/SAM/SOM using Fermi estimation. Timing Analysis
+                identifies tailwinds, headwinds, and your market timing window.
               </p>
             </div>
           </div>

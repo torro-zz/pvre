@@ -250,6 +250,8 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
               dataConfidence: (results.painSummary as { dataConfidence?: 'very_low' | 'low' | 'medium' | 'high' }).dataConfidence || 'medium',
               strongestSignals: (results.painSummary as { strongestSignals?: string[] }).strongestSignals || [],
               wtpQuotes: (results.painSummary as { wtpQuotes?: { text: string; subreddit: string }[] }).wtpQuotes || [],
+              temporalDistribution: (results.painSummary as { temporalDistribution?: { last30Days: number; last90Days: number; last180Days: number; older: number } }).temporalDistribution || { last30Days: 0, last90Days: 0, last180Days: 0, older: 0 },
+              recencyScore: (results.painSummary as { recencyScore?: number }).recencyScore || 1.0,
             }}
             postsAnalyzed={results.metadata.postsAnalyzed}
             strongestSignal={(results.painSummary as { strongestSignals?: string[] }).strongestSignals?.[0]}

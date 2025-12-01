@@ -263,6 +263,20 @@ export interface PainSummary {
   dataConfidence: 'very_low' | 'low' | 'medium' | 'high'
   strongestSignals: string[]
   wtpQuotes: { text: string; subreddit: string }[]
+  // v3.0: Temporal distribution for recency awareness
+  temporalDistribution: {
+    last30Days: number
+    last90Days: number
+    last180Days: number
+    older: number
+  }
+  // Date range of data analyzed
+  dateRange?: {
+    oldest: string // ISO date string
+    newest: string // ISO date string
+  }
+  // Average recency score (0-1, higher = more recent)
+  recencyScore: number
 }
 
 // =============================================================================
@@ -317,6 +331,48 @@ function getEngagementMultiplier(upvotes: number): number {
   return Math.min(1.2, multiplier) // Cap at 1.2x (was 2.0x)
 }
 
+/**
+ * Calculate recency multiplier based on post age
+ * Recent posts are weighted higher because they indicate current pain
+ * v3.0: Added recency weighting for temporal relevance
+ */
+export function getRecencyMultiplier(createdUtc: number): number {
+  if (!createdUtc || createdUtc <= 0) return 1.0
+
+  const nowSeconds = Date.now() / 1000
+  const ageInDays = (nowSeconds - createdUtc) / (60 * 60 * 24)
+
+  // Posts from last 30 days: 1.5x multiplier (recent = highly relevant)
+  if (ageInDays <= 30) return 1.5
+
+  // Posts from last 90 days: 1.25x (still very relevant)
+  if (ageInDays <= 90) return 1.25
+
+  // Posts from last 180 days: 1.0x (baseline)
+  if (ageInDays <= 180) return 1.0
+
+  // Posts from last year: 0.75x (slightly dated)
+  if (ageInDays <= 365) return 0.75
+
+  // Posts older than 1 year: 0.5x (potentially stale pain)
+  return 0.5
+}
+
+/**
+ * Get age bucket for temporal distribution tracking
+ */
+function getAgeBucket(createdUtc: number): 'last30Days' | 'last90Days' | 'last180Days' | 'older' {
+  if (!createdUtc || createdUtc <= 0) return 'older'
+
+  const nowSeconds = Date.now() / 1000
+  const ageInDays = (nowSeconds - createdUtc) / (60 * 60 * 24)
+
+  if (ageInDays <= 30) return 'last30Days'
+  if (ageInDays <= 90) return 'last90Days'
+  if (ageInDays <= 180) return 'last180Days'
+  return 'older'
+}
+
 // =============================================================================
 // MAIN SCORING FUNCTION
 // =============================================================================
@@ -325,10 +381,12 @@ function getEngagementMultiplier(upvotes: number): number {
  * Calculate pain score for a given text
  * Implements the PVRE Scoring Framework methodology
  * v2.0: Enhanced with negative context filtering and stricter scoring
+ * v3.0: Added recency weighting for temporal relevance
  */
 export function calculatePainScore(
   text: string,
-  engagementScore: number = 0
+  engagementScore: number = 0,
+  createdUtc: number = 0
 ): ScoreResult {
   const lowerText = text.toLowerCase()
   const signals: string[] = []
@@ -444,7 +502,11 @@ export function calculatePainScore(
 
   // Apply engagement multiplier (now capped at 1.2x)
   const engagementMultiplier = getEngagementMultiplier(engagementScore)
-  const adjustedScore = rawScore * engagementMultiplier
+
+  // v3.0: Apply recency multiplier
+  const recencyMultiplier = getRecencyMultiplier(createdUtc)
+
+  const adjustedScore = rawScore * engagementMultiplier * recencyMultiplier
 
   // Normalize to 0-10 scale
   // Target: a post with 2 high-intensity + 1 solution-seeking = ~8/10
@@ -617,7 +679,8 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
     // Combine title and body for analysis
     const fullText = `${post.title} ${post.selftext || ''}`
     const engagement = calculateEngagementScore(post.score, post.num_comments)
-    const scoreResult = calculatePainScore(fullText, post.score)
+    // v3.0: Pass createdUtc for recency weighting
+    const scoreResult = calculatePainScore(fullText, post.score, post.created_utc)
 
     // Only include posts with some pain signals
     if (scoreResult.score > 0 || scoreResult.signals.length > 0) {
@@ -656,7 +719,8 @@ export function analyzeComments(comments: RedditComment[]): PainSignal[] {
   const painSignals: PainSignal[] = []
 
   for (const comment of comments) {
-    const scoreResult = calculatePainScore(comment.body, comment.score)
+    // v3.0: Pass createdUtc for recency weighting
+    const scoreResult = calculatePainScore(comment.body, comment.score, comment.created_utc)
 
     // Only include comments with some pain signals
     if (scoreResult.score > 0 || scoreResult.signals.length > 0) {
@@ -730,6 +794,13 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
       dataConfidence: 'very_low',
       strongestSignals: [],
       wtpQuotes: [],
+      temporalDistribution: {
+        last30Days: 0,
+        last90Days: 0,
+        last180Days: 0,
+        older: 0,
+      },
+      recencyScore: 0,
     }
   }
 
@@ -743,6 +814,17 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
   let lowCount = 0
   let solutionCount = 0
   let wtpCount = 0
+
+  // v3.0: Track temporal distribution
+  const temporalDistribution = {
+    last30Days: 0,
+    last90Days: 0,
+    last180Days: 0,
+    older: 0,
+  }
+  let oldestTimestamp = Infinity
+  let newestTimestamp = 0
+  let totalRecencyMultiplier = 0
 
   for (const signal of signals) {
     totalScore += signal.score
@@ -769,6 +851,20 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
     for (const keyword of signal.signals) {
       signalCounts[keyword] = (signalCounts[keyword] || 0) + 1
     }
+
+    // v3.0: Track temporal distribution and date range
+    const createdUtc = signal.source.created_utc
+    if (createdUtc && createdUtc > 0) {
+      const bucket = getAgeBucket(createdUtc)
+      temporalDistribution[bucket]++
+
+      // Track date range
+      if (createdUtc < oldestTimestamp) oldestTimestamp = createdUtc
+      if (createdUtc > newestTimestamp) newestTimestamp = createdUtc
+
+      // Accumulate recency multipliers for average
+      totalRecencyMultiplier += getRecencyMultiplier(createdUtc)
+    }
   }
 
   const topSubreddits = Object.entries(subredditCounts)
@@ -782,6 +878,19 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
     .slice(0, 5)
     .map(([keyword]) => keyword)
 
+  // Calculate date range
+  const dateRange =
+    oldestTimestamp !== Infinity && newestTimestamp > 0
+      ? {
+          oldest: new Date(oldestTimestamp * 1000).toISOString().split('T')[0],
+          newest: new Date(newestTimestamp * 1000).toISOString().split('T')[0],
+        }
+      : undefined
+
+  // Calculate average recency score (normalized 0-1, where 1 = all posts from last 30 days)
+  const avgRecencyMultiplier = totalRecencyMultiplier / signals.length
+  const recencyScore = Math.round(((avgRecencyMultiplier - 0.5) / 1.0) * 100) / 100 // Normalize 0.5-1.5 to 0-1
+
   return {
     totalSignals: signals.length,
     averageScore: Math.round((totalScore / signals.length) * 10) / 10,
@@ -794,6 +903,9 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
     dataConfidence: getDataConfidence(signals.length),
     strongestSignals,
     wtpQuotes,
+    temporalDistribution,
+    dateRange,
+    recencyScore: Math.max(0, Math.min(1, recencyScore)),
   }
 }
 

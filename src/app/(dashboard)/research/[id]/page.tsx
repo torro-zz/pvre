@@ -3,19 +3,24 @@ import { notFound, redirect } from 'next/navigation'
 import { CommunityVoiceResults } from '@/components/research/community-voice-results'
 import { CompetitorResults } from '@/components/research/competitor-results'
 import { ViabilityVerdictDisplay } from '@/components/research/viability-verdict'
+import { CompetitorPromptModal, CompetitorPromptBanner } from '@/components/research/competitor-prompt-modal'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, Clock, AlertCircle, TrendingUp, Shield, Target } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, AlertCircle, TrendingUp, Shield, Target, PieChart, Timer } from 'lucide-react'
 import { ResearchProgress } from '@/components/research/research-progress'
+import { PDFDownloadButton } from '@/components/research/pdf-download-button'
+import { ReportProblem } from '@/components/research/report-problem'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 import {
-  calculateMVPViability,
+  calculateViability,
   PainScoreInput,
   CompetitionScoreInput,
+  MarketScoreInput,
+  TimingScoreInput,
 } from '@/lib/analysis/viability-calculator'
 import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
 
@@ -102,6 +107,8 @@ export default async function ResearchDetailPage({
   // Calculate viability score if we have at least one result
   let painScoreInput: PainScoreInput | null = null
   let competitionScoreInput: CompetitionScoreInput | null = null
+  let marketScoreInput: MarketScoreInput | null = null
+  let timingScoreInput: TimingScoreInput | null = null
 
   if (communityVoiceResult?.data?.painSummary) {
     const rawPainSummary = communityVoiceResult.data.painSummary
@@ -120,6 +127,15 @@ export default async function ResearchDetailPage({
       dataConfidence: (rawPainSummary as { dataConfidence?: 'very_low' | 'low' | 'medium' | 'high' }).dataConfidence || 'low',
       strongestSignals: (rawPainSummary as { strongestSignals?: string[] }).strongestSignals || [],
       wtpQuotes: (rawPainSummary as { wtpQuotes?: { text: string; subreddit: string }[] }).wtpQuotes || [],
+      // Phase 2: Temporal distribution fields with defaults for backwards compatibility
+      temporalDistribution: (rawPainSummary as { temporalDistribution?: { last30Days: number; last90Days: number; last180Days: number; older: number } }).temporalDistribution || {
+        last30Days: 0,
+        last90Days: 0,
+        last180Days: 0,
+        older: rawPainSummary.totalSignals || 0, // Assume all old data is older
+      },
+      dateRange: (rawPainSummary as { dateRange?: { oldest: string; newest: string } }).dateRange,
+      recencyScore: (rawPainSummary as { recencyScore?: number }).recencyScore ?? 0.5, // Default to middle score
     }
 
     // Calculate the overall pain score using the enhanced calculator
@@ -143,7 +159,31 @@ export default async function ResearchDetailPage({
     }
   }
 
-  const viabilityVerdict = calculateMVPViability(painScoreInput, competitionScoreInput)
+  // Extract market sizing from community voice result (it's bundled together)
+  if (communityVoiceResult?.data?.marketSizing) {
+    const marketData = communityVoiceResult.data.marketSizing
+    marketScoreInput = {
+      score: marketData.score,
+      confidence: marketData.confidence,
+      penetrationRequired: marketData.mscAnalysis.penetrationRequired,
+      achievability: marketData.mscAnalysis.achievability,
+    }
+  }
+
+  // Extract timing from community voice result (it's bundled together)
+  if (communityVoiceResult?.data?.timing) {
+    const timingData = communityVoiceResult.data.timing
+    timingScoreInput = {
+      score: timingData.score,
+      confidence: timingData.confidence,
+      trend: timingData.trend,
+      tailwindsCount: timingData.tailwinds?.length || 0,
+      headwindsCount: timingData.headwinds?.length || 0,
+      timingWindow: timingData.timingWindow,
+    }
+  }
+
+  const viabilityVerdict = calculateViability(painScoreInput, competitionScoreInput, marketScoreInput, timingScoreInput)
 
   // For backwards compatibility
   const result = communityVoiceResult
@@ -175,19 +215,32 @@ export default async function ResearchDetailPage({
                 )}
               </div>
             </div>
-            <Badge
-              className={
-                researchJob.status === 'completed'
-                  ? 'bg-green-100 text-green-700'
-                  : researchJob.status === 'processing'
-                  ? 'bg-blue-100 text-blue-700'
-                  : researchJob.status === 'failed'
-                  ? 'bg-red-100 text-red-700'
-                  : 'bg-gray-100 text-gray-700'
-              }
-            >
-              {researchJob.status.charAt(0).toUpperCase() + researchJob.status.slice(1)}
-            </Badge>
+            <div className="flex items-center gap-3">
+              {(communityVoiceResult?.data || competitorResult?.data) && (
+                <PDFDownloadButton
+                  reportData={{
+                    hypothesis: researchJob.hypothesis,
+                    createdAt: formatDate(researchJob.created_at),
+                    viability: viabilityVerdict,
+                    communityVoice: communityVoiceResult?.data,
+                    competitors: competitorResult?.data,
+                  }}
+                />
+              )}
+              <Badge
+                className={
+                  researchJob.status === 'completed'
+                    ? 'bg-green-100 text-green-700'
+                    : researchJob.status === 'processing'
+                    ? 'bg-blue-100 text-blue-700'
+                    : researchJob.status === 'failed'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-gray-100 text-gray-700'
+                }
+              >
+                {researchJob.status.charAt(0).toUpperCase() + researchJob.status.slice(1)}
+              </Badge>
+            </div>
           </div>
         </div>
 
@@ -238,7 +291,7 @@ export default async function ResearchDetailPage({
             <div className="mb-6 p-4 bg-muted/30 rounded-lg">
               <ResearchProgress
                 currentStep={
-                  viabilityVerdict.availableDimensions === 2
+                  communityVoiceResult?.data && competitorResult?.data
                     ? 'viability-verdict'
                     : competitorResult?.data
                     ? 'competitor-analysis'
@@ -247,16 +300,24 @@ export default async function ResearchDetailPage({
                 completedSteps={[
                   ...(communityVoiceResult?.data ? ['community-voice' as const] : []),
                   ...(competitorResult?.data ? ['competitor-analysis' as const] : []),
-                  ...(viabilityVerdict.availableDimensions === 2 ? ['viability-verdict' as const] : []),
+                  ...(communityVoiceResult?.data && competitorResult?.data ? ['viability-verdict' as const] : []),
                 ]}
               />
             </div>
 
+            {/* Competitor Prompt Modal - shows when Community Voice is done but no competitors */}
+            {communityVoiceResult?.data && !competitorResult?.data && (
+              <CompetitorPromptModal
+                jobId={id}
+                hypothesis={researchJob.hypothesis}
+              />
+            )}
+
             <Tabs defaultValue="verdict" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="verdict" className="flex items-center gap-2">
                 <Target className="h-4 w-4" />
-                Verdict
+                <span className="hidden sm:inline">Verdict</span>
                 {viabilityVerdict.availableDimensions > 0 && (
                   <Badge variant="secondary" className="ml-1">
                     {viabilityVerdict.overallScore.toFixed(1)}
@@ -265,14 +326,28 @@ export default async function ResearchDetailPage({
               </TabsTrigger>
               <TabsTrigger value="community" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
-                Community Voice
+                <span className="hidden sm:inline">Community</span>
                 {communityVoiceResult?.data && (
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="market" className="flex items-center gap-2">
+                <PieChart className="h-4 w-4" />
+                <span className="hidden sm:inline">Market</span>
+                {communityVoiceResult?.data?.marketSizing && (
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="timing" className="flex items-center gap-2">
+                <Timer className="h-4 w-4" />
+                <span className="hidden sm:inline">Timing</span>
+                {communityVoiceResult?.data?.timing && (
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                 )}
               </TabsTrigger>
               <TabsTrigger value="competitors" className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
-                Competitors
+                <span className="hidden sm:inline">Competitors</span>
                 {competitorResult?.data && (
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                 )}
@@ -281,6 +356,15 @@ export default async function ResearchDetailPage({
 
             {/* Verdict Tab */}
             <TabsContent value="verdict">
+              {/* Banner when competitors are missing */}
+              {communityVoiceResult?.data && !competitorResult?.data && (
+                <div className="mb-6">
+                  <CompetitorPromptBanner
+                    jobId={id}
+                    hypothesis={researchJob.hypothesis}
+                  />
+                </div>
+              )}
               <ViabilityVerdictDisplay
                 verdict={viabilityVerdict}
                 hypothesis={researchJob.hypothesis}
@@ -305,6 +389,250 @@ export default async function ResearchDetailPage({
                       <h3 className="text-lg font-semibold mb-2">Community Voice Not Run</h3>
                       <p className="text-muted-foreground mb-4">
                         Run Community Voice analysis to discover pain points and market signals.
+                      </p>
+                      <Link href={`/research?hypothesis=${encodeURIComponent(researchJob.hypothesis)}`}>
+                        <Button>
+                          <TrendingUp className="h-4 w-4 mr-2" />
+                          Run Community Voice
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Market Tab */}
+            <TabsContent value="market">
+              {communityVoiceResult?.data?.marketSizing ? (
+                <div className="space-y-6">
+                  {/* Market Score Overview */}
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <div>
+                          <h3 className="text-lg font-semibold">Market Sizing Analysis</h3>
+                          <p className="text-sm text-muted-foreground">
+                            TAM/SAM/SOM estimation via Fermi analysis
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-3xl font-bold">
+                            {communityVoiceResult.data.marketSizing.score.toFixed(1)}
+                            <span className="text-lg text-muted-foreground">/10</span>
+                          </div>
+                          <Badge variant={
+                            communityVoiceResult.data.marketSizing.mscAnalysis.achievability === 'highly_achievable' ? 'default' :
+                            communityVoiceResult.data.marketSizing.mscAnalysis.achievability === 'achievable' ? 'secondary' :
+                            'destructive'
+                          }>
+                            {communityVoiceResult.data.marketSizing.mscAnalysis.achievability.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* TAM/SAM/SOM Breakdown */}
+                      <div className="space-y-4">
+                        <div className="p-4 bg-blue-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-blue-900">TAM (Total Addressable Market)</span>
+                            <span className="text-blue-700 font-bold">
+                              {communityVoiceResult.data.marketSizing.tam.value.toLocaleString()} users
+                            </span>
+                          </div>
+                          <p className="text-sm text-blue-700">{communityVoiceResult.data.marketSizing.tam.description}</p>
+                          <p className="text-xs text-blue-600 mt-1">{communityVoiceResult.data.marketSizing.tam.reasoning}</p>
+                        </div>
+
+                        <div className="p-4 bg-green-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-green-900">SAM (Serviceable Available Market)</span>
+                            <span className="text-green-700 font-bold">
+                              {communityVoiceResult.data.marketSizing.sam.value.toLocaleString()} users
+                            </span>
+                          </div>
+                          <p className="text-sm text-green-700">{communityVoiceResult.data.marketSizing.sam.description}</p>
+                          <p className="text-xs text-green-600 mt-1">{communityVoiceResult.data.marketSizing.sam.reasoning}</p>
+                        </div>
+
+                        <div className="p-4 bg-purple-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-purple-900">SOM (Serviceable Obtainable Market)</span>
+                            <span className="text-purple-700 font-bold">
+                              {communityVoiceResult.data.marketSizing.som.value.toLocaleString()} users
+                            </span>
+                          </div>
+                          <p className="text-sm text-purple-700">{communityVoiceResult.data.marketSizing.som.description}</p>
+                          <p className="text-xs text-purple-600 mt-1">{communityVoiceResult.data.marketSizing.som.reasoning}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* MSC Analysis */}
+                  <Card>
+                    <CardContent className="pt-6">
+                      <h3 className="text-lg font-semibold mb-4">Revenue Goal Analysis</h3>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="p-4 bg-muted rounded-lg">
+                          <div className="text-sm text-muted-foreground">Customers Needed</div>
+                          <div className="text-2xl font-bold">
+                            {communityVoiceResult.data.marketSizing.mscAnalysis.customersNeeded.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="p-4 bg-muted rounded-lg">
+                          <div className="text-sm text-muted-foreground">Penetration Required</div>
+                          <div className="text-2xl font-bold">
+                            {communityVoiceResult.data.marketSizing.mscAnalysis.penetrationRequired.toFixed(1)}%
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {communityVoiceResult.data.marketSizing.mscAnalysis.verdict}
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Suggestions */}
+                  {communityVoiceResult.data.marketSizing.suggestions.length > 0 && (
+                    <Card>
+                      <CardContent className="pt-6">
+                        <h3 className="text-lg font-semibold mb-4">Suggestions</h3>
+                        <ul className="space-y-2">
+                          {communityVoiceResult.data.marketSizing.suggestions.map((suggestion, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm">
+                              <span className="text-primary">•</span>
+                              <span>{suggestion}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="text-center">
+                      <PieChart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Market Sizing Not Available</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Market sizing is automatically generated when you run Community Voice analysis.
+                      </p>
+                      <Link href={`/research?hypothesis=${encodeURIComponent(researchJob.hypothesis)}`}>
+                        <Button>
+                          <TrendingUp className="h-4 w-4 mr-2" />
+                          Run Community Voice
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Timing Tab */}
+            <TabsContent value="timing">
+              {communityVoiceResult?.data?.timing ? (
+                <div className="space-y-6">
+                  {/* Timing Score Overview */}
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <div>
+                          <h3 className="text-lg font-semibold">Market Timing Analysis</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Tailwinds, headwinds, and timing window assessment
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-3xl font-bold">
+                            {communityVoiceResult.data.timing.score.toFixed(1)}
+                            <span className="text-lg text-muted-foreground">/10</span>
+                          </div>
+                          <Badge variant={
+                            communityVoiceResult.data.timing.trend === 'rising' ? 'default' :
+                            communityVoiceResult.data.timing.trend === 'stable' ? 'secondary' :
+                            'destructive'
+                          }>
+                            {communityVoiceResult.data.timing.trend === 'rising' ? '↑ Rising' :
+                             communityVoiceResult.data.timing.trend === 'stable' ? '→ Stable' :
+                             '↓ Falling'}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* Timing Window */}
+                      <div className="p-4 bg-muted rounded-lg mb-6">
+                        <div className="text-sm text-muted-foreground">Timing Window</div>
+                        <div className="text-xl font-bold">{communityVoiceResult.data.timing.timingWindow}</div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {communityVoiceResult.data.timing.verdict}
+                        </p>
+                      </div>
+
+                      {/* Tailwinds */}
+                      {communityVoiceResult.data.timing.tailwinds.length > 0 && (
+                        <div className="mb-6">
+                          <h4 className="font-medium text-green-700 mb-3 flex items-center gap-2">
+                            <span className="text-lg">↑</span> Tailwinds ({communityVoiceResult.data.timing.tailwinds.length})
+                          </h4>
+                          <div className="space-y-3">
+                            {communityVoiceResult.data.timing.tailwinds.map((tw, i) => (
+                              <div key={i} className="p-3 bg-green-50 rounded-lg border border-green-200">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-medium text-green-900">{tw.signal}</span>
+                                  <Badge variant="outline" className={
+                                    tw.impact === 'high' ? 'bg-green-100 text-green-800 border-green-300' :
+                                    tw.impact === 'medium' ? 'bg-green-50 text-green-700 border-green-200' :
+                                    'bg-gray-50 text-gray-600 border-gray-200'
+                                  }>
+                                    {tw.impact} impact
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-green-700">{tw.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Headwinds */}
+                      {communityVoiceResult.data.timing.headwinds.length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-red-700 mb-3 flex items-center gap-2">
+                            <span className="text-lg">↓</span> Headwinds ({communityVoiceResult.data.timing.headwinds.length})
+                          </h4>
+                          <div className="space-y-3">
+                            {communityVoiceResult.data.timing.headwinds.map((hw, i) => (
+                              <div key={i} className="p-3 bg-red-50 rounded-lg border border-red-200">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-medium text-red-900">{hw.signal}</span>
+                                  <Badge variant="outline" className={
+                                    hw.impact === 'high' ? 'bg-red-100 text-red-800 border-red-300' :
+                                    hw.impact === 'medium' ? 'bg-red-50 text-red-700 border-red-200' :
+                                    'bg-gray-50 text-gray-600 border-gray-200'
+                                  }>
+                                    {hw.impact} impact
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-red-700">{hw.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="text-center">
+                      <Timer className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Timing Analysis Not Available</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Timing analysis is automatically generated when you run Community Voice analysis.
                       </p>
                       <Link href={`/research?hypothesis=${encodeURIComponent(researchJob.hypothesis)}`}>
                         <Button>
@@ -371,6 +699,13 @@ export default async function ResearchDetailPage({
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Report Problem Section */}
+        {researchJob.status === 'completed' && (
+          <div className="mt-8 pt-8 border-t">
+            <ReportProblem jobId={researchJob.id} />
+          </div>
         )}
     </div>
   )

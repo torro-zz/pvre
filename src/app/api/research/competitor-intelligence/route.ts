@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { checkUserCredits, deductCredit } from '@/lib/credits'
 import Anthropic from '@anthropic-ai/sdk'
 
 const anthropic = new Anthropic()
@@ -436,6 +437,40 @@ export async function POST(request: NextRequest) {
         { error: 'Hypothesis is required' },
         { status: 400 }
       )
+    }
+
+    // Check credits before running research
+    const creditCheck = await checkUserCredits(user.id)
+    if (!creditCheck.hasCredits) {
+      return NextResponse.json(
+        {
+          error: 'insufficient_credits',
+          message: 'You need at least 1 credit to run research. Please purchase a credit pack.',
+          balance: creditCheck.balance
+        },
+        { status: 402 }
+      )
+    }
+
+    // Generate job ID if not provided (for credit deduction tracking)
+    const researchJobId = jobId || crypto.randomUUID()
+
+    // Skip credit deduction if running on an existing research job
+    // The credit was already paid when the initial research was created
+    // Only charge credits for standalone competitor analysis (no jobId)
+    if (!jobId) {
+      const creditDeducted = await deductCredit(user.id, researchJobId)
+      if (!creditDeducted) {
+        return NextResponse.json(
+          {
+            error: 'credit_deduction_failed',
+            message: 'Failed to deduct credit. Please try again.',
+          },
+          { status: 500 }
+        )
+      }
+    } else {
+      console.log('Skipping credit deduction - running on existing job:', jobId)
     }
 
     console.log('Starting competitor analysis for:', hypothesis)

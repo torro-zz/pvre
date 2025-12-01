@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, JetBrains_Mono, Fraunces } from "next/font/google";
+import { CookieBanner } from "@/components/layout/cookie-banner";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -36,6 +37,7 @@ export default function RootLayout({
         className={`${dmSans.variable} ${jetbrainsMono.variable} ${fraunces.variable} antialiased`}
       >
         {children}
+        <CookieBanner />
       </body>
     </html>
   );

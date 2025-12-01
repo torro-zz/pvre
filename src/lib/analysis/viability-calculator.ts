@@ -3,12 +3,10 @@
  *
  * Combines multiple research dimensions into a single Viability Verdict score.
  *
- * Full Formula:
+ * Full Formula (4 dimensions):
  *   VIABILITY SCORE = (Pain × 0.35) + (Market × 0.25) + (Competition × 0.25) + (Timing × 0.15)
  *
- * MVP Formula (Pain + Competition only):
- *   VIABILITY SCORE = (Pain × 0.58) + (Competition × 0.42)
- *   Rationale: 35/(35+25) = 0.58, 25/(35+25) = 0.42
+ * Dynamic weights are normalized based on available dimensions.
  */
 
 // =============================================================================
@@ -57,14 +55,18 @@ export interface CompetitionScoreInput {
 
 export interface MarketScoreInput {
   score: number // 0-10 from market-sizing
-  confidence: 'low' | 'medium' | 'high'
-  scenario: 'conservative' | 'moderate' | 'optimistic'
+  confidence: 'low' | 'medium' | 'high' | 'very_low'
+  penetrationRequired: number // percentage
+  achievability: 'highly_achievable' | 'achievable' | 'challenging' | 'difficult' | 'unlikely'
 }
 
 export interface TimingScoreInput {
   score: number // 0-10 from timing-analysis
   confidence: 'low' | 'medium' | 'high'
   trend: 'rising' | 'stable' | 'falling'
+  tailwindsCount: number
+  headwindsCount: number
+  timingWindow: string
 }
 
 // =============================================================================
@@ -294,17 +296,205 @@ export function calculateMVPViability(
 }
 
 /**
- * Future: Full viability calculation with all 4 dimensions
+ * Dynamic viability calculation with up to 4 dimensions (Pain, Market, Competition, Timing)
+ * Weights are normalized dynamically based on available dimensions.
  *
- * export function calculateFullViability(
- *   painScore: PainScoreInput | null,
- *   marketScore: MarketScoreInput | null,
- *   competitionScore: CompetitionScoreInput | null,
- *   timingScore: TimingScoreInput | null
- * ): ViabilityVerdict {
- *   // Implementation for when Market and Timing modules are added
- * }
+ * Full formula when all 4 are present:
+ *   Pain: 35%, Market: 25%, Competition: 25%, Timing: 15%
  */
+export function calculateViability(
+  painScore: PainScoreInput | null,
+  competitionScore: CompetitionScoreInput | null,
+  marketScore: MarketScoreInput | null = null,
+  timingScore: TimingScoreInput | null = null
+): ViabilityVerdict {
+  const dimensions: DimensionScore[] = []
+  const dealbreakers: string[] = []
+  const recommendations: string[] = []
+
+  // Track which dimensions are available and their base weights
+  const availableWeights: { name: string; weight: number; score: number }[] = []
+
+  // Add Pain dimension if available
+  if (painScore) {
+    availableWeights.push({ name: 'pain', weight: FULL_WEIGHTS.pain, score: painScore.overallScore })
+    const status = getDimensionStatus(painScore.overallScore)
+
+    dimensions.push({
+      name: 'Pain Score',
+      score: painScore.overallScore,
+      weight: 0, // Will be normalized below
+      status,
+      confidence: normalizeConfidence(painScore.confidence),
+      summary: `${painScore.totalSignals} signals detected, ${painScore.willingnessToPayCount} WTP indicators`,
+    })
+
+    if (painScore.overallScore < DEALBREAKER_THRESHOLD) {
+      dealbreakers.push('Pain Score is critically low - users may not have strong enough pain points')
+    }
+
+    if (status === 'needs_work' || status === 'critical') {
+      if (painScore.willingnessToPayCount === 0) {
+        recommendations.push('Find evidence of willingness-to-pay - look for pricing discussions and purchase intent')
+      }
+      recommendations.push('Gather more community data or refine search terms to find stronger pain signals')
+    }
+  }
+
+  // Add Competition dimension if available
+  if (competitionScore) {
+    availableWeights.push({ name: 'competition', weight: FULL_WEIGHTS.competition, score: competitionScore.score })
+    const status = getDimensionStatus(competitionScore.score)
+
+    dimensions.push({
+      name: 'Competition Score',
+      score: competitionScore.score,
+      weight: 0, // Will be normalized below
+      status,
+      confidence: competitionScore.confidence,
+      summary: `${competitionScore.competitorCount} competitors analyzed`,
+    })
+
+    if (competitionScore.score < DEALBREAKER_THRESHOLD) {
+      dealbreakers.push('Competition Score is critically low - market may be too crowded or dominated')
+    }
+
+    if (status === 'needs_work' || status === 'critical') {
+      if (competitionScore.threats.length > 0) {
+        recommendations.push(`Address competitive threats: ${competitionScore.threats[0]}`)
+      }
+      recommendations.push('Identify unique positioning angles or underserved niches')
+    }
+  }
+
+  // Add Market dimension if available
+  if (marketScore) {
+    availableWeights.push({ name: 'market', weight: FULL_WEIGHTS.market, score: marketScore.score })
+    const status = getDimensionStatus(marketScore.score)
+
+    dimensions.push({
+      name: 'Market Score',
+      score: marketScore.score,
+      weight: 0, // Will be normalized below
+      status,
+      confidence: normalizeConfidence(marketScore.confidence),
+      summary: `${marketScore.penetrationRequired.toFixed(1)}% penetration needed - ${marketScore.achievability.replace('_', ' ')}`,
+    })
+
+    if (marketScore.score < DEALBREAKER_THRESHOLD) {
+      dealbreakers.push('Market Score is critically low - achieving your revenue goals may be unrealistic')
+    }
+
+    if (status === 'needs_work' || status === 'critical') {
+      recommendations.push('Consider narrowing your target market or adjusting pricing strategy')
+      if (marketScore.achievability === 'unlikely' || marketScore.achievability === 'difficult') {
+        recommendations.push('Lower your Minimum Success Criteria or expand your serviceable market')
+      }
+    }
+  }
+
+  // Add Timing dimension if available
+  if (timingScore) {
+    availableWeights.push({ name: 'timing', weight: FULL_WEIGHTS.timing, score: timingScore.score })
+    const status = getDimensionStatus(timingScore.score)
+
+    const trendEmoji = timingScore.trend === 'rising' ? '↑' : timingScore.trend === 'falling' ? '↓' : '→'
+
+    dimensions.push({
+      name: 'Timing Score',
+      score: timingScore.score,
+      weight: 0, // Will be normalized below
+      status,
+      confidence: timingScore.confidence,
+      summary: `${timingScore.tailwindsCount} tailwinds, ${timingScore.headwindsCount} headwinds ${trendEmoji} Window: ${timingScore.timingWindow}`,
+    })
+
+    if (timingScore.score < DEALBREAKER_THRESHOLD) {
+      dealbreakers.push('Timing Score is critically low - market conditions may not be favorable')
+    }
+
+    if (status === 'needs_work' || status === 'critical') {
+      if (timingScore.headwindsCount > timingScore.tailwindsCount) {
+        recommendations.push('Address market headwinds or wait for better timing conditions')
+      }
+      if (timingScore.trend === 'falling') {
+        recommendations.push('Market interest appears to be declining - consider pivoting or moving faster')
+      }
+    }
+  }
+
+  // Normalize weights based on available dimensions
+  const totalWeight = availableWeights.reduce((sum, d) => sum + d.weight, 0)
+  const normalizedWeights: Record<string, number> = {}
+
+  for (const d of availableWeights) {
+    normalizedWeights[d.name] = d.weight / totalWeight
+  }
+
+  // Update dimension weights in the array
+  for (let i = 0; i < dimensions.length; i++) {
+    const dimName = dimensions[i].name.toLowerCase().includes('pain') ? 'pain'
+      : dimensions[i].name.toLowerCase().includes('competition') ? 'competition'
+      : dimensions[i].name.toLowerCase().includes('market') ? 'market'
+      : 'timing'
+    dimensions[i].weight = normalizedWeights[dimName] || 0
+  }
+
+  // Calculate weighted score
+  let overallScore = 0
+  for (const d of availableWeights) {
+    overallScore += d.score * normalizedWeights[d.name]
+  }
+
+  // Round to 1 decimal place
+  overallScore = Math.round(overallScore * 10) / 10
+
+  // Find weakest dimension
+  const weakestDimension = dimensions.length > 0
+    ? dimensions.reduce((weakest, current) =>
+        current.score < weakest.score ? current : weakest
+      )
+    : null
+
+  // Add recommendations for incomplete data
+  const availableDimensions = availableWeights.length
+  if (!painScore) {
+    recommendations.unshift('Run Community Voice analysis to assess market pain')
+  }
+  if (!competitionScore) {
+    recommendations.unshift('Run Competitor Intelligence to assess competitive landscape')
+  }
+  if (!marketScore) {
+    recommendations.unshift('Run Market Sizing to validate revenue potential')
+  }
+  if (!timingScore) {
+    recommendations.unshift('Run Timing Analysis to assess market timing')
+  }
+
+  // Determine verdict
+  const verdict = getVerdict(overallScore)
+  const verdictLabel = getVerdictLabel(verdict)
+  const verdictDescription = getVerdictDescription(verdict)
+
+  // Combine confidence levels
+  const confidences = dimensions.map((d) => d.confidence)
+  const overallConfidence = combineConfidences(confidences)
+
+  return {
+    overallScore,
+    verdict,
+    verdictLabel,
+    verdictDescription,
+    dimensions,
+    weakestDimension,
+    dealbreakers,
+    recommendations: recommendations.slice(0, 5), // Limit to top 5
+    confidence: overallConfidence,
+    isComplete: availableDimensions === 4, // Full version requires all 4 dimensions
+    availableDimensions,
+    totalDimensions: 4, // Supports all 4 dimensions
+  }
+}
 
 // =============================================================================
 // UTILITY EXPORTS

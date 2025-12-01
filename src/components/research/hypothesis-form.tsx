@@ -12,10 +12,12 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Loader2, Search, Lightbulb } from 'lucide-react'
+import { CoveragePreview } from './coverage-preview'
 
 interface HypothesisFormProps {
   onSubmit: (hypothesis: string) => Promise<void>
   isLoading: boolean
+  showCoveragePreview?: boolean
 }
 
 const EXAMPLE_HYPOTHESES = [
@@ -25,17 +27,45 @@ const EXAMPLE_HYPOTHESES = [
   'Personal finance coaching for millennials with student debt',
 ]
 
-export function HypothesisForm({ onSubmit, isLoading }: HypothesisFormProps) {
+export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true }: HypothesisFormProps) {
   const [hypothesis, setHypothesis] = useState('')
+  const [showPreview, setShowPreview] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!hypothesis.trim() || isLoading) return
+
+    // If coverage preview is enabled and not yet shown, show it first
+    if (showCoveragePreview && !showPreview) {
+      setShowPreview(true)
+      return
+    }
+
     await onSubmit(hypothesis.trim())
   }
 
   const handleExampleClick = (example: string) => {
     setHypothesis(example)
+    setShowPreview(false) // Reset preview when example changes
+  }
+
+  const handleHypothesisChange = (value: string) => {
+    setHypothesis(value)
+    // Reset preview if hypothesis changes significantly
+    if (showPreview) {
+      setShowPreview(false)
+    }
+  }
+
+  const handleProceed = async () => {
+    await onSubmit(hypothesis.trim())
+  }
+
+  const handleRefine = () => {
+    setShowPreview(false)
+    // Focus on the textarea
+    const textarea = document.getElementById('hypothesis')
+    textarea?.focus()
   }
 
   return (
@@ -58,7 +88,7 @@ export function HypothesisForm({ onSubmit, isLoading }: HypothesisFormProps) {
               id="hypothesis"
               placeholder="e.g., Training community for London Hyrox athletes"
               value={hypothesis}
-              onChange={(e) => setHypothesis(e.target.value)}
+              onChange={(e) => handleHypothesisChange(e.target.value)}
               disabled={isLoading}
               rows={3}
               className="resize-none"
@@ -88,23 +118,41 @@ export function HypothesisForm({ onSubmit, isLoading }: HypothesisFormProps) {
             </div>
           </div>
 
-          <Button
-            type="submit"
-            disabled={!hypothesis.trim() || isLoading}
-            className="w-full"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Analyzing Communities...
-              </>
-            ) : (
-              <>
-                <Search className="mr-2 h-4 w-4" />
-                Run Research
-              </>
-            )}
-          </Button>
+          {/* Coverage Preview */}
+          {showCoveragePreview && showPreview && (
+            <CoveragePreview
+              hypothesis={hypothesis}
+              onProceed={handleProceed}
+              onRefine={handleRefine}
+              disabled={isLoading}
+            />
+          )}
+
+          {/* Submit Button - shows "Check Coverage" first, then hidden when preview is shown */}
+          {(!showCoveragePreview || !showPreview) && (
+            <Button
+              type="submit"
+              disabled={!hypothesis.trim() || isLoading}
+              className="w-full"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Analyzing Communities...
+                </>
+              ) : showCoveragePreview ? (
+                <>
+                  <Search className="mr-2 h-4 w-4" />
+                  Check Data Availability
+                </>
+              ) : (
+                <>
+                  <Search className="mr-2 h-4 w-4" />
+                  Run Research
+                </>
+              )}
+            </Button>
+          )}
         </form>
       </CardContent>
     </Card>

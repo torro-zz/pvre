@@ -6,10 +6,13 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useMemo } from 'react'
 import type { User } from '@supabase/supabase-js'
+import { CreditCard, User as UserIcon, Settings, LogOut, ChevronDown } from 'lucide-react'
 
 export function Header() {
   const [user, setUser] = useState<User | null>(null)
+  const [credits, setCredits] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const router = useRouter()
 
   const supabase = useMemo(() => {
@@ -26,11 +29,23 @@ export function Header() {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('credits_balance')
+          .eq('id', user.id)
+          .single()
+        setCredits(profile?.credits_balance ?? 0)
+      }
     }
     getUser()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
+      if (!session?.user) {
+        setCredits(null)
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -43,7 +58,7 @@ export function Header() {
   }
 
   return (
-    <header className="border-b">
+    <header className="border-b bg-white">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="text-xl font-bold">
           PVRE
@@ -54,9 +69,74 @@ export function Header() {
               <Link href="/dashboard">
                 <Button variant="ghost">Dashboard</Button>
               </Link>
-              <Button variant="outline" onClick={handleSignOut}>
-                Sign Out
-              </Button>
+
+              {/* Credits Badge */}
+              <Link
+                href="/account/billing"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition-colors"
+              >
+                <CreditCard className="w-4 h-4 text-gray-500" />
+                <span>{credits ?? '...'} credits</span>
+              </Link>
+
+              {/* Account Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                    <UserIcon className="w-4 h-4 text-gray-600" />
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                </button>
+
+                {menuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-20">
+                      <Link
+                        href="/account"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <UserIcon className="w-4 h-4" />
+                        Account
+                      </Link>
+                      <Link
+                        href="/account/billing"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        Billing
+                      </Link>
+                      <Link
+                        href="/account/notifications"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Settings
+                      </Link>
+                      <hr className="my-1" />
+                      <button
+                        onClick={() => {
+                          setMenuOpen(false)
+                          handleSignOut()
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-gray-50 w-full"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </>
           ) : (
             <Link href="/login">

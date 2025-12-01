@@ -215,17 +215,28 @@ function CompetitorResearchContent() {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="hypothesis">Business Hypothesis</Label>
-              <Textarea
-                id="hypothesis"
-                placeholder="e.g., AI-powered customer support chatbot for e-commerce businesses"
-                value={hypothesis}
-                onChange={(e) => setHypothesis(e.target.value)}
-                className="min-h-[100px]"
-                disabled={status === 'loading'}
-              />
-              <p className="text-sm text-muted-foreground">
-                Describe your business idea, target audience, or problem you want to solve.
-              </p>
+              {loadingExisting ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-[100px] w-full" />
+                  <p className="text-sm text-muted-foreground animate-pulse">
+                    Loading your hypothesis from previous research...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <Textarea
+                    id="hypothesis"
+                    placeholder="e.g., AI-powered customer support chatbot for e-commerce businesses"
+                    value={hypothesis}
+                    onChange={(e) => setHypothesis(e.target.value)}
+                    className="min-h-[100px]"
+                    disabled={status === 'loading'}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Describe your business idea, target audience, or problem you want to solve.
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Example Hypotheses */}
@@ -440,7 +451,7 @@ function CompetitorResearchContent() {
 
             <Button
               onClick={runResearch}
-              disabled={status === 'loading' || !hypothesis.trim()}
+              disabled={loadingExisting || status === 'loading' || !hypothesis.trim()}
               className="w-full"
             >
               {status === 'loading' ? (
