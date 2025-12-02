@@ -397,14 +397,94 @@ Optional:
 | `/update-overview` | Update `docs/TECHNICAL_OVERVIEW.md` with current state |
 | `/goodnight` | Save session state to `docs/RESUME_HERE.md` before ending work |
 
-### About `/ceo-review`
+---
 
-The CEO review agent acts as a real user:
-- Takes screenshots and visually inspects them
-- Checks console errors after every navigation
-- Runs full research (uses 1 credit)
-- Explores ALL pages including admin section
-- Saves detailed report to `docs/ceo-review-report-[DATE].md`
+## Sub-Agents
+
+Specialized autonomous agents in `.claude/agents/` with safety boundaries, product knowledge, and quality standards.
+
+### Agent Summary
+
+| Agent | Model | Purpose | Safety | Relevance Check |
+|-------|-------|---------|--------|-----------------|
+| `ceo-review` | Sonnet | Visual product inspection | localhost only | **Yes** (64% issue) |
+| `code-quality` | Haiku | Code standards enforcement | no destructive ops | **Yes** (64% issue) |
+| `debugger` | Sonnet | Root cause analysis | read-only + escalation | No |
+| `test-runner` | Haiku | E2E testing with Puppeteer | localhost only | **Yes** (64% issue) |
+| `improver` | Haiku | Find/prioritize improvements | approval required | No |
+
+### Key Features (All Agents)
+
+Every agent now includes:
+1. **Safety Boundaries** - Allowed/Never lists, environment verification
+2. **Product Knowledge** - Role-specific PVRE context
+3. **"What Good Looks Like"** - Quality benchmarks with examples
+4. **Grading Rubric** - A-F with clear definitions
+5. **Quality Bar** - Completion checklist
+
+### The 64% Relevance Issue
+
+**Critical quality metric tracked by 3 agents:**
+- Historical problem: 64% of pain signals were completely irrelevant to hypotheses
+- Agents now explicitly check: "Does this pain signal relate to the hypothesis?"
+- Required: Tally relevant/irrelevant and calculate percentage
+
+### Agent Details
+
+**ceo-review** - Visual Inspection Specialist
+- Environment verification REQUIRED before any testing
+- Takes screenshots with `mcp__browser-tools__takeScreenshot`
+- Checks console errors after EVERY navigation
+- Runs full research flow (uses 1 credit)
+- **MUST review 5+ pain signals for relevance**
+- Grades product A-F with justification
+- Saves report to `docs/ceo-review-report-[DATE].md`
+
+**code-quality** - Code Guardian (PROACTIVE)
+- Branch verification before commit review
+- Enforces: typed Supabase, saveResearchResult(), no `any`
+- **Watches for relevance filtering changes in Community Voice code**
+- Grading: A (ship) → F (critical security issue)
+- Recommendation: SAFE TO COMMIT / FIX FIRST / BLOCK
+
+**debugger** - Root Cause Analyst
+- 30-minute escalation trigger
+- Knows PVRE error patterns (Results Not Available, Credit issues, etc.)
+- Systematic: Reproduce → Isolate → Hypothesis → Verify → Fix
+- Proposes minimal fixes with verification steps
+- Documents prevention strategies
+
+**test-runner** - E2E Test Automation
+- Environment verification REQUIRED (localhost only)
+- Smoke tests (2 min, 0 credits): Page loads, auth, navigation
+- Full tests (5 min, 1 credit): Complete research flow
+- **MUST check 5+ pain signals for relevance in full flow**
+- Console/network error detection after every navigation
+
+**improver** - Improvement Planner
+- Reads KNOWN_ISSUES.md, CLAUDE.md, scans TODOs
+- Priority framework: P0 (critical) → P3 (backlog)
+- **Always waits for user approval before implementing**
+- Grading: A (do now) → F (don't do - over-engineering)
+
+### Proactive Agent Usage
+
+Claude will automatically invoke:
+- **code-quality** before suggesting commits
+- **debugger** when errors are encountered
+- **test-runner** for verification after changes
+
+### Agent Files
+
+Located in `.claude/agents/`:
+```
+.claude/agents/
+├── ceo-review.md      # ~500 lines - comprehensive visual review
+├── code-quality.md    # ~260 lines - code standards guardian
+├── debugger.md        # ~290 lines - root cause analyst
+├── improver.md        # ~240 lines - improvement planner
+└── test-runner.md     # ~270 lines - E2E test automation
+```
 
 ---
 
