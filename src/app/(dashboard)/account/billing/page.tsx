@@ -4,8 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { CreditCard, Check, Sparkles, Zap, Crown, Bell, Mail } from 'lucide-react'
+import { CreditCard, Check, Sparkles, Zap, Crown, Bell } from 'lucide-react'
 import type { CreditPack, CreditTransaction } from '@/types/database'
 
 // Set to true when Lemon Squeezy is approved and ready
@@ -17,10 +16,6 @@ function BillingContent() {
   const [balance, setBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const [purchasing, setPurchasing] = useState<string | null>(null)
-  const [waitlistEmail, setWaitlistEmail] = useState('')
-  const [waitlistSubmitting, setWaitlistSubmitting] = useState(false)
-  const [waitlistSuccess, setWaitlistSuccess] = useState(false)
-  const [waitlistError, setWaitlistError] = useState('')
   const searchParams = useSearchParams()
 
   const success = searchParams.get('success')
@@ -70,34 +65,6 @@ function BillingContent() {
     }
   }
 
-  const handleWaitlistSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!waitlistEmail || waitlistSubmitting) return
-
-    setWaitlistSubmitting(true)
-    setWaitlistError('')
-
-    try {
-      const res = await fetch('/api/billing/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: waitlistEmail }),
-      })
-
-      if (res.ok) {
-        setWaitlistSuccess(true)
-        setWaitlistEmail('')
-      } else {
-        const data = await res.json()
-        setWaitlistError(data.error || 'Failed to join waitlist')
-      }
-    } catch {
-      setWaitlistError('Something went wrong. Please try again.')
-    } finally {
-      setWaitlistSubmitting(false)
-    }
-  }
-
   const getPackIcon = (name: string) => {
     if (name.toLowerCase().includes('founder')) return Crown
     if (name.toLowerCase().includes('builder')) return Zap
@@ -142,35 +109,8 @@ function BillingContent() {
             <div className="flex-1">
               <h3 className="font-semibold text-blue-900">Payments Coming Soon</h3>
               <p className="text-blue-700 text-sm mt-1">
-                We&apos;re finalizing our payment system. Join the waitlist below to be notified when credit packs are available for purchase.
+                We&apos;re finalizing our payment system. Credit pack purchases will be available shortly.
               </p>
-
-              {waitlistSuccess ? (
-                <div className="mt-4 flex items-center gap-2 text-green-700">
-                  <Check className="w-4 h-4" />
-                  <span className="text-sm font-medium">You&apos;re on the list! We&apos;ll notify you when payments go live.</span>
-                </div>
-              ) : (
-                <form onSubmit={handleWaitlistSubmit} className="mt-4 flex gap-2 max-w-md">
-                  <div className="relative flex-1">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                      type="email"
-                      placeholder="Enter your email"
-                      value={waitlistEmail}
-                      onChange={(e) => setWaitlistEmail(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                  <Button type="submit" disabled={waitlistSubmitting}>
-                    {waitlistSubmitting ? 'Joining...' : 'Notify Me'}
-                  </Button>
-                </form>
-              )}
-              {waitlistError && (
-                <p className="mt-2 text-sm text-red-600">{waitlistError}</p>
-              )}
             </div>
           </div>
         </div>

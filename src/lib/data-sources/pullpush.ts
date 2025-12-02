@@ -102,6 +102,9 @@ export class PullPushSource implements DataSource {
     const { subreddits, keywords, limit = 50, timeRange } = params
     const allPosts: RedditPost[] = []
 
+    // Use first 2 keywords for focused search
+    const queryKeywords = keywords?.slice(0, 2)
+
     // PullPush requires individual subreddit requests
     for (let i = 0; i < subreddits.length; i++) {
       const subreddit = subreddits[i]
@@ -113,8 +116,8 @@ export class PullPushSource implements DataSource {
           sort_type: 'desc',
         })
 
-        if (keywords && keywords.length > 0) {
-          queryParams.set('q', keywords.join(' '))
+        if (queryKeywords && queryKeywords.length > 0) {
+          queryParams.set('q', queryKeywords.join(' '))
         }
 
         if (timeRange?.after) {
@@ -148,6 +151,9 @@ export class PullPushSource implements DataSource {
     const { subreddits, keywords, limit = 30, timeRange } = params
     const allComments: RedditComment[] = []
 
+    // Use first 2 keywords for focused search
+    const queryKeywords = keywords?.slice(0, 2)
+
     // PullPush requires individual subreddit requests
     for (let i = 0; i < subreddits.length; i++) {
       const subreddit = subreddits[i]
@@ -159,8 +165,8 @@ export class PullPushSource implements DataSource {
           sort_type: 'desc',
         })
 
-        if (keywords && keywords.length > 0) {
-          queryParams.set('q', keywords.join(' '))
+        if (queryKeywords && queryKeywords.length > 0) {
+          queryParams.set('q', queryKeywords.join(' '))
         }
 
         if (timeRange?.after) {
@@ -192,14 +198,15 @@ export class PullPushSource implements DataSource {
 
   async getPostCount(subreddit: string, keywords?: string[]): Promise<number> {
     try {
+      const queryKeywords = keywords?.slice(0, 2)
       const queryParams = new URLSearchParams({
         subreddit,
         size: '0',
         metadata: 'true',
       })
 
-      if (keywords && keywords.length > 0) {
-        queryParams.set('q', keywords.join(' '))
+      if (queryKeywords && queryKeywords.length > 0) {
+        queryParams.set('q', queryKeywords.join(' '))
       }
 
       const url = `${PULLPUSH_BASE}/search/submission?${queryParams}`

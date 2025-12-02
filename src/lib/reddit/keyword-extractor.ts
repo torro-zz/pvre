@@ -23,26 +23,32 @@ export interface ExtractedKeywords {
 export async function extractSearchKeywords(
   hypothesis: string
 ): Promise<ExtractedKeywords> {
-  const prompt = `Extract search keywords from this business hypothesis.
+  const prompt = `Extract search keywords from this business hypothesis for Reddit search.
 
 HYPOTHESIS: "${hypothesis}"
 
 Your task:
-1. PRIMARY keywords (3-5): Specific nouns and phrases that MUST appear in relevant posts. These should directly relate to the PROBLEM or DOMAIN.
-2. SECONDARY keywords (3-5): Related terms that indicate relevance. These can be synonyms, related activities, or context words.
-3. EXCLUDE keywords (2-3): Terms that indicate OFF-TOPIC posts. These help filter out noise.
+1. PRIMARY keywords (2-4): The most distinctive 1-2 word terms that identify THIS SPECIFIC problem domain. These will be used for search, so pick words that are:
+   - Unique to this domain (not generic like "app", "tool", "help")
+   - Likely to appear in Reddit post titles or bodies
+   - Concrete nouns or compound terms (e.g., "meal prep", "invoice", "remote work")
 
-Rules:
-- Be SPECIFIC to this hypothesis
-- Avoid generic business words: "startup", "business", "app", "solution", "help", "problem"
-- Focus on the PROBLEM domain and USER activities
-- Include specific pain language related to this domain
-- Think about what words would appear in a Reddit post from someone experiencing this problem
+2. SECONDARY keywords (3-5): Related activity or pain words. These help identify relevant discussions.
 
-Example for "App to find quiet cafes for remote work":
-- PRIMARY: ["quiet cafe", "coworking space", "work from cafe", "workspace finder", "remote work spot"]
-- SECONDARY: ["wifi cafe", "laptop friendly", "noise level", "digital nomad", "focus spot"]
-- EXCLUDE: ["coffee recipe", "barista job", "coffee beans", "home office setup"]
+3. EXCLUDE keywords (3-5): Terms that would make a post CLEARLY off-topic, even if it contains primary keywords. Be specific.
+
+CRITICAL RULES:
+- PRIMARY keywords should be 1-2 words maximum, not phrases
+- Avoid vague words: "struggle", "need", "want", "help", "problem", "solution", "app", "tool", "startup", "entrepreneur", "business"
+- For "workout app for entrepreneurs short on time":
+  - GOOD primary: ["workout", "exercise", "fitness"]
+  - BAD primary: ["entrepreneurs", "short on time", "busy schedule"] - these are too vague
+- Think: "What NOUN describes the activity or domain?"
+
+Example for "Tool to help freelance designers manage client invoices":
+- PRIMARY: ["invoice", "freelance", "client payment"]
+- SECONDARY: ["billing", "contract", "overdue", "accounts receivable"]
+- EXCLUDE: ["job posting", "salary", "full-time", "employee benefits"]
 
 Respond with JSON only:
 {

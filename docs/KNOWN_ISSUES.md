@@ -12,16 +12,7 @@ Last updated: December 2, 2024
 
 ## High Priority
 
-### Keyword Search Quality in Community Voice
-**Status:** Needs Investigation
-**Description:** User reported: "The Hypothesis is split into keywords and it seems like the AI is searching for these keywords in Reddit communities. Hence the selection of comments and submissions are irrelevant to our search."
-**Example:** Hypothesis "workout app for entrepreneurs short on time" returns irrelevant posts.
-**Root cause:** Too-broad subreddit selection and keyword matching.
-
-### Pricing Packages Not Displayed Correctly
-**Status:** Needs Fix
-**Description:** Pricing packages in user settings/billing page don't show correct information.
-**Location:** Account settings page
+*No high priority issues*
 
 ---
 
@@ -42,6 +33,20 @@ Last updated: December 2, 2024
 **Description:** The Admin Dashboard "Claude API Costs" section always displays $0.00.
 **Location:** `/admin` page
 **Possible cause:** Token tracking not being saved or displayed correctly.
+
+---
+
+## Recently Fixed (Dec 2, 2024)
+
+### Keyword Search Quality in Community Voice
+**Status:** ✅ Fixed
+**Fix:** Improved keyword extraction prompt, limited search to 2 most relevant keywords, improved subreddit discovery to focus on niche communities instead of generic business subreddits.
+**Files changed:** `src/lib/reddit/keyword-extractor.ts`, `src/lib/reddit/subreddit-discovery.ts`, `src/lib/data-sources/arctic-shift.ts`, `src/lib/data-sources/pullpush.ts`
+
+### Pricing Packages Not Displayed Correctly
+**Status:** ✅ Fixed (was already working)
+**Fix:** Verified pricing displays correctly. Removed broken waitlist form that called deleted API endpoint.
+**Files changed:** `src/app/(dashboard)/account/billing/page.tsx`
 
 ---
 

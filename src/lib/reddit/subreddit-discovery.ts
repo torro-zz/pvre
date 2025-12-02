@@ -24,21 +24,29 @@ export async function discoverSubreddits(hypothesis: string): Promise<DiscoveryR
 
 Your task is to suggest subreddits where people discuss problems, challenges, and needs related to a business hypothesis.
 
-Focus on:
-- Communities where target customers gather
-- Subreddits where people ask for help or recommendations
-- Niche communities related to the topic
-- Regional subreddits if location is mentioned
-- Related hobby, profession, or interest communities
+CRITICAL RULES:
+1. Prioritize NICHE communities over large general ones
+2. Focus on WHERE the target user spends time, not WHERE they might mention keywords
+3. For a fitness app: suggest fitness subreddits, NOT entrepreneur subreddits
+4. For a freelancer tool: suggest freelancer subreddits, NOT general business subreddits
 
-Avoid:
-- Generic large subreddits unless highly relevant
-- Meme or entertainment-focused subreddits
+Focus on:
+- Niche communities specific to the PROBLEM DOMAIN (e.g., r/crossfit for fitness, r/freelance for freelancers)
+- Communities where people ASK FOR HELP with this specific problem
+- Subreddits with 10k-500k members (active but not too noisy)
+- Professional or hobby communities where target users hang out
+
+Strongly Avoid:
+- r/Entrepreneur, r/startups, r/smallbusiness (too generic, full of marketers)
+- Giant subreddits like r/AskReddit, r/LifeProTips (too noisy)
+- Meme or entertainment subreddits
 - Subreddits that are likely private or inactive`
 
   const userPrompt = `Business Hypothesis: "${hypothesis}"
 
-Suggest 8-12 subreddits where I can find discussions about problems, needs, and challenges related to this hypothesis.
+Suggest 6-10 subreddits where the TARGET USERS (not entrepreneurs) discuss problems related to this hypothesis.
+
+Ask yourself: "Who has the problem this hypothesis solves? Where do THEY hang out on Reddit?"
 
 Respond in JSON format:
 {

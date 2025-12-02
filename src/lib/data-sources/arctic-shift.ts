@@ -43,11 +43,18 @@ export class ArcticShiftSource implements DataSource {
     const { subreddits, keywords, limit = 50, timeRange } = params
     const allPosts: RedditPost[] = []
 
+    // Build a more focused query - use first 2 keywords only to avoid over-filtering
+    // The Claude relevance filter will do the fine-grained filtering
+    const queryKeywords = keywords?.slice(0, 2)
+    const query = queryKeywords && queryKeywords.length > 0
+      ? queryKeywords.join(' ')  // Space = implicit AND in most search APIs
+      : undefined
+
     for (const subreddit of subreddits) {
       try {
         const posts = await arcticSearchPosts({
           subreddit,
-          query: keywords?.join(' OR '),
+          query,
           limit: Math.min(limit, 100),
           after: timeRange?.after ? this.formatDate(timeRange.after) : undefined,
           before: timeRange?.before ? this.formatDate(timeRange.before) : undefined,
@@ -68,11 +75,17 @@ export class ArcticShiftSource implements DataSource {
     const { subreddits, keywords, limit = 30, timeRange } = params
     const allComments: RedditComment[] = []
 
+    // Use first 2 keywords for focused search
+    const queryKeywords = keywords?.slice(0, 2)
+    const bodyQuery = queryKeywords && queryKeywords.length > 0
+      ? queryKeywords.join(' ')
+      : undefined
+
     for (const subreddit of subreddits) {
       try {
         const comments = await arcticSearchComments({
           subreddit,
-          body: keywords?.join(' '),
+          body: bodyQuery,
           limit: Math.min(limit, 100),
           after: timeRange?.after ? this.formatDate(timeRange.after) : undefined,
           before: timeRange?.before ? this.formatDate(timeRange.before) : undefined,
@@ -92,9 +105,10 @@ export class ArcticShiftSource implements DataSource {
     try {
       // Arctic Shift doesn't have a direct count endpoint, so we fetch a small batch
       // and use the response to estimate (this is a limitation)
+      const queryKeywords = keywords?.slice(0, 2)
       const posts = await arcticSearchPosts({
         subreddit,
-        query: keywords?.join(' OR '),
+        query: queryKeywords?.join(' '),
         limit: 100,
         sort: 'desc',
       })
