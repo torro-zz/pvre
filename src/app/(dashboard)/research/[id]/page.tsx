@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import { CommunityVoiceResults } from '@/components/research/community-voice-results'
+import { DataQualityCard } from '@/components/research/data-quality-card'
 import { CompetitorResults } from '@/components/research/competitor-results'
 import { ViabilityVerdictDisplay } from '@/components/research/viability-verdict'
 import { CompetitorPromptModal, CompetitorPromptBanner } from '@/components/research/competitor-prompt-modal'
@@ -13,6 +14,8 @@ import { ArrowLeft, Calendar, Clock, AlertCircle, TrendingUp, Shield, Target, Pi
 import { ResearchProgress } from '@/components/research/research-progress'
 import { PDFDownloadButton } from '@/components/research/pdf-download-button'
 import { ReportProblem } from '@/components/research/report-problem'
+import { ResearchMetadata } from '@/components/research/research-metadata'
+import { StatusPoller } from '@/components/research/status-poller'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 import {
@@ -96,13 +99,23 @@ export default async function ResearchDetailPage({
   console.log('Results error:', resultsError?.message || 'None')
 
   // Extract community voice and competitor results
+  // Check both old module names (community_voice, competitor_intel) and new step-based names (pain_analysis, competitor_intelligence)
   const communityVoiceResult = allResults?.find(
-    (r) => r.module_name === 'community_voice'
+    (r) => r.module_name === 'community_voice' || r.module_name === 'pain_analysis'
   ) as ResearchResult<CommunityVoiceResult> | undefined
 
   const competitorResult = allResults?.find(
-    (r) => r.module_name === 'competitor_intel'
+    (r) => r.module_name === 'competitor_intel' || r.module_name === 'competitor_intelligence'
   ) as ResearchResult<CompetitorIntelligenceResult> | undefined
+
+  // Also fetch market sizing and timing if stored separately (step-based flow)
+  const marketSizingResult = allResults?.find(
+    (r) => r.module_name === 'market_sizing'
+  )
+
+  const timingResult = allResults?.find(
+    (r) => r.module_name === 'timing_analysis'
+  )
 
   // Calculate viability score if we have at least one result
   let painScoreInput: PainScoreInput | null = null
@@ -159,9 +172,9 @@ export default async function ResearchDetailPage({
     }
   }
 
-  // Extract market sizing from community voice result (it's bundled together)
-  if (communityVoiceResult?.data?.marketSizing) {
-    const marketData = communityVoiceResult.data.marketSizing
+  // Extract market sizing from community voice result OR separate market_sizing result (step-based flow)
+  const marketData = communityVoiceResult?.data?.marketSizing || (marketSizingResult?.data as CommunityVoiceResult['marketSizing'])
+  if (marketData) {
     marketScoreInput = {
       score: marketData.score,
       confidence: marketData.confidence,
@@ -170,9 +183,9 @@ export default async function ResearchDetailPage({
     }
   }
 
-  // Extract timing from community voice result (it's bundled together)
-  if (communityVoiceResult?.data?.timing) {
-    const timingData = communityVoiceResult.data.timing
+  // Extract timing from community voice result OR separate timing_analysis result (step-based flow)
+  const timingData = communityVoiceResult?.data?.timing || (timingResult?.data as CommunityVoiceResult['timing'])
+  if (timingData) {
     timingScoreInput = {
       score: timingData.score,
       confidence: timingData.confidence,
@@ -246,17 +259,7 @@ export default async function ResearchDetailPage({
 
         {/* Results or status message */}
         {researchJob.status === 'processing' ? (
-          <Card>
-            <CardContent className="py-12">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Research in Progress</h3>
-                <p className="text-muted-foreground">
-                  Your research is still being processed. Please check back in a few moments.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <StatusPoller jobId={id} initialStatus="processing" />
         ) : researchJob.status === 'failed' ? (
           <Card>
             <CardContent className="py-12">
@@ -273,17 +276,7 @@ export default async function ResearchDetailPage({
             </CardContent>
           </Card>
         ) : researchJob.status === 'pending' ? (
-          <Card>
-            <CardContent className="py-12">
-              <div className="text-center">
-                <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Research Pending</h3>
-                <p className="text-muted-foreground">
-                  This research job is waiting to be processed.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <StatusPoller jobId={id} initialStatus="pending" />
         ) : communityVoiceResult?.data || competitorResult?.data ? (
           /* Tabbed Results Interface */
           <>
@@ -334,14 +327,14 @@ export default async function ResearchDetailPage({
               <TabsTrigger value="market" className="flex items-center gap-2">
                 <PieChart className="h-4 w-4" />
                 <span className="hidden sm:inline">Market</span>
-                {communityVoiceResult?.data?.marketSizing && (
+                {(communityVoiceResult?.data?.marketSizing || marketSizingResult) && (
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                 )}
               </TabsTrigger>
               <TabsTrigger value="timing" className="flex items-center gap-2">
                 <Timer className="h-4 w-4" />
                 <span className="hidden sm:inline">Timing</span>
-                {communityVoiceResult?.data?.timing && (
+                {(communityVoiceResult?.data?.timing || timingResult) && (
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                 )}
               </TabsTrigger>
@@ -375,12 +368,39 @@ export default async function ResearchDetailPage({
             {/* Community Voice Tab */}
             <TabsContent value="community">
               {communityVoiceResult?.data ? (
-                <CommunityVoiceResults
-                  results={communityVoiceResult.data}
-                  jobId={id}
-                  hypothesis={researchJob.hypothesis}
-                  showNextStep={false}
-                />
+                <div className="space-y-6">
+                  <CommunityVoiceResults
+                    results={communityVoiceResult.data}
+                    jobId={id}
+                    hypothesis={researchJob.hypothesis}
+                    showNextStep={false}
+                  />
+                  {/* Data Quality Card - Filtering transparency */}
+                  {communityVoiceResult.data.metadata.filteringMetrics && (
+                    <DataQualityCard
+                      postsFound={communityVoiceResult.data.metadata.filteringMetrics.postsFound}
+                      postsAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed}
+                      postsFiltered={communityVoiceResult.data.metadata.filteringMetrics.postsFiltered}
+                      postFilterRate={communityVoiceResult.data.metadata.filteringMetrics.postFilterRate}
+                      commentsFound={communityVoiceResult.data.metadata.filteringMetrics.commentsFound}
+                      commentsAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.commentsAnalyzed}
+                      commentsFiltered={communityVoiceResult.data.metadata.filteringMetrics.commentsFiltered}
+                      commentFilterRate={communityVoiceResult.data.metadata.filteringMetrics.commentFilterRate}
+                      qualityLevel={communityVoiceResult.data.metadata.filteringMetrics.qualityLevel}
+                    />
+                  )}
+                  {/* Research Metadata - Data quality and transparency */}
+                  <ResearchMetadata
+                    postsAnalyzed={communityVoiceResult.data.metadata.postsAnalyzed}
+                    commentsAnalyzed={communityVoiceResult.data.metadata.commentsAnalyzed}
+                    subredditsSearched={communityVoiceResult.data.subreddits.analyzed}
+                    dateRange={communityVoiceResult.data.painSummary.dateRange}
+                    dataConfidence={communityVoiceResult.data.painSummary.dataConfidence}
+                    temporalDistribution={communityVoiceResult.data.painSummary.temporalDistribution}
+                    recencyScore={communityVoiceResult.data.painSummary.recencyScore}
+                    dataSource="Reddit discussions"
+                  />
+                </div>
               ) : (
                 <Card>
                   <CardContent className="py-12">
@@ -404,7 +424,7 @@ export default async function ResearchDetailPage({
 
             {/* Market Tab */}
             <TabsContent value="market">
-              {communityVoiceResult?.data?.marketSizing ? (
+              {marketData ? (
                 <div className="space-y-6">
                   {/* Market Score Overview */}
                   <Card>
@@ -418,15 +438,15 @@ export default async function ResearchDetailPage({
                         </div>
                         <div className="text-right">
                           <div className="text-3xl font-bold">
-                            {communityVoiceResult.data.marketSizing.score.toFixed(1)}
+                            {marketData.score.toFixed(1)}
                             <span className="text-lg text-muted-foreground">/10</span>
                           </div>
                           <Badge variant={
-                            communityVoiceResult.data.marketSizing.mscAnalysis.achievability === 'highly_achievable' ? 'default' :
-                            communityVoiceResult.data.marketSizing.mscAnalysis.achievability === 'achievable' ? 'secondary' :
+                            marketData.mscAnalysis.achievability === 'highly_achievable' ? 'default' :
+                            marketData.mscAnalysis.achievability === 'achievable' ? 'secondary' :
                             'destructive'
                           }>
-                            {communityVoiceResult.data.marketSizing.mscAnalysis.achievability.replace('_', ' ')}
+                            {marketData.mscAnalysis.achievability.replace('_', ' ')}
                           </Badge>
                         </div>
                       </div>
@@ -437,33 +457,33 @@ export default async function ResearchDetailPage({
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-blue-900">TAM (Total Addressable Market)</span>
                             <span className="text-blue-700 font-bold">
-                              {communityVoiceResult.data.marketSizing.tam.value.toLocaleString()} users
+                              {marketData.tam.value.toLocaleString()} users
                             </span>
                           </div>
-                          <p className="text-sm text-blue-700">{communityVoiceResult.data.marketSizing.tam.description}</p>
-                          <p className="text-xs text-blue-600 mt-1">{communityVoiceResult.data.marketSizing.tam.reasoning}</p>
+                          <p className="text-sm text-blue-700">{marketData.tam.description}</p>
+                          <p className="text-xs text-blue-600 mt-1">{marketData.tam.reasoning}</p>
                         </div>
 
                         <div className="p-4 bg-green-50 rounded-lg">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-green-900">SAM (Serviceable Available Market)</span>
                             <span className="text-green-700 font-bold">
-                              {communityVoiceResult.data.marketSizing.sam.value.toLocaleString()} users
+                              {marketData.sam.value.toLocaleString()} users
                             </span>
                           </div>
-                          <p className="text-sm text-green-700">{communityVoiceResult.data.marketSizing.sam.description}</p>
-                          <p className="text-xs text-green-600 mt-1">{communityVoiceResult.data.marketSizing.sam.reasoning}</p>
+                          <p className="text-sm text-green-700">{marketData.sam.description}</p>
+                          <p className="text-xs text-green-600 mt-1">{marketData.sam.reasoning}</p>
                         </div>
 
                         <div className="p-4 bg-purple-50 rounded-lg">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-purple-900">SOM (Serviceable Obtainable Market)</span>
                             <span className="text-purple-700 font-bold">
-                              {communityVoiceResult.data.marketSizing.som.value.toLocaleString()} users
+                              {marketData.som.value.toLocaleString()} users
                             </span>
                           </div>
-                          <p className="text-sm text-purple-700">{communityVoiceResult.data.marketSizing.som.description}</p>
-                          <p className="text-xs text-purple-600 mt-1">{communityVoiceResult.data.marketSizing.som.reasoning}</p>
+                          <p className="text-sm text-purple-700">{marketData.som.description}</p>
+                          <p className="text-xs text-purple-600 mt-1">{marketData.som.reasoning}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -477,29 +497,29 @@ export default async function ResearchDetailPage({
                         <div className="p-4 bg-muted rounded-lg">
                           <div className="text-sm text-muted-foreground">Customers Needed</div>
                           <div className="text-2xl font-bold">
-                            {communityVoiceResult.data.marketSizing.mscAnalysis.customersNeeded.toLocaleString()}
+                            {marketData.mscAnalysis.customersNeeded.toLocaleString()}
                           </div>
                         </div>
                         <div className="p-4 bg-muted rounded-lg">
                           <div className="text-sm text-muted-foreground">Penetration Required</div>
                           <div className="text-2xl font-bold">
-                            {communityVoiceResult.data.marketSizing.mscAnalysis.penetrationRequired.toFixed(1)}%
+                            {marketData.mscAnalysis.penetrationRequired.toFixed(1)}%
                           </div>
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {communityVoiceResult.data.marketSizing.mscAnalysis.verdict}
+                        {marketData.mscAnalysis.verdict}
                       </p>
                     </CardContent>
                   </Card>
 
                   {/* Suggestions */}
-                  {communityVoiceResult.data.marketSizing.suggestions.length > 0 && (
+                  {marketData.suggestions && marketData.suggestions.length > 0 && (
                     <Card>
                       <CardContent className="pt-6">
                         <h3 className="text-lg font-semibold mb-4">Suggestions</h3>
                         <ul className="space-y-2">
-                          {communityVoiceResult.data.marketSizing.suggestions.map((suggestion, i) => (
+                          {marketData.suggestions.map((suggestion, i) => (
                             <li key={i} className="flex items-start gap-2 text-sm">
                               <span className="text-primary">•</span>
                               <span>{suggestion}</span>
@@ -533,7 +553,7 @@ export default async function ResearchDetailPage({
 
             {/* Timing Tab */}
             <TabsContent value="timing">
-              {communityVoiceResult?.data?.timing ? (
+              {timingData ? (
                 <div className="space-y-6">
                   {/* Timing Score Overview */}
                   <Card>
@@ -547,16 +567,16 @@ export default async function ResearchDetailPage({
                         </div>
                         <div className="text-right">
                           <div className="text-3xl font-bold">
-                            {communityVoiceResult.data.timing.score.toFixed(1)}
+                            {timingData.score.toFixed(1)}
                             <span className="text-lg text-muted-foreground">/10</span>
                           </div>
                           <Badge variant={
-                            communityVoiceResult.data.timing.trend === 'rising' ? 'default' :
-                            communityVoiceResult.data.timing.trend === 'stable' ? 'secondary' :
+                            timingData.trend === 'rising' ? 'default' :
+                            timingData.trend === 'stable' ? 'secondary' :
                             'destructive'
                           }>
-                            {communityVoiceResult.data.timing.trend === 'rising' ? '↑ Rising' :
-                             communityVoiceResult.data.timing.trend === 'stable' ? '→ Stable' :
+                            {timingData.trend === 'rising' ? '↑ Rising' :
+                             timingData.trend === 'stable' ? '→ Stable' :
                              '↓ Falling'}
                           </Badge>
                         </div>
@@ -565,20 +585,20 @@ export default async function ResearchDetailPage({
                       {/* Timing Window */}
                       <div className="p-4 bg-muted rounded-lg mb-6">
                         <div className="text-sm text-muted-foreground">Timing Window</div>
-                        <div className="text-xl font-bold">{communityVoiceResult.data.timing.timingWindow}</div>
+                        <div className="text-xl font-bold">{timingData.timingWindow}</div>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {communityVoiceResult.data.timing.verdict}
+                          {timingData.verdict}
                         </p>
                       </div>
 
                       {/* Tailwinds */}
-                      {communityVoiceResult.data.timing.tailwinds.length > 0 && (
+                      {timingData.tailwinds && timingData.tailwinds.length > 0 && (
                         <div className="mb-6">
                           <h4 className="font-medium text-green-700 mb-3 flex items-center gap-2">
-                            <span className="text-lg">↑</span> Tailwinds ({communityVoiceResult.data.timing.tailwinds.length})
+                            <span className="text-lg">↑</span> Tailwinds ({timingData.tailwinds.length})
                           </h4>
                           <div className="space-y-3">
-                            {communityVoiceResult.data.timing.tailwinds.map((tw, i) => (
+                            {timingData.tailwinds.map((tw, i) => (
                               <div key={i} className="p-3 bg-green-50 rounded-lg border border-green-200">
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="font-medium text-green-900">{tw.signal}</span>
@@ -598,13 +618,13 @@ export default async function ResearchDetailPage({
                       )}
 
                       {/* Headwinds */}
-                      {communityVoiceResult.data.timing.headwinds.length > 0 && (
+                      {timingData.headwinds && timingData.headwinds.length > 0 && (
                         <div>
                           <h4 className="font-medium text-red-700 mb-3 flex items-center gap-2">
-                            <span className="text-lg">↓</span> Headwinds ({communityVoiceResult.data.timing.headwinds.length})
+                            <span className="text-lg">↓</span> Headwinds ({timingData.headwinds.length})
                           </h4>
                           <div className="space-y-3">
-                            {communityVoiceResult.data.timing.headwinds.map((hw, i) => (
+                            {timingData.headwinds.map((hw, i) => (
                               <div key={i} className="p-3 bg-red-50 rounded-lg border border-red-200">
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="font-medium text-red-900">{hw.signal}</span>
@@ -673,29 +693,21 @@ export default async function ResearchDetailPage({
             </Tabs>
           </>
         ) : (
-          /* No results at all */
+          /* No results at all - redirect to step-based flow */
           <Card>
             <CardContent className="py-12">
               <div className="text-center">
                 <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No Results Available</h3>
+                <h3 className="text-lg font-semibold mb-2">Research Not Started</h3>
                 <p className="text-muted-foreground mb-4">
-                  No research modules have been run for this hypothesis yet.
+                  Start your 4-step research process to validate this hypothesis.
                 </p>
-                <div className="flex justify-center gap-4">
-                  <Link href={`/research?hypothesis=${encodeURIComponent(researchJob.hypothesis)}`}>
-                    <Button variant="outline">
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      Run Community Voice
-                    </Button>
-                  </Link>
-                  <Link href={`/research/competitors?hypothesis=${encodeURIComponent(researchJob.hypothesis)}`}>
-                    <Button>
-                      <Shield className="h-4 w-4 mr-2" />
-                      Run Competitor Intelligence
-                    </Button>
-                  </Link>
-                </div>
+                <Link href={`/research/${id}/steps`}>
+                  <Button size="lg">
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Continue Research
+                  </Button>
+                </Link>
               </div>
             </CardContent>
           </Card>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, JetBrains_Mono, Fraunces } from "next/font/google";
 import { CookieBanner } from "@/components/layout/cookie-banner";
+import { CrispChat } from "@/components/layout/crisp-chat";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -38,6 +39,7 @@ export default function RootLayout({
       >
         {children}
         <CookieBanner />
+        <CrispChat />
       </body>
     </html>
   );

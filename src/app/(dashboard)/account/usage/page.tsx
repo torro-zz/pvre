@@ -6,7 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { BarChart3, TrendingUp, Clock, ExternalLink } from 'lucide-react'
-import type { ResearchJob } from '@/types/database'
+import type { Tables } from '@/types/supabase'
+
+type ResearchJob = Tables<'research_jobs'>
 
 interface UsageStats {
   totalRuns: number
@@ -39,6 +41,7 @@ export default function UsagePage() {
         const allJobs = researchJobs || []
         const now = new Date()
         const thisMonthJobs = allJobs.filter((job) => {
+          if (!job.created_at) return false
           const jobDate = new Date(job.created_at)
           return jobDate.getMonth() === now.getMonth() &&
                  jobDate.getFullYear() === now.getFullYear()
@@ -57,16 +60,17 @@ export default function UsagePage() {
     fetchData()
   }, [])
 
-  const getStatusBadge = (status: ResearchJob['status']) => {
-    const styles = {
+  const getStatusBadge = (status: string | null) => {
+    const styles: Record<string, string> = {
       completed: 'bg-green-100 text-green-700',
       processing: 'bg-blue-100 text-blue-700',
       pending: 'bg-yellow-100 text-yellow-700',
       failed: 'bg-red-100 text-red-700',
     }
+    const statusKey = status || 'pending'
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[status]}`}>
-        {status}
+      <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[statusKey] || styles.pending}`}>
+        {statusKey}
       </span>
     )
   }
@@ -158,7 +162,7 @@ export default function UsagePage() {
                   {jobs.map((job) => (
                     <tr key={job.id}>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {new Date(job.created_at).toLocaleDateString()}
+                        {job.created_at ? new Date(job.created_at).toLocaleDateString() : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900 max-w-md truncate">
                         {job.hypothesis}

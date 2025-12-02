@@ -41,7 +41,7 @@ export async function GET() {
     // Fetch all results for these jobs
     const jobIds = jobs?.map((j) => j.id) || []
 
-    let results: { id: string; job_id: string; module_name: string; data: unknown; created_at: string }[] = []
+    let results: { id: string; job_id: string | null; module_name: string; data: unknown; created_at: string | null }[] = []
 
     if (jobIds.length > 0) {
       const { data: resultsData, error: resultsError } = await supabase

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { AlertCircle, CheckCircle, AlertTriangle, Loader2, Search } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { AlertCircle, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -107,6 +107,14 @@ export function CoveragePreview({
     }
   }
 
+  // Auto-trigger coverage check when component mounts
+  useEffect(() => {
+    if (hypothesis.trim() && hypothesis.length >= 10 && !checked && !loading) {
+      checkCoverage()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run on mount
+
   // Reset when hypothesis changes significantly
   const resetCheck = () => {
     setChecked(false)
@@ -137,25 +145,17 @@ export function CoveragePreview({
 
   if (!checked) {
     return (
-      <Button
-        type="button"
-        variant="outline"
-        onClick={checkCoverage}
-        disabled={loading || disabled || !hypothesis.trim() || hypothesis.length < 10}
-        className="w-full"
-      >
-        {loading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Checking Reddit coverage...
-          </>
-        ) : (
-          <>
-            <Search className="mr-2 h-4 w-4" />
-            Check Data Availability (Free)
-          </>
-        )}
-      </Button>
+      <div className="p-4 rounded-lg border bg-muted/30 border-muted">
+        <div className="flex items-center gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <div>
+            <p className="font-medium">Checking data availability...</p>
+            <p className="text-sm text-muted-foreground">
+              Scanning Reddit for relevant discussions
+            </p>
+          </div>
+        </div>
+      </div>
     )
   }
 
@@ -254,25 +254,39 @@ export function CoveragePreview({
       <div className="flex gap-3">
         {coverage.recommendation === 'refine' ? (
           <>
-            <Button onClick={onRefine} variant="default" className="flex-1">
+            <Button onClick={onRefine} variant="default" className="flex-1" disabled={disabled}>
               Refine Hypothesis
             </Button>
-            <Button onClick={onProceed} variant="outline">
+            <Button onClick={onProceed} variant="outline" disabled={disabled}>
               Run Anyway
             </Button>
           </>
         ) : coverage.recommendation === 'caution' ? (
           <>
-            <Button onClick={onProceed} variant="default" className="flex-1">
-              Run Research (1 credit)
+            <Button onClick={onProceed} variant="default" className="flex-1" disabled={disabled}>
+              {disabled ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Running...
+                </>
+              ) : (
+                'Run Research (1 credit)'
+              )}
             </Button>
-            <Button onClick={onRefine} variant="outline">
+            <Button onClick={onRefine} variant="outline" disabled={disabled}>
               Refine First
             </Button>
           </>
         ) : (
-          <Button onClick={onProceed} variant="default" className="flex-1">
-            Run Full Research (1 credit)
+          <Button onClick={onProceed} variant="default" className="flex-1" disabled={disabled}>
+            {disabled ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Running...
+              </>
+            ) : (
+              'Run Full Research (1 credit)'
+            )}
           </Button>
         )}
       </div>

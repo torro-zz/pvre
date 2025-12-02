@@ -1,9 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { checkUserCredits, deductCredit } from '@/lib/credits'
 import Anthropic from '@anthropic-ai/sdk'
+import { StepStatusMap } from '@/types/database'
+import { saveResearchResult } from '@/lib/research/save-result'
 
 const anthropic = new Anthropic()
+
+// Helper to update step status
+async function updateStepStatus(
+  jobId: string,
+  stepName: keyof StepStatusMap,
+  status: StepStatusMap[keyof StepStatusMap]
+) {
+  const adminClient = createAdminClient()
+
+  // Get current step status
+  const { data: job } = await adminClient
+    .from('research_jobs')
+    .select('step_status')
+    .eq('id', jobId)
+    .single()
+
+  const currentStatus = (job?.step_status as unknown as StepStatusMap) || {
+    pain_analysis: 'pending',
+    market_sizing: 'locked',
+    timing_analysis: 'locked',
+    competitor_analysis: 'locked',
+  }
+
+  // Update the step status
+  const newStatus: StepStatusMap = {
+    ...currentStatus,
+    [stepName]: status,
+  }
+
+  await adminClient
+    .from('research_jobs')
+    .update({ step_status: JSON.parse(JSON.stringify(newStatus)) })
+    .eq('id', jobId)
+}
 
 // =============================================================================
 // TYPES - Enhanced for PVRE Scoring Framework
@@ -239,6 +276,79 @@ function calculateCompetitionScore(
 }
 
 // =============================================================================
+// FALLBACK ANALYSIS (when Claude parsing fails)
+// =============================================================================
+
+function generateFallbackAnalysis(
+  hypothesis: string,
+  knownCompetitors: string[] = []
+): {
+  marketOverview: CompetitorIntelligenceResult['marketOverview']
+  competitors: Partial<Competitor>[]
+  gaps: Partial<CompetitorGap>[]
+  positioningRecommendations: PositioningRecommendation[]
+  competitorMatrix: { categories: string[]; comparison: { competitorName: string; scores: { category: string; score: number; notes: string }[] }[] }
+} {
+  // Generate basic competitor profiles from names
+  const competitors: Partial<Competitor>[] = knownCompetitors.map(name => ({
+    name,
+    website: null,
+    description: `${name} is a competitor in this market space. Analysis details unavailable due to processing error.`,
+    positioning: 'Unknown',
+    targetAudience: 'General market',
+    pricingModel: null,
+    pricingRange: null,
+    strengths: ['Established presence in market'],
+    weaknesses: ['Requires further analysis'],
+    differentiators: [],
+    threatLevel: 'medium' as const,
+    userSatisfaction: 3,
+    fundingLevel: 'unknown' as const,
+    marketShareEstimate: 'moderate' as const,
+  }))
+
+  // Generate basic market overview
+  const marketOverview: CompetitorIntelligenceResult['marketOverview'] = {
+    marketSize: 'Unknown - analysis incomplete',
+    growthTrend: 'Requires further research',
+    maturityLevel: 'growing' as const,
+    competitionIntensity: knownCompetitors.length >= 5 ? 'high' as const : 'medium' as const,
+    summary: `This market has ${knownCompetitors.length} known competitors. Full analysis was not available due to a processing error. Consider re-running the analysis or conducting manual research.`,
+  }
+
+  // Generate placeholder gaps
+  const gaps: Partial<CompetitorGap>[] = [
+    {
+      gap: 'Detailed competitive analysis needed',
+      description: 'The automated analysis encountered an issue. Manual research recommended.',
+      opportunity: 'To be determined',
+      difficulty: 'medium' as const,
+      opportunityScore: 5,
+      validationSignals: [],
+    },
+  ]
+
+  // Generic positioning recommendations
+  const positioningRecommendations: PositioningRecommendation[] = [
+    {
+      strategy: 'Conduct manual competitive research',
+      description: 'Re-run the analysis or manually research competitors to identify positioning opportunities.',
+      targetNiche: 'To be determined',
+      keyDifferentiators: [],
+      messagingAngles: [],
+    },
+  ]
+
+  return {
+    marketOverview,
+    competitors,
+    gaps,
+    positioningRecommendations,
+    competitorMatrix: { categories: [], comparison: [] },
+  }
+}
+
+// =============================================================================
 // COMPETITOR ANALYSIS
 // =============================================================================
 
@@ -358,8 +468,9 @@ Identify 4-8 competitors. Include at least 3 gaps and 2 positioning recommendati
     }
     analysis = JSON.parse(jsonText.trim())
   } catch (parseError) {
-    console.error('Failed to parse Claude response:', content.text)
-    throw new Error('Failed to parse competitive analysis')
+    console.error('Failed to parse Claude response, using fallback:', parseError)
+    // Generate fallback analysis from input competitors
+    analysis = generateFallbackAnalysis(hypothesis, knownCompetitors || [])
   }
 
   // Ensure all competitors have the enhanced fields with defaults
@@ -455,10 +566,40 @@ export async function POST(request: NextRequest) {
     // Generate job ID if not provided (for credit deduction tracking)
     const researchJobId = jobId || crypto.randomUUID()
 
-    // Skip credit deduction if running on an existing research job
-    // The credit was already paid when the initial research was created
-    // Only charge credits for standalone competitor analysis (no jobId)
-    if (!jobId) {
+    // If jobId provided, check step guard
+    if (jobId) {
+      const adminClient = createAdminClient()
+      const { data: job } = await adminClient
+        .from('research_jobs')
+        .select('step_status')
+        .eq('id', jobId)
+        .single()
+
+      const stepStatus = job?.step_status as unknown as StepStatusMap | null
+
+      // Check if timing_analysis is completed (required before competitor_analysis)
+      if (stepStatus && stepStatus.timing_analysis !== 'completed') {
+        return NextResponse.json(
+          { error: 'Timing analysis must be completed before competitor analysis' },
+          { status: 400 }
+        )
+      }
+
+      // Check if competitor_analysis is locked
+      if (stepStatus && stepStatus.competitor_analysis === 'locked') {
+        return NextResponse.json(
+          { error: 'Competitor analysis is locked. Complete previous steps first.' },
+          { status: 400 }
+        )
+      }
+
+      // Update step status to in_progress
+      await updateStepStatus(jobId, 'competitor_analysis', 'in_progress')
+      console.log('Skipping credit deduction - running on existing job:', jobId)
+    } else {
+      // Skip credit deduction if running on an existing research job
+      // The credit was already paid when the initial research was created
+      // Only charge credits for standalone competitor analysis (no jobId)
       const creditDeducted = await deductCredit(user.id, researchJobId)
       if (!creditDeducted) {
         return NextResponse.json(
@@ -469,8 +610,6 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         )
       }
-    } else {
-      console.log('Skipping credit deduction - running on existing job:', jobId)
     }
 
     console.log('Starting competitor analysis for:', hypothesis)
@@ -485,20 +624,27 @@ export async function POST(request: NextRequest) {
     console.log(`Identified ${result.gaps.length} market gaps`)
     console.log(`Competition score: ${result.competitionScore.score}/10`)
 
-    // If jobId is provided, save results to database
+    // If jobId is provided, save results to database and update step status
     if (jobId) {
       try {
-        await supabase
-          .from('research_results')
-          .insert({
-            job_id: jobId,
-            module_name: 'competitor_intel',
-            data: result,
-          })
-        console.log('Saved competitor intelligence results to database')
+        // Save results using shared utility
+        await saveResearchResult(jobId, 'competitor_intelligence', result)
+
+        // Update step status to completed
+        await updateStepStatus(jobId, 'competitor_analysis', 'completed')
+
+        // Mark overall job as completed (this is the final step)
+        const adminClient = createAdminClient()
+        await adminClient
+          .from('research_jobs')
+          .update({ status: 'completed' })
+          .eq('id', jobId)
+
+        console.log('Saved competitor intelligence results and marked job as completed')
       } catch (dbError) {
         console.error('Failed to save results to database:', dbError)
-        // Continue - we still want to return the results
+        // Update step status to failed
+        await updateStepStatus(jobId, 'competitor_analysis', 'failed')
       }
     }
 
@@ -507,6 +653,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result)
   } catch (error) {
     console.error('Competitor intelligence research failed:', error)
+
+    // Update step status to failed if jobId provided
+    const body = await request.clone().json().catch(() => ({}))
+    if (body.jobId) {
+      await updateStepStatus(body.jobId, 'competitor_analysis', 'failed')
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Research failed' },
       { status: 500 }

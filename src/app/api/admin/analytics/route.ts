@@ -25,6 +25,7 @@ export async function GET() {
       transactionsResult,
       jobsResult,
       purchasesResult,
+      researchResultsResult,
     ] = await Promise.all([
       // All users with credits
       supabase
@@ -49,23 +50,30 @@ export async function GET() {
         .select('*')
         .eq('status', 'completed')
         .order('created_at', { ascending: false }),
+
+      // Research results (for token usage/API costs)
+      supabase
+        .from('research_results')
+        .select('id, job_id, module_name, data, created_at')
+        .order('created_at', { ascending: false }),
     ])
 
     const users = usersResult.data || []
     const transactions = transactionsResult.data || []
     const jobs = jobsResult.data || []
     const purchases = purchasesResult.data || []
+    const researchResults = researchResultsResult.data || []
 
     // Calculate metrics
     const now = new Date()
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    // Revenue metrics
-    const totalRevenue = purchases.reduce((sum, p) => sum + (p.amount_usd || 0), 0)
+    // Revenue metrics (amount_cents -> dollars)
+    const totalRevenue = purchases.reduce((sum, p) => sum + (p.amount_cents || 0) / 100, 0)
     const revenueThisMonth = purchases
-      .filter((p) => new Date(p.created_at) >= thirtyDaysAgo)
-      .reduce((sum, p) => sum + (p.amount_usd || 0), 0)
+      .filter((p) => p.created_at && new Date(p.created_at) >= thirtyDaysAgo)
+      .reduce((sum, p) => sum + (p.amount_cents || 0) / 100, 0)
 
     // Credit purchase breakdown
     const creditsByType = transactions
@@ -90,7 +98,7 @@ export async function GET() {
     // Active users (researched in last 30 days)
     const activeUserIds = new Set(
       jobs
-        .filter((j) => new Date(j.created_at) >= thirtyDaysAgo)
+        .filter((j) => j.created_at && new Date(j.created_at) >= thirtyDaysAgo)
         .map((j) => j.user_id)
     )
     const activeUsers30d = activeUserIds.size
@@ -98,7 +106,7 @@ export async function GET() {
     // Active users this week
     const activeUsersWeekIds = new Set(
       jobs
-        .filter((j) => new Date(j.created_at) >= sevenDaysAgo)
+        .filter((j) => j.created_at && new Date(j.created_at) >= sevenDaysAgo)
         .map((j) => j.user_id)
     )
     const activeUsers7d = activeUsersWeekIds.size
@@ -106,7 +114,8 @@ export async function GET() {
     // Jobs by status
     const jobsByStatus = jobs.reduce(
       (acc, j) => {
-        acc[j.status] = (acc[j.status] || 0) + 1
+        const status = j.status || 'unknown'
+        acc[status] = (acc[status] || 0) + 1
         return acc
       },
       {} as Record<string, number>
@@ -115,9 +124,9 @@ export async function GET() {
     // Research per day (last 30 days)
     const researchByDay: Record<string, number> = {}
     jobs
-      .filter((j) => new Date(j.created_at) >= thirtyDaysAgo)
+      .filter((j) => j.created_at && new Date(j.created_at) >= thirtyDaysAgo)
       .forEach((j) => {
-        const day = new Date(j.created_at).toISOString().split('T')[0]
+        const day = new Date(j.created_at!).toISOString().split('T')[0]
         researchByDay[day] = (researchByDay[day] || 0) + 1
       })
 
@@ -127,13 +136,13 @@ export async function GET() {
       : 0
 
     // Average runs per active user
-    const avgRunsPerUser = users.filter(u => u.total_research_runs > 0).length > 0
-      ? totalResearchRuns / users.filter(u => u.total_research_runs > 0).length
+    const avgRunsPerUser = users.filter(u => (u.total_research_runs || 0) > 0).length > 0
+      ? totalResearchRuns / users.filter(u => (u.total_research_runs || 0) > 0).length
       : 0
 
     // New users this month
     const newUsersThisMonth = users.filter(
-      (u) => new Date(u.created_at) >= thirtyDaysAgo
+      (u) => u.created_at && new Date(u.created_at) >= thirtyDaysAgo
     ).length
 
     // Credit usage vs purchases
@@ -159,9 +168,9 @@ export async function GET() {
     // Transactions timeline (last 30 days by day)
     const transactionsByDay: Record<string, { purchases: number; usage: number; bonuses: number }> = {}
     transactions
-      .filter((t) => new Date(t.created_at) >= thirtyDaysAgo)
+      .filter((t) => t.created_at && new Date(t.created_at) >= thirtyDaysAgo)
       .forEach((t) => {
-        const day = new Date(t.created_at).toISOString().split('T')[0]
+        const day = new Date(t.created_at!).toISOString().split('T')[0]
         if (!transactionsByDay[day]) {
           transactionsByDay[day] = { purchases: 0, usage: 0, bonuses: 0 }
         }
@@ -173,6 +182,61 @@ export async function GET() {
           transactionsByDay[day].bonuses += Math.abs(t.amount)
         }
       })
+
+    // Claude API Cost Analysis
+    interface TokenUsage {
+      totalCalls: number
+      totalInputTokens: number
+      totalOutputTokens: number
+      totalTokens: number
+      totalCostUsd: number
+      costBreakdown?: { model: string; calls: number; cost: number }[]
+    }
+
+    // Extract token usage from research results
+    let totalApiCost = 0
+    let totalApiCalls = 0
+    let totalInputTokens = 0
+    let totalOutputTokens = 0
+    let researchWithCostTracking = 0
+    const costByModel: Record<string, { calls: number; cost: number; inputTokens: number; outputTokens: number }> = {}
+
+    for (const result of researchResults) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = result.data as any
+      const tokenUsage: TokenUsage | undefined = data?.metadata?.tokenUsage
+
+      if (tokenUsage && tokenUsage.totalCostUsd > 0) {
+        researchWithCostTracking++
+        totalApiCost += tokenUsage.totalCostUsd
+        totalApiCalls += tokenUsage.totalCalls
+        totalInputTokens += tokenUsage.totalInputTokens
+        totalOutputTokens += tokenUsage.totalOutputTokens
+
+        // Aggregate by model
+        if (tokenUsage.costBreakdown) {
+          for (const breakdown of tokenUsage.costBreakdown) {
+            if (!costByModel[breakdown.model]) {
+              costByModel[breakdown.model] = { calls: 0, cost: 0, inputTokens: 0, outputTokens: 0 }
+            }
+            costByModel[breakdown.model].calls += breakdown.calls
+            costByModel[breakdown.model].cost += breakdown.cost
+          }
+        }
+      }
+    }
+
+    // Calculate margins
+    // Credit pricing: Starter ($4.99/3), Builder ($14.99/10), Founder ($39.99/30)
+    // Average price per credit: ~$1.50 (varies by pack)
+    const avgRevenuePerCredit = totalCreditsUsed > 0 ? totalRevenue / totalCreditsUsed : 0
+    const avgCostPerCredit = researchWithCostTracking > 0 ? totalApiCost / researchWithCostTracking : 0
+    const grossMargin = avgRevenuePerCredit > 0 ? ((avgRevenuePerCredit - avgCostPerCredit) / avgRevenuePerCredit) * 100 : 0
+
+    // Estimated total API cost (extrapolate for research without tracking)
+    const estimatedTotalApiCost = researchWithCostTracking > 0
+      ? (totalApiCost / researchWithCostTracking) * totalResearchRuns
+      : 0
 
     return NextResponse.json({
       // Overview
@@ -209,6 +273,33 @@ export async function GET() {
 
       // Top users
       topUsers: topUsersByRuns,
+
+      // Claude API Costs
+      apiCosts: {
+        totalApiCost: Math.round(totalApiCost * 1000) / 1000,
+        estimatedTotalApiCost: Math.round(estimatedTotalApiCost * 1000) / 1000,
+        totalApiCalls,
+        totalInputTokens,
+        totalOutputTokens,
+        totalTokens: totalInputTokens + totalOutputTokens,
+        researchWithCostTracking,
+        researchWithoutCostTracking: totalResearchRuns - researchWithCostTracking,
+        avgCostPerResearch: researchWithCostTracking > 0
+          ? Math.round((totalApiCost / researchWithCostTracking) * 1000) / 1000
+          : 0,
+        costByModel: Object.entries(costByModel).map(([model, data]) => ({
+          model,
+          calls: data.calls,
+          cost: Math.round(data.cost * 1000) / 1000,
+        })),
+        // Margin analysis
+        margins: {
+          avgRevenuePerCredit: Math.round(avgRevenuePerCredit * 100) / 100,
+          avgCostPerCredit: Math.round(avgCostPerCredit * 1000) / 1000,
+          grossMarginPercent: Math.round(grossMargin * 10) / 10,
+          netProfitPerCredit: Math.round((avgRevenuePerCredit - avgCostPerCredit) * 100) / 100,
+        },
+      },
 
       // Last updated
       generatedAt: new Date().toISOString(),

@@ -1,20 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { HypothesisForm } from '@/components/research/hypothesis-form'
 import { CommunityVoiceResults } from '@/components/research/community-voice-results'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Filter, Search, MessageSquare, Sparkles } from 'lucide-react'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 
 type ResearchStatus = 'idle' | 'loading' | 'success' | 'error'
 
 interface ProgressStep {
+  id: string
   label: string
   status: 'pending' | 'active' | 'complete'
+  detail?: string
+  data?: Record<string, unknown>
+}
+
+interface StreamProgress {
+  postsFound?: number
+  commentsFound?: number
+  relevantPosts?: number
+  relevantComments?: number
+  filterRate?: number
+  subreddits?: string[]
+  painSignalCount?: number
+  themeCount?: number
 }
 
 export default function ResearchPage() {
@@ -22,31 +36,61 @@ export default function ResearchPage() {
   const [results, setResults] = useState<CommunityVoiceResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([])
+  const [streamProgress, setStreamProgress] = useState<StreamProgress>({})
+  const [currentMessage, setCurrentMessage] = useState<string>('')
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [currentHypothesis, setCurrentHypothesis] = useState<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Warn user before closing tab during research
+  useEffect(() => {
+    if (status === 'loading') {
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        e.preventDefault()
+        e.returnValue = 'Research is still running. Closing now may lose your results and credit. Are you sure?'
+        return e.returnValue
+      }
+      window.addEventListener('beforeunload', handleBeforeUnload)
+      return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [status])
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [])
 
   const runResearch = async (hypothesis: string) => {
     setStatus('loading')
     setError(null)
     setResults(null)
+    setStreamProgress({})
+    setCurrentMessage('')
 
-    // Initialize progress steps
-    setProgressSteps([
-      { label: 'Creating research job', status: 'active' },
-      { label: 'Discovering relevant subreddits', status: 'pending' },
-      { label: 'Fetching Reddit discussions', status: 'pending' },
-      { label: 'Analyzing pain signals', status: 'pending' },
-      { label: 'Extracting themes', status: 'pending' },
-      { label: 'Generating interview guide', status: 'pending' },
-    ])
+    // Initialize progress steps with IDs
+    const initialSteps: ProgressStep[] = [
+      { id: 'job', label: 'Creating research job', status: 'active' },
+      { id: 'keywords', label: 'Extracting search keywords', status: 'pending' },
+      { id: 'subreddits', label: 'Discovering relevant communities', status: 'pending' },
+      { id: 'fetching', label: 'Fetching discussions', status: 'pending' },
+      { id: 'filtering', label: 'Filtering for relevance', status: 'pending' },
+      { id: 'analyzing', label: 'Analyzing pain signals', status: 'pending' },
+      { id: 'themes', label: 'Extracting themes', status: 'pending' },
+      { id: 'interview', label: 'Generating interview guide', status: 'pending' },
+      { id: 'market', label: 'Analyzing market size', status: 'pending' },
+      { id: 'timing', label: 'Analyzing market timing', status: 'pending' },
+    ]
+    setProgressSteps(initialSteps)
 
     try {
       // Step 1: Create a research job first
       const jobResponse = await fetch('/api/research/jobs', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hypothesis }),
       })
 
@@ -60,81 +104,99 @@ export default function ResearchPage() {
       setCurrentJobId(jobId)
       setCurrentHypothesis(hypothesis)
 
-      // Mark first step complete, start second
-      setProgressSteps((prev) => {
-        const updated = [...prev]
-        updated[0].status = 'complete'
-        updated[1].status = 'active'
-        return updated
-      })
+      // Mark job step complete
+      setProgressSteps(prev => prev.map(s =>
+        s.id === 'job' ? { ...s, status: 'complete' as const } : s
+      ))
 
       // Update job status to processing
       await fetch('/api/research/jobs', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobId, status: 'processing' }),
       })
 
-      // Simulate progress updates for remaining steps
-      const progressInterval = setInterval(() => {
-        setProgressSteps((prev) => {
-          const currentActiveIndex = prev.findIndex((s) => s.status === 'active')
-          if (currentActiveIndex >= 0 && currentActiveIndex < prev.length - 1) {
-            const updated = [...prev]
-            updated[currentActiveIndex].status = 'complete'
-            updated[currentActiveIndex + 1].status = 'active'
-            return updated
-          }
-          return prev
-        })
-      }, 3000)
+      // Use streaming API for real-time progress
+      abortControllerRef.current = new AbortController()
 
-      // Step 2: Run the research with jobId so results are saved
-      const response = await fetch('/api/research/community-voice', {
+      const response = await fetch('/api/research/community-voice/stream', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hypothesis, jobId }),
+        signal: abortControllerRef.current.signal,
       })
-
-      clearInterval(progressInterval)
 
       if (!response.ok) {
-        // Update job status to failed
-        await fetch('/api/research/jobs', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ jobId, status: 'failed' }),
-        })
-
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Research failed')
+        throw new Error('Failed to start research')
       }
 
-      const data = await response.json()
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('No response body')
 
-      // Update job status to completed
-      await fetch('/api/research/jobs', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ jobId, status: 'completed' }),
-      })
+      const decoder = new TextDecoder()
+      let buffer = ''
 
-      // Mark all steps as complete
-      setProgressSteps((prev) => prev.map((s) => ({ ...s, status: 'complete' as const })))
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-      setResults(data)
-      setStatus('success')
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(line.slice(6))
+
+              if (event.type === 'progress') {
+                const stepId = event.step
+                setCurrentMessage(event.message)
+
+                // Update step status
+                setProgressSteps(prev => {
+                  const stepIndex = prev.findIndex(s => s.id === stepId)
+                  if (stepIndex === -1) return prev
+
+                  return prev.map((s, idx) => {
+                    if (idx < stepIndex) return { ...s, status: 'complete' as const }
+                    if (idx === stepIndex) return { ...s, status: 'active' as const, detail: event.message }
+                    return s
+                  })
+                })
+
+                // Update stream progress data
+                if (event.data) {
+                  setStreamProgress(prev => ({ ...prev, ...event.data }))
+                }
+              } else if (event.type === 'complete') {
+                // Mark all steps complete
+                setProgressSteps(prev => prev.map(s => ({ ...s, status: 'complete' as const })))
+
+                if (event.data?.result) {
+                  setResults(event.data.result as CommunityVoiceResult)
+                }
+
+                // Job status is now managed by the backend - no PATCH needed here
+
+                setStatus('success')
+              } else if (event.type === 'error') {
+                throw new Error(event.message)
+              }
+            } catch (parseError) {
+              console.error('Failed to parse SSE event:', parseError)
+            }
+          }
+        }
+      }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return // User cancelled
+      }
       setError(err instanceof Error ? err.message : 'An error occurred')
       setStatus('error')
+
+      // Job status is now managed by the backend - no PATCH needed here
     }
   }
 
@@ -161,20 +223,117 @@ export default function ResearchPage() {
 
         {/* Loading State */}
         {status === 'loading' && (
-          <Card>
-            <CardContent className="py-8">
-              <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <span className="font-medium">Analyzing communities...</span>
-                </div>
+          <>
+            {/* Warning Banner */}
+            <Alert className="mb-4 border-amber-500/50 bg-amber-500/10">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-700 dark:text-amber-400">
+                <strong>Please keep this tab open.</strong> Research takes 1-2 minutes.
+                Closing the tab may lose your results and credit.
+              </AlertDescription>
+            </Alert>
+
+            <Card>
+              <CardContent className="py-8">
+                <div className="space-y-6">
+                  {/* Header with current message */}
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span className="font-medium">{currentMessage || 'Starting research...'}</span>
+                  </div>
 
                 <Progress value={getProgressPercentage()} className="h-2" />
 
-                <div className="space-y-3">
-                  {progressSteps.map((step, index) => (
+                {/* Real-time Stats Display */}
+                {(streamProgress.postsFound !== undefined || streamProgress.subreddits) && (
+                  <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <span>Live Research Stats</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {streamProgress.subreddits && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <MessageSquare className="h-3 w-3" />
+                            Communities
+                          </div>
+                          <p className="text-lg font-semibold">{streamProgress.subreddits.length}</p>
+                        </div>
+                      )}
+
+                      {streamProgress.postsFound !== undefined && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Search className="h-3 w-3" />
+                            Posts Found
+                          </div>
+                          <p className="text-lg font-semibold">{streamProgress.postsFound}</p>
+                        </div>
+                      )}
+
+                      {streamProgress.relevantPosts !== undefined && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Filter className="h-3 w-3" />
+                            Relevant
+                          </div>
+                          <p className="text-lg font-semibold text-green-600">{streamProgress.relevantPosts}</p>
+                        </div>
+                      )}
+
+                      {streamProgress.filterRate !== undefined && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Quality Filter
+                          </div>
+                          <p className="text-lg font-semibold">{streamProgress.filterRate.toFixed(0)}%</p>
+                        </div>
+                      )}
+
+                      {streamProgress.painSignalCount !== undefined && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Sparkles className="h-3 w-3" />
+                            Pain Signals
+                          </div>
+                          <p className="text-lg font-semibold text-amber-600">{streamProgress.painSignalCount}</p>
+                        </div>
+                      )}
+
+                      {streamProgress.themeCount !== undefined && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <MessageSquare className="h-3 w-3" />
+                            Themes
+                          </div>
+                          <p className="text-lg font-semibold text-blue-600">{streamProgress.themeCount}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {streamProgress.subreddits && streamProgress.subreddits.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-2 border-t">
+                        {streamProgress.subreddits.map((sub) => (
+                          <span
+                            key={sub}
+                            className="px-2 py-0.5 bg-background text-xs rounded-full border"
+                          >
+                            r/{sub}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Progress Steps */}
+                <div className="space-y-2">
+                  {progressSteps.map((step) => (
                     <div
-                      key={index}
+                      key={step.id}
                       className={`flex items-center gap-3 text-sm ${
                         step.status === 'pending'
                           ? 'text-muted-foreground'
@@ -184,13 +343,13 @@ export default function ResearchPage() {
                       }`}
                     >
                       {step.status === 'complete' ? (
-                        <CheckCircle2 className="h-4 w-4" />
+                        <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                       ) : step.status === 'active' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
                       ) : (
-                        <div className="h-4 w-4 rounded-full border-2" />
+                        <div className="h-4 w-4 rounded-full border-2 flex-shrink-0" />
                       )}
-                      {step.label}
+                      <span>{step.label}</span>
                     </div>
                   ))}
                 </div>
@@ -211,6 +370,7 @@ export default function ResearchPage() {
               </div>
             </CardContent>
           </Card>
+          </>
         )}
 
         {/* Error State */}

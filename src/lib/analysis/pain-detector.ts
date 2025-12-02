@@ -4,7 +4,7 @@
 //
 // v2.0 - Enhanced scoring with negative context patterns and WTP exclusions
 
-import { RedditPost, RedditComment } from '../arctic-shift/types'
+import { RedditPost, RedditComment } from '../data-sources/types'
 
 // =============================================================================
 // NEGATIVE CONTEXT PATTERNS - Reduce false positives
@@ -230,7 +230,7 @@ export interface PainSignal {
     subreddit: string
     author: string
     url: string
-    created_utc: number
+    createdUtc: number
     engagementScore: number
   }
 }
@@ -677,15 +677,15 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
 
   for (const post of posts) {
     // Combine title and body for analysis
-    const fullText = `${post.title} ${post.selftext || ''}`
-    const engagement = calculateEngagementScore(post.score, post.num_comments)
+    const fullText = `${post.title} ${post.body || ''}`
+    const engagement = calculateEngagementScore(post.score, post.numComments)
     // v3.0: Pass createdUtc for recency weighting
-    const scoreResult = calculatePainScore(fullText, post.score, post.created_utc)
+    const scoreResult = calculatePainScore(fullText, post.score, post.createdUtc)
 
     // Only include posts with some pain signals
     if (scoreResult.score > 0 || scoreResult.signals.length > 0) {
       painSignals.push({
-        text: post.selftext || post.title,
+        text: post.body || post.title,
         title: post.title,
         score: scoreResult.score,
         intensity: getIntensity(scoreResult.score),
@@ -701,7 +701,7 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
           url: post.permalink
             ? `https://reddit.com${post.permalink}`
             : `https://reddit.com/r/${post.subreddit}/comments/${post.id}`,
-          created_utc: post.created_utc,
+          createdUtc: post.createdUtc,
           engagementScore: engagement,
         },
       })
@@ -720,11 +720,11 @@ export function analyzeComments(comments: RedditComment[]): PainSignal[] {
 
   for (const comment of comments) {
     // v3.0: Pass createdUtc for recency weighting
-    const scoreResult = calculatePainScore(comment.body, comment.score, comment.created_utc)
+    const scoreResult = calculatePainScore(comment.body, comment.score, comment.createdUtc)
 
     // Only include comments with some pain signals
     if (scoreResult.score > 0 || scoreResult.signals.length > 0) {
-      const postId = comment.link_id?.replace('t3_', '') || ''
+      const postId = comment.postId || ''
 
       painSignals.push({
         text: comment.body,
@@ -742,7 +742,7 @@ export function analyzeComments(comments: RedditComment[]): PainSignal[] {
           url: comment.permalink
             ? `https://reddit.com${comment.permalink}`
             : `https://reddit.com/r/${comment.subreddit}/comments/${postId}/_/${comment.id}`,
-          created_utc: comment.created_utc,
+          createdUtc: comment.createdUtc,
           engagementScore: Math.log10(Math.max(1, comment.score + 1)) * 2,
         },
       })
@@ -853,7 +853,7 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
     }
 
     // v3.0: Track temporal distribution and date range
-    const createdUtc = signal.source.created_utc
+    const createdUtc = signal.source.createdUtc
     if (createdUtc && createdUtc > 0) {
       const bucket = getAgeBucket(createdUtc)
       temporalDistribution[bucket]++

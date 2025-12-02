@@ -1,7 +1,8 @@
 // Theme Extractor
 // Uses Claude to synthesize themes from pain signals
 
-import { anthropic } from '../anthropic'
+import { anthropic, getCurrentTracker } from '../anthropic'
+import { trackUsage } from './token-tracker'
 import { PainSignal } from './pain-detector'
 
 export interface Theme {
@@ -127,6 +128,12 @@ Identify 3-7 themes, 5-10 customer language phrases, and 3-5 key quotes.`
       ],
       system: systemPrompt,
     })
+
+    // Track token usage
+    const tracker = getCurrentTracker()
+    if (tracker && response.usage) {
+      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+    }
 
     // Extract text content from response
     const textContent = response.content.find((c) => c.type === 'text')
@@ -310,6 +317,12 @@ Questions should directly relate to the themes and use customer language where a
       ],
       system: systemPrompt,
     })
+
+    // Track token usage
+    const tracker = getCurrentTracker()
+    if (tracker && response.usage) {
+      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+    }
 
     const textContent = response.content.find((c) => c.type === 'text')
     if (!textContent || textContent.type !== 'text') {

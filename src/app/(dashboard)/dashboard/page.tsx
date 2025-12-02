@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { Clock, ArrowRight, FileText, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users } from 'lucide-react'
+import { Clock, ArrowRight, FileText, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, Play } from 'lucide-react'
+import { StepStatusMap, DEFAULT_STEP_STATUS } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,8 +12,39 @@ interface ResearchJob {
   id: string
   hypothesis: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
+  step_status: StepStatusMap | null
   created_at: string
   updated_at: string
+}
+
+// Get the next incomplete step for a job
+function getNextIncompleteStep(stepStatus: StepStatusMap | null): {
+  step: keyof StepStatusMap | null
+  label: string
+  icon: React.ReactNode
+} | null {
+  const status = stepStatus || DEFAULT_STEP_STATUS
+
+  const steps: Array<{
+    key: keyof StepStatusMap
+    label: string
+    icon: React.ReactNode
+  }> = [
+    { key: 'pain_analysis', label: 'Pain Analysis', icon: <TrendingUp className="h-4 w-4" /> },
+    { key: 'market_sizing', label: 'Market Sizing', icon: <Target className="h-4 w-4" /> },
+    { key: 'timing_analysis', label: 'Timing Analysis', icon: <Hourglass className="h-4 w-4" /> },
+    { key: 'competitor_analysis', label: 'Competitor Analysis', icon: <Users className="h-4 w-4" /> },
+  ]
+
+  for (const step of steps) {
+    const stepState = status[step.key]
+    if (stepState === 'pending' || stepState === 'in_progress' || stepState === 'failed') {
+      return { step: step.key, label: step.label, icon: step.icon }
+    }
+  }
+
+  // All steps completed
+  return null
 }
 
 function getStatusBadge(status: ResearchJob['status']) {
@@ -76,20 +108,17 @@ export default async function DashboardPage() {
     .limit(10)
 
   const researchJobs = (jobs || []) as ResearchJob[]
-  const mostRecentCompletedJob = researchJobs.find(job => job.status === 'completed')
 
-  // Check if the most recent completed job needs competitor analysis
-  let needsCompetitorAnalysis = false
-  if (mostRecentCompletedJob) {
-    const { data: competitorResult } = await supabase
-      .from('research_results')
-      .select('id')
-      .eq('job_id', mostRecentCompletedJob.id)
-      .eq('module_type', 'competitor-intelligence')
-      .single()
+  // Find the most recent job that has incomplete steps (not all 4 completed)
+  const incompleteJob = researchJobs.find(job => {
+    // Skip failed jobs (they can't be continued)
+    if (job.status === 'failed') return false
 
-    needsCompetitorAnalysis = !competitorResult
-  }
+    const nextStep = getNextIncompleteStep(job.step_status)
+    return nextStep !== null
+  })
+
+  const nextStep = incompleteJob ? getNextIncompleteStep(incompleteJob.step_status) : null
 
   return (
     <div className="space-y-8">
@@ -134,22 +163,27 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Card 2: Complete Your Research (only shown if needed) */}
-        {needsCompetitorAnalysis && mostRecentCompletedJob && (
-          <Card className="border-amber-200 bg-amber-50/50">
+        {/* Card 2: Continue Your Research (only shown if there's an incomplete job) */}
+        {incompleteJob && nextStep && (
+          <Card className="border-primary/30 bg-primary/5">
             <CardHeader>
-              <CardTitle className="text-amber-900">Complete Your Research</CardTitle>
-              <CardDescription className="text-amber-700">
-                Add competitor analysis to get your full Viability Verdict
+              <CardTitle className="flex items-center gap-2">
+                <Play className="h-5 w-5 text-primary" />
+                Continue Your Research
+              </CardTitle>
+              <CardDescription>
+                Next step: {nextStep.label}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-amber-800 font-medium line-clamp-2">
-                "{truncateText(mostRecentCompletedJob.hypothesis, 80)}"
+              <p className="text-sm text-muted-foreground font-medium line-clamp-2">
+                "{truncateText(incompleteJob.hypothesis, 80)}"
               </p>
-              <Link href={`/research/competitors?jobId=${mostRecentCompletedJob.id}&hypothesis=${encodeURIComponent(mostRecentCompletedJob.hypothesis)}`}>
-                <Button variant="outline" className="w-full border-amber-300 hover:bg-amber-100">
-                  Add Competitor Analysis
+              <Link href={`/research/${incompleteJob.id}/steps`}>
+                <Button className="w-full">
+                  {nextStep.icon}
+                  <span className="ml-2">Continue to {nextStep.label}</span>
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
             </CardContent>
@@ -182,31 +216,58 @@ export default async function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {researchJobs.map((job) => (
-                <Link
-                  key={job.id}
-                  href={job.status === 'completed' ? `/research/${job.id}` : '#'}
-                  className={`block ${job.status !== 'completed' ? 'cursor-default' : ''}`}
-                >
-                  <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
-                        {truncateText(job.hypothesis, 60)}
-                      </p>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                        <Clock className="h-3 w-3" />
-                        {formatDate(job.created_at)}
-                      </p>
+              {researchJobs.map((job) => {
+                const jobNextStep = getNextIncompleteStep(job.step_status)
+                const isFullyCompleted = jobNextStep === null
+                const isClickable = job.status !== 'failed'
+
+                // If all steps done, go to results. Otherwise go to steps page.
+                const href = isClickable
+                  ? isFullyCompleted
+                    ? `/research/${job.id}`
+                    : `/research/${job.id}/steps`
+                  : '#'
+
+                return (
+                  <Link
+                    key={job.id}
+                    href={href}
+                    className={`block ${!isClickable ? 'cursor-default' : ''}`}
+                  >
+                    <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">
+                          {truncateText(job.hypothesis, 60)}
+                        </p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                          <Clock className="h-3 w-3" />
+                          {formatDate(job.created_at)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 ml-4">
+                        {isFullyCompleted ? (
+                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Completed
+                          </Badge>
+                        ) : job.status === 'failed' ? (
+                          getStatusBadge(job.status)
+                        ) : jobNextStep ? (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            {jobNextStep.icon}
+                            <span className="ml-1">{jobNextStep.label}</span>
+                          </Badge>
+                        ) : (
+                          getStatusBadge(job.status)
+                        )}
+                        {isClickable && (
+                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 ml-4">
-                      {getStatusBadge(job.status)}
-                      {job.status === 'completed' && (
-                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                )
+              })}
             </div>
           )}
         </CardContent>

@@ -1,7 +1,8 @@
 // Subreddit Discovery Service
 // Uses Claude to analyze hypothesis and suggest relevant subreddits
 
-import { anthropic } from '../anthropic'
+import { anthropic, getCurrentTracker } from '../anthropic'
+import { trackUsage } from '../analysis/token-tracker'
 import { searchSubreddits } from '../arctic-shift/client'
 
 interface SubredditSuggestion {
@@ -62,6 +63,12 @@ Respond in JSON format:
       ],
       system: systemPrompt,
     })
+
+    // Track token usage
+    const tracker = getCurrentTracker()
+    if (tracker && response.usage) {
+      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+    }
 
     // Extract text content from response
     const textContent = response.content.find((c) => c.type === 'text')

@@ -4,7 +4,8 @@
  * Part of the Viability Verdict scoring system (25% weight in full formula).
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { anthropic, getCurrentTracker } from "../anthropic";
+import { trackUsage } from "./token-tracker";
 
 export interface MarketSizingInput {
   hypothesis: string;
@@ -43,8 +44,6 @@ export interface MarketSizingResult {
 export async function calculateMarketSize(
   input: MarketSizingInput
 ): Promise<MarketSizingResult> {
-  const client = new Anthropic();
-
   const geography = input.geography || "Global";
   const price = input.targetPrice || 29; // default $29/month
   const msc = input.mscTarget || 1000000; // default $1M ARR
@@ -108,11 +107,17 @@ Respond with ONLY valid JSON in this exact format:
   "confidence": "<high|medium|low>"
 }`;
 
-  const response = await client.messages.create({
+  const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 1500,
     messages: [{ role: "user", content: prompt }]
   });
+
+  // Track token usage
+  const tracker = getCurrentTracker();
+  if (tracker && response.usage) {
+    trackUsage(tracker, response.usage, "claude-sonnet-4-20250514");
+  }
 
   const content = response.content[0];
   if (content.type !== "text") {

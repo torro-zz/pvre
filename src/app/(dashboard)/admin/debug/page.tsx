@@ -17,8 +17,23 @@ import {
   MessageSquare,
   ExternalLink,
   Filter,
+  Target,
+  PieChart,
+  Timer,
+  Shield,
 } from 'lucide-react'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
+import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
+import { calculateOverallPainScore, PainSummary } from '@/lib/analysis/pain-detector'
+import {
+  calculateViability,
+  PainScoreInput,
+  CompetitionScoreInput,
+  MarketScoreInput,
+  TimingScoreInput,
+  ViabilityVerdict,
+  VerdictColors,
+} from '@/lib/analysis/viability-calculator'
 
 interface ResearchJob {
   id: string
@@ -32,8 +47,92 @@ interface ResearchResult {
   id: string
   job_id: string
   module_name: string
-  data: CommunityVoiceResult
+  data: CommunityVoiceResult | CompetitorIntelligenceResult
   created_at: string
+}
+
+// Helper function to calculate full viability verdict (same logic as user-facing page)
+function calculateFullVerdict(
+  cvResult: ResearchResult | undefined,
+  compResult: ResearchResult | undefined
+): ViabilityVerdict | null {
+  let painScoreInput: PainScoreInput | null = null
+  let competitionScoreInput: CompetitionScoreInput | null = null
+  let marketScoreInput: MarketScoreInput | null = null
+  let timingScoreInput: TimingScoreInput | null = null
+
+  const cvData = cvResult?.data as CommunityVoiceResult | undefined
+  const compData = compResult?.data as CompetitorIntelligenceResult | undefined
+
+  // Extract pain score
+  if (cvData?.painSummary) {
+    const rawPainSummary = cvData.painSummary
+    const painSummary = {
+      totalSignals: rawPainSummary.totalSignals || 0,
+      averageScore: rawPainSummary.averageScore || 0,
+      highIntensityCount: rawPainSummary.highIntensityCount || 0,
+      mediumIntensityCount: rawPainSummary.mediumIntensityCount || 0,
+      lowIntensityCount: rawPainSummary.lowIntensityCount || 0,
+      solutionSeekingCount: rawPainSummary.solutionSeekingCount || 0,
+      willingnessToPayCount: rawPainSummary.willingnessToPayCount || 0,
+      topSubreddits: rawPainSummary.topSubreddits || [],
+      dataConfidence: (rawPainSummary as { dataConfidence?: 'very_low' | 'low' | 'medium' | 'high' }).dataConfidence || 'low',
+      strongestSignals: (rawPainSummary as { strongestSignals?: string[] }).strongestSignals || [],
+      wtpQuotes: (rawPainSummary as { wtpQuotes?: { text: string; subreddit: string }[] }).wtpQuotes || [],
+      temporalDistribution: (rawPainSummary as { temporalDistribution?: { last30Days: number; last90Days: number; last180Days: number; older: number } }).temporalDistribution || {
+        last30Days: 0, last90Days: 0, last180Days: 0, older: rawPainSummary.totalSignals || 0
+      },
+      dateRange: (rawPainSummary as { dateRange?: { oldest: string; newest: string } }).dateRange,
+      recencyScore: (rawPainSummary as { recencyScore?: number }).recencyScore ?? 0.5,
+    }
+
+    const painScoreResult = calculateOverallPainScore(painSummary)
+    painScoreInput = {
+      overallScore: painScoreResult.score,
+      confidence: painScoreResult.confidence,
+      totalSignals: painSummary.totalSignals,
+      willingnessToPayCount: painSummary.willingnessToPayCount,
+    }
+  }
+
+  // Extract competition score
+  if (compData?.competitionScore) {
+    competitionScoreInput = {
+      score: compData.competitionScore.score,
+      confidence: compData.competitionScore.confidence,
+      competitorCount: compData.metadata.competitorsAnalyzed,
+      threats: compData.competitionScore.threats || [],
+    }
+  }
+
+  // Extract market sizing
+  if (cvData?.marketSizing) {
+    marketScoreInput = {
+      score: cvData.marketSizing.score,
+      confidence: cvData.marketSizing.confidence,
+      penetrationRequired: cvData.marketSizing.mscAnalysis.penetrationRequired,
+      achievability: cvData.marketSizing.mscAnalysis.achievability,
+    }
+  }
+
+  // Extract timing
+  if (cvData?.timing) {
+    timingScoreInput = {
+      score: cvData.timing.score,
+      confidence: cvData.timing.confidence,
+      trend: cvData.timing.trend,
+      tailwindsCount: cvData.timing.tailwinds?.length || 0,
+      headwindsCount: cvData.timing.headwinds?.length || 0,
+      timingWindow: cvData.timing.timingWindow,
+    }
+  }
+
+  // If we have at least one dimension, calculate verdict
+  if (painScoreInput || competitionScoreInput || marketScoreInput || timingScoreInput) {
+    return calculateViability(painScoreInput, competitionScoreInput, marketScoreInput, timingScoreInput)
+  }
+
+  return null
 }
 
 interface JobWithResults extends ResearchJob {
@@ -210,7 +309,8 @@ export default function AdminDebugPage() {
               <div className="text-2xl font-bold">
                 {jobs.reduce((acc, job) => {
                   const cvResult = job.results?.find((r) => r.module_name === 'community_voice')
-                  return acc + (cvResult?.data?.painSignals?.length || 0)
+                  const cvData = cvResult?.data as CommunityVoiceResult | undefined
+                  return acc + (cvData?.painSignals?.length || 0)
                 }, 0)}
               </div>
               <div className="text-sm text-muted-foreground">Total Signals</div>
@@ -221,9 +321,10 @@ export default function AdminDebugPage() {
               <div className="text-2xl font-bold">
                 {jobs.reduce((acc, job) => {
                   const cvResult = job.results?.find((r) => r.module_name === 'community_voice')
+                  const cvData = cvResult?.data as CommunityVoiceResult | undefined
                   return (
                     acc +
-                    (cvResult?.data?.painSignals?.filter((s) => s.willingnessToPaySignal)?.length ||
+                    (cvData?.painSignals?.filter((s) => s.willingnessToPaySignal)?.length ||
                       0)
                   )
                 }, 0)}
@@ -236,9 +337,10 @@ export default function AdminDebugPage() {
               <div className="text-2xl font-bold">
                 {jobs.reduce((acc, job) => {
                   const cvResult = job.results?.find((r) => r.module_name === 'community_voice')
+                  const cvData = cvResult?.data as CommunityVoiceResult | undefined
                   return (
                     acc +
-                    (cvResult?.data?.painSignals?.filter((s) => s.intensity === 'high')?.length || 0)
+                    (cvData?.painSignals?.filter((s) => s.intensity === 'high')?.length || 0)
                   )
                 }, 0)}
               </div>
@@ -274,8 +376,24 @@ export default function AdminDebugPage() {
             {filteredJobs.map((job) => {
               const isExpanded = expandedJobs.has(job.id)
               const cvResult = job.results?.find((r) => r.module_name === 'community_voice')
-              const painSignals = cvResult?.data?.painSignals || []
-              const painSummary = cvResult?.data?.painSummary
+              const compResult = job.results?.find((r) => r.module_name === 'competitor_intel')
+              const cvData = cvResult?.data as CommunityVoiceResult | undefined
+              const painSignals = cvData?.painSignals || []
+              const painSummary = cvData?.painSummary
+
+              // Calculate the FULL viability verdict (same as user-facing page)
+              const viabilityVerdict = calculateFullVerdict(cvResult, compResult)
+
+              // Get individual dimension scores from the verdict
+              const painDim = viabilityVerdict?.dimensions.find(d => d.name === 'Pain Score')
+              const marketDim = viabilityVerdict?.dimensions.find(d => d.name === 'Market Score')
+              const timingDim = viabilityVerdict?.dimensions.find(d => d.name === 'Timing Score')
+              const compDim = viabilityVerdict?.dimensions.find(d => d.name === 'Competition Score')
+
+              // Get verdict color
+              const verdictColors = viabilityVerdict
+                ? VerdictColors[viabilityVerdict.verdict]
+                : null
 
               return (
                 <Card key={job.id} className="overflow-hidden">
@@ -298,22 +416,45 @@ export default function AdminDebugPage() {
                           </CardDescription>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        {/* MAIN: Viability Verdict Score (what users see) */}
+                        {viabilityVerdict && (
+                          <Badge className={`${verdictColors?.bg} text-white font-bold`}>
+                            <Target className="h-3 w-3 mr-1" />
+                            Verdict: {viabilityVerdict.overallScore.toFixed(1)}/10
+                          </Badge>
+                        )}
+                        {/* Individual dimension scores */}
+                        {painDim && (
+                          <Badge variant="outline" className="text-xs">
+                            <TrendingUp className="h-3 w-3 mr-1" />
+                            Pain: {painDim.score.toFixed(1)}
+                          </Badge>
+                        )}
+                        {marketDim && (
+                          <Badge variant="outline" className="text-xs">
+                            <PieChart className="h-3 w-3 mr-1" />
+                            Market: {marketDim.score.toFixed(1)}
+                          </Badge>
+                        )}
+                        {timingDim && (
+                          <Badge variant="outline" className="text-xs">
+                            <Timer className="h-3 w-3 mr-1" />
+                            Timing: {timingDim.score.toFixed(1)}
+                          </Badge>
+                        )}
+                        {compDim && (
+                          <Badge variant="outline" className="text-xs">
+                            <Shield className="h-3 w-3 mr-1" />
+                            Comp: {compDim.score.toFixed(1)}
+                          </Badge>
+                        )}
+                        {/* Data signals count */}
                         {painSummary && (
-                          <>
-                            <Badge variant="outline">
-                              <TrendingUp className="h-3 w-3 mr-1" />
-                              Pain: {painSummary.averageScore?.toFixed(1) || 'N/A'}/10
-                            </Badge>
-                            <Badge variant="outline">
-                              <MessageSquare className="h-3 w-3 mr-1" />
-                              {painSignals.length} signals
-                            </Badge>
-                            <Badge variant="outline" className={getWtpColor('high')}>
-                              <DollarSign className="h-3 w-3 mr-1" />
-                              {painSummary.willingnessToPayCount || 0} WTP
-                            </Badge>
-                          </>
+                          <Badge variant="outline" className="text-xs text-muted-foreground">
+                            <MessageSquare className="h-3 w-3 mr-1" />
+                            {painSummary.totalSignals || painSignals.length} signals
+                          </Badge>
                         )}
                         <Button
                           variant="ghost"
@@ -491,64 +632,167 @@ export default function AdminDebugPage() {
                         </TabsContent>
 
                         <TabsContent value="summary" className="mt-4">
-                          {painSummary ? (
-                            <div className="grid grid-cols-2 gap-6">
-                              <Card>
+                          {viabilityVerdict ? (
+                            <div className="space-y-6">
+                              {/* VIABILITY VERDICT (what users see) */}
+                              <Card className={`${verdictColors?.bgLight} ${verdictColors?.border} border-2`}>
                                 <CardHeader>
-                                  <CardTitle className="text-base">Signal Distribution</CardTitle>
+                                  <CardTitle className="text-base flex items-center gap-2">
+                                    <Target className="h-5 w-5" />
+                                    Viability Verdict (User-Facing)
+                                  </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                  <div className="space-y-2">
-                                    <div className="flex justify-between">
-                                      <span>High Intensity:</span>
-                                      <Badge className={getIntensityColor('high')}>
-                                        {painSummary.highIntensityCount}
-                                      </Badge>
+                                  <div className="flex items-center gap-4 mb-4">
+                                    <div className={`text-4xl font-bold ${verdictColors?.text}`}>
+                                      {viabilityVerdict.overallScore.toFixed(1)}/10
                                     </div>
-                                    <div className="flex justify-between">
-                                      <span>Medium Intensity:</span>
-                                      <Badge className={getIntensityColor('medium')}>
-                                        {painSummary.mediumIntensityCount}
+                                    <div>
+                                      <Badge className={`${verdictColors?.bg} text-white`}>
+                                        {viabilityVerdict.verdictLabel}
                                       </Badge>
+                                      <p className="text-sm text-muted-foreground mt-1">
+                                        {viabilityVerdict.availableDimensions}/{viabilityVerdict.totalDimensions} dimensions
+                                      </p>
                                     </div>
-                                    <div className="flex justify-between">
-                                      <span>Low Intensity:</span>
-                                      <Badge className={getIntensityColor('low')}>
-                                        {painSummary.lowIntensityCount}
-                                      </Badge>
-                                    </div>
+                                  </div>
+                                  <p className="text-sm">{viabilityVerdict.verdictDescription}</p>
+                                </CardContent>
+                              </Card>
+
+                              {/* DIMENSION BREAKDOWN */}
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-base">Dimension Breakdown (Debug)</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <div className="space-y-4">
+                                    {viabilityVerdict.dimensions.map((dim) => (
+                                      <div key={dim.name} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                                        <div className="flex items-center gap-3">
+                                          {dim.name === 'Pain Score' && <TrendingUp className="h-4 w-4" />}
+                                          {dim.name === 'Market Score' && <PieChart className="h-4 w-4" />}
+                                          {dim.name === 'Timing Score' && <Timer className="h-4 w-4" />}
+                                          {dim.name === 'Competition Score' && <Shield className="h-4 w-4" />}
+                                          <div>
+                                            <div className="font-medium">{dim.name}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                              Weight: {(dim.weight * 100).toFixed(0)}% | {dim.confidence} confidence
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="text-xl font-bold">{dim.score.toFixed(1)}/10</div>
+                                          <Badge variant="outline" className={
+                                            dim.status === 'strong' ? 'bg-green-50 text-green-700' :
+                                            dim.status === 'adequate' ? 'bg-yellow-50 text-yellow-700' :
+                                            dim.status === 'needs_work' ? 'bg-orange-50 text-orange-700' :
+                                            'bg-red-50 text-red-700'
+                                          }>
+                                            {dim.status.replace('_', ' ')}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 </CardContent>
                               </Card>
-                              <Card>
-                                <CardHeader>
-                                  <CardTitle className="text-base">Key Metrics</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                  <div className="space-y-2">
-                                    <div className="flex justify-between">
-                                      <span>Total Signals:</span>
-                                      <strong>{painSummary.totalSignals}</strong>
+
+                              <div className="grid grid-cols-2 gap-6">
+                                {/* Signal Distribution */}
+                                {painSummary && (
+                                  <Card>
+                                    <CardHeader>
+                                      <CardTitle className="text-base">Signal Distribution</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                      <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                          <span>High Intensity:</span>
+                                          <Badge className={getIntensityColor('high')}>
+                                            {painSummary.highIntensityCount}
+                                          </Badge>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span>Medium Intensity:</span>
+                                          <Badge className={getIntensityColor('medium')}>
+                                            {painSummary.mediumIntensityCount}
+                                          </Badge>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span>Low Intensity:</span>
+                                          <Badge className={getIntensityColor('low')}>
+                                            {painSummary.lowIntensityCount}
+                                          </Badge>
+                                        </div>
+                                        <div className="flex justify-between pt-2 border-t">
+                                          <span>WTP Count:</span>
+                                          <strong>{painSummary.willingnessToPayCount}</strong>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span>Solution Seeking:</span>
+                                          <strong>{painSummary.solutionSeekingCount}</strong>
+                                        </div>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                )}
+
+                                {/* Raw Data Debug */}
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle className="text-base">Raw Data (Debug)</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="space-y-2 text-sm">
+                                      {painSummary && (
+                                        <>
+                                          <div className="flex justify-between">
+                                            <span>Raw Pain Avg:</span>
+                                            <code className="bg-muted px-1 rounded">{painSummary.averageScore?.toFixed(2)}</code>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span>Total Signals:</span>
+                                            <code className="bg-muted px-1 rounded">{painSummary.totalSignals}</code>
+                                          </div>
+                                        </>
+                                      )}
+                                      {cvData?.marketSizing && (
+                                        <div className="flex justify-between">
+                                          <span>Market Raw:</span>
+                                          <code className="bg-muted px-1 rounded">{cvData.marketSizing.score.toFixed(2)}</code>
+                                        </div>
+                                      )}
+                                      {cvData?.timing && (
+                                        <div className="flex justify-between">
+                                          <span>Timing Raw:</span>
+                                          <code className="bg-muted px-1 rounded">{cvData.timing.score.toFixed(2)}</code>
+                                        </div>
+                                      )}
+                                      {(compResult?.data as CompetitorIntelligenceResult | undefined)?.competitionScore && (
+                                        <div className="flex justify-between">
+                                          <span>Competition Raw:</span>
+                                          <code className="bg-muted px-1 rounded">
+                                            {(compResult?.data as CompetitorIntelligenceResult).competitionScore.score.toFixed(2)}
+                                          </code>
+                                        </div>
+                                      )}
+                                      {viabilityVerdict.dealbreakers.length > 0 && (
+                                        <div className="pt-2 border-t">
+                                          <div className="text-red-600 font-medium">Dealbreakers:</div>
+                                          {viabilityVerdict.dealbreakers.map((d, i) => (
+                                            <div key={i} className="text-red-600 text-xs">• {d}</div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="flex justify-between">
-                                      <span>Average Score:</span>
-                                      <strong>{painSummary.averageScore?.toFixed(2)}/10</strong>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span>WTP Count:</span>
-                                      <strong>{painSummary.willingnessToPayCount}</strong>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span>Solution Seeking:</span>
-                                      <strong>{painSummary.solutionSeekingCount}</strong>
-                                    </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
+                                  </CardContent>
+                                </Card>
+                              </div>
                             </div>
                           ) : (
                             <div className="text-center py-8 text-muted-foreground">
-                              No summary data available.
+                              No verdict data available.
                             </div>
                           )}
                         </TabsContent>

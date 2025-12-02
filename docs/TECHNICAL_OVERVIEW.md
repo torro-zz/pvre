@@ -1,6 +1,6 @@
 # PVRE - Technical Overview
 
-*Last updated: 2025-11-30*
+*Last updated: 2025-12-01*
 
 > This document provides a comprehensive overview of the PVRE (Pre-Validation Research Engine) codebase. Share with technical team members. Run `/update-overview` to refresh.
 
@@ -108,14 +108,15 @@ PVRE is an **AI-powered pre-validation research tool** that helps founders asses
 
 The flagship feature - a composite score that combines research dimensions into an actionable assessment.
 
-### Formula (MVP - 2 Dimensions)
+### Formula (4 Dimensions)
 
 ```javascript
-VIABILITY_SCORE = (Pain × 0.58) + (Competition × 0.42)
-// Derived from: 35/(35+25) and 25/(35+25) when full formula weights are Pain: 35%, Competition: 25%
+VIABILITY_SCORE = (Pain × 0.35) + (Market × 0.25) + (Competition × 0.25) + (Timing × 0.15)
 ```
 
-### Pain Score (58% weight)
+**Dynamic Weight Normalization:** When dimensions are missing, weights are recalculated to sum to 100%.
+
+### Pain Score (35% weight)
 
 Calculated from Reddit post analysis:
 
@@ -133,7 +134,7 @@ Calculated from Reddit post analysis:
 - 100-200 posts: Medium confidence
 - 200+ posts: High confidence
 
-### Competition Score (42% weight)
+### Competition Score (25% weight)
 
 Calculated from AI competitor analysis:
 
@@ -368,16 +369,21 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 |--------|--------|------------|-------|
 | Landing Page | ✅ Complete | 100% | Tech-forward design with bento grid |
 | Google OAuth | ✅ Complete | 100% | Via Supabase |
-| Community Voice Mining | ✅ Complete | 100% | Arctic Shift + Claude |
+| Community Voice Mining | ✅ Complete | 100% | Arctic Shift + Claude with relevance filtering |
 | Competitor Intelligence | ✅ Complete | 100% | AI-powered analysis |
-| Viability Verdict | ✅ Complete | 100% | Pain + Competition scoring |
+| Market Sizing | ✅ Complete | 100% | TAM/SAM/SOM Fermi estimation |
+| Timing Analysis | ✅ Complete | 100% | Tailwinds/headwinds analysis |
+| Viability Verdict | ✅ Complete | 100% | 4-dimension scoring with transparency UI |
 | Research History | ✅ Complete | 100% | Dashboard with status |
 | Interview Questions | ✅ Complete | Embedded | Part of Community Voice |
-| PDF Export | ❌ Not started | 0% | Priority: Medium |
+| PDF Export | ✅ Complete | 100% | Full report via jspdf |
+| Test Suite | ✅ Complete | 100% | Vitest with 64 tests |
+| Research Resilience | ✅ Complete | 100% | Browser warning, error tracking, auto-refund |
+| Credits/Billing | ✅ Complete | 100% | Stripe integration |
+| Admin Dashboard | ✅ Complete | 100% | Analytics + user management |
 | Dark Mode | ❌ Not started | 0% | Priority: Low |
-| Test Suite | ❌ Not started | 0% | Priority: Medium |
 
-**Overall MVP: ~90% complete**
+**Overall MVP: ~99% complete**
 
 ---
 
@@ -442,19 +448,24 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 
 ## Future Roadmap
 
-### Near Term
-1. **PDF Export** - Download research as formatted PDF
-2. **Test Suite** - Jest/Vitest for regression prevention
+### Near Term (Completed ✅)
+1. ~~**PDF Export**~~ - Done via jspdf
+2. ~~**Test Suite**~~ - Vitest with 64 tests
+3. ~~**Market Sizing Module**~~ - TAM/SAM/SOM Fermi estimation
+4. ~~**Timing Module**~~ - Tailwinds/headwinds analysis
+5. ~~**Research Resilience**~~ - Browser warnings, error tracking, auto-refund
 
 ### Medium Term
-3. **Email Notifications** - Alert when research completes
-4. **Market Sizing Module** - TAM/SAM/SOM estimation
-5. **Timing Module** - Google Trends integration
+1. **Result Polling** - Let disconnected users see completed results
+2. **Crisp Chat Integration** - In-app support chat
+3. **API Health Dashboard** - Admin view of which APIs are failing
+4. **Email Notifications** - Alert when research completes
 
 ### Long Term
-6. **Team Sharing** - Collaborate on research
-7. **Custom Data Sources** - Twitter, forums, G2 reviews
-8. **Historical Tracking** - Score changes over time
+5. **Team Sharing** - Collaborate on research
+6. **Custom Data Sources** - Twitter, forums, G2 reviews
+7. **Historical Tracking** - Score changes over time
+8. **Dark Mode** - UI theme toggle
 
 ---
 

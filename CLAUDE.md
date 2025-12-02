@@ -1,5 +1,31 @@
 # PVRE - Claude Code Instructions
 
+## Code Quality Standards (Always Follow)
+
+**Read `docs/CODE_HARDENING_GUIDE.md` for the full guide.**
+
+### Database Operations
+- ALWAYS use typed Supabase clients (`Database` type from `src/types/supabase.ts`)
+- ALWAYS use `saveResearchResult()` from `src/lib/research/save-result.ts` for research data
+- ALWAYS serialize complex objects with `JSON.parse(JSON.stringify(data))` before DB saves
+- NEVER copy-paste database operations - create shared utilities instead
+
+### Before Committing
+- RUN `npm run build` - catches type errors that `npm run dev` misses
+- RUN `npm run test:run` - ensures 66+ tests pass
+- CHECK for TypeScript errors, not just runtime behavior
+
+### Type Safety Rules
+- REGENERATE Supabase types after any schema change: `npx supabase gen types typescript --project-id PROJECT_ID > src/types/supabase.ts`
+- AVOID `any` type - define proper types or use `unknown`
+- USE the `ModuleName` type for research module names (prevents typos)
+
+### Payment Provider
+- This project uses **LemonSqueezy** for payments (NOT Stripe)
+- See `docs/KNOWN_ISSUES.md` for current billing status
+
+---
+
 ## Quick Start Testing
 
 ### Dev Authentication
@@ -46,7 +72,7 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 
 ## Implementation Status
 
-*Last updated: 2025-12-01 (Phase 3 polish & quality improvements)*
+*Last updated: 2025-12-02 (Code hardening complete)*
 
 | Module | Status | Completion | Notes |
 |--------|--------|------------|-------|
@@ -58,71 +84,45 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 | Viability Verdict | DONE | 100% | 4-dimension scoring: Pain (35%) + Market (25%) + Competition (25%) + Timing (15%) |
 | Transparency UI | DONE | 100% | Dimension breakdown with weights, progress bars, status labels |
 | PDF Export | DONE | 100% | Full research report export via jspdf |
-| Test Suite | DONE | 100% | Vitest with 64 tests for core modules |
+| Test Suite | DONE | 100% | Vitest with 66 tests (including integration tests) |
 | Landing Page | DONE | 100% | Tech-forward design with bento grid features section |
 | Post Relevance Filter | DONE | 100% | Claude Haiku filters irrelevant posts before analysis |
 | Refund Monitoring | DONE | 100% | Admin alerts on 3rd+ refund (auto-approve continues) |
 | Competitor Prompt | DONE | 100% | Modal prompts user to run competitor analysis after Community Voice |
 | WhatsApp Support | DONE | 100% | Support links in footer, account, and report problem |
-| Error Handling | PARTIAL | 60% | Basic try/catch; structured PVREError not implemented |
+| Error Handling | PARTIAL | 70% | Error source tracking + auto-refund; PVREError class not implemented |
+| Research Resilience | DONE | 100% | Browser warning, error tracking, auto-refund for failures |
+| Code Hardening | DONE | 100% | Supabase types, shared utilities, integration tests |
 
 ### Overall MVP Completion: ~99%
 
-### V2 Kickoff Spec Checklist
-- [x] P0: Market Sizing module
-- [x] P0: Timing Analysis module
-- [x] P0: 4-Dimension viability scoring
-- [x] P0: Transparency UI for verdict
-- [x] P1: PDF Export
-- [x] P1: Landing page redesign
-- [ ] P1: Structured error handling (PVREError class)
-- [x] Phase 3: Test Suite (done early)
-- [x] Phase 3: Post relevance filtering
-- [x] Phase 3: Refund abuse monitoring
-- [x] Phase 3: Competitor analysis prompt
-- [x] Phase 3: WhatsApp support integration
+---
+
+## Recent Changes (Dec 1, 2025)
+
+### Research Resilience & Error Tracking (New)
+- **Migration 007**: Fixes `balance_after` column + adds `error_source`, `refunded_at` to research_jobs
+- **Browser Warning**: `beforeunload` listener prevents accidental tab close during research
+- **Visual Warning Banner**: Amber alert "Please keep this tab open" during research
+- **Error Source Tracking**: Tracks `anthropic`, `arctic_shift`, `database` failures
+- **Auto-Refund Endpoint**: `/api/admin/cleanup-stale-jobs` - auto-refunds confirmed failures
+
+### Files Added/Modified
+- `supabase/migrations/007_fix_credit_transactions.sql` (new)
+- `src/app/(dashboard)/research/page.tsx` - browser warnings
+- `src/app/api/research/community-voice/route.ts` - error tracking
+- `src/app/api/admin/cleanup-stale-jobs/route.ts` (new)
+- `src/lib/notifications/admin-alerts.ts` - new alert types
+
+### Apply Migration Required
+**Run this in Supabase SQL Editor:**
+```sql
+-- Copy contents of supabase/migrations/007_fix_credit_transactions.sql
+```
 
 ---
 
-## Phase 3 Features (Polish & Quality)
-
-### Post Relevance Filtering
-- **Location:** `src/app/api/research/community-voice/route.ts` (lines 36-171)
-- **How it works:** After fetching posts/comments, Claude Haiku rates each item 1-5 for relevance to the hypothesis
-- **Threshold:** Only items rated 3+ are kept for analysis
-- **Batching:** Posts in groups of 20, comments in groups of 25 for API efficiency
-- **Fallback:** On API error, all items from failed batch are kept
-
-### Report Problem Flow
-- **Location:** `src/components/research/report-problem.tsx`
-- **Details required:** Minimum 20 characters to submit
-- **Auto-refund:** Credit is refunded automatically on submit
-
-### Refund Abuse Monitoring
-- **Location:** `src/app/api/feedback/report-problem/route.ts`
-- **Behavior:** On 3rd+ refund, admin is alerted (but refund still auto-approves)
-- **Admin alerts:** Logged to `admin_alerts` table + console
-- **Helper:** `src/lib/notifications/admin-alerts.ts`
-
-### Competitor Analysis Prompt
-- **Modal:** `src/components/research/competitor-prompt-modal.tsx`
-- **Trigger:** Shows after Community Voice completes if no competitor analysis exists
-- **Storage:** Dismissal saved to localStorage per job ID
-- **Banner:** Persistent banner in Verdict tab when competitors missing
-
-### WhatsApp Support
-- **Env var:** `NEXT_PUBLIC_WHATSAPP_SUPPORT_URL` (wa.me/YOUR_NUMBER)
-- **Locations:**
-  - Landing page footer
-  - Account settings page
-  - Report problem form ("Need more help?")
-- **Future:** WhatsApp notification preference in account/notifications
-
----
-
-## Key Gaps vs V2 Kickoff Spec
-
-Based on `docs/PVRE_CLAUDE_CODE_KICKOFF_V2.md`:
+## Feature Checklist
 
 ### Completed Items ✅
 
@@ -154,49 +154,79 @@ Based on `docs/PVRE_CLAUDE_CODE_KICKOFF_V2.md`:
    - Vitest with 64 tests
    - Run with: `npm run test` or `npm run test:run`
 
+7. ~~**Research Resilience**~~ **DONE** (New)
+   - Browser warning on tab close
+   - Error source tracking
+   - Auto-refund for confirmed failures
+
 ### Remaining Items
 
 1. **Structured Error Handling** - Partial
-   - Basic try/catch in place
+   - Error source tracking done ✅
    - Missing: PVREError class, error codes, withRetry wrapper
    - Priority: LOW (non-blocking for MVP)
 
-2. **Dark Mode** - Not implemented
+2. **Result Polling for Disconnected Users** - Not implemented
+   - Users who return should see results if server completed
+   - Priority: MEDIUM
+
+3. **API Health Dashboard** - Not implemented
+   - Admin view of which APIs are failing
    - Priority: LOW
 
-3. **Phase 2 Analytics Instrumentation** - Not implemented
-   - Track events for user behavior
-   - Priority: FUTURE
+4. **Dark Mode** - Not implemented
+   - Priority: LOW
 
 ---
 
-## Priority Roadmap
+## Remaining Optional Enhancements
 
-### Completed ✅
+### Low Priority
+1. **Structured Error Handling** - Add PVREError class with error codes
+2. **Dark Mode** - Theme toggle
+3. **Analytics Instrumentation** - Track user behavior events
 
-1. ~~**Community Voice Mining**~~ **DONE**
-2. ~~**Competitor Intelligence**~~ **DONE**
-3. ~~**Market Sizing Module**~~ **DONE**
-4. ~~**Timing Analysis Module**~~ **DONE**
-5. ~~**4-Dimension Viability Score**~~ **DONE**
-6. ~~**Transparency UI**~~ **DONE**
-7. ~~**PDF Export**~~ **DONE**
-8. ~~**Test Suite**~~ **DONE**
-9. ~~**Landing Page Redesign**~~ **DONE**
+---
 
-### Optional Enhancements (Post-Launch)
+## Phase 3 Features (Polish & Quality)
 
-1. **Structured Error Handling**
-   - Add PVREError class with error codes
-   - Implement withRetry wrapper for API calls
-   - Complexity: MEDIUM
+### Post Relevance Filtering
+- **Location:** `src/app/api/research/community-voice/route.ts` (lines 64-247)
+- **How it works:** Claude Haiku rates each post/comment Y/N for relevance
+- **Threshold:** Only Y items kept for analysis
+- **Batching:** Posts in groups of 20, comments in groups of 25 for API efficiency
+- **Fallback:** On API error, all items from failed batch are kept
 
-2. **Dark Mode**
-   - Complexity: LOW
+### Report Problem Flow
+- **Location:** `src/components/research/report-problem.tsx`
+- **Details required:** Minimum 20 characters to submit
+- **Auto-refund:** Credit is refunded automatically on submit
 
-3. **Analytics Instrumentation** (Phase 2)
-   - Track user behavior events
-   - Complexity: MEDIUM
+### Refund Abuse Monitoring
+- **Location:** `src/app/api/feedback/report-problem/route.ts`
+- **Behavior:** On 3rd+ refund, admin is alerted (but refund still auto-approves)
+- **Admin alerts:** Logged to `admin_alerts` table + console
+- **Helper:** `src/lib/notifications/admin-alerts.ts`
+
+### Research Resilience (New)
+- **Browser Warning:** `beforeunload` listener in `src/app/(dashboard)/research/page.tsx`
+- **Visual Banner:** Amber alert shown during loading state
+- **Error Tracking:** `error_source` column tracks `anthropic`, `arctic_shift`, `database`
+- **Auto-Refund:** `refund_credit` RPC function + cleanup endpoint
+- **Admin Alerts:** New types: `auto_refund`, `stuck_jobs`, `api_health`
+
+### Competitor Analysis Prompt
+- **Modal:** `src/components/research/competitor-prompt-modal.tsx`
+- **Trigger:** Shows after Community Voice completes if no competitor analysis exists
+- **Storage:** Dismissal saved to localStorage per job ID
+- **Banner:** Persistent banner in Verdict tab when competitors missing
+
+### WhatsApp Support
+- **Env var:** `NEXT_PUBLIC_WHATSAPP_SUPPORT_URL` (wa.me/YOUR_NUMBER)
+- **Locations:**
+  - Landing page footer
+  - Account settings page
+  - Report problem form ("Need more help?")
 
 ---
 
@@ -209,72 +239,102 @@ src/
 │   ├── page.tsx             # Landing page (tech-forward design)
 │   ├── (dashboard)/         # Authenticated pages
 │   │   ├── dashboard/       # User dashboard with research history
-│   │   ├── admin/debug/     # Admin debug page
+│   │   ├── admin/           # Admin pages
+│   │   │   ├── debug/       # Debug info page
+│   │   │   └── page.tsx     # Admin analytics dashboard
+│   │   ├── account/         # User account settings
 │   │   └── research/        # Research input + results pages
 │   │       ├── [id]/        # Individual research detail view
 │   │       └── competitors/ # Competitor intelligence page
 │   ├── api/
 │   │   ├── dev/login/       # Dev-only auth bypass
-│   │   ├── admin/debug/     # Debug endpoint
+│   │   ├── admin/
+│   │   │   ├── debug/       # Debug endpoint
+│   │   │   ├── analytics/   # Analytics data
+│   │   │   ├── credits/     # Credit management
+│   │   │   └── cleanup-stale-jobs/  # Auto-refund endpoint (NEW)
+│   │   ├── billing/         # Stripe checkout + webhooks
+│   │   ├── feedback/        # Report problem endpoint
 │   │   └── research/
-│   │       ├── community-voice/         # Community Voice research endpoint (includes market sizing + timing)
-│   │       ├── competitor-intelligence/ # Competitor analysis endpoint
-│   │       ├── competitor-suggestions/  # AI-powered competitor suggestions
-│   │       ├── market-sizing/           # Standalone market sizing endpoint
-│   │       ├── timing/                  # Standalone timing analysis endpoint
-│   │       └── jobs/        # Job management CRUD
+│   │       ├── community-voice/         # Main research endpoint
+│   │       ├── community-voice/stream/  # SSE streaming endpoint
+│   │       ├── competitor-intelligence/ # Competitor analysis
+│   │       ├── competitor-suggestions/  # AI-powered suggestions
+│   │       ├── coverage-check/          # Data availability check
+│   │       ├── market-sizing/           # Standalone market sizing
+│   │       ├── timing/                  # Standalone timing analysis
+│   │       ├── results/                 # Fetch saved results
+│   │       └── jobs/                    # Job management CRUD
 │   └── auth/                # Auth callbacks
 ├── components/
+│   ├── layout/
+│   │   └── header.tsx       # Navigation + auth status
 │   └── research/
 │       ├── community-voice-results.tsx
 │       ├── competitor-results.tsx
+│       ├── competitor-prompt-modal.tsx
+│       ├── coverage-preview.tsx
 │       ├── hypothesis-form.tsx
 │       ├── pain-score-card.tsx
-│       ├── pain-score-display.tsx      # Visual bar chart display
-│       ├── pdf-download-button.tsx     # PDF export button component
-│       ├── research-progress.tsx       # Step progress indicator
-│       └── viability-verdict.tsx       # 4-dimension verdict display
+│       ├── pain-score-display.tsx
+│       ├── pdf-download-button.tsx
+│       ├── report-problem.tsx
+│       ├── research-progress.tsx
+│       ├── step-progress.tsx
+│       └── viability-verdict.tsx
 ├── lib/
 │   ├── supabase/
 │   │   ├── admin.ts         # Service role client (bypasses RLS)
 │   │   ├── server.ts        # Server-side client
 │   │   └── client.ts        # Browser client
 │   ├── arctic-shift/        # Reddit API client
+│   ├── data-sources/        # Unified data fetching layer
+│   ├── credits/             # Credit system
+│   ├── notifications/       # Admin alerts
 │   ├── pdf/
-│   │   └── report-generator.ts    # PDF report generation with jspdf
+│   │   └── report-generator.ts
+│   ├── reddit/
+│   │   ├── subreddit-discovery.ts
+│   │   └── keyword-extractor.ts
 │   └── analysis/
-│       ├── pain-detector.ts       # Pain scoring with 150+ keywords
-│       ├── theme-extractor.ts     # Claude-powered theme analysis
-│       ├── market-sizing.ts       # TAM/SAM/SOM Fermi estimation
-│       ├── timing-analyzer.ts     # Tailwinds/headwinds analysis
-│       └── viability-calculator.ts # 4-dimension composite score
+│       ├── pain-detector.ts
+│       ├── theme-extractor.ts
+│       ├── market-sizing.ts
+│       ├── timing-analyzer.ts
+│       ├── viability-calculator.ts
+│       ├── subreddit-weights.ts
+│       └── token-tracker.ts
 ├── __tests__/               # Vitest test files
-│   ├── setup.ts             # Test setup and mocks
-│   ├── viability-calculator.test.ts  # 30 tests
-│   └── pain-detector.test.ts         # 34 tests
 └── types/                   # TypeScript definitions
 ```
 
 ### Database Tables
-- `profiles` - User data (synced from auth.users)
-- `research_jobs` - Research projects with status tracking
+- `profiles` - User data (synced from auth.users) + `credits` balance
+- `research_jobs` - Research projects with status, `error_source`, `refunded_at`
 - `research_results` - Module outputs (JSON data)
 - `reddit_cache` - Arctic Shift response cache
+- `credit_transactions` - Credit purchase/usage history with `balance_after`
+- `admin_alerts` - Admin notification queue
+- `feedback_reports` - User feedback + refund tracking
 
 ### API Endpoints
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/research/community-voice` | POST | Run community voice research (includes market sizing + timing) |
+| `/api/research/community-voice` | POST | Run community voice research |
+| `/api/research/community-voice/stream` | POST | SSE streaming version |
 | `/api/research/competitor-intelligence` | POST | Run competitor analysis |
 | `/api/research/competitor-suggestions` | POST | Get AI-suggested competitors |
-| `/api/research/market-sizing` | POST | Standalone market sizing analysis |
+| `/api/research/coverage-check` | POST | Check data availability (free) |
+| `/api/research/market-sizing` | POST | Standalone market sizing |
 | `/api/research/timing` | POST | Standalone timing analysis |
-| `/api/research/jobs` | POST | Create new research job |
-| `/api/research/jobs` | GET | List user's research jobs |
-| `/api/research/jobs` | PATCH | Update job status |
-| `/api/dev/login` | POST | Dev auth (dev only) |
-| `/api/dev/login` | GET | Check auth status (dev only) |
-| `/api/admin/debug` | GET | Debug info (dev only) |
+| `/api/research/results` | GET | Fetch saved results |
+| `/api/research/jobs` | POST/GET/PATCH | Job management CRUD |
+| `/api/admin/cleanup-stale-jobs` | GET/POST | Stale job stats + auto-refund |
+| `/api/admin/analytics` | GET | Admin analytics data |
+| `/api/admin/credits` | POST | Manual credit adjustment |
+| `/api/billing/checkout` | POST | Stripe checkout session |
+| `/api/feedback/report-problem` | POST | Report problem + auto-refund |
+| `/api/dev/login` | POST/GET | Dev auth (dev only) |
 
 ---
 
@@ -282,6 +342,7 @@ src/
 
 - Old research jobs (created before persistence was implemented) show "Results Not Available" even if completed
 - Must ensure dev server is running on port 3000 before testing
+- **Migration 007 must be applied** for research to work (fixes `balance_after` column)
 
 ---
 
@@ -293,8 +354,23 @@ cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine P
 npm run dev
 ```
 
+### Running Tests
+```bash
+npm run test      # Watch mode
+npm run test:run  # Single run
+```
+
 ### Database Migrations
-Migrations are in `supabase/migrations/`. Apply via Supabase dashboard or CLI.
+Migrations are in `supabase/migrations/`. Apply via Supabase dashboard SQL Editor.
+
+**Current migrations:**
+- 001_initial_schema.sql
+- 002_research_tables.sql
+- 003_account_system.sql
+- 004_phase2_updates.sql
+- 005_feedback_refund.sql
+- 006_step_based_research.sql
+- **007_fix_credit_transactions.sql** (NEW - must apply!)
 
 ### Environment Variables
 Required in `.env.local`:
@@ -305,12 +381,46 @@ Required in `.env.local`:
 
 Optional:
 - `NEXT_PUBLIC_WHATSAPP_SUPPORT_URL` - WhatsApp Business link (wa.me/YOUR_NUMBER)
+- `STRIPE_SECRET_KEY` - For payments
+- `STRIPE_WEBHOOK_SECRET` - For webhook verification
 
 ---
 
 ## Slash Commands
 
-- `/review` - Review codebase against design spec, update this file
-- `/test-flow` - Run autonomous test of the research flow
-- `/improve` - Identify and implement the next priority improvement
-- `/update-overview` - Update `docs/TECHNICAL_OVERVIEW.md` with current codebase state (run weekly)
+| Command | Purpose |
+|---------|---------|
+| `/review` | Review codebase against CLAUDE.md specifications |
+| `/test-flow` | End-to-end test via Puppeteer with console error checking |
+| `/improve` | Identify and implement the next priority improvement |
+| `/ceo-review` | CEO walkthrough with "user eyes" - screenshots, console errors, full report |
+| `/update-overview` | Update `docs/TECHNICAL_OVERVIEW.md` with current state |
+| `/goodnight` | Save session state to `docs/RESUME_HERE.md` before ending work |
+
+### About `/ceo-review`
+
+The CEO review agent acts as a real user:
+- Takes screenshots and visually inspects them
+- Checks console errors after every navigation
+- Runs full research (uses 1 credit)
+- Explores ALL pages including admin section
+- Saves detailed report to `docs/ceo-review-report-[DATE].md`
+
+---
+
+## Error Source Tracking (New)
+
+When research fails, the `error_source` column in `research_jobs` tracks WHERE it failed:
+
+| Error Source | Meaning | Action |
+|--------------|---------|--------|
+| `anthropic` | Claude API failed | Check API key, rate limits |
+| `arctic_shift` | Reddit data API failed | Check if API is down |
+| `database` | Supabase write failed | Check DB connection, RLS |
+| `timeout` | Request timed out | May need retry |
+| `unknown` | Untracked error | Check server logs |
+
+Admin can run `/api/admin/cleanup-stale-jobs` to:
+1. Auto-refund jobs with confirmed failures (`error_source` set)
+2. Get alerts for stuck "processing" jobs (no auto-refund, needs review)
+3. See API health breakdown by error source

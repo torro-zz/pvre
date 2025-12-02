@@ -41,21 +41,52 @@ export async function POST(request: NextRequest) {
     const adminClient = createAdminClient()
 
     if (credits > 0) {
-      // Add bonus credits
-      const { data, error } = await adminClient.rpc('add_bonus_credits', {
-        p_user_id: userId,
-        p_credits: credits,
-        p_description: description || 'Admin bonus credits'
-      })
+      // Add bonus credits - bypass RPC due to schema mismatch
+      // First get current balance
+      const { data: profile, error: fetchError } = await adminClient
+        .from('profiles')
+        .select('credits_balance')
+        .eq('id', userId)
+        .single()
 
-      if (error) {
-        console.error('Failed to add credits:', error)
+      if (fetchError || !profile) {
+        console.error('Failed to fetch user:', fetchError)
+        return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      }
+
+      const newBalance = (profile.credits_balance || 0) + credits
+
+      // Update balance
+      const { error: updateError } = await adminClient
+        .from('profiles')
+        .update({
+          credits_balance: newBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+
+      if (updateError) {
+        console.error('Failed to add credits:', updateError)
         return NextResponse.json({ error: 'Failed to add credits' }, { status: 500 })
+      }
+
+      // Try to log transaction (ignore errors - balance_after column may not exist)
+      try {
+        await adminClient
+          .from('credit_transactions')
+          .insert({
+            user_id: userId,
+            amount: credits,
+            transaction_type: 'bonus',
+            description: description || 'Admin bonus credits'
+          })
+      } catch {
+        // Silently ignore if transaction logging fails
       }
 
       return NextResponse.json({
         success: true,
-        newBalance: data,
+        newBalance,
         message: `Added ${credits} credits`
       })
     } else {
@@ -73,7 +104,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'User not found' }, { status: 404 })
       }
 
-      const newBalance = Math.max(0, profile.credits_balance - absCredits)
+      const newBalance = Math.max(0, (profile.credits_balance || 0) - absCredits)
 
       // Update balance
       const { error: updateError } = await adminClient
@@ -86,16 +117,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to deduct credits' }, { status: 500 })
       }
 
-      // Log the transaction
-      await adminClient
-        .from('credit_transactions')
-        .insert({
-          user_id: userId,
-          amount: -absCredits,
-          balance_after: newBalance,
-          transaction_type: 'adjustment',
-          description: description || 'Admin adjustment'
-        })
+      // Try to log transaction (ignore errors - balance_after column may not exist)
+      try {
+        await adminClient
+          .from('credit_transactions')
+          .insert({
+            user_id: userId,
+            amount: -absCredits,
+            transaction_type: 'adjustment',
+            description: description || 'Admin adjustment'
+          })
+      } catch {
+        // Silently ignore if transaction logging fails
+      }
 
       return NextResponse.json({
         success: true,

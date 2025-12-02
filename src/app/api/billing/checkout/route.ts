@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createCheckoutUrl } from '@/lib/lemonsqueezy/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,18 +44,50 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    // Create Lemon Squeezy checkout URL
-    const checkoutUrl = await createCheckoutUrl({
-      variantId: pack.lemonsqueezy_variant_id,
-      userId: user.id,
-      packId: pack.id,
-      credits: pack.credits,
-      userEmail: profile?.email || user.email || '',
-      successUrl: `${request.nextUrl.origin}/account/billing?success=true`,
-      cancelUrl: `${request.nextUrl.origin}/account/billing?canceled=true`,
-    })
+    const userEmail = profile?.email || user.email
 
-    return NextResponse.json({ url: checkoutUrl })
+    // Build LemonSqueezy checkout URL
+    // LemonSqueezy uses variant IDs to identify products
+    const variantId = pack.lemonsqueezy_variant_id
+
+    if (!variantId || variantId === 'VARIANT_ID_STARTER' || variantId === 'VARIANT_ID_BUILDER' || variantId === 'VARIANT_ID_FOUNDER') {
+      return NextResponse.json(
+        { error: 'Credit pack not configured. Please contact support.' },
+        { status: 500 }
+      )
+    }
+
+    // LemonSqueezy checkout URL format
+    // https://YOUR_STORE.lemonsqueezy.com/checkout/buy/VARIANT_ID
+    const storeUrl = process.env.LEMONSQUEEZY_STORE_URL
+
+    if (!storeUrl) {
+      console.error('LEMONSQUEEZY_STORE_URL is not configured')
+      return NextResponse.json(
+        { error: 'Payment provider not configured' },
+        { status: 500 }
+      )
+    }
+
+    // Build checkout URL with parameters
+    const checkoutUrl = new URL(`${storeUrl}/checkout/buy/${variantId}`)
+
+    // Add custom data for webhook processing
+    checkoutUrl.searchParams.set('checkout[custom][user_id]', user.id)
+    checkoutUrl.searchParams.set('checkout[custom][pack_id]', pack.id)
+    checkoutUrl.searchParams.set('checkout[custom][credits]', pack.credits.toString())
+
+    // Pre-fill email if available
+    if (userEmail) {
+      checkoutUrl.searchParams.set('checkout[email]', userEmail)
+    }
+
+    // Add success and cancel redirects
+    const origin = request.nextUrl.origin
+    checkoutUrl.searchParams.set('checkout[success_url]', `${origin}/account/billing?success=true`)
+    checkoutUrl.searchParams.set('checkout[cancel_url]', `${origin}/account/billing?canceled=true`)
+
+    return NextResponse.json({ url: checkoutUrl.toString() })
   } catch (error) {
     console.error('Checkout error:', error)
     return NextResponse.json(

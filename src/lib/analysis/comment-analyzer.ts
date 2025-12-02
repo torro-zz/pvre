@@ -2,7 +2,7 @@
 // Deeper analysis of Reddit comments for richer pain signals
 // v1.0: Introduced for Phase 2 platform improvements
 
-import { RedditComment } from '../arctic-shift/types'
+import { RedditComment } from '../data-sources/types'
 import {
   calculatePainScore,
   PainSignal,
@@ -70,10 +70,10 @@ export function analyzeCommentsDeep(comments: RedditComment[]): CommentInsights 
     // Skip deleted/removed
     if (comment.body === '[deleted]' || comment.body === '[removed]') continue
 
-    const scoreResult = calculatePainScore(comment.body, comment.score, comment.created_utc)
+    const scoreResult = calculatePainScore(comment.body, comment.score, comment.createdUtc)
     const wtpSignals = detectWTPSignals(comment.body)
-    const isReply = comment.parent_id?.startsWith('t1_') || false // t1_ = comment, t3_ = post
-    const recencyMultiplier = getRecencyMultiplier(comment.created_utc)
+    const isReply = comment.parentId?.startsWith('t1_') || false // t1_ = comment, t3_ = post
+    const recencyMultiplier = getRecencyMultiplier(comment.createdUtc)
 
     analyzed.push({
       comment: {
@@ -81,9 +81,9 @@ export function analyzeCommentsDeep(comments: RedditComment[]): CommentInsights 
         body: comment.body,
         subreddit: comment.subreddit,
         score: comment.score,
-        createdUtc: comment.created_utc,
-        parentId: comment.parent_id,
-        postId: comment.link_id?.replace('t3_', '') || '',
+        createdUtc: comment.createdUtc,
+        parentId: comment.parentId,
+        postId: comment.postId || '',
       },
       painScore: scoreResult.score,
       wtpSignals,
@@ -183,7 +183,7 @@ export function commentAnalysisToPainSignals(
       subreddit: ca.comment.subreddit,
       author: 'unknown', // Not available in CommentAnalysis
       url: `https://reddit.com/r/${ca.comment.subreddit}/comments/${ca.comment.postId}/_/${ca.comment.id}`,
-      created_utc: ca.comment.createdUtc,
+      createdUtc: ca.comment.createdUtc,
       engagementScore: Math.log10(Math.max(1, ca.comment.score + 1)) * 2,
     },
   }))

@@ -102,13 +102,12 @@ export class PullPushSource implements DataSource {
     const { subreddits, keywords, limit = 50, timeRange } = params
     const allPosts: RedditPost[] = []
 
-    // PullPush supports comma-separated subreddits
-    const subredditChunks = this.chunkArray(subreddits, 5) // Process 5 at a time
-
-    for (const chunk of subredditChunks) {
+    // PullPush requires individual subreddit requests
+    for (let i = 0; i < subreddits.length; i++) {
+      const subreddit = subreddits[i]
       try {
         const queryParams = new URLSearchParams({
-          subreddit: chunk.join(','),
+          subreddit,
           size: String(Math.min(limit, 100)),
           sort: 'score',
           sort_type: 'desc',
@@ -133,12 +132,12 @@ export class PullPushSource implements DataSource {
           allPosts.push(...response.data.map(p => this.normalizePost(p)))
         }
 
-        // Rate limiting
-        if (subredditChunks.indexOf(chunk) < subredditChunks.length - 1) {
+        // Rate limiting between requests
+        if (i < subreddits.length - 1) {
           await delay(REQUEST_DELAY_MS)
         }
       } catch (error) {
-        console.warn(`PullPush: Failed to fetch posts from ${chunk.join(',')}:`, error)
+        console.warn(`PullPush: Failed to fetch posts from r/${subreddit}:`, error)
       }
     }
 
@@ -149,12 +148,12 @@ export class PullPushSource implements DataSource {
     const { subreddits, keywords, limit = 30, timeRange } = params
     const allComments: RedditComment[] = []
 
-    const subredditChunks = this.chunkArray(subreddits, 5)
-
-    for (const chunk of subredditChunks) {
+    // PullPush requires individual subreddit requests
+    for (let i = 0; i < subreddits.length; i++) {
+      const subreddit = subreddits[i]
       try {
         const queryParams = new URLSearchParams({
-          subreddit: chunk.join(','),
+          subreddit,
           size: String(Math.min(limit, 100)),
           sort: 'score',
           sort_type: 'desc',
@@ -179,11 +178,12 @@ export class PullPushSource implements DataSource {
           allComments.push(...response.data.map(c => this.normalizeComment(c)))
         }
 
-        if (subredditChunks.indexOf(chunk) < subredditChunks.length - 1) {
+        // Rate limiting between requests
+        if (i < subreddits.length - 1) {
           await delay(REQUEST_DELAY_MS)
         }
       } catch (error) {
-        console.warn(`PullPush: Failed to fetch comments from ${chunk.join(',')}:`, error)
+        console.warn(`PullPush: Failed to fetch comments from r/${subreddit}:`, error)
       }
     }
 

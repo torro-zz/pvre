@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { checkUserCredits, deductCredit } from '@/lib/credits'
 import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
 import {
-  searchPosts,
-  searchComments,
-  fetchPostsFromSubreddits,
-  fetchCommentsFromSubreddits,
-} from '@/lib/arctic-shift/client'
-import { RedditPost, RedditComment } from '@/lib/arctic-shift/types'
+  fetchRedditData,
+  extractKeywords,
+  RedditPost,
+  RedditComment,
+} from '@/lib/data-sources'
 import {
   analyzePosts,
   analyzeComments,
   combinePainSignals,
   getPainSummary,
   PainSignal,
+  PainSummary,
 } from '@/lib/analysis/pain-detector'
 import {
   extractThemes,
@@ -29,16 +30,52 @@ import {
   analyzeTiming,
   TimingResult,
 } from '@/lib/analysis/timing-analyzer'
+import {
+  extractSearchKeywords,
+  preFilterByExcludeKeywords,
+  ExtractedKeywords,
+} from '@/lib/reddit/keyword-extractor'
+import {
+  getSubredditWeights,
+  applySubredditWeights,
+} from '@/lib/analysis/subreddit-weights'
 import Anthropic from '@anthropic-ai/sdk'
+import {
+  startTokenTracking,
+  endTokenTracking,
+  getCurrentTracker,
+} from '@/lib/anthropic'
+import { trackUsage } from '@/lib/analysis/token-tracker'
+import { saveResearchResult } from '@/lib/research/save-result'
 
 const anthropic = new Anthropic()
 
-// Filter posts by relevance to hypothesis using Claude Haiku
+// Filter result with metrics for transparency
+interface FilterResult<T> {
+  items: T[]
+  metrics: {
+    before: number
+    after: number
+    filteredOut: number
+    filterRate: number // percentage
+  }
+}
+
+// Filter posts by relevance to hypothesis using Claude Haiku (strict Y/N filtering)
 async function filterRelevantPosts(
   posts: RedditPost[],
   hypothesis: string
-): Promise<RedditPost[]> {
-  if (posts.length === 0) return []
+): Promise<FilterResult<RedditPost>> {
+  const metrics = {
+    before: posts.length,
+    after: 0,
+    filteredOut: 0,
+    filterRate: 0,
+  }
+
+  if (posts.length === 0) {
+    return { items: [], metrics }
+  }
 
   // Batch posts into groups of 20 for efficiency
   const batchSize = 20
@@ -48,51 +85,62 @@ async function filterRelevantPosts(
     const batch = posts.slice(i, i + batchSize)
 
     // Create summary of each post for rating
-    const postSummaries = batch.map((post, idx) => ({
-      idx,
-      title: post.title.slice(0, 200),
-      text: (post.selftext || '').slice(0, 300),
-    }))
+    const postSummaries = batch.map((post, idx) => {
+      const body = (post.body || '').slice(0, 150)
+      return `[${idx + 1}] ${post.title}${body ? '\n' + body : ''}`
+    }).join('\n\n')
 
-    const prompt = `You are filtering Reddit posts for relevance to a business hypothesis.
+    const prompt = `You are evaluating whether Reddit posts are relevant to a specific business hypothesis.
 
 HYPOTHESIS: "${hypothesis}"
 
-Rate each post 1-5 for relevance:
-5 = Directly discusses the problem/solution space
-4 = Related to target audience's pain points
-3 = Tangentially related, might contain useful signals
-2 = Mostly unrelated but same general topic area
-1 = Completely irrelevant (wrong topic, spam, off-topic)
+TASK: For each post below, decide if it discusses problems, needs, or experiences DIRECTLY related to the hypothesis.
 
-POSTS TO RATE:
-${postSummaries.map(p => `[${p.idx}] Title: ${p.title}\nText: ${p.text}`).join('\n\n')}
+RELEVANT (Y) means:
+- The post discusses the actual problem the hypothesis solves
+- The post is about the target user's specific pain point
+- The post mentions the domain/activity the hypothesis addresses
 
-Return ONLY a JSON array of objects with idx and score, like:
-[{"idx": 0, "score": 4}, {"idx": 1, "score": 2}, ...]
+NOT RELEVANT (N) means:
+- The post is about unrelated business/life topics
+- The post contains pain language but about different problems
+- The post is tangentially related but not about the core problem
+- The post is from the target audience but discussing unrelated issues
 
-Be strict - only score 3+ for posts that would genuinely help validate this specific hypothesis.`
+POSTS TO EVALUATE:
+${postSummaries}
+
+RESPOND WITH EXACTLY ${batch.length} CHARACTERS, ONE PER POST:
+- Y = relevant
+- N = not relevant
+
+Example response for 5 posts: YNNYY
+
+Your response (${batch.length} letters):`
 
     try {
       const response = await anthropic.messages.create({
         model: 'claude-3-5-haiku-latest',
-        max_tokens: 1000,
+        max_tokens: 100,
         messages: [{ role: 'user', content: prompt }],
       })
 
+      // Track token usage
+      const tracker = getCurrentTracker()
+      if (tracker && response.usage) {
+        trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
+      }
+
       const content = response.content[0]
       if (content.type === 'text') {
-        // Parse JSON from response
-        const jsonMatch = content.text.match(/\[[\s\S]*\]/)
-        if (jsonMatch) {
-          const ratings: Array<{ idx: number; score: number }> = JSON.parse(jsonMatch[0])
-          // Keep posts rated 3 or higher
-          for (const rating of ratings) {
-            if (rating.score >= 3 && batch[rating.idx]) {
-              relevantPosts.push(batch[rating.idx])
-            }
+        // Extract only Y/N characters
+        const decisions = content.text.trim().toUpperCase().replace(/[^YN]/g, '')
+
+        batch.forEach((post, idx) => {
+          if (decisions[idx] === 'Y') {
+            relevantPosts.push(post)
           }
-        }
+        })
       }
     } catch (error) {
       console.error('Post filtering batch failed, keeping all posts in batch:', error)
@@ -101,15 +149,28 @@ Be strict - only score 3+ for posts that would genuinely help validate this spec
     }
   }
 
-  return relevantPosts
+  metrics.after = relevantPosts.length
+  metrics.filteredOut = metrics.before - metrics.after
+  metrics.filterRate = metrics.before > 0 ? (metrics.filteredOut / metrics.before) * 100 : 0
+
+  return { items: relevantPosts, metrics }
 }
 
-// Filter comments by relevance to hypothesis using Claude Haiku
+// Filter comments by relevance to hypothesis using Claude Haiku (strict Y/N filtering)
 async function filterRelevantComments(
   comments: RedditComment[],
   hypothesis: string
-): Promise<RedditComment[]> {
-  if (comments.length === 0) return []
+): Promise<FilterResult<RedditComment>> {
+  const metrics = {
+    before: comments.length,
+    after: 0,
+    filteredOut: 0,
+    filterRate: 0,
+  }
+
+  if (comments.length === 0) {
+    return { items: [], metrics }
+  }
 
   // Batch comments into groups of 25 (comments are shorter)
   const batchSize = 25
@@ -118,48 +179,60 @@ async function filterRelevantComments(
   for (let i = 0; i < comments.length; i += batchSize) {
     const batch = comments.slice(i, i + batchSize)
 
-    const commentSummaries = batch.map((comment, idx) => ({
-      idx,
-      text: comment.body.slice(0, 400),
-    }))
+    const commentSummaries = batch.map((comment, idx) =>
+      `[${idx + 1}] ${comment.body.slice(0, 300)}`
+    ).join('\n\n')
 
-    const prompt = `You are filtering Reddit comments for relevance to a business hypothesis.
+    const prompt = `You are evaluating whether Reddit comments are relevant to a specific business hypothesis.
 
 HYPOTHESIS: "${hypothesis}"
 
-Rate each comment 1-5 for relevance:
-5 = Directly discusses the problem, expresses pain points, or mentions solutions
-4 = Related frustrations or needs from target audience
-3 = Tangentially related, might contain useful signals
-2 = Mostly unrelated
-1 = Completely irrelevant (off-topic, jokes, spam)
+TASK: For each comment below, decide if it discusses problems, needs, or experiences DIRECTLY related to the hypothesis.
 
-COMMENTS TO RATE:
-${commentSummaries.map(c => `[${c.idx}] ${c.text}`).join('\n\n')}
+RELEVANT (Y) means:
+- The comment discusses the actual problem the hypothesis solves
+- The comment expresses frustration/pain about the specific topic
+- The comment mentions the domain/activity the hypothesis addresses
 
-Return ONLY a JSON array of objects with idx and score, like:
-[{"idx": 0, "score": 4}, {"idx": 1, "score": 2}, ...]
+NOT RELEVANT (N) means:
+- The comment is about unrelated topics
+- The comment contains pain language but about different problems
+- The comment is off-topic, jokes, or generic advice
 
-Be strict - only score 3+ for comments that would genuinely help validate this specific hypothesis.`
+COMMENTS TO EVALUATE:
+${commentSummaries}
+
+RESPOND WITH EXACTLY ${batch.length} CHARACTERS, ONE PER COMMENT:
+- Y = relevant
+- N = not relevant
+
+Example response for 5 comments: YNNYY
+
+Your response (${batch.length} letters):`
 
     try {
       const response = await anthropic.messages.create({
         model: 'claude-3-5-haiku-latest',
-        max_tokens: 1000,
+        max_tokens: 100,
         messages: [{ role: 'user', content: prompt }],
       })
 
+      // Track token usage
+      const tracker = getCurrentTracker()
+      if (tracker && response.usage) {
+        trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
+      }
+
       const content = response.content[0]
       if (content.type === 'text') {
-        const jsonMatch = content.text.match(/\[[\s\S]*\]/)
-        if (jsonMatch) {
-          const ratings: Array<{ idx: number; score: number }> = JSON.parse(jsonMatch[0])
-          for (const rating of ratings) {
-            if (rating.score >= 3 && batch[rating.idx]) {
-              relevantComments.push(batch[rating.idx])
-            }
+        // Extract only Y/N characters
+        const decisions = content.text.trim().toUpperCase().replace(/[^YN]/g, '')
+
+        batch.forEach((comment, idx) => {
+          if (decisions[idx] === 'Y') {
+            relevantComments.push(comment)
           }
-        }
+        })
       }
     } catch (error) {
       console.error('Comment filtering batch failed, keeping all comments in batch:', error)
@@ -167,7 +240,32 @@ Be strict - only score 3+ for comments that would genuinely help validate this s
     }
   }
 
-  return relevantComments
+  metrics.after = relevantComments.length
+  metrics.filteredOut = metrics.before - metrics.after
+  metrics.filterRate = metrics.before > 0 ? (metrics.filteredOut / metrics.before) * 100 : 0
+
+  return { items: relevantComments, metrics }
+}
+
+// Calculate data quality level based on filter rates
+function calculateQualityLevel(postFilterRate: number, commentFilterRate: number): 'high' | 'medium' | 'low' {
+  const avgFilterRate = (postFilterRate + commentFilterRate) / 2
+  if (avgFilterRate < 30) return 'high'
+  if (avgFilterRate < 60) return 'medium'
+  return 'low'
+}
+
+// Filtering metrics for transparency
+export interface FilteringMetrics {
+  postsFound: number
+  postsAnalyzed: number
+  postsFiltered: number
+  postFilterRate: number
+  commentsFound: number
+  commentsAnalyzed: number
+  commentsFiltered: number
+  commentFilterRate: number
+  qualityLevel: 'high' | 'medium' | 'low'
 }
 
 export interface CommunityVoiceResult {
@@ -177,16 +275,7 @@ export interface CommunityVoiceResult {
     analyzed: string[]
   }
   painSignals: PainSignal[]
-  painSummary: {
-    totalSignals: number
-    averageScore: number
-    highIntensityCount: number
-    mediumIntensityCount: number
-    lowIntensityCount: number
-    solutionSeekingCount: number
-    willingnessToPayCount: number
-    topSubreddits: { name: string; count: number }[]
-  }
+  painSummary: PainSummary
   themeAnalysis: ThemeAnalysis
   interviewQuestions: {
     contextQuestions: string[]
@@ -200,11 +289,54 @@ export interface CommunityVoiceResult {
     commentsAnalyzed: number
     processingTimeMs: number
     timestamp: string
+    // Filtering metrics for data quality transparency
+    filteringMetrics?: FilteringMetrics
+    // Token usage tracking for cost analysis
+    tokenUsage?: {
+      totalCalls: number
+      totalInputTokens: number
+      totalOutputTokens: number
+      totalTokens: number
+      totalCostUsd: number
+      costBreakdown: { model: string; calls: number; cost: number }[]
+    }
+  }
+}
+
+// Error sources for tracking failures
+type ErrorSource = 'anthropic' | 'arctic_shift' | 'database' | 'timeout' | 'unknown'
+
+// Helper to mark job as failed with error source
+async function markJobFailed(
+  jobId: string | undefined,
+  errorSource: ErrorSource,
+  errorMessage: string
+) {
+  if (!jobId) return
+  try {
+    const adminClient = createAdminClient()
+    await adminClient
+      .from('research_jobs')
+      .update({
+        status: 'failed',
+        error_source: errorSource,
+        error_message: errorMessage,
+      })
+      .eq('id', jobId)
+  } catch (err) {
+    console.error('Failed to mark job as failed:', err)
   }
 }
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
+
+  // Start token tracking for this request
+  startTokenTracking()
+
+  // Track jobId outside try block so we can update status in catch
+  let currentJobId: string | undefined
+  let lastErrorSource: ErrorSource = 'unknown'
 
   try {
     // Verify authentication
@@ -221,6 +353,7 @@ export async function POST(request: NextRequest) {
     // Parse request body
     const body = await request.json()
     const { hypothesis, jobId } = body
+    currentJobId = jobId
 
     if (!hypothesis || typeof hypothesis !== 'string') {
       return NextResponse.json(
@@ -257,8 +390,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 1: Discover relevant subreddits using Claude
-    console.log('Step 1: Discovering subreddits for:', hypothesis)
+    // Update job status to 'processing' (backend controls status now)
+    if (jobId) {
+      const adminClient = createAdminClient()
+      await adminClient
+        .from('research_jobs')
+        .update({ status: 'processing' })
+        .eq('id', jobId)
+    }
+
+    // Step 1: Extract hypothesis-specific keywords for better search precision
+    console.log('Step 1: Extracting hypothesis-specific keywords')
+    lastErrorSource = 'anthropic' // Claude API
+    const extractedKeywords = await extractSearchKeywords(hypothesis)
+    console.log('Extracted keywords:', {
+      primary: extractedKeywords.primary,
+      exclude: extractedKeywords.exclude,
+    })
+
+    // Step 2: Discover relevant subreddits using Claude
+    console.log('Step 2: Discovering subreddits for:', hypothesis)
     const discoveryResult = await discoverSubreddits(hypothesis)
     const subredditsToSearch = discoveryResult.subreddits.slice(0, 6) // Limit to 6 subreddits
 
@@ -271,31 +422,75 @@ export async function POST(request: NextRequest) {
 
     console.log('Discovered subreddits:', subredditsToSearch)
 
-    // Step 2: Fetch posts from discovered subreddits
-    console.log('Step 2: Fetching posts from subreddits')
-    const rawPosts = await fetchPostsFromSubreddits(subredditsToSearch, {
-      limit: 50,
+    // Step 2.5: Get subreddit relevance weights
+    console.log('Step 2.5: Calculating subreddit relevance weights')
+    const subredditWeights = await getSubredditWeights(hypothesis, subredditsToSearch)
+    console.log('Subreddit weights:', Object.fromEntries(subredditWeights))
+
+    // Step 3: Fetch posts and comments from discovered subreddits
+    // Uses data-sources layer with automatic caching and fallback to backup sources
+    // Use extracted primary keywords for better search precision
+    console.log('Step 3: Fetching Reddit data (with caching + fallback)')
+    lastErrorSource = 'arctic_shift' // Reddit data API
+    const searchKeywords = extractedKeywords.primary.length > 0
+      ? extractedKeywords.primary
+      : extractKeywords(hypothesis) // Fallback to basic extraction
+    const redditData = await fetchRedditData({
+      subreddits: subredditsToSearch,
+      keywords: searchKeywords,
+      limit: 100,
+      timeRange: {
+        after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
+      },
     })
 
-    console.log(`Fetched ${rawPosts.length} posts`)
+    let rawPosts = redditData.posts
+    let rawComments = redditData.comments
 
-    // Step 3: Fetch comments from discovered subreddits
-    console.log('Step 3: Fetching comments from subreddits')
-    const rawComments = await fetchCommentsFromSubreddits(subredditsToSearch, {
-      limit: 30,
-    })
+    console.log(`Fetched ${rawPosts.length} posts and ${rawComments.length} comments from ${redditData.metadata.source}`)
 
-    console.log(`Fetched ${rawComments.length} comments`)
+    // Check for data source warnings
+    if (redditData.metadata.warning) {
+      console.warn('Data source warning:', redditData.metadata.warning)
+    }
 
-    // Step 4: Filter posts and comments for relevance using Claude
-    console.log('Step 4: Filtering for relevance to hypothesis')
-    const [posts, comments] = await Promise.all([
+    // Step 3.5: Pre-filter posts using exclude keywords (cheap local operation)
+    if (extractedKeywords.exclude.length > 0) {
+      const originalPostCount = rawPosts.length
+      const originalCommentCount = rawComments.length
+      rawPosts = preFilterByExcludeKeywords(rawPosts, extractedKeywords.exclude)
+      rawComments = preFilterByExcludeKeywords(rawComments, extractedKeywords.exclude)
+      console.log(`Pre-filtered: ${originalPostCount - rawPosts.length} posts, ${originalCommentCount - rawComments.length} comments removed by exclude keywords`)
+    }
+
+    // Step 4: Filter posts and comments for relevance using Claude (strict Y/N filtering)
+    console.log('Step 4: Filtering for relevance to hypothesis (strict Y/N)')
+    lastErrorSource = 'anthropic' // Claude API for filtering
+    const [postFilterResult, commentFilterResult] = await Promise.all([
       filterRelevantPosts(rawPosts, hypothesis),
       filterRelevantComments(rawComments, hypothesis),
     ])
 
-    console.log(`Filtered to ${posts.length} relevant posts (from ${rawPosts.length})`)
-    console.log(`Filtered to ${comments.length} relevant comments (from ${rawComments.length})`)
+    const posts = postFilterResult.items
+    const comments = commentFilterResult.items
+
+    console.log(`Filtered to ${posts.length} relevant posts (from ${rawPosts.length}, ${postFilterResult.metrics.filterRate.toFixed(1)}% filtered)`)
+    console.log(`Filtered to ${comments.length} relevant comments (from ${rawComments.length}, ${commentFilterResult.metrics.filterRate.toFixed(1)}% filtered)`)
+
+    // Build filtering metrics for transparency
+    const filteringMetrics: FilteringMetrics = {
+      postsFound: postFilterResult.metrics.before,
+      postsAnalyzed: postFilterResult.metrics.after,
+      postsFiltered: postFilterResult.metrics.filteredOut,
+      postFilterRate: postFilterResult.metrics.filterRate,
+      commentsFound: commentFilterResult.metrics.before,
+      commentsAnalyzed: commentFilterResult.metrics.after,
+      commentsFiltered: commentFilterResult.metrics.filteredOut,
+      commentFilterRate: commentFilterResult.metrics.filterRate,
+      qualityLevel: calculateQualityLevel(postFilterResult.metrics.filterRate, commentFilterResult.metrics.filterRate),
+    }
+
+    console.log(`Data quality level: ${filteringMetrics.qualityLevel}`)
 
     // Step 5: Analyze posts and comments for pain signals
     console.log('Step 5: Analyzing pain signals')
@@ -304,6 +499,10 @@ export async function POST(request: NextRequest) {
     const allPainSignals = combinePainSignals(postSignals, commentSignals)
 
     console.log(`Found ${allPainSignals.length} pain signals`)
+
+    // Step 5.5: Apply subreddit weights to pain scores
+    applySubredditWeights(allPainSignals, subredditWeights)
+    console.log('Applied subreddit weights to pain signals')
 
     // Step 6: Get pain summary statistics
     const painSummary = getPainSummary(allPainSignals)
@@ -345,6 +544,9 @@ export async function POST(request: NextRequest) {
 
     const processingTimeMs = Date.now() - startTime
 
+    // End token tracking and get usage summary
+    const tokenUsage = endTokenTracking()
+
     // Build result
     const result: CommunityVoiceResult = {
       hypothesis,
@@ -363,22 +565,35 @@ export async function POST(request: NextRequest) {
         commentsAnalyzed: comments.length,
         processingTimeMs,
         timestamp: new Date().toISOString(),
+        filteringMetrics,
+        tokenUsage: tokenUsage || undefined,
       },
     }
 
-    // If jobId is provided, save results to database
+    // If jobId is provided, save results to database and update job status
     if (jobId) {
+      const adminClient = createAdminClient()
+      lastErrorSource = 'database' // Supabase save
       try {
-        await supabase
-          .from('research_results')
-          .insert({
-            job_id: jobId,
-            module_name: 'community_voice',
-            data: result,
-          })
+        // Save results using shared utility
+        await saveResearchResult(jobId, 'community_voice', result)
+
+        // Mark job as completed (backend controls status now)
+        await adminClient
+          .from('research_jobs')
+          .update({ status: 'completed' })
+          .eq('id', jobId)
       } catch (dbError) {
         console.error('Failed to save results to database:', dbError)
-        // Continue - we still want to return the results
+        // Mark job as failed if we can't save results
+        await adminClient
+          .from('research_jobs')
+          .update({
+            status: 'failed',
+            error_source: 'database',
+            error_message: 'Failed to save results'
+          })
+          .eq('id', jobId)
       }
     }
 
@@ -387,6 +602,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result)
   } catch (error) {
     console.error('Community voice research failed:', error)
+    console.error('Error source:', lastErrorSource)
+
+    // Mark job as failed in backend with error source (if we have a jobId)
+    await markJobFailed(
+      currentJobId,
+      lastErrorSource,
+      error instanceof Error ? error.message : 'Research failed'
+    )
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Research failed' },
       { status: 500 }

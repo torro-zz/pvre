@@ -54,37 +54,53 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Job not found' }, { status: 404 })
   }
 
-  // Fetch community voice results
-  const { data: communityVoiceResult, error: resultsError } = await supabase
+  // Fetch pain analysis results (new step-based flow uses pain_analysis module_name)
+  const { data: painAnalysisResult, error: resultsError } = await supabase
     .from('research_results')
     .select('*')
     .eq('job_id', jobId)
-    .eq('module_name', 'community_voice')
+    .eq('module_name', 'pain_analysis')
     .single()
 
-  if (resultsError || !communityVoiceResult) {
+  if (resultsError || !painAnalysisResult) {
     return NextResponse.json(
-      { error: 'No community voice results found. Run Community Voice analysis first.' },
+      { error: 'No pain analysis results found. Complete Pain Analysis first.' },
       { status: 404 }
     )
   }
 
-  const cvData = communityVoiceResult.data as {
+  const painData = painAnalysisResult.data as {
     themeAnalysis?: {
       alternativesMentioned?: string[]
       competitorInsights?: CompetitorInsight[]
+      themes?: Array<{
+        name: string
+        description: string
+        sampleQuotes: string[]
+      }>
     }
     painSignals?: Array<{
       text: string
       title?: string
       signals: string[]
     }>
+    redditData?: {
+      posts: Array<{
+        title: string
+        text: string
+        subreddit: string
+      }>
+    }
     hypothesis?: string
+    painScore?: {
+      score: number
+      signals: string[]
+    }
   }
 
   // If we already have enhanced competitor insights, return them
-  if (cvData.themeAnalysis?.competitorInsights?.length) {
-    const insights = cvData.themeAnalysis.competitorInsights
+  if (painData.themeAnalysis?.competitorInsights?.length) {
+    const insights = painData.themeAnalysis.competitorInsights
     return NextResponse.json({
       suggestions: insights
         .filter(i => i.isActualProduct)
@@ -97,20 +113,22 @@ export async function GET(request: NextRequest) {
           isActualProduct: i.isActualProduct,
           whySuggested: `Mentioned ${i.mentionCount} times in community discussions`,
         })),
-      rawMentions: cvData.themeAnalysis.alternativesMentioned || [],
+      rawMentions: painData.themeAnalysis.alternativesMentioned || [],
       metadata: {
         hypothesis: job.hypothesis,
-        basedOnSignals: cvData.painSignals?.length || 0,
+        basedOnSignals: painData.painSignals?.length || 0,
         processingTimeMs: Date.now() - startTime,
       },
     })
   }
 
-  // Otherwise, run Claude analysis on the raw mentions
-  const rawMentions = cvData.themeAnalysis?.alternativesMentioned || []
-  const painSignals = cvData.painSignals || []
+  // Otherwise, run Claude analysis on the raw mentions and pain signals
+  const rawMentions = painData.themeAnalysis?.alternativesMentioned || []
+  const painSignals = painData.painSignals || []
+  const redditPosts = painData.redditData?.posts || []
+  const themes = painData.themeAnalysis?.themes || []
 
-  if (rawMentions.length === 0 && painSignals.length === 0) {
+  if (rawMentions.length === 0 && painSignals.length === 0 && redditPosts.length === 0) {
     return NextResponse.json({
       suggestions: [],
       rawMentions: [],
@@ -122,11 +140,22 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  // Extract text samples mentioning alternatives for context
-  const relevantTexts = painSignals
-    .slice(0, 20)
+  // Extract text samples from pain signals and Reddit posts for richer context
+  const painTexts = painSignals
+    .slice(0, 15)
     .map(s => `${s.title || ''} ${s.text}`.slice(0, 300))
     .join('\n---\n')
+
+  const redditTexts = redditPosts
+    .slice(0, 10)
+    .map(p => `[r/${p.subreddit}] ${p.title}: ${p.text?.slice(0, 200) || ''}`)
+    .join('\n---\n')
+
+  const themeContext = themes.length > 0
+    ? `\nKey themes identified:\n${themes.map(t => `- ${t.name}: ${t.description}`).join('\n')}`
+    : ''
+
+  const relevantTexts = painTexts + (redditTexts ? '\n---\n' + redditTexts : '')
 
   try {
     const response = await anthropic.messages.create({
@@ -145,13 +174,13 @@ Be conservative - only mark something as "isActualProduct: true" if you're confi
         {
           role: 'user',
           content: `Hypothesis: "${job.hypothesis}"
-
+${themeContext}
 Raw mentions from community discussions: ${JSON.stringify(rawMentions)}
 
 Sample discussion texts:
 ${relevantTexts}
 
-Analyze these mentions and return JSON:
+Based on the pain analysis themes and community discussions, analyze these mentions and return JSON:
 {
   "suggestions": [
     {

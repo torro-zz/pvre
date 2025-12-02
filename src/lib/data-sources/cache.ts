@@ -4,7 +4,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { RedditPost, RedditComment, CachedData } from './types'
 
-const CACHE_TTL_DAYS = 7 // 7-day TTL for cache entries
+const CACHE_TTL_DAYS = 90 // 90-day TTL for cache entries (Reddit data is valuable and stable)
 
 export interface CacheResult {
   posts: RedditPost[]
@@ -48,11 +48,13 @@ export async function getCachedData(cacheKey: string): Promise<CacheResult | nul
       return null
     }
 
-    const expiresAt = new Date(data.expires_at)
+    const expiresAt = data.expires_at ? new Date(data.expires_at) : new Date(0)
     const isExpired = expiresAt < new Date()
 
     // Parse posts - handle both normalized and raw formats
-    const posts = (data.posts || []).map((p: RedditPost | Record<string, unknown>) => {
+    const rawPosts = Array.isArray(data.posts) ? data.posts : []
+    const posts = rawPosts.map((raw: unknown) => {
+      const p = raw as RedditPost | Record<string, unknown>
       // If already normalized, return as-is
       if ('body' in p && 'numComments' in p && 'createdUtc' in p) {
         return p as RedditPost
@@ -61,31 +63,34 @@ export async function getCachedData(cacheKey: string): Promise<CacheResult | nul
       return {
         id: p.id as string,
         title: p.title as string,
-        body: (p.selftext || p.body || '') as string,
+        body: ((p as Record<string, unknown>).selftext || p.body || '') as string,
         author: p.author as string,
         subreddit: p.subreddit as string,
         score: p.score as number,
-        numComments: (p.num_comments || p.numComments || 0) as number,
-        createdUtc: (p.created_utc || p.createdUtc || 0) as number,
+        numComments: ((p as Record<string, unknown>).num_comments || (p as Record<string, unknown>).numComments || 0) as number,
+        createdUtc: ((p as Record<string, unknown>).created_utc || (p as Record<string, unknown>).createdUtc || 0) as number,
         permalink: p.permalink as string,
         url: p.url as string | undefined,
       }
     })
 
     // Parse comments if available
-    const comments = (data.comments || []).map((c: RedditComment | Record<string, unknown>) => {
+    const rawComments = Array.isArray(data.comments) ? data.comments : []
+    const comments = rawComments.map((raw: unknown) => {
+      const c = raw as RedditComment | Record<string, unknown>
       if ('createdUtc' in c && 'parentId' in c && 'postId' in c) {
         return c as RedditComment
       }
+      const rec = c as Record<string, unknown>
       return {
         id: c.id as string,
         body: c.body as string,
         author: c.author as string,
         subreddit: c.subreddit as string,
         score: c.score as number,
-        createdUtc: (c.created_utc || c.createdUtc || 0) as number,
-        parentId: (c.parent_id || c.parentId || '') as string,
-        postId: (c.link_id?.toString().replace('t3_', '') || c.postId || '') as string,
+        createdUtc: (rec.created_utc || rec.createdUtc || 0) as number,
+        parentId: (rec.parent_id || rec.parentId || '') as string,
+        postId: ((rec.link_id as string | undefined)?.toString().replace('t3_', '') || rec.postId || '') as string,
         permalink: c.permalink as string | undefined,
       }
     })
@@ -93,7 +98,7 @@ export async function getCachedData(cacheKey: string): Promise<CacheResult | nul
     return {
       posts,
       comments,
-      fetchedAt: data.fetched_at,
+      fetchedAt: data.fetched_at || new Date().toISOString(),
       isExpired,
     }
   } catch (error) {
@@ -130,8 +135,8 @@ export async function setCachedData(
           cache_key: cacheKey,
           subreddit, // For backward compatibility
           search_query: searchQuery, // For backward compatibility
-          posts: data.posts,
-          comments: data.comments || [],
+          posts: JSON.parse(JSON.stringify(data.posts)),
+          comments: JSON.parse(JSON.stringify(data.comments || [])),
           fetched_at: new Date().toISOString(),
           expires_at: expiresAt.toISOString(),
         },

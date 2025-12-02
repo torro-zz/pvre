@@ -24,6 +24,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check for duplicate job (same hypothesis within 60 seconds)
+    // This prevents double-click and network retry duplicates
+    const sixtySecondsAgo = new Date(Date.now() - 60000).toISOString()
+    const { data: existingJob } = await supabase
+      .from('research_jobs')
+      .select('id, created_at, status')
+      .eq('user_id', user.id)
+      .eq('hypothesis', hypothesis.trim())
+      .gte('created_at', sixtySecondsAgo)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (existingJob) {
+      // Return existing job instead of creating duplicate
+      console.log('Returning existing job to prevent duplicate:', existingJob.id)
+      return NextResponse.json(existingJob)
+    }
+
     // Create a new research job
     const { data: job, error: insertError } = await supabase
       .from('research_jobs')

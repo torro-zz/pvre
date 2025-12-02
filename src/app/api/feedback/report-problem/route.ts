@@ -112,16 +112,25 @@ export async function POST(req: Request) {
       })
 
       if (creditError) {
-        // Try direct update if RPC doesn't exist
+        // Try direct update on profiles table
         console.warn('RPC add_credits failed, trying direct update:', creditError)
 
-        await adminSupabase
-          .from('user_credits')
-          .update({
-            credits_remaining: adminSupabase.rpc('credits_remaining') as unknown as number + 1,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('user_id', user.id)
+        // First get current balance
+        const { data: profile } = await adminSupabase
+          .from('profiles')
+          .select('credits_balance')
+          .eq('id', user.id)
+          .single()
+
+        if (profile) {
+          await adminSupabase
+            .from('profiles')
+            .update({
+              credits_balance: (profile.credits_balance || 0) + 1,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', user.id)
+        }
       }
 
       // Log the credit transaction (non-blocking)

@@ -198,18 +198,18 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                 <div className={`text-3xl font-bold ${getScoreColor(competitionScore.score)}`}>
                   {competitionScore.score}/10
                 </div>
-                <Badge
-                  variant="outline"
-                  className={
+                <div className="text-xs text-muted-foreground mt-1" title="How reliable is this analysis based on available data">
+                  Data quality:{' '}
+                  <span className={
                     competitionScore.confidence === 'high'
-                      ? 'bg-green-50 text-green-700 border-green-200'
+                      ? 'text-green-600 font-medium'
                       : competitionScore.confidence === 'medium'
-                      ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                      : 'bg-gray-50 text-gray-700 border-gray-200'
-                  }
-                >
-                  {competitionScore.confidence} confidence
-                </Badge>
+                      ? 'text-yellow-600 font-medium'
+                      : 'text-gray-500 font-medium'
+                  }>
+                    {competitionScore.confidence}
+                  </span>
+                </div>
               </div>
             </div>
           </CardHeader>

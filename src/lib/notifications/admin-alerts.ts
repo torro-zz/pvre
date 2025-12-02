@@ -4,7 +4,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface AdminAlert {
-  type: 'refund_pattern' | 'high_volume' | 'system_error' | 'security'
+  type: 'refund_pattern' | 'high_volume' | 'system_error' | 'security' | 'auto_refund' | 'stuck_jobs' | 'api_health'
   userId?: string
   userEmail?: string
   message: string
@@ -25,7 +25,7 @@ export async function sendAdminAlert(alert: AdminAlert): Promise<void> {
       user_id: alert.userId || null,
       user_email: alert.userEmail || null,
       message: alert.message,
-      metadata: alert.metadata || {},
+      metadata: JSON.parse(JSON.stringify(alert.metadata || {})),
       status: 'unread',
       created_at: new Date().toISOString(),
     })

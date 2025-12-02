@@ -107,7 +107,7 @@ export function PainScoreCard({ signal }: PainScoreCardProps) {
           </span>
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            {formatDate(signal.source.created_utc)}
+            {formatDate(signal.source.createdUtc)}
           </span>
           <span className="flex items-center gap-1">
             <MessageCircle className="h-3 w-3" />

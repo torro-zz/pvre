@@ -6,6 +6,23 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// Step-based research tracking
+export type StepStatus = 'locked' | 'pending' | 'in_progress' | 'completed' | 'failed'
+
+export interface StepStatusMap {
+  pain_analysis: StepStatus
+  market_sizing: StepStatus
+  timing_analysis: StepStatus
+  competitor_analysis: StepStatus
+}
+
+export const DEFAULT_STEP_STATUS: StepStatusMap = {
+  pain_analysis: 'pending',
+  market_sizing: 'locked',
+  timing_analysis: 'locked',
+  competitor_analysis: 'locked',
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -59,6 +76,7 @@ export interface Database {
           user_id: string
           hypothesis: string
           status: 'pending' | 'processing' | 'completed' | 'failed'
+          step_status: StepStatusMap | null
           pain_signals: Json
           competitors: Json
           interview_guide: Json | null
@@ -71,6 +89,7 @@ export interface Database {
           user_id: string
           hypothesis: string
           status?: 'pending' | 'processing' | 'completed' | 'failed'
+          step_status?: StepStatusMap | null
           pain_signals?: Json
           competitors?: Json
           interview_guide?: Json | null
@@ -83,6 +102,7 @@ export interface Database {
           user_id?: string
           hypothesis?: string
           status?: 'pending' | 'processing' | 'completed' | 'failed'
+          step_status?: StepStatusMap | null
           pain_signals?: Json
           competitors?: Json
           interview_guide?: Json | null
