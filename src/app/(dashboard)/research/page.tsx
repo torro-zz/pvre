@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { HypothesisForm } from '@/components/research/hypothesis-form'
 import { CommunityVoiceResults } from '@/components/research/community-voice-results'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -9,6 +10,7 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Filter, Search, MessageSquare, Sparkles } from 'lucide-react'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
+import { CoverageData } from '@/components/research/coverage-preview'
 
 type ResearchStatus = 'idle' | 'loading' | 'success' | 'error'
 
@@ -32,6 +34,7 @@ interface StreamProgress {
 }
 
 export default function ResearchPage() {
+  const router = useRouter()
   const [status, setStatus] = useState<ResearchStatus>('idle')
   const [results, setResults] = useState<CommunityVoiceResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +44,8 @@ export default function ResearchPage() {
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [currentHypothesis, setCurrentHypothesis] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  // Idempotency key for preventing duplicate job creation on network retries
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID())
 
   // Warn user before closing tab during research
   useEffect(() => {
@@ -64,7 +69,7 @@ export default function ResearchPage() {
     }
   }, [])
 
-  const runResearch = async (hypothesis: string) => {
+  const runResearch = async (hypothesis: string, coverageData?: CoverageData) => {
     setStatus('loading')
     setError(null)
     setResults(null)
@@ -87,11 +92,14 @@ export default function ResearchPage() {
     setProgressSteps(initialSteps)
 
     try {
-      // Step 1: Create a research job first
+      // Step 1: Create a research job first (with coverage data if available)
       const jobResponse = await fetch('/api/research/jobs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hypothesis }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': idempotencyKeyRef.current,
+        },
+        body: JSON.stringify({ hypothesis, coverageData }),
       })
 
       if (!jobResponse.ok) {
@@ -101,102 +109,14 @@ export default function ResearchPage() {
 
       const job = await jobResponse.json()
       const jobId = job.id
-      setCurrentJobId(jobId)
-      setCurrentHypothesis(hypothesis)
 
-      // Mark job step complete
-      setProgressSteps(prev => prev.map(s =>
-        s.id === 'job' ? { ...s, status: 'complete' as const } : s
-      ))
-
-      // Update job status to processing
-      await fetch('/api/research/jobs', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId, status: 'processing' }),
-      })
-
-      // Use streaming API for real-time progress
-      abortControllerRef.current = new AbortController()
-
-      const response = await fetch('/api/research/community-voice/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hypothesis, jobId }),
-        signal: abortControllerRef.current.signal,
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to start research')
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('No response body')
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const event = JSON.parse(line.slice(6))
-
-              if (event.type === 'progress') {
-                const stepId = event.step
-                setCurrentMessage(event.message)
-
-                // Update step status
-                setProgressSteps(prev => {
-                  const stepIndex = prev.findIndex(s => s.id === stepId)
-                  if (stepIndex === -1) return prev
-
-                  return prev.map((s, idx) => {
-                    if (idx < stepIndex) return { ...s, status: 'complete' as const }
-                    if (idx === stepIndex) return { ...s, status: 'active' as const, detail: event.message }
-                    return s
-                  })
-                })
-
-                // Update stream progress data
-                if (event.data) {
-                  setStreamProgress(prev => ({ ...prev, ...event.data }))
-                }
-              } else if (event.type === 'complete') {
-                // Mark all steps complete
-                setProgressSteps(prev => prev.map(s => ({ ...s, status: 'complete' as const })))
-
-                if (event.data?.result) {
-                  setResults(event.data.result as CommunityVoiceResult)
-                }
-
-                // Job status is now managed by the backend - no PATCH needed here
-
-                setStatus('success')
-              } else if (event.type === 'error') {
-                throw new Error(event.message)
-              }
-            } catch (parseError) {
-              console.error('Failed to parse SSE event:', parseError)
-            }
-          }
-        }
-      }
+      // Redirect to the steps page - it handles the research flow
+      router.push(`/research/${jobId}/steps`)
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        return // User cancelled
-      }
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : 'Failed to create research job')
       setStatus('error')
-
-      // Job status is now managed by the backend - no PATCH needed here
+      // Regenerate idempotency key so user can retry
+      idempotencyKeyRef.current = crypto.randomUUID()
     }
   }
 

@@ -179,13 +179,20 @@ export default async function DashboardPage() {
               <p className="text-sm text-muted-foreground font-medium line-clamp-2">
                 "{truncateText(incompleteJob.hypothesis, 80)}"
               </p>
-              <Link href={`/research/${incompleteJob.id}/steps`}>
-                <Button className="w-full">
-                  {nextStep.icon}
-                  <span className="ml-2">Continue to {nextStep.label}</span>
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
+              <div className="flex gap-2">
+                <Link href={`/research/${incompleteJob.id}/steps`} className="flex-1">
+                  <Button className="w-full">
+                    {nextStep.icon}
+                    <span className="ml-2">Continue to {nextStep.label}</span>
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link href={`/research/${incompleteJob.id}`}>
+                  <Button variant="outline">
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         )}

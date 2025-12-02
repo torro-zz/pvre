@@ -35,6 +35,52 @@ import { saveResearchResult } from '@/lib/research/save-result'
 
 const anthropic = new Anthropic()
 
+// Robust JSON array extraction with multiple fallback strategies
+function extractJSONArray(text: string): string[] | null {
+  const trimmed = text.trim()
+
+  // Try 1: Direct parse (ideal case)
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (Array.isArray(parsed)) return parsed
+  } catch {
+    // Continue to other methods
+  }
+
+  // Try 2: Extract from markdown code block
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (codeBlockMatch) {
+    try {
+      const parsed = JSON.parse(codeBlockMatch[1].trim())
+      if (Array.isArray(parsed)) return parsed
+    } catch {
+      // Continue
+    }
+  }
+
+  // Try 3: Find JSON array - use lastIndexOf for ] to handle nested/multiple arrays
+  const arrayStart = trimmed.indexOf('[')
+  const arrayEnd = trimmed.lastIndexOf(']')
+  if (arrayStart !== -1 && arrayEnd > arrayStart) {
+    try {
+      const parsed = JSON.parse(trimmed.slice(arrayStart, arrayEnd + 1))
+      if (Array.isArray(parsed)) return parsed
+    } catch {
+      // Continue
+    }
+  }
+
+  // Try 4: Handle common malformed responses like [Y, N, Y] (unquoted)
+  const unquotedMatch = trimmed.match(/\[\s*([YN](?:\s*,\s*[YN])*)\s*\]/i)
+  if (unquotedMatch) {
+    const values = unquotedMatch[1].split(',').map(v => v.trim().toUpperCase())
+    return values
+  }
+
+  console.warn('[extractJSONArray] Failed to parse:', trimmed.slice(0, 200))
+  return null
+}
+
 // Progress event types
 interface ProgressEvent {
   type: 'progress' | 'complete' | 'error'
@@ -104,14 +150,17 @@ Respond with ONLY a JSON array of "Y" or "N" for each post in order:
 
       const content = response.content[0]
       if (content.type === 'text') {
-        const jsonMatch = content.text.match(/\[[\s\S]*\]/)
-        if (jsonMatch) {
-          const decisions = JSON.parse(jsonMatch[0]) as string[]
+        const decisions = extractJSONArray(content.text)
+        if (decisions) {
           batch.forEach((post, idx) => {
-            if (decisions[idx]?.toUpperCase() === 'Y') {
+            if (decisions[idx]?.toString().toUpperCase() === 'Y') {
               relevantPosts.push(post)
             }
           })
+        } else {
+          // Fallback: include all posts if we can't parse the response
+          console.warn('[filterRelevantPosts] Could not parse decisions, including all posts in batch')
+          relevantPosts.push(...batch)
         }
       }
     } catch (error) {
@@ -182,14 +231,17 @@ Respond with ONLY a JSON array: ["Y", "N", ...]`
 
       const content = response.content[0]
       if (content.type === 'text') {
-        const jsonMatch = content.text.match(/\[[\s\S]*\]/)
-        if (jsonMatch) {
-          const decisions = JSON.parse(jsonMatch[0]) as string[]
+        const decisions = extractJSONArray(content.text)
+        if (decisions) {
           batch.forEach((comment, idx) => {
-            if (decisions[idx]?.toUpperCase() === 'Y') {
+            if (decisions[idx]?.toString().toUpperCase() === 'Y') {
               relevantComments.push(comment)
             }
           })
+        } else {
+          // Fallback: include all comments if we can't parse the response
+          console.warn('[filterRelevantComments] Could not parse decisions, including all comments in batch')
+          relevantComments.push(...batch)
         }
       }
     } catch (error) {

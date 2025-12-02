@@ -1,6 +1,6 @@
 # PVRE - Technical Overview
 
-*Last updated: 2025-12-01*
+*Last updated: 2025-12-02*
 
 > This document provides a comprehensive overview of the PVRE (Pre-Validation Research Engine) codebase. Share with technical team members. Run `/update-overview` to refresh.
 
@@ -38,14 +38,15 @@ PVRE is an **AI-powered pre-validation research tool** that helps founders asses
 ## External APIs & Services
 
 ### 1. Arctic Shift API (Free)
-- **Purpose**: Access Reddit posts and comments without rate limits
+- **Purpose**: Access Reddit posts and comments
 - **URL**: `https://arctic-shift.photon-reddit.com`
 - **Auth**: None required (public API)
 - **Cost**: $0
 - **Endpoints Used**:
-  - `/api/posts` - Search posts by subreddit/keyword
-  - `/api/comments` - Search comments
-- **Rate Limiting**: Soft limit, 500ms delay between requests recommended
+  - `/api/posts/search` - Search posts by subreddit
+  - `/api/comments/search` - Search comments by subreddit
+- **Rate Limiting**: ~2000 requests/minute (very generous)
+- **⚠️ Known Issue**: Multi-word `query` and `body` params cause server-side timeouts (422 errors). Fetch by subreddit + time range only; Claude relevance filter handles content filtering.
 
 ### 2. Anthropic Claude API (Paid)
 - **Purpose**: AI analysis, theme extraction, competitor research, subreddit discovery
@@ -87,20 +88,28 @@ PVRE is an **AI-powered pre-validation research tool** that helps founders asses
 1. **Sign in** with Google OAuth (or dev bypass in development)
 2. **Dashboard** shows research history with status badges
 3. **Research page** - enter business hypothesis
-4. **Community Voice Mining** (30-60 sec):
-   - AI discovers 3-5 relevant subreddits
-   - Fetches 300+ Reddit posts/comments via Arctic Shift
-   - Calculates pain scores (0-10) using keyword detection
-   - Detects WTP (willingness-to-pay) signals
-   - Extracts themes and patterns via Claude
+4. **Coverage Check** (5-10 sec, FREE):
+   - AI discovers relevant subreddits based on hypothesis
+   - Counts available posts and shows data confidence
+   - User can refine hypothesis before committing credits
+5. **Pain Analysis** (60-180 sec, 1 credit):
+   - Fetches 500+ Reddit posts/comments via Arctic Shift
+   - Claude relevance filter removes off-topic content (~33% filtered)
+   - Real-time progress updates (posts checked, relevance rate)
+   - Extracts pain themes, intensity scores, quotes
    - Generates Mom Test interview questions
-5. **Competitor Intelligence** (separate module):
+6. **Market Sizing** (1 credit):
+   - TAM/SAM/SOM Fermi estimation
+   - Region and pricing inputs
+7. **Timing Analysis** (1 credit):
+   - Tailwinds/headwinds assessment
+8. **Competitor Intelligence** (1 credit):
    - Identifies 4-8 competitors via AI research
    - Creates comparison matrix
    - Finds market gaps and opportunities
    - Assesses threat levels
-6. **Viability Verdict** calculated and displayed
-7. **Results saved** to database for future reference
+9. **Viability Verdict** calculated and displayed
+10. **Results saved** to database for future reference
 
 ---
 
@@ -169,15 +178,22 @@ src/
 │   │   ├── dashboard/page.tsx        # Research history
 │   │   ├── admin/debug/page.tsx      # Debug info (dev only)
 │   │   └── research/
-│   │       ├── page.tsx              # Community Voice form
+│   │       ├── page.tsx              # Hypothesis form + Coverage Preview
 │   │       ├── [id]/page.tsx         # Results view + Viability Verdict
+│   │       ├── [id]/steps/page.tsx   # Step-based research flow
 │   │       └── competitors/page.tsx  # Competitor analysis form
 │   └── api/
 │       ├── auth/callback/route.ts    # OAuth code exchange
 │       ├── dev/login/route.ts        # Dev-only auth bypass
 │       ├── admin/debug/route.ts      # Debug endpoint
+│       ├── billing/
+│       │   ├── checkout/route.ts     # LemonSqueezy checkout
+│       │   └── webhook/route.ts      # LemonSqueezy webhook
 │       └── research/
-│           ├── community-voice/route.ts        # Reddit mining pipeline
+│           ├── coverage-check/route.ts          # Free data availability check
+│           ├── community-voice/route.ts         # Reddit mining pipeline
+│           ├── community-voice/stream/route.ts  # Streaming with progress
+│           ├── pain-analysis/stream/route.ts    # Pain analysis streaming
 │           ├── competitor-intelligence/route.ts # AI competitor analysis
 │           ├── competitor-suggestions/route.ts  # AI competitor suggestions
 │           └── jobs/route.ts                    # CRUD for research jobs
@@ -185,6 +201,7 @@ src/
 │   ├── layout/header.tsx             # Navigation + auth status
 │   ├── research/
 │   │   ├── hypothesis-form.tsx       # Input form with examples
+│   │   ├── coverage-preview.tsx      # Data availability preview
 │   │   ├── community-voice-results.tsx # Pain themes, quotes, signals
 │   │   ├── competitor-results.tsx    # Matrix, gaps, positioning
 │   │   ├── viability-verdict.tsx     # Composite score dashboard
@@ -200,6 +217,10 @@ src/
 │   │   ├── pain-detector.ts          # 150+ keyword scoring
 │   │   ├── theme-extractor.ts        # Claude theme synthesis
 │   │   └── viability-calculator.ts   # Composite score logic
+│   ├── lemonsqueezy/
+│   │   └── server.ts                 # LemonSqueezy API client
+│   ├── research/
+│   │   └── save-result.ts            # Shared DB save utility
 │   ├── reddit/
 │   │   └── subreddit-discovery.ts    # AI subreddit finder
 │   └── supabase/
@@ -207,7 +228,8 @@ src/
 │       ├── server.ts                 # SSR client (cookies)
 │       └── admin.ts                  # Service role (bypasses RLS)
 └── types/
-    └── index.ts                      # TypeScript definitions
+    ├── index.ts                      # TypeScript definitions
+    └── supabase.ts                   # Generated DB types
 ```
 
 ---
@@ -218,9 +240,11 @@ src/
 
 | Table | Purpose | Key Fields |
 |-------|---------|------------|
-| `profiles` | User accounts (synced from auth.users) | `id`, `email`, `full_name`, `avatar_url` |
-| `research_jobs` | Research projects | `id`, `user_id`, `hypothesis`, `status`, `module_status` |
+| `profiles` | User accounts (synced from auth.users) | `id`, `email`, `full_name`, `avatar_url`, `credits` |
+| `research_jobs` | Research projects | `id`, `user_id`, `hypothesis`, `status`, `current_step`, `coverage_data` |
 | `research_results` | Module outputs | `job_id`, `module_name`, `data` (JSONB) |
+| `credit_transactions` | Credit history | `user_id`, `amount`, `balance_after`, `reason` |
+| `credit_packs` | Purchasable credit packages | `credits`, `price_cents`, `stripe_price_id` |
 | `reddit_cache` | Reddit data cache (24h TTL) | `subreddit`, `search_query`, `posts`, `expires_at` |
 
 ### Key Relationships
@@ -262,12 +286,17 @@ All tables enforce RLS - users can only access their own data:
 
 | Endpoint | Method | Purpose | Auth |
 |----------|--------|---------|------|
+| `/api/research/coverage-check` | POST | Check data availability (free) | Required |
 | `/api/research/community-voice` | POST | Run Reddit mining + analysis | Required |
+| `/api/research/community-voice/stream` | POST | Streaming research with progress | Required |
+| `/api/research/pain-analysis/stream` | POST | Pain analysis with progress | Required |
 | `/api/research/competitor-intelligence` | POST | Run competitor analysis | Required |
 | `/api/research/competitor-suggestions` | POST | Get AI-suggested competitors | Required |
 | `/api/research/jobs` | GET | List user's research jobs | Required |
 | `/api/research/jobs` | POST | Create new research job | Required |
 | `/api/research/jobs` | PATCH | Update job status | Required |
+| `/api/billing/checkout` | POST | Create LemonSqueezy checkout | Required |
+| `/api/billing/webhook` | POST | LemonSqueezy webhook handler | - |
 | `/api/auth/callback` | GET | OAuth code exchange | - |
 | `/api/dev/login` | POST | Dev-only auth bypass | Dev only |
 | `/api/admin/debug` | GET | Debug info | Dev only |
@@ -370,16 +399,18 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 | Landing Page | ✅ Complete | 100% | Tech-forward design with bento grid |
 | Google OAuth | ✅ Complete | 100% | Via Supabase |
 | Community Voice Mining | ✅ Complete | 100% | Arctic Shift + Claude with relevance filtering |
+| Pain Analysis | ✅ Complete | 100% | Real-time progress, relevance filtering |
 | Competitor Intelligence | ✅ Complete | 100% | AI-powered analysis |
 | Market Sizing | ✅ Complete | 100% | TAM/SAM/SOM Fermi estimation |
 | Timing Analysis | ✅ Complete | 100% | Tailwinds/headwinds analysis |
 | Viability Verdict | ✅ Complete | 100% | 4-dimension scoring with transparency UI |
 | Research History | ✅ Complete | 100% | Dashboard with status |
+| Coverage Preview | ✅ Complete | 100% | Free data availability check before committing credits |
 | Interview Questions | ✅ Complete | Embedded | Part of Community Voice |
 | PDF Export | ✅ Complete | 100% | Full report via jspdf |
-| Test Suite | ✅ Complete | 100% | Vitest with 64 tests |
+| Test Suite | ✅ Complete | 100% | Vitest with 66 tests |
 | Research Resilience | ✅ Complete | 100% | Browser warning, error tracking, auto-refund |
-| Credits/Billing | ✅ Complete | 100% | Stripe integration |
+| Credits/Billing | ✅ Complete | 100% | LemonSqueezy integration |
 | Admin Dashboard | ✅ Complete | 100% | Analytics + user management |
 | Dark Mode | ❌ Not started | 0% | Priority: Low |
 
@@ -421,10 +452,12 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 ## Architecture Decisions
 
 ### Why Arctic Shift over Reddit API?
-- No rate limits or OAuth required
+- ~2000 requests/minute rate limit (very generous)
+- No OAuth required
 - Historical data access (years of posts)
 - More reliable for bulk fetching
 - Free forever
+- **Limitation**: Multi-word full-text search times out; use subreddit + time filtering only
 
 ### Why Supabase?
 - PostgreSQL with built-in Google OAuth
@@ -450,22 +483,26 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 
 ### Near Term (Completed ✅)
 1. ~~**PDF Export**~~ - Done via jspdf
-2. ~~**Test Suite**~~ - Vitest with 64 tests
+2. ~~**Test Suite**~~ - Vitest with 66 tests
 3. ~~**Market Sizing Module**~~ - TAM/SAM/SOM Fermi estimation
 4. ~~**Timing Module**~~ - Tailwinds/headwinds analysis
 5. ~~**Research Resilience**~~ - Browser warnings, error tracking, auto-refund
+6. ~~**Coverage Preview**~~ - Free data availability check before committing credits
+7. ~~**Step-based Research Flow**~~ - Progressive 4-step workflow with real-time progress
+8. ~~**Partial Results Display**~~ - Show completed modules while others process
+9. ~~**Arctic Shift Query Pattern Fix**~~ - Fetch by subreddit only, Claude filters content
 
 ### Medium Term
-1. **Result Polling** - Let disconnected users see completed results
-2. **Crisp Chat Integration** - In-app support chat
-3. **API Health Dashboard** - Admin view of which APIs are failing
-4. **Email Notifications** - Alert when research completes
+1. **Pain Analysis Summary on Market Sizing** - Show what was discovered before asking for inputs
+2. **Result Polling for Disconnected Users** - Let users see results even after closing browser
+3. **Email Notifications** - Alert when research completes
+4. **Crisp Chat Integration** - In-app support chat
 
 ### Long Term
-5. **Team Sharing** - Collaborate on research
-6. **Custom Data Sources** - Twitter, forums, G2 reviews
-7. **Historical Tracking** - Score changes over time
-8. **Dark Mode** - UI theme toggle
+6. **Team Sharing** - Collaborate on research
+7. **Custom Data Sources** - Twitter, forums, G2 reviews
+8. **Historical Tracking** - Score changes over time
+9. **Dark Mode** - UI theme toggle
 
 ---
 
@@ -477,19 +514,33 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 - Research jobs created before persistence was added won't have saved results
 - Solution: Run new research
 
+**Pain Analysis fails to save**
+- Check migration 011 was applied (adds `pain_analysis` to module_name constraint)
+- Solution: Run `supabase/migrations/011_fix_module_name_constraint.sql`
+
 **Auth redirect loops**
 - Clear cookies and try again
 - Check Supabase auth configuration in dashboard
 
 **Slow research processing**
-- Arctic Shift has soft rate limiting (500ms between requests)
-- Normal for 30-60 second processing time
-- Large subreddits may take longer
+- Normal processing time is 60-180 seconds
+- Arctic Shift requests are fast (0.2-0.5s each)
+- Most time is spent on Claude API calls for relevance filtering
+- Progress updates show real-time status
+
+**Arctic Shift 422 Timeout errors**
+- Multi-word `query` or `body` parameters cause server-side timeouts
+- Solution: Don't use query/body params - fetch by subreddit + time range only
+- Claude relevance filter handles content filtering instead
 
 **Claude API errors**
 - Check ANTHROPIC_API_KEY is valid
 - Ensure sufficient API credits
 - Rate limits: 60 requests/minute on free tier
+
+**JSON Parsing errors in analysis**
+- The extractJSONArray() function handles malformed Claude responses
+- Multiple fallback strategies: direct parse, array extraction, markdown block extraction
 
 ---
 

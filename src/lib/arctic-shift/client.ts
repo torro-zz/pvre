@@ -42,13 +42,27 @@ async function fetchWithRetry<T>(
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
+      // Log request URL for debugging (only first attempt to reduce noise)
+      if (attempt === 0) {
+        console.log('[ArcticShift] Request:', url)
+      }
+
       const response = await fetch(url, {
         headers: {
           'Accept': 'application/json',
+          'User-Agent': 'PVRE/1.0 (research tool)',
         },
       })
 
       if (!response.ok) {
+        // Get response body for better error diagnosis
+        const errorBody = await response.text()
+        console.error('[ArcticShift] Error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorBody.slice(0, 500), // Limit body size for logs
+          url,
+        })
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
@@ -68,15 +82,30 @@ async function fetchWithRetry<T>(
 }
 
 /**
+ * Sanitize subreddit name - remove r/ prefix if present
+ */
+function sanitizeSubreddit(subreddit: string | undefined): string | undefined {
+  if (!subreddit) return undefined
+  return subreddit.replace(/^r\//, '').trim().toLowerCase()
+}
+
+/**
  * Search for Reddit posts
  */
 export async function searchPosts(params: SearchPostsParams): Promise<RedditPost[]> {
-  const queryParams = {
+  // Sanitize parameters to prevent 422 errors
+  const sanitizedParams: SearchPostsParams = {
     ...params,
-    limit: params.limit || DEFAULT_LIMIT,
+    subreddit: sanitizeSubreddit(params.subreddit),
+    limit: Math.min(Math.max(params.limit || DEFAULT_LIMIT, 1), 100), // Clamp to valid range
   }
 
-  const queryString = buildQueryString(queryParams)
+  // Remove empty query to avoid 422
+  if (sanitizedParams.query === '') {
+    delete sanitizedParams.query
+  }
+
+  const queryString = buildQueryString(sanitizedParams as Record<string, string | number | boolean | undefined>)
   const url = `${BASE_URL}/api/posts/search?${queryString}`
 
   const response = await fetchWithRetry<ArcticShiftResponse<RedditPost>>(url)
@@ -87,12 +116,19 @@ export async function searchPosts(params: SearchPostsParams): Promise<RedditPost
  * Search for Reddit comments
  */
 export async function searchComments(params: SearchCommentsParams): Promise<RedditComment[]> {
-  const queryParams = {
+  // Sanitize parameters to prevent 422 errors
+  const sanitizedParams: SearchCommentsParams = {
     ...params,
-    limit: params.limit || DEFAULT_LIMIT,
+    subreddit: sanitizeSubreddit(params.subreddit),
+    limit: Math.min(Math.max(params.limit || DEFAULT_LIMIT, 1), 100), // Clamp to valid range
   }
 
-  const queryString = buildQueryString(queryParams)
+  // Remove empty body query to avoid 422
+  if (sanitizedParams.body === '') {
+    delete sanitizedParams.body
+  }
+
+  const queryString = buildQueryString(sanitizedParams as Record<string, string | number | boolean | undefined>)
   const url = `${BASE_URL}/api/comments/search?${queryString}`
 
   const response = await fetchWithRetry<ArcticShiftResponse<RedditComment>>(url)

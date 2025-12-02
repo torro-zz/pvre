@@ -17,12 +17,20 @@ import { Badge } from '@/components/ui/badge'
 import { PDFDownloadButton } from '@/components/research/pdf-download-button'
 import { calculateViability, PainScoreInput, CompetitionScoreInput, MarketScoreInput, TimingScoreInput } from '@/lib/analysis/viability-calculator'
 
+interface CoverageData {
+  subreddits: Array<{ name: string; estimatedPosts: number; relevanceScore: string }>
+  totalEstimatedPosts: number
+  dataConfidence: string
+  keywords: string[]
+}
+
 interface ResearchJob {
   id: string
   hypothesis: string
   status: string
   step_status: StepStatusMap | null
   created_at: string
+  coverage_data?: CoverageData | null
 }
 
 interface StepResult {
@@ -486,6 +494,86 @@ export default function ResearchStepsPage({ params }: { params: Promise<{ id: st
                 <span className="ml-1">({selectedCompetitors.length} selected)</span>
               )}
             </Button>
+          </div>
+        </div>
+      )
+    }
+
+    // Special handling for pain_analysis - show coverage data
+    if (currentStep === 'pain_analysis' && job.coverage_data) {
+      const coverage = job.coverage_data
+      return (
+        <div className="space-y-6">
+          {/* Coverage Summary */}
+          <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+            <div className="flex items-start gap-3 mb-4">
+              <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-green-700 dark:text-green-400">
+                  Good Data Coverage
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Found ~{coverage.totalEstimatedPosts.toLocaleString()} relevant discussions on Reddit
+                </p>
+              </div>
+            </div>
+
+            {/* Subreddits */}
+            {coverage.subreddits && coverage.subreddits.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
+                  Communities to analyze
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {coverage.subreddits.slice(0, 6).map((sub) => (
+                    <span
+                      key={sub.name}
+                      className="text-xs px-2 py-1 rounded bg-background border"
+                    >
+                      r/{sub.name}
+                      <span className="ml-1 text-muted-foreground">
+                        ({sub.estimatedPosts})
+                      </span>
+                    </span>
+                  ))}
+                  {coverage.subreddits.length > 6 && (
+                    <span className="text-xs text-muted-foreground px-2 py-1">
+                      +{coverage.subreddits.length - 6} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Keywords */}
+            {coverage.keywords && coverage.keywords.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
+                  Search keywords
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {coverage.keywords.map((keyword) => (
+                    <span
+                      key={keyword}
+                      className="text-xs px-2 py-0.5 rounded bg-secondary"
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Run Button */}
+          <div className="text-center">
+            <Button size="lg" onClick={() => runStep(currentStep)}>
+              <Play className="h-4 w-4 mr-2" />
+              Run Pain Analysis (1 credit)
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will analyze the communities above to find pain points and themes.
+            </p>
           </div>
         </div>
       )

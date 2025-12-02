@@ -306,15 +306,18 @@ export interface CommunityVoiceResult {
 // Error sources for tracking failures
 type ErrorSource = 'anthropic' | 'arctic_shift' | 'database' | 'timeout' | 'unknown'
 
-// Helper to mark job as failed with error source
+// Helper to mark job as failed with error source and auto-refund
 async function markJobFailed(
   jobId: string | undefined,
   errorSource: ErrorSource,
-  errorMessage: string
+  errorMessage: string,
+  userId?: string
 ) {
   if (!jobId) return
+  const adminClient = createAdminClient()
+
   try {
-    const adminClient = createAdminClient()
+    // Mark job as failed
     await adminClient
       .from('research_jobs')
       .update({
@@ -323,6 +326,24 @@ async function markJobFailed(
         error_message: errorMessage,
       })
       .eq('id', jobId)
+
+    // Auto-refund credit if userId is provided
+    if (userId) {
+      try {
+        const { data: refundSuccess, error: refundError } = await adminClient.rpc('refund_credit', {
+          p_user_id: userId,
+          p_job_id: jobId,
+        })
+
+        if (refundError) {
+          console.error('[Research] Failed to auto-refund credit:', refundError)
+        } else if (refundSuccess) {
+          console.log('[Research] Auto-refunded credit for failed job:', jobId)
+        }
+      } catch (refundErr) {
+        console.error('[Research] Error during refund attempt:', refundErr)
+      }
+    }
   } catch (err) {
     console.error('Failed to mark job as failed:', err)
   }
@@ -334,8 +355,9 @@ export async function POST(request: NextRequest) {
   // Start token tracking for this request
   startTokenTracking()
 
-  // Track jobId outside try block so we can update status in catch
+  // Track jobId and userId outside try block so we can update status in catch
   let currentJobId: string | undefined
+  let currentUserId: string | undefined
   let lastErrorSource: ErrorSource = 'unknown'
 
   try {
@@ -349,6 +371,9 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    // Store userId for refund in case of error
+    currentUserId = user.id
 
     // Parse request body
     const body = await request.json()
@@ -604,11 +629,12 @@ export async function POST(request: NextRequest) {
     console.error('Community voice research failed:', error)
     console.error('Error source:', lastErrorSource)
 
-    // Mark job as failed in backend with error source (if we have a jobId)
+    // Mark job as failed in backend with error source and auto-refund credit
     await markJobFailed(
       currentJobId,
       lastErrorSource,
-      error instanceof Error ? error.message : 'Research failed'
+      error instanceof Error ? error.message : 'Research failed',
+      currentUserId  // Pass userId for auto-refund
     )
 
     return NextResponse.json(

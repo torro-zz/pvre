@@ -12,10 +12,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Loader2, Search, Lightbulb } from 'lucide-react'
-import { CoveragePreview } from './coverage-preview'
+import { CoveragePreview, CoverageData } from './coverage-preview'
 
 interface HypothesisFormProps {
-  onSubmit: (hypothesis: string) => Promise<void>
+  onSubmit: (hypothesis: string, coverageData?: CoverageData) => Promise<void>
   isLoading: boolean
   showCoveragePreview?: boolean
 }
@@ -41,6 +41,12 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
       return
     }
 
+    // If coverage preview is shown, don't submit from the form - let handleProceed handle it
+    // This prevents double-submission when buttons inside CoveragePreview trigger form submit
+    if (showCoveragePreview && showPreview) {
+      return
+    }
+
     await onSubmit(hypothesis.trim())
   }
 
@@ -57,8 +63,8 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
     }
   }
 
-  const handleProceed = async () => {
-    await onSubmit(hypothesis.trim())
+  const handleProceed = async (coverageData: CoverageData) => {
+    await onSubmit(hypothesis.trim(), coverageData)
   }
 
   const handleRefine = () => {

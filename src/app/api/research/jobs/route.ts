@@ -15,7 +15,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { hypothesis } = body
+    const { hypothesis, coverageData } = body
+    const idempotencyKey = request.headers.get('X-Idempotency-Key')
+
+    console.log('Job creation request:', { hypothesis: hypothesis?.slice(0, 30), hasCoverageData: !!coverageData, coverageDataKeys: coverageData ? Object.keys(coverageData) : null })
 
     if (!hypothesis || typeof hypothesis !== 'string') {
       return NextResponse.json(
@@ -24,8 +27,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check for duplicate job (same hypothesis within 60 seconds)
-    // This prevents double-click and network retry duplicates
+    // Check for idempotency key first (most reliable dedup method)
+    if (idempotencyKey) {
+      const { data: existingByKey } = await supabase
+        .from('research_jobs')
+        .select('id, created_at, status')
+        .eq('user_id', user.id)
+        .eq('idempotency_key', idempotencyKey)
+        .single()
+
+      if (existingByKey) {
+        console.log('Returning existing job by idempotency key:', existingByKey.id)
+        return NextResponse.json(existingByKey)
+      }
+    }
+
+    // Fallback: Check for duplicate job (same hypothesis within 60 seconds)
+    // This prevents double-click and network retry duplicates even without idempotency key
     const sixtySecondsAgo = new Date(Date.now() - 60000).toISOString()
     const { data: existingJob } = await supabase
       .from('research_jobs')
@@ -44,15 +62,42 @@ export async function POST(request: NextRequest) {
     }
 
     // Create a new research job
-    const { data: job, error: insertError } = await supabase
+    // Try with coverage_data first, fallback to without if column doesn't exist
+    let job = null
+    let insertError = null
+
+    // First attempt: with coverage_data
+    const result1 = await supabase
       .from('research_jobs')
       .insert({
         user_id: user.id,
         hypothesis: hypothesis.trim(),
         status: 'pending',
+        idempotency_key: idempotencyKey || null,
+        coverage_data: coverageData || null,
       })
       .select()
       .single()
+
+    if (result1.error && result1.error.message?.includes('coverage_data')) {
+      // Fallback: column doesn't exist yet, try without it
+      console.log('coverage_data column not found, creating job without it')
+      const result2 = await supabase
+        .from('research_jobs')
+        .insert({
+          user_id: user.id,
+          hypothesis: hypothesis.trim(),
+          status: 'pending',
+          idempotency_key: idempotencyKey || null,
+        })
+        .select()
+        .single()
+      job = result2.data
+      insertError = result2.error
+    } else {
+      job = result1.data
+      insertError = result1.error
+    }
 
     if (insertError) {
       console.error('Failed to create research job:', insertError)

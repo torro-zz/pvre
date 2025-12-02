@@ -43,9 +43,14 @@ export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep
   const [showAllSignals, setShowAllSignals] = useState(false)
   const [copiedSection, setCopiedSection] = useState<string | null>(null)
 
+  // Safely handle null/undefined painSignals array
+  const painSignals = results.painSignals ?? []
   const displayedSignals = showAllSignals
-    ? results.painSignals
-    : results.painSignals.slice(0, 5)
+    ? painSignals
+    : painSignals.slice(0, 5)
+
+  // Safe access to pain summary with defaults
+  const totalSignals = results.painSummary?.totalSignals ?? 0
 
   const copyToClipboard = async (text: string, section: string) => {
     await navigator.clipboard.writeText(text)
@@ -93,7 +98,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
               <span className="text-sm text-muted-foreground">Signals Found</span>
             </div>
             <p className="text-2xl font-bold mt-1">
-              {results.painSummary.totalSignals}
+              {totalSignals}
             </p>
           </CardContent>
         </Card>
@@ -270,13 +275,13 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                     <div className="w-3 h-3 rounded-full bg-red-500" />
                     High Intensity
                   </span>
-                  <span>{results.painSummary.highIntensityCount}</span>
+                  <span>{results.painSummary?.highIntensityCount ?? 0}</span>
                 </div>
                 <Progress
                   value={
-                    (results.painSummary.highIntensityCount /
-                      results.painSummary.totalSignals) *
-                    100
+                    totalSignals > 0
+                      ? ((results.painSummary?.highIntensityCount ?? 0) / totalSignals) * 100
+                      : 0
                   }
                   className="h-2"
                 />
@@ -288,13 +293,13 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                     <div className="w-3 h-3 rounded-full bg-yellow-500" />
                     Medium Intensity
                   </span>
-                  <span>{results.painSummary.mediumIntensityCount}</span>
+                  <span>{results.painSummary?.mediumIntensityCount ?? 0}</span>
                 </div>
                 <Progress
                   value={
-                    (results.painSummary.mediumIntensityCount /
-                      results.painSummary.totalSignals) *
-                    100
+                    totalSignals > 0
+                      ? ((results.painSummary?.mediumIntensityCount ?? 0) / totalSignals) * 100
+                      : 0
                   }
                   className="h-2"
                 />
@@ -306,13 +311,13 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                     <div className="w-3 h-3 rounded-full bg-green-500" />
                     Low Intensity
                   </span>
-                  <span>{results.painSummary.lowIntensityCount}</span>
+                  <span>{results.painSummary?.lowIntensityCount ?? 0}</span>
                 </div>
                 <Progress
                   value={
-                    (results.painSummary.lowIntensityCount /
-                      results.painSummary.totalSignals) *
-                    100
+                    totalSignals > 0
+                      ? ((results.painSummary?.lowIntensityCount ?? 0) / totalSignals) * 100
+                      : 0
                   }
                   className="h-2"
                 />
@@ -322,13 +327,13 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                 <div className="flex items-center gap-2">
                   <Target className="h-4 w-4 text-blue-500" />
                   <span className="text-sm">
-                    {results.painSummary.solutionSeekingCount} seeking solutions
+                    {results.painSummary?.solutionSeekingCount ?? 0} seeking solutions
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-green-500" />
                   <span className="text-sm">
-                    {results.painSummary.willingnessToPayCount} WTP signals
+                    {results.painSummary?.willingnessToPayCount ?? 0} WTP signals
                   </span>
                 </div>
               </div>
@@ -336,13 +341,20 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
           </Card>
 
           {/* Pain Signal Cards */}
-          <div className="space-y-3">
-            {displayedSignals.map((signal) => (
-              <PainScoreCard key={signal.source.id} signal={signal} />
-            ))}
-          </div>
+          {painSignals.length > 0 ? (
+            <div className="space-y-3">
+              {displayedSignals.map((signal) => (
+                <PainScoreCard key={signal.source.id} signal={signal} />
+              ))}
+            </div>
+          ) : (
+            <Card className="p-8 text-center">
+              <p className="text-muted-foreground">No pain signals found for this hypothesis.</p>
+              <p className="text-sm mt-2 text-muted-foreground">Try broadening your search terms or targeting different communities.</p>
+            </Card>
+          )}
 
-          {results.painSignals.length > 5 && (
+          {painSignals.length > 5 && (
             <Button
               variant="outline"
               className="w-full"
@@ -356,7 +368,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
               ) : (
                 <>
                   <ChevronDown className="mr-2 h-4 w-4" />
-                  Show All {results.painSignals.length} Signals
+                  Show All {painSignals.length} Signals
                 </>
               )}
             </Button>

@@ -5,13 +5,13 @@ import { AlertCircle, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-interface SubredditCoverage {
+export interface SubredditCoverage {
   name: string
   estimatedPosts: number
   relevanceScore: 'high' | 'medium' | 'low'
 }
 
-interface CoverageData {
+export interface CoverageData {
   subreddits: SubredditCoverage[]
   totalEstimatedPosts: number
   dataConfidence: 'high' | 'medium' | 'low' | 'very_low'
@@ -22,7 +22,7 @@ interface CoverageData {
 
 interface CoveragePreviewProps {
   hypothesis: string
-  onProceed: () => void
+  onProceed: (coverageData: CoverageData) => void
   onRefine: () => void
   disabled?: boolean
 }
@@ -250,42 +250,42 @@ export function CoveragePreview({
         </div>
       )}
 
-      {/* Action buttons */}
+      {/* Action buttons - type="button" prevents form submission */}
       <div className="flex gap-3">
         {coverage.recommendation === 'refine' ? (
           <>
-            <Button onClick={onRefine} variant="default" className="flex-1" disabled={disabled}>
+            <Button type="button" onClick={onRefine} variant="default" className="flex-1" disabled={disabled}>
               Refine Hypothesis
             </Button>
-            <Button onClick={onProceed} variant="outline" disabled={disabled}>
+            <Button type="button" onClick={() => onProceed(coverage)} variant="outline" disabled={disabled}>
               Run Anyway
             </Button>
           </>
         ) : coverage.recommendation === 'caution' ? (
           <>
-            <Button onClick={onProceed} variant="default" className="flex-1" disabled={disabled}>
+            <Button type="button" onClick={() => onProceed(coverage)} variant="default" className="flex-1" disabled={disabled}>
               {disabled ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Running...
                 </>
               ) : (
-                'Run Research (1 credit)'
+                'Start Research'
               )}
             </Button>
-            <Button onClick={onRefine} variant="outline" disabled={disabled}>
+            <Button type="button" onClick={onRefine} variant="outline" disabled={disabled}>
               Refine First
             </Button>
           </>
         ) : (
-          <Button onClick={onProceed} variant="default" className="flex-1" disabled={disabled}>
+          <Button type="button" onClick={() => onProceed(coverage)} variant="default" className="flex-1" disabled={disabled}>
             {disabled ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Running...
               </>
             ) : (
-              'Run Full Research (1 credit)'
+              'Start Research'
             )}
           </Button>
         )}

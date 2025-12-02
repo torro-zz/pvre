@@ -7,12 +7,22 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, RefreshCw, AlertTriangle } from 'lucide-react'
 
+export interface ResearchResult {
+  id: string
+  job_id: string
+  module_name: string
+  data: unknown
+  created_at: string
+}
+
 interface StatusPollerProps {
   jobId: string
   initialStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  onResultsUpdate?: (results: ResearchResult[]) => void
+  hidden?: boolean
 }
 
-export function StatusPoller({ jobId, initialStatus }: StatusPollerProps) {
+export function StatusPoller({ jobId, initialStatus, onResultsUpdate, hidden }: StatusPollerProps) {
   const router = useRouter()
   const [status, setStatus] = useState(initialStatus)
   const [pollCount, setPollCount] = useState(0)
@@ -28,16 +38,27 @@ export function StatusPoller({ jobId, initialStatus }: StatusPollerProps) {
 
     const checkStatus = async () => {
       try {
-        const res = await fetch(`/api/research/jobs?id=${jobId}`)
-        if (!res.ok) {
+        // Fetch status and results in parallel for efficiency
+        const [statusRes, resultsRes] = await Promise.all([
+          fetch(`/api/research/jobs?id=${jobId}`),
+          onResultsUpdate ? fetch(`/api/research/results?jobId=${jobId}`) : Promise.resolve(null)
+        ])
+
+        if (!statusRes.ok) {
           throw new Error('Failed to fetch job status')
         }
-        const data = await res.json()
+        const statusData = await statusRes.json()
 
-        if (data.status !== status) {
-          setStatus(data.status)
-          if (data.status === 'completed' || data.status === 'failed') {
-            // Refresh the page to show results
+        // Update results if callback provided and fetch succeeded
+        if (resultsRes && resultsRes.ok && onResultsUpdate) {
+          const resultsData = await resultsRes.json()
+          onResultsUpdate(resultsData)
+        }
+
+        if (statusData.status !== status) {
+          setStatus(statusData.status)
+          if (statusData.status === 'completed' || statusData.status === 'failed') {
+            // Refresh the page to show final results
             router.refresh()
           }
         }
@@ -50,10 +71,15 @@ export function StatusPoller({ jobId, initialStatus }: StatusPollerProps) {
 
     const timer = setTimeout(checkStatus, pollInterval)
     return () => clearTimeout(timer)
-  }, [status, pollCount, jobId, router, pollInterval])
+  }, [status, pollCount, jobId, router, pollInterval, onResultsUpdate])
 
   const handleManualRefresh = () => {
     router.refresh()
+  }
+
+  // If hidden, return null but keep polling (effects still run)
+  if (hidden) {
+    return null
   }
 
   // Stopped polling - show manual refresh option

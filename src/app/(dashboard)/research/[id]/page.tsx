@@ -16,6 +16,7 @@ import { PDFDownloadButton } from '@/components/research/pdf-download-button'
 import { ReportProblem } from '@/components/research/report-problem'
 import { ResearchMetadata } from '@/components/research/research-metadata'
 import { StatusPoller } from '@/components/research/status-poller'
+import { PartialResultsContainer } from '@/components/research/partial-results-container'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 import {
@@ -258,8 +259,218 @@ export default async function ResearchDetailPage({
         </div>
 
         {/* Results or status message */}
-        {researchJob.status === 'processing' ? (
+        {/* Show partial results during processing if we have any results */}
+        {(researchJob.status === 'processing' || researchJob.status === 'pending') && (communityVoiceResult?.data || competitorResult?.data) ? (
+          <PartialResultsContainer
+            jobId={id}
+            jobStatus={researchJob.status}
+            initialResultsCount={allResults?.length || 0}
+          >
+            {/* Research Progress Stepper */}
+            <div className="mb-6 p-4 bg-muted/30 rounded-lg">
+              <ResearchProgress
+                currentStep={
+                  communityVoiceResult?.data && competitorResult?.data
+                    ? 'viability-verdict'
+                    : competitorResult?.data
+                    ? 'competitor-analysis'
+                    : 'community-voice'
+                }
+                completedSteps={[
+                  ...(communityVoiceResult?.data ? ['community-voice' as const] : []),
+                  ...(competitorResult?.data ? ['competitor-analysis' as const] : []),
+                  ...(communityVoiceResult?.data && competitorResult?.data ? ['viability-verdict' as const] : []),
+                ]}
+              />
+            </div>
+
+            <Tabs defaultValue="community" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="verdict" className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                <span className="hidden sm:inline">Verdict</span>
+                {viabilityVerdict.availableDimensions > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {viabilityVerdict.overallScore.toFixed(1)}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="community" className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                <span className="hidden sm:inline">Community</span>
+                {communityVoiceResult?.data && (
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="market" className="flex items-center gap-2">
+                <PieChart className="h-4 w-4" />
+                <span className="hidden sm:inline">Market</span>
+                {(communityVoiceResult?.data?.marketSizing || marketSizingResult) && (
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="timing" className="flex items-center gap-2">
+                <Timer className="h-4 w-4" />
+                <span className="hidden sm:inline">Timing</span>
+                {(communityVoiceResult?.data?.timing || timingResult) && (
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="competitors" className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                <span className="hidden sm:inline">Competitors</span>
+                {competitorResult?.data && (
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Verdict Tab */}
+            <TabsContent value="verdict">
+              {communityVoiceResult?.data && !competitorResult?.data && (
+                <div className="mb-6">
+                  <CompetitorPromptBanner
+                    jobId={id}
+                    hypothesis={researchJob.hypothesis}
+                  />
+                </div>
+              )}
+              <ViabilityVerdictDisplay
+                verdict={viabilityVerdict}
+                hypothesis={researchJob.hypothesis}
+                jobId={id}
+              />
+            </TabsContent>
+
+            {/* Community Voice Tab */}
+            <TabsContent value="community">
+              {communityVoiceResult?.data ? (
+                <div className="space-y-6">
+                  <CommunityVoiceResults
+                    results={communityVoiceResult.data}
+                    jobId={id}
+                    hypothesis={researchJob.hypothesis}
+                    showNextStep={false}
+                  />
+                  {communityVoiceResult.data.metadata.filteringMetrics && (
+                    <DataQualityCard
+                      postsFound={communityVoiceResult.data.metadata.filteringMetrics.postsFound}
+                      postsAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed}
+                      postsFiltered={communityVoiceResult.data.metadata.filteringMetrics.postsFiltered}
+                      postFilterRate={communityVoiceResult.data.metadata.filteringMetrics.postFilterRate}
+                      commentsFound={communityVoiceResult.data.metadata.filteringMetrics.commentsFound}
+                      commentsAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.commentsAnalyzed}
+                      commentsFiltered={communityVoiceResult.data.metadata.filteringMetrics.commentsFiltered}
+                      commentFilterRate={communityVoiceResult.data.metadata.filteringMetrics.commentFilterRate}
+                      qualityLevel={communityVoiceResult.data.metadata.filteringMetrics.qualityLevel}
+                    />
+                  )}
+                  <ResearchMetadata
+                    postsAnalyzed={communityVoiceResult.data.metadata.postsAnalyzed}
+                    commentsAnalyzed={communityVoiceResult.data.metadata.commentsAnalyzed}
+                    subredditsSearched={communityVoiceResult.data.subreddits.analyzed}
+                    dateRange={communityVoiceResult.data.painSummary.dateRange}
+                    dataConfidence={communityVoiceResult.data.painSummary.dataConfidence}
+                    temporalDistribution={communityVoiceResult.data.painSummary.temporalDistribution}
+                    recencyScore={communityVoiceResult.data.painSummary.recencyScore}
+                    dataSource="Reddit discussions"
+                  />
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="text-center">
+                      <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Community Voice Processing</h3>
+                      <p className="text-muted-foreground">
+                        Analysis is still in progress...
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Market Tab - simplified for partial results */}
+            <TabsContent value="market">
+              {marketData ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h3 className="text-lg font-semibold">Market Sizing Analysis</h3>
+                        <p className="text-sm text-muted-foreground">TAM/SAM/SOM estimation</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-3xl font-bold">{marketData.score.toFixed(1)}<span className="text-lg text-muted-foreground">/10</span></div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="text-center">
+                      <PieChart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Market Sizing Processing</h3>
+                      <p className="text-muted-foreground">Analysis is still in progress...</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Timing Tab - simplified for partial results */}
+            <TabsContent value="timing">
+              {timingData ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h3 className="text-lg font-semibold">Market Timing Analysis</h3>
+                        <p className="text-sm text-muted-foreground">Tailwinds and headwinds</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-3xl font-bold">{timingData.score.toFixed(1)}<span className="text-lg text-muted-foreground">/10</span></div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="text-center">
+                      <Timer className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Timing Analysis Processing</h3>
+                      <p className="text-muted-foreground">Analysis is still in progress...</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Competitors Tab */}
+            <TabsContent value="competitors">
+              {competitorResult?.data ? (
+                <CompetitorResults results={competitorResult.data} />
+              ) : (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="text-center">
+                      <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Competitor Analysis Processing</h3>
+                      <p className="text-muted-foreground">Analysis is still in progress...</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+            </Tabs>
+          </PartialResultsContainer>
+        ) : researchJob.status === 'processing' ? (
           <StatusPoller jobId={id} initialStatus="processing" />
+        ) : researchJob.status === 'pending' ? (
+          <StatusPoller jobId={id} initialStatus="pending" />
         ) : researchJob.status === 'failed' ? (
           <Card>
             <CardContent className="py-12">
@@ -275,8 +486,6 @@ export default async function ResearchDetailPage({
               </div>
             </CardContent>
           </Card>
-        ) : researchJob.status === 'pending' ? (
-          <StatusPoller jobId={id} initialStatus="pending" />
         ) : communityVoiceResult?.data || competitorResult?.data ? (
           /* Tabbed Results Interface */
           <>

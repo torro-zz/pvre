@@ -38,6 +38,13 @@ Last updated: December 2, 2024
 
 ## Recently Fixed (Dec 2, 2024)
 
+### Arctic Shift 422 Timeout Errors
+**Status:** ✅ Fixed
+**Root Cause:** Multi-word full-text queries (`query` and `body` params) cause Arctic Shift server-side timeouts (7-8 seconds → 422 error).
+**Fix:** Removed `query` and `body` parameters from Arctic Shift API calls. Now fetch by subreddit + time range only. Claude's relevance filter handles content filtering instead.
+**Performance:** Requests now complete in 0.2-0.5s instead of timing out.
+**Files changed:** `src/lib/data-sources/arctic-shift.ts`
+
 ### Keyword Search Quality in Community Voice
 **Status:** ✅ Fixed
 **Fix:** Improved keyword extraction prompt, limited search to 2 most relevant keywords, improved subreddit discovery to focus on niche communities instead of generic business subreddits.
