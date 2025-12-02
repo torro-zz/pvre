@@ -2,72 +2,63 @@
 
 ## What Was Just Completed
 
-### This Session
-1. **LemonSqueezy Billing Fix**
-   - Created migration `008_restore_lemonsqueezy.sql`
-   - Rewrote checkout route for LemonSqueezy
-   - Rewrote webhook route for LemonSqueezy
-   - Updated Supabase types
+### This Session (Dec 2, 2024 - Session 2)
+1. **Applied Migration 008** - LemonSqueezy columns restored
+2. **Regenerated Supabase Types** - Types now include `lemonsqueezy_*` columns
+3. **Fixed Search Relevance** (HIGH priority issue)
+   - Improved keyword extraction to focus on domain-specific nouns
+   - Limited API search to top 2 keywords
+   - Improved subreddit discovery to prioritize niche communities
+   - Files: `keyword-extractor.ts`, `subreddit-discovery.ts`, `arctic-shift.ts`, `pullpush.ts`
+4. **Fixed Billing Page**
+   - Removed broken waitlist form (API was deleted)
+   - Verified pricing displays correctly
+5. **Created Migration 009** - Fixes credit pack prices to match LemonSqueezy
 
-2. **Created `/goodnight` Command**
-   - New slash command at `.claude/commands/goodnight.md`
-   - Auto-generates session state for easy resumption
-   - Requires session restart to be recognized
+### Previous Session (Dec 2, 2024 - Session 1)
+- LemonSqueezy billing integration (checkout + webhook routes)
+- Code hardening (Supabase types, shared utilities, integration tests)
+- Created `/goodnight` command
 
-### Previously Completed (Code Hardening)
-- Generated Supabase TypeScript types
-- Created shared `saveResearchResult()` utility
-- Refactored all APIs to use shared utility
-- Added integration tests
+## Migrations Status
+| Migration | Status | Purpose |
+|-----------|--------|---------|
+| 008_restore_lemonsqueezy.sql | ✅ Applied | Rename columns to lemonsqueezy_* |
+| 009_fix_credit_pack_prices.sql | ⚠️ **NEEDS TO RUN** | Fix prices to match LemonSqueezy |
 
-## Files Modified This Session
-| File | Status | Purpose |
-|------|--------|---------|
-| `src/app/api/billing/checkout/route.ts` | Modified | LemonSqueezy checkout |
-| `src/app/api/billing/webhook/route.ts` | Modified | LemonSqueezy webhooks |
-| `src/types/supabase.ts` | New | Typed Supabase client |
-| `supabase/migrations/008_restore_lemonsqueezy.sql` | New | DB column rename migration |
-| `.claude/commands/goodnight.md` | New | Session state command |
-| `docs/KNOWN_ISSUES.md` | New | Bug tracking |
-| `docs/CODE_HARDENING_GUIDE.md` | New | Dev best practices |
-| `src/lib/research/save-result.ts` | New | Shared DB save utility |
-| `src/__tests__/research-flow.integration.test.ts` | New | Integration tests |
-| + 40 more files... | Various | Code hardening refactors |
+**Run migration 009 in Supabase SQL Editor!**
 
-## Uncommitted Changes
-⚠️ **WARNING: You have 52 modified + 24 new files uncommitted!**
-
-Consider committing before ending the session.
+Correct prices after migration:
+- Starter Pack: £14 (3 credits)
+- Builder Pack: £39 (10 credits)
+- Founder Pack: £79 (25 credits)
 
 ## Build & Test Status
 - **Build:** ✅ Passing
 - **Tests:** 66 passing, 6 skipped
-- **Dev Server:** Not running
+- **Dev Server:** Running
 
 ## What Needs To Be Done Next
-1. **Run migration 008** in Supabase SQL Editor (required for billing)
-2. **Configure LemonSqueezy products** - Create variants, update `credit_packs` table
+1. **Run migration 009** - Fix credit pack prices in Supabase
+2. **Update LemonSqueezy variant IDs** in `credit_packs` table with real IDs from LemonSqueezy dashboard
 3. **Set environment variables** - `LEMONSQUEEZY_STORE_URL`, `LEMONSQUEEZY_WEBHOOK_SECRET`
-4. **Fix keyword search quality** - Research returns irrelevant posts (HIGH priority)
-5. **Fix pricing display** - Not showing correctly in user settings
+4. **Enable billing** - Set `BILLING_ENABLED = true` in billing page when ready
 
-## Blockers or Open Questions
-- LemonSqueezy variant IDs need to be created in their dashboard
-- Migration 008 must be run before testing payments
-
-## User Notes
-None
+## Remaining Medium Priority Issues
+See `docs/KNOWN_ISSUES.md`:
+- "Run Full Research" button stays active after completion
+- "Check API Health" button not working in admin
+- Claude API costs always shows $0
 
 ## Key Files Reference
 | Purpose | File |
 |---------|------|
 | Project instructions | `CLAUDE.md` |
 | Known bugs | `docs/KNOWN_ISSUES.md` |
-| Hardening guide | `docs/CODE_HARDENING_GUIDE.md` |
-| LemonSqueezy migration | `supabase/migrations/008_restore_lemonsqueezy.sql` |
-| Billing checkout | `src/app/api/billing/checkout/route.ts` |
-| Billing webhook | `src/app/api/billing/webhook/route.ts` |
-| Goodnight command | `.claude/commands/goodnight.md` |
+| Price fix migration | `supabase/migrations/009_fix_credit_pack_prices.sql` |
+| Billing page | `src/app/(dashboard)/account/billing/page.tsx` |
+| Keyword extraction | `src/lib/reddit/keyword-extractor.ts` |
+| Subreddit discovery | `src/lib/reddit/subreddit-discovery.ts` |
 
 ## Quick Start Commands
 ```bash
