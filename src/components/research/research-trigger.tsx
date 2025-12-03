@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Loader2, AlertCircle, RefreshCw, Sparkles } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
+import { Loader2, AlertCircle, RefreshCw, Sparkles, TrendingUp, Search, BarChart3, Timer } from 'lucide-react'
 
 interface ResearchTriggerProps {
   jobId: string
@@ -14,12 +15,22 @@ interface ResearchTriggerProps {
 
 type TriggerState = 'idle' | 'starting' | 'processing' | 'error'
 
+// Progress phases for visual feedback
+const PROGRESS_PHASES = [
+  { label: 'Finding relevant communities', icon: Search, duration: 15 },
+  { label: 'Fetching Reddit discussions', icon: TrendingUp, duration: 30 },
+  { label: 'Analyzing pain signals', icon: BarChart3, duration: 45 },
+  { label: 'Calculating market size & timing', icon: Timer, duration: 60 },
+]
+
 export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
   const router = useRouter()
   const [state, setState] = useState<TriggerState>('idle')
   const [error, setError] = useState<string | null>(null)
   const [pollCount, setPollCount] = useState(0)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const hasTriggeredRef = useRef(false)
+  const startTimeRef = useRef<number | null>(null)
 
   // Poll interval: 3 seconds for first 20 polls, then 10 seconds
   const pollInterval = pollCount < 20 ? 3000 : 10000
@@ -37,6 +48,36 @@ export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
       return () => window.removeEventListener('beforeunload', handleBeforeUnload)
     }
   }, [state])
+
+  // Track elapsed time for progress display
+  useEffect(() => {
+    if (state === 'starting') {
+      if (!startTimeRef.current) {
+        startTimeRef.current = Date.now()
+      }
+      const timer = setInterval(() => {
+        if (startTimeRef.current) {
+          setElapsedSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000))
+        }
+      }, 1000)
+      return () => clearInterval(timer)
+    }
+  }, [state])
+
+  // Calculate current progress phase based on elapsed time
+  const getCurrentPhase = () => {
+    for (let i = PROGRESS_PHASES.length - 1; i >= 0; i--) {
+      if (elapsedSeconds >= PROGRESS_PHASES[i].duration) {
+        return i < PROGRESS_PHASES.length - 1 ? i + 1 : i
+      }
+    }
+    return 0
+  }
+
+  const currentPhaseIndex = getCurrentPhase()
+  const currentPhase = PROGRESS_PHASES[currentPhaseIndex]
+  const PhaseIcon = currentPhase.icon
+  const progressPercent = Math.min((elapsedSeconds / 120) * 100, 95) // Cap at 95% until done
 
   // Auto-trigger research on mount
   useEffect(() => {
@@ -125,18 +166,55 @@ export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
     }, 0)
   }
 
-  // Starting state
+  // Starting state - show progress phases
   if (state === 'idle' || state === 'starting') {
     return (
       <Card>
-        <CardContent className="py-12">
-          <div className="text-center">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Starting Research</h3>
-            <p className="text-muted-foreground">
-              Initializing analysis for your hypothesis...
-            </p>
+        <CardContent className="py-8">
+          <div className="text-center mb-6">
+            <div className="relative inline-block mb-4">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <PhaseIcon className="h-5 w-5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1">Research in Progress</h3>
+            <p className="text-primary font-medium">{currentPhase.label}</p>
           </div>
+
+          {/* Progress bar */}
+          <div className="max-w-md mx-auto mb-6">
+            <Progress value={progressPercent} className="h-2 mb-2" />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{elapsedSeconds}s elapsed</span>
+              <span>~2 min total</span>
+            </div>
+          </div>
+
+          {/* Phase indicators */}
+          <div className="flex justify-center gap-4 mb-6">
+            {PROGRESS_PHASES.map((phase, index) => {
+              const Icon = phase.icon
+              const isActive = index === currentPhaseIndex
+              const isComplete = index < currentPhaseIndex
+              return (
+                <div
+                  key={index}
+                  className={`flex flex-col items-center transition-opacity ${
+                    isActive ? 'opacity-100' : isComplete ? 'opacity-60' : 'opacity-30'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    isActive ? 'bg-primary text-white' : isComplete ? 'bg-green-100 text-green-600' : 'bg-muted text-muted-foreground'
+                  }`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <p className="text-sm text-muted-foreground text-center">
+            Please keep this tab open while we analyze your hypothesis.
+          </p>
         </CardContent>
       </Card>
     )
