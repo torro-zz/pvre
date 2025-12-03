@@ -55,13 +55,10 @@ Source: CEO review / Core product mechanics analysis
 **Status: Fixed Dec 3** - Examples updated to problem-first format with format hint: "[Audience] who [problem they face]"
 ~~Issue: Current examples are solution-formatted: "Remote collaboration tools for distributed design teams." This teaches users to write solutions. Better examples would model problem-first thinking.~~
 
-### No Negative Keywords to Exclude Noise (Dec 3)
+### ~~No Negative Keywords to Exclude Noise (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Core product mechanics analysis
-Issue: Some searches return massive noise. "Training" pulls fitness, corporate training, dog training, ML training. No way to exclude irrelevant contexts.
-Proposed: Add optional "Exclude" field:
-EXCLUDE posts about:
-→ "corporate training" / "dog training" / "machine learning"
-Or smarter: AI suggests likely noise sources based on ambiguous terms, user confirms exclusions.
+**Status: Fixed Dec 3** - Added collapsible "Exclude irrelevant topics" field in hypothesis form. User can add comma-separated exclusions (e.g., "corporate training, dog training") which are merged with AI-generated exclude keywords for pre-filtering.
+~~Issue: Some searches return massive noise. "Training" pulls fitness, corporate training, dog training, ML training. No way to exclude irrelevant contexts.~~
 
 ### ~~[Research Overview: Tab Order and Labeling Confusion] (Dec 3)~~ ✅ IMPLEMENTED
 Source: User feedback
@@ -73,15 +70,15 @@ Source: CEO review / Flow documentation analysis
 Issue: Warning "Please keep this tab open... Closing may lose your results and credit" feels like a threat. Users feel trapped, can't switch apps on mobile, and blame the product if anything goes wrong—even with auto-refund.
 Proposed: Process asynchronously. Replace with "We'll email you when ready (1-2 min). Feel free to close this tab." Send email notification with direct link to results. Turns friction into re-engagement trigger.
 
-### Competitor Analysis Credit Cost Unclear (Dec 3)
+### ~~Competitor Analysis Credit Cost Unclear (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Flow documentation analysis
-Issue: 1 credit triggers Community Voice + Market + Timing (bundled), but Competitor Analysis is a separate manual step. Progress stepper shows 3 steps, tabs show 5. User expectation mismatch: "I paid, why isn't everything done?"
-Proposed: Bundle all 5 outputs into 1 credit so the user understands that. The competitor analsysis doesnt start automatically becasue we want the user to have the option to add any known competitors. 
+**Status: Fixed Dec 3** - CompetitorRunner now shows completion banner ("Research Progress Complete" with Pain, Market, Timing checkmarks) and badge "Included with your research credit - no extra charge".
+~~Issue: 1 credit triggers Community Voice + Market + Timing (bundled), but Competitor Analysis is a separate manual step. Progress stepper shows 3 steps, tabs show 5. User expectation mismatch: "I paid, why isn't everything done?"~~ 
 
-### No First-Time User Onboarding (Dec 3)
+### ~~No First-Time User Onboarding (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Flow documentation analysis
-Issue: New users on /research face blank-page paralysis. Flow assumes understanding of what a good hypothesis looks like, what output will be, how to interpret scores, and what to do with results.
-Proposed: A faq that will help them understand how it works, as well as a video from the coe to show them how to use the tool.
+**Status: Fixed Dec 3** - Added dismissible "How It Works" guide on /research page. Shows 3-step process (Describe Problem → We Mine Reddit → Get Verdict) with icons. Persists dismissal state in localStorage.
+~~Issue: New users on /research face blank-page paralysis. Flow assumes understanding of what a good hypothesis looks like, what output will be, how to interpret scores, and what to do with results.~~
 
 ### Google-Only Auth Limits Market (Dec 3)
 Source: CEO review / Flow documentation analysis
@@ -95,7 +92,7 @@ Source: CEO review / Flow documentation analysis
 
 ### ~~No Clear Path to Buy More Credits (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Flow documentation analysis
-**Status: Fixed Dec 3** - Credit badge now yellow at ≤3, red at ≤1, with "Get More" link shown when low.
+**Status: Fixed Dec 3** - Credit badge now yellow at ≤3, red at ≤1, with "Get More" link shown when low. **Enhanced Dec 3**: Research page now shows dedicated zero-credit state with CTA to purchase when credits = 0.
 ~~Issue: Credits shown in header but no prompts when low, no visible pricing, no clear zero-credit state. Users may hit wall without understanding purchase path.~~
 
 ### ~~Interview Guide Buried as Subtab (Dec 3)~~ ✅ IMPLEMENTED

@@ -463,6 +463,16 @@ export async function POST(request: NextRequest) {
       console.log('Added user problem language to keywords:', userPhrases.slice(0, 3))
     }
 
+    // If user provided exclude topics, add those to exclude keywords
+    if (structuredHypothesis?.excludeTopics) {
+      const userExcludes = structuredHypothesis.excludeTopics
+        .split(',')
+        .map(p => p.trim().toLowerCase())
+        .filter(p => p.length > 2 && p.length < 50)
+      extractedKeywords.exclude.push(...userExcludes)
+      console.log('Added user exclude topics:', userExcludes)
+    }
+
     console.log('Extracted keywords:', {
       primary: extractedKeywords.primary,
       exclude: extractedKeywords.exclude,

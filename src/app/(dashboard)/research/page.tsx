@@ -8,7 +8,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Filter, Search, MessageSquare, Sparkles } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Filter, Search, MessageSquare, Sparkles, X, HelpCircle, TrendingUp, Shield, Target, CreditCard, Zap } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import { CoverageData } from '@/components/research/coverage-preview'
 import { StructuredHypothesis } from '@/types/research'
@@ -47,6 +49,40 @@ export default function ResearchPage() {
   const abortControllerRef = useRef<AbortController | null>(null)
   // Idempotency key for preventing duplicate job creation on network retries
   const idempotencyKeyRef = useRef<string>(crypto.randomUUID())
+  // Show "How it works" guide - persist dismissal in localStorage
+  const [showGuide, setShowGuide] = useState<boolean | null>(null)
+  // Credits state
+  const [credits, setCredits] = useState<number | null>(null)
+  const [creditsLoading, setCreditsLoading] = useState(true)
+
+  // Fetch credits on mount
+  useEffect(() => {
+    async function fetchCredits() {
+      try {
+        const res = await fetch('/api/billing/credits')
+        if (res.ok) {
+          const data = await res.json()
+          setCredits(data.balance)
+        }
+      } catch {
+        // Fail silently - form will handle credit errors
+      } finally {
+        setCreditsLoading(false)
+      }
+    }
+    fetchCredits()
+  }, [])
+
+  // Load guide dismissal state from localStorage
+  useEffect(() => {
+    const dismissed = localStorage.getItem('pvre-guide-dismissed')
+    setShowGuide(dismissed !== 'true')
+  }, [])
+
+  const dismissGuide = () => {
+    localStorage.setItem('pvre-guide-dismissed', 'true')
+    setShowGuide(false)
+  }
 
   // Warn user before closing tab during research
   useEffect(() => {
@@ -141,10 +177,100 @@ export default function ResearchPage() {
           </p>
         </div>
 
-        {/* Hypothesis Form */}
-        <div className="mb-8">
-          <HypothesisForm onSubmit={runResearch} isLoading={status === 'loading'} />
-        </div>
+        {/* How It Works Guide - dismissible */}
+        {showGuide && (
+          <Card className="mb-6 border-primary/20 bg-primary/5">
+            <CardContent className="py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <HelpCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-sm mb-3">How It Works</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-xs font-bold text-primary">1</div>
+                        <div>
+                          <p className="font-medium">Describe the Problem</p>
+                          <p className="text-muted-foreground text-xs">Tell us who&apos;s struggling and what problem they face. Use their language for best results.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-xs font-bold text-primary">2</div>
+                        <div>
+                          <p className="font-medium">We Mine Reddit</p>
+                          <p className="text-muted-foreground text-xs">AI finds relevant communities and analyzes discussions for pain signals, market data, and timing.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-xs font-bold text-primary">3</div>
+                        <div>
+                          <p className="font-medium">Get Your Verdict</p>
+                          <p className="text-muted-foreground text-xs">Receive a viability score, interview questions, and competitor analysis to validate your idea.</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 mt-3 pt-3 border-t text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <TrendingUp className="h-3 w-3" />
+                        Pain Signals
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Shield className="h-3 w-3" />
+                        Competitor Intel
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Target className="h-3 w-3" />
+                        Viability Score
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 flex-shrink-0"
+                  onClick={dismissGuide}
+                >
+                  <X className="h-4 w-4" />
+                  <span className="sr-only">Dismiss guide</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Zero Credits State - show when user has no credits */}
+        {!creditsLoading && credits === 0 ? (
+          <Card className="mb-8 border-amber-200 bg-amber-50">
+            <CardContent className="py-8">
+              <div className="text-center max-w-md mx-auto">
+                <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                  <CreditCard className="h-8 w-8 text-amber-600" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">You&apos;re Out of Credits</h3>
+                <p className="text-muted-foreground mb-6">
+                  Get more credits to continue validating your business ideas with real community data.
+                </p>
+                <div className="space-y-3">
+                  <Link href="/dashboard">
+                    <Button className="w-full sm:w-auto">
+                      <Zap className="h-4 w-4 mr-2" />
+                      Get More Credits
+                    </Button>
+                  </Link>
+                  <p className="text-xs text-muted-foreground">
+                    Each credit includes full research: Pain Analysis + Market Sizing + Timing + Competitor Intel
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          /* Hypothesis Form */
+          <div className="mb-8">
+            <HypothesisForm onSubmit={runResearch} isLoading={status === 'loading'} />
+          </div>
+        )}
 
         {/* Loading State */}
         {status === 'loading' && (

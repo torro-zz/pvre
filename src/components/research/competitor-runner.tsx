@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
-import { Shield, Loader2, AlertCircle, Plus, X } from 'lucide-react'
+import { Shield, Loader2, AlertCircle, Plus, X, CheckCircle2, TrendingUp, PieChart, Timer } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface CompetitorRunnerProps {
@@ -130,16 +130,49 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
   }
 
   return (
-    <Card>
-      <CardContent className="py-8">
-        <div className="max-w-lg mx-auto">
-          <div className="text-center mb-6">
-            <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Competitor Intelligence</h3>
-            <p className="text-muted-foreground text-sm">
-              AI will discover competitors automatically. Optionally add any you already know about.
-            </p>
+    <div className="space-y-4">
+      {/* Completion Status Banner */}
+      <Card className="border-green-200 bg-green-50">
+        <CardContent className="py-4">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h4 className="font-medium text-green-900 mb-2">Research Progress Complete</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                <div className="flex items-center gap-2 text-green-700">
+                  <TrendingUp className="h-4 w-4" />
+                  <span>Pain Analysis</span>
+                  <CheckCircle2 className="h-3 w-3" />
+                </div>
+                <div className="flex items-center gap-2 text-green-700">
+                  <PieChart className="h-4 w-4" />
+                  <span>Market Sizing</span>
+                  <CheckCircle2 className="h-3 w-3" />
+                </div>
+                <div className="flex items-center gap-2 text-green-700">
+                  <Timer className="h-4 w-4" />
+                  <span>Timing Analysis</span>
+                  <CheckCircle2 className="h-3 w-3" />
+                </div>
+              </div>
+            </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="py-8">
+          <div className="max-w-lg mx-auto">
+            <div className="text-center mb-6">
+              <Shield className="h-12 w-12 text-primary mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Complete Your Research</h3>
+              <p className="text-muted-foreground text-sm mb-3">
+                Run Competitor Intelligence to finalize your research verdict.
+              </p>
+              <p className="text-xs text-muted-foreground bg-muted inline-block px-3 py-1 rounded-full">
+                Included with your research credit - no extra charge
+              </p>
+            </div>
 
           {/* Known Competitors Input */}
           <div className="mb-6">
@@ -205,6 +238,7 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
           </Button>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+    </div>
   )
 }

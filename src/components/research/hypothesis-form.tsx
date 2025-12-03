@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Loader2, Search, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, Search, Lightbulb, ChevronDown, ChevronUp, Ban } from 'lucide-react'
 import { CoveragePreview, CoverageData } from './coverage-preview'
 import { StructuredHypothesis, formatHypothesis } from '@/types/research'
 
@@ -54,7 +54,9 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
   const [problem, setProblem] = useState('')
   const [problemLanguage, setProblemLanguage] = useState('')
   const [solution, setSolution] = useState('')
+  const [excludeTopics, setExcludeTopics] = useState('')
   const [showSolution, setShowSolution] = useState(false)
+  const [showExclude, setShowExclude] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
 
   // Build the structured hypothesis
@@ -63,6 +65,7 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
     problem: problem.trim(),
     problemLanguage: problemLanguage.trim() || undefined,
     solution: solution.trim() || undefined,
+    excludeTopics: excludeTopics.trim() || undefined,
   }
 
   // Generate display string for backwards compatibility
@@ -193,31 +196,65 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
             </p>
           </div>
 
-          {/* Step 4: Solution (collapsible) */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowSolution(!showSolution)}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {showSolution ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted text-muted-foreground text-xs font-medium">4</span>
-              Your solution idea
-              <span className="text-xs ml-1">(optional)</span>
-            </button>
-            {showSolution && (
-              <Input
-                id="solution"
-                placeholder="e.g., Training partner matching app"
-                value={solution}
-                onChange={(e) => {
-                  setSolution(e.target.value)
-                  handleFieldChange()
-                }}
-                disabled={isLoading}
-                className="w-full"
-              />
-            )}
+          {/* Optional Sections (collapsible) */}
+          <div className="space-y-3 pt-2 border-t">
+            {/* Solution (collapsible) */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowSolution(!showSolution)}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showSolution ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                Your solution idea
+                <span className="text-xs ml-1">(optional)</span>
+              </button>
+              {showSolution && (
+                <Input
+                  id="solution"
+                  placeholder="e.g., Training partner matching app"
+                  value={solution}
+                  onChange={(e) => {
+                    setSolution(e.target.value)
+                    handleFieldChange()
+                  }}
+                  disabled={isLoading}
+                  className="w-full"
+                />
+              )}
+            </div>
+
+            {/* Exclude Topics (collapsible) */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowExclude(!showExclude)}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showExclude ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <Ban className="h-3.5 w-3.5" />
+                Exclude irrelevant topics
+                <span className="text-xs ml-1">(optional)</span>
+              </button>
+              {showExclude && (
+                <div className="space-y-2">
+                  <Input
+                    id="excludeTopics"
+                    placeholder="e.g., corporate training, dog training, machine learning"
+                    value={excludeTopics}
+                    onChange={(e) => {
+                      setExcludeTopics(e.target.value)
+                      handleFieldChange()
+                    }}
+                    disabled={isLoading}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Comma-separated topics to filter out. Useful for ambiguous terms like &quot;training&quot;.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Examples */}

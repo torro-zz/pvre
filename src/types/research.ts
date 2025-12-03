@@ -7,6 +7,7 @@ export interface StructuredHypothesis {
   problem: string         // "What's their problem?" (required)
   problemLanguage?: string // "How do THEY describe it?" (optional)
   solution?: string       // "Your solution idea" (optional)
+  excludeTopics?: string  // "Exclude posts about:" (optional) - filters out irrelevant noise
 }
 
 /**
