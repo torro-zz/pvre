@@ -6,6 +6,19 @@ description: Save session state to RESUME_HERE.md before ending work (asks for n
 
 Capture the current session state before shutting down, creating a comprehensive `docs/RESUME_HERE.md` file that makes resuming work effortless.
 
+## Key Project Files (MUST READ THESE)
+
+| File | What to Extract |
+|------|-----------------|
+| `docs/KNOWN_ISSUES.md` | Bugs table (Medium Priority), UX Improvements with ✅ IMPLEMENTED markers |
+| `docs/IMPLEMENTATION_PLAN.md` | Current phase status, next priorities from 4-phase roadmap |
+| `docs/RESUME_HERE.md` | Previous session context (what was done before) |
+| `CLAUDE.md` | Project instructions, "Critical Quality Metric: Relevance" section |
+
+**Project Path:** `/Users/julientorriani/Documents/Development/Pre-Validation Research Engine PVRE`
+
+---
+
 ## Phase 1: Gather Context
 
 Run these commands to understand the current state:
@@ -47,9 +60,26 @@ lsof -i :3000 2>/dev/null | head -5
 ```
 Capture: Running or Not running
 
-### 1.7 Read Key Files
-- Read `docs/KNOWN_ISSUES.md` for current bugs
-- Read `CLAUDE.md` "Implementation Status" section for priorities
+### 1.7 Read Key Files (CRITICAL - Do not skip!)
+
+**File 1: `docs/KNOWN_ISSUES.md`**
+- Extract: Bugs table entries (check status column)
+- Extract: UX Improvements - note which are ✅ IMPLEMENTED vs pending
+- Purpose: Identify remaining bugs and next UX priorities
+
+**File 2: `docs/IMPLEMENTATION_PLAN.md`**
+- Extract: Which phases are complete (Phase 1, 2, 3, 4)
+- Extract: Current/next phase priorities with file paths
+- Purpose: Know what's next in the 4-phase roadmap
+
+**File 3: `docs/RESUME_HERE.md`**
+- Extract: What was done in previous sessions
+- Purpose: Provide continuity context
+
+**File 4: `CLAUDE.md`**
+- Extract: Key quality standards (66+ tests, build must pass)
+- Extract: "Critical Quality Metric: Relevance" - the 64% problem
+- Purpose: Remind next session of quality requirements
 
 ## Phase 2: Analyze Session
 
@@ -58,7 +88,8 @@ From the gathered context, determine:
 1. **What was worked on** - Group modified files by feature/purpose
 2. **What was completed** - Based on commits and file changes
 3. **What's incomplete** - Uncommitted changes, failing tests
-4. **Next priorities** - From KNOWN_ISSUES.md and CLAUDE.md
+4. **Next priorities** - From `docs/IMPLEMENTATION_PLAN.md` (which phase is next?) and `docs/KNOWN_ISSUES.md` (remaining bugs)
+5. **Phase status** - Which of the 4 phases in IMPLEMENTATION_PLAN.md are complete?
 
 ## Phase 3: Generate Preview
 
@@ -90,10 +121,14 @@ Create a draft of `docs/RESUME_HERE.md` with this structure:
 - **Dev Server:** Running on :3000 / Not running
 
 ## What Needs To Be Done Next
-{Prioritized list from KNOWN_ISSUES.md and analysis}
-1. First priority
-2. Second priority
-...
+{Prioritized list from docs/IMPLEMENTATION_PLAN.md and docs/KNOWN_ISSUES.md}
+
+### From Implementation Plan (4-Phase Roadmap)
+{Current phase and next items - check which phases are complete}
+
+### From Known Issues
+{Remaining bugs from KNOWN_ISSUES.md Bugs table}
+{Pending UX improvements (those without ✅ IMPLEMENTED)}
 
 ## Blockers or Open Questions
 {Any unresolved issues discovered during the session}
@@ -105,13 +140,15 @@ Create a draft of `docs/RESUME_HERE.md` with this structure:
 | Purpose | File |
 |---------|------|
 | Project instructions | `CLAUDE.md` |
-| Known bugs | `docs/KNOWN_ISSUES.md` |
+| Known bugs & UX backlog | `docs/KNOWN_ISSUES.md` |
+| 4-phase implementation roadmap | `docs/IMPLEMENTATION_PLAN.md` |
+| Technical overview | `docs/TECHNICAL_OVERVIEW.md` |
 | {Context-specific files from session} | {paths} |
 
 ## Quick Start Commands
 ```bash
 # Start dev server
-cd "{PROJECT_PATH}"
+cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine PVRE"
 npm run dev
 
 # Run tests
