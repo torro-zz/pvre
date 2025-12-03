@@ -40,7 +40,7 @@ You find and prioritize the next best improvement for PVRE.
 ### Key Documentation
 - **`CLAUDE.md`** - Implementation status, remaining items, code standards
 - **`docs/KNOWN_ISSUES.md`** - Active bugs with status
-- **`docs/CODE_HARDENING_GUIDE.md`** - Quality standards
+- **`docs/TECHNICAL_OVERVIEW.md`** - Architecture, APIs, Code Standards section
 
 ### Current MVP Status
 PVRE is ~99% complete. Core modules done:

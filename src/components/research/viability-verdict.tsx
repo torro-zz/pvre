@@ -240,11 +240,21 @@ export function ViabilityVerdictDisplay({
                   </Button>
                 )}
                 {!verdict.dimensions.find((d) => d.name === 'Competition Score') && (
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={jobId ? `/research/competitors?jobId=${jobId}` : '/research/competitors'}>
-                      <Shield className="h-4 w-4 mr-1" />
-                      Run Competitor Intelligence
-                    </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const competitorsTab = document.querySelector('[data-value="competitors"]') as HTMLElement
+                      if (competitorsTab) {
+                        competitorsTab.click()
+                        setTimeout(() => {
+                          competitorsTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        }, 100)
+                      }
+                    }}
+                  >
+                    <Shield className="h-4 w-4 mr-1" />
+                    Run Competitor Intelligence
                   </Button>
                 )}
                 {!verdict.dimensions.find((d) => d.name === 'Market Score') && (
@@ -314,19 +324,37 @@ export function ViabilityVerdictDisplay({
               ))}
             </ul>
 
-            {/* Next Steps CTA */}
+            {/* Next Steps CTA - Interview Guide */}
             {verdict.isComplete && verdict.verdict !== 'none' && (
-              <div className="mt-6 pt-4 border-t">
+              <div className="mt-6 pt-4 border-t bg-green-50 -mx-6 px-6 pb-4 rounded-b-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Ready for the next step?</p>
-                    <p className="text-sm text-muted-foreground">
-                      Use the Interview Prep tab to prepare validation questions
+                    <p className="font-medium text-green-800">Ready to validate with real customers?</p>
+                    <p className="text-sm text-green-600">
+                      Get your personalized Interview Guide with Mom Test questions
                     </p>
                   </div>
-                  <Button size="sm">
-                    Go to Interview Prep
-                    <ArrowRight className="h-4 w-4 ml-1" />
+                  <Button
+                    size="lg"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      // Click the Community tab first
+                      const communityTab = document.querySelector('[data-state][value="community"]') as HTMLElement
+                      if (communityTab) {
+                        communityTab.click()
+                        // Then click the interview subtab after a short delay
+                        setTimeout(() => {
+                          const interviewTab = document.querySelector('[data-state][value="interview"]') as HTMLElement
+                          if (interviewTab) {
+                            interviewTab.click()
+                            interviewTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          }
+                        }, 100)
+                      }
+                    }}
+                  >
+                    View Interview Guide
+                    <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </div>
               </div>

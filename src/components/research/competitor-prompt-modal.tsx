@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Shield, X } from 'lucide-react'
+import { Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import Link from 'next/link'
 
 interface CompetitorPromptModalProps {
   jobId: string
@@ -78,12 +77,23 @@ export function CompetitorPromptModal({ jobId, hypothesis }: CompetitorPromptMod
           <Button variant="outline" onClick={handleDismiss}>
             Skip for now
           </Button>
-          <Link href={`/research/competitors?hypothesis=${encodeURIComponent(hypothesis)}&jobId=${jobId}`}>
-            <Button className="w-full sm:w-auto">
-              <Shield className="h-4 w-4 mr-2" />
-              Run Competitor Analysis
-            </Button>
-          </Link>
+          <Button
+            className="w-full sm:w-auto"
+            onClick={() => {
+              handleDismiss()
+              // Click the Competitors tab and scroll to it
+              const competitorsTab = document.querySelector('[data-value="competitors"]') as HTMLElement
+              if (competitorsTab) {
+                competitorsTab.click()
+                setTimeout(() => {
+                  competitorsTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }, 100)
+              }
+            }}
+          >
+            <Shield className="h-4 w-4 mr-2" />
+            Run Competitor Analysis
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -96,6 +106,16 @@ interface CompetitorPromptBannerProps {
 }
 
 export function CompetitorPromptBanner({ jobId, hypothesis }: CompetitorPromptBannerProps) {
+  const scrollToCompetitors = () => {
+    const competitorsTab = document.querySelector('[data-value="competitors"]') as HTMLElement
+    if (competitorsTab) {
+      competitorsTab.click()
+      setTimeout(() => {
+        competitorsTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }
+
   return (
     <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
@@ -107,12 +127,15 @@ export function CompetitorPromptBanner({ jobId, hypothesis }: CompetitorPromptBa
           </p>
         </div>
       </div>
-      <Link href={`/research/competitors?hypothesis=${encodeURIComponent(hypothesis)}&jobId=${jobId}`}>
-        <Button size="sm" variant="outline" className="border-amber-300 hover:bg-amber-100">
-          <Shield className="h-4 w-4 mr-2" />
-          Add Competitors
-        </Button>
-      </Link>
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-amber-300 hover:bg-amber-100"
+        onClick={scrollToCompetitors}
+      >
+        <Shield className="h-4 w-4 mr-2" />
+        Add Competitors
+      </Button>
     </div>
   )
 }

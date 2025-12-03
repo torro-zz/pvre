@@ -1,8 +1,12 @@
 # PVRE - Technical Overview
 
-*Last updated: 2025-12-02*
+*Last updated: 2025-12-03*
 
 > This document provides a comprehensive overview of the PVRE (Pre-Validation Research Engine) codebase. Share with technical team members. Run `/update-overview` to refresh.
+
+**Related Documentation:**
+- **CLAUDE.md** - AI agent behavior rules (concise)
+- **KNOWN_ISSUES.md** - Active bugs and recent fixes
 
 ---
 
@@ -69,47 +73,120 @@ PVRE is an **AI-powered pre-validation research tool** that helps founders asses
 ## User Flow
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Landing    │────▶│  Google     │────▶│  Dashboard  │
-│  Page       │     │  Sign In    │     │  (History)  │
-└─────────────┘     └─────────────┘     └──────┬──────┘
-                                               │
-     ┌─────────────────────────────────────────┘
-     │
-     ▼
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Enter      │────▶│  AI         │────▶│  Results    │
-│  Hypothesis │     │  Processing │     │  + Verdict  │
-└─────────────┘     └─────────────┘     └─────────────┘
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Landing    │───▶│   Login     │───▶│  Dashboard  │───▶│  Research   │───▶│   Results   │
+│   Page      │    │  (Google)   │    │             │    │   Input     │    │   (Tabs)    │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+     /                /login            /dashboard          /research        /research/[id]
 ```
 
-### Detailed Flow
+### Step 1: Landing Page (`/`)
 
-1. **Sign in** with Google OAuth (or dev bypass in development)
-2. **Dashboard** shows research history with status badges
-3. **Research page** - enter business hypothesis
-4. **Coverage Check** (5-10 sec, FREE):
-   - AI discovers relevant subreddits based on hypothesis
-   - Counts available posts and shows data confidence
-   - User can refine hypothesis before committing credits
-5. **Pain Analysis** (60-180 sec, 1 credit):
-   - Fetches 500+ Reddit posts/comments via Arctic Shift
-   - Claude relevance filter removes off-topic content (~33% filtered)
-   - Real-time progress updates (posts checked, relevance rate)
-   - Extracts pain themes, intensity scores, quotes
-   - Generates Mom Test interview questions
-6. **Market Sizing** (1 credit):
-   - TAM/SAM/SOM Fermi estimation
-   - Region and pricing inputs
-7. **Timing Analysis** (1 credit):
-   - Tailwinds/headwinds assessment
-8. **Competitor Intelligence** (1 credit):
-   - Identifies 4-8 competitors via AI research
-   - Creates comparison matrix
-   - Finds market gaps and opportunities
-   - Assesses threat levels
-9. **Viability Verdict** calculated and displayed
-10. **Results saved** to database for future reference
+| Section | Content | Purpose |
+|---------|---------|---------|
+| Header | Logo + "How It Works" + "Sign In" + "Get Started" | Navigation |
+| Hero | "Know if your idea has legs in 5 minutes, not 5 weeks" | Value prop |
+| Problem | "90% of startups fail from building the wrong thing" (red pulsing) | Pain trigger |
+| Old Way | 4 icons showing manual validation pain | Problem amplification |
+| Features | Community Voice, Competitor Intel, 4-Dimension Verdict cards | Solution preview |
+| Social Proof | 2 testimonial quotes | Trust building |
+| Footer CTA | "Stop guessing. Start validating." | Conversion |
+
+### Step 2: Authentication (`/login`)
+
+- Single "Sign in with Google" OAuth button
+- Auto-creates account for first-time users
+- Redirects to `/dashboard` after auth
+
+### Step 3: Dashboard (`/dashboard`)
+
+| Section | Content | Condition |
+|---------|---------|-----------|
+| Welcome | "Welcome back, [First Name]!" | Always |
+| Start New Research | Card with 4 feature badges + button | Always |
+| Continue Your Research | Highlighted card with next step | If incomplete job exists |
+| Recent Research | List of last 10 jobs with status badges | If jobs exist |
+
+**Status Badges:** Completed (green), Processing (blue + spinner), Failed (red), [Step Name] (outline)
+
+### Step 4: Research Input (`/research`)
+
+**Input Elements:**
+
+| Element | Type | Details |
+|---------|------|---------|
+| Hypothesis textarea | Multiline | Placeholder: "e.g., Training community for London Hyrox athletes" |
+| Example buttons (4) | Quick-fill pills | Pre-written hypotheses to reduce blank-page anxiety |
+| "Check Data Availability" | Primary button | Triggers FREE coverage preview |
+| "Proceed with Research" | Primary button | Costs 1 credit, starts full analysis |
+| "Refine Hypothesis" | Secondary button | Returns to editing |
+
+**Coverage Preview (Free):**
+- Confidence indicator (green/blue/yellow/red)
+- Relevant subreddits with relevance badges (high/medium/low)
+- Keywords extracted
+- Recommendation text
+
+### Step 5: Processing States
+
+**Auto-Trigger (0-3s):**
+```
+[Spinner] "Starting Research"
+"Initializing analysis for your hypothesis..."
+```
+
+**Active Processing (5-90s):**
+```
+[Spinner] "Research in Progress"
+"Analyzing Reddit discussions..."
+"Checking every 3s... (5 checks)"
+```
+
+**Timeout (After 5 min):**
+```
+[Amber] "Taking Longer Than Expected"
+[Button: "Check Again"]
+```
+
+**Tab Close Warning:** Browser confirms before closing during research.
+
+**Timing Breakdown:**
+
+| Phase | Duration |
+|-------|----------|
+| Keyword extraction | <1s |
+| Subreddit discovery | 2-5s |
+| Reddit fetch | 3-10s |
+| Relevance filtering | 5-15s |
+| Pain analysis | 2-3s |
+| Theme extraction | 3-5s |
+| Interview questions | 2-3s |
+| Market sizing | 5-10s |
+| Timing analysis | 5-10s |
+| **Total** | **30-70s** |
+
+### Step 6: Results Page (`/research/[id]`)
+
+**Header:** Back button, hypothesis, metadata, PDF download, status badge
+
+**Progress Stepper:** Community Voice → Competitor Analysis → Viability Verdict
+
+**5 Tabs:**
+
+| Tab | Icon | Indicator | Key Content |
+|-----|------|-----------|-------------|
+| Verdict | Target | Score badge | Composite 0-10 score, dimension breakdown, dealbreakers, recommendations |
+| Community | TrendingUp | Green dot | Pain themes, signals, quotes, interview guide, data quality |
+| Market | PieChart | Green dot | TAM/SAM/SOM, revenue analysis, achievability |
+| Timing | Timer | Green dot | Tailwinds, headwinds, timing window |
+| Competitors | Shield | Green dot | Competitor cards, matrix, gaps, positioning strategies |
+
+### Credit System
+
+- **1 credit** charged upfront at research trigger
+- Same credit covers all 4 modules (pain, market, timing, competitor)
+- **Auto-refund** on failure (not shown in UI, balance restored)
+- Header badge shows current balance
 
 ---
 
@@ -179,9 +256,7 @@ src/
 │   │   ├── admin/debug/page.tsx      # Debug info (dev only)
 │   │   └── research/
 │   │       ├── page.tsx              # Hypothesis form + Coverage Preview
-│   │       ├── [id]/page.tsx         # Results view + Viability Verdict
-│   │       ├── [id]/steps/page.tsx   # Step-based research flow
-│   │       └── competitors/page.tsx  # Competitor analysis form
+│   │       └── [id]/page.tsx         # Unified results view (5 tabs: Verdict, Community, Market, Timing, Competitors)
 │   └── api/
 │       ├── auth/callback/route.ts    # OAuth code exchange
 │       ├── dev/login/route.ts        # Dev-only auth bypass
@@ -206,6 +281,9 @@ src/
 │   │   ├── competitor-results.tsx    # Matrix, gaps, positioning
 │   │   ├── viability-verdict.tsx     # Composite score dashboard
 │   │   ├── research-progress.tsx     # Step progress indicator
+│   │   ├── competitor-runner.tsx     # Inline competitor analysis runner
+│   │   ├── research-trigger.tsx      # Auto-starts research + polling
+│   │   ├── status-poller.tsx         # Status polling component
 │   │   ├── pain-score-card.tsx       # Individual post cards
 │   │   └── pain-score-display.tsx    # Visual bar chart
 │   └── ui/                           # Radix UI primitives (shadcn)
@@ -412,6 +490,7 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 | Research Resilience | ✅ Complete | 100% | Browser warning, error tracking, auto-refund |
 | Credits/Billing | ✅ Complete | 100% | LemonSqueezy integration |
 | Admin Dashboard | ✅ Complete | 100% | Analytics + user management |
+| View Unification | ✅ Complete | 100% | Single tabbed results view, removed wizard/steps views |
 | Dark Mode | ❌ Not started | 0% | Priority: Low |
 
 **Overall MVP: ~99% complete**
@@ -491,6 +570,7 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 7. ~~**Step-based Research Flow**~~ - Progressive 4-step workflow with real-time progress
 8. ~~**Partial Results Display**~~ - Show completed modules while others process
 9. ~~**Arctic Shift Query Pattern Fix**~~ - Fetch by subreddit only, Claude filters content
+10. ~~**View Unification**~~ - Single tabbed results view, removed wizard/steps views
 
 ### Medium Term
 1. **Pain Analysis Summary on Market Sizing** - Show what was discovered before asking for inputs
@@ -506,6 +586,138 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 
 ---
 
+## Behavioral Insights
+
+*For behavioral scientists and business developers working with the dev team.*
+
+### Friction Points (Drop-off Risk)
+
+| Friction | Location | Impact |
+|----------|----------|--------|
+| Google-only OAuth | `/login` | No alternative for users without Google accounts |
+| Hypothesis minimum (10 chars) | `/research` | Low - prevents trivial inputs |
+| Coverage preview step | `/research` | Medium - adds friction but reduces commitment anxiety |
+| 30-70s wait time | Processing | High - tab must stay open |
+| Credit requirement | `/research` | Medium - deters low-commitment users |
+
+### Decision Moments
+
+| Moment | Trigger | Mitigation |
+|--------|---------|------------|
+| Landing → Login | User decides to try | "Free · No credit card" messaging |
+| Dashboard → Research | User starts new research | Clear "Start" vs "Continue" paths |
+| Hypothesis → Coverage | User checks data availability | FREE preview reduces risk perception |
+| Coverage → Proceed | User commits credit | Color-coded confidence guides decision |
+| Community → Competitors | User continues research | Banner prompts next step |
+
+### Anxiety Mitigation
+
+| Anxiety | User Thought | Mitigation |
+|---------|--------------|------------|
+| "Is it stuck?" | No visual feedback | Live poll count + progress steps |
+| "Will I lose my credit?" | Fear of wasted money | Tab warning + auto-refund on failure |
+| "How long will this take?" | Uncertainty | "30-70 seconds" timing shown |
+| "Is this data trustworthy?" | Quality concerns | Data quality card + filtering transparency |
+| "What do I do next?" | Analysis paralysis | CTAs on every tab + recommendations list |
+
+### Trust Builders
+
+- **Social proof:** Testimonials on landing page
+- **Transparency:** Data quality card shows filtering metrics
+- **Attribution:** "Mom Test" reference for interview questions
+- **Confidence indicators:** Score confidence levels shown
+- **Research metadata:** Date ranges and sources visible
+
+### Key UI Components by Purpose
+
+| Purpose | Component | File |
+|---------|-----------|------|
+| Reduce blank-page anxiety | Example hypothesis buttons | `hypothesis-form.tsx` |
+| Show progress during wait | Research trigger + poller | `research-trigger.tsx` |
+| Build trust in results | Data quality card | `community-voice-results.tsx` |
+| Guide next actions | Recommendations card | `viability-verdict.tsx` |
+| Enable competitor input | Known competitors field | `competitor-runner.tsx` |
+
+---
+
+## Code Standards
+
+*Practices that prevent bugs before they reach production.*
+
+### The 4 Pillars
+
+#### 1. Type Safety - Generate Database Types
+
+```bash
+# After any schema change
+npx supabase gen types typescript --project-id PROJECT_ID > src/types/supabase.ts
+```
+
+Use typed clients everywhere:
+```typescript
+import { Database } from '@/types/supabase'
+export function createAdminClient() {
+  return createClient<Database>(url, key)
+}
+```
+
+#### 2. Single Source of Truth - Shared Utilities
+
+Don't copy-paste database operations. Use:
+```typescript
+// src/lib/research/save-result.ts
+await saveResearchResult(jobId, 'pain_analysis', data)
+```
+
+Type-safe module names prevent typos:
+```typescript
+type ModuleName = 'pain_analysis' | 'market_sizing' | 'timing_analysis' | 'competitor_intelligence' | 'community_voice'
+```
+
+#### 3. Defensive Architecture - JSON Serialization
+
+Always serialize complex objects before DB save:
+```typescript
+data: JSON.parse(JSON.stringify(myResult))
+```
+
+#### 4. Test Coverage - Integration Tests
+
+UI tests aren't enough. Test the data layer:
+```typescript
+await saveResearchResult(testJobId, 'pain_analysis', mockData)
+const { data } = await adminClient.from('research_results').select('*').eq('job_id', testJobId).single()
+expect(data?.module_name).toBe('pain_analysis')
+```
+
+### Pre-Commit Checklist
+
+```bash
+npm run build    # Catches type errors dev mode misses
+npm run test:run # 66+ tests must pass
+```
+
+### Common Pitfalls
+
+| Pitfall | Do This Instead |
+|---------|-----------------|
+| Copy-paste DB operations | Use shared utilities |
+| `any` type | Define proper types or use `unknown` |
+| String column names | Generate DB types |
+| Testing only UI | Add integration tests |
+| Skipping `npm run build` | Always build before commit |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/types/supabase.ts` | Auto-generated database types |
+| `src/lib/research/save-result.ts` | Shared save utility |
+| `src/lib/supabase/admin.ts` | Typed admin client |
+| `src/__tests__/research-flow.integration.test.ts` | Data layer tests |
+
+---
+
 ## Troubleshooting
 
 ### Common Issues
@@ -517,6 +729,10 @@ await puppeteer_click({ selector: 'button[type="submit"]' })
 **Pain Analysis fails to save**
 - Check migration 011 was applied (adds `pain_analysis` to module_name constraint)
 - Solution: Run `supabase/migrations/011_fix_module_name_constraint.sql`
+
+**Competitor Analysis fails to save**
+- Check migration 012 was applied (adds `competitor_intelligence` to module_name constraint)
+- Solution: Run `supabase/migrations/012_fix_competitor_intelligence_constraint.sql`
 
 **Auth redirect loops**
 - Clear cookies and try again

@@ -292,7 +292,7 @@ For each tab (Verdict, Community, Market, Timing, Competitors):
 
 ## Report Structure
 
-Save to: `docs/ceo-review-report-YYYY-MM-DD.md`
+Save to: `docs/archive/ceo-review-report-YYYY-MM-DD.md`
 
 ```markdown
 # CEO Product Review - [DATE]
@@ -461,7 +461,7 @@ Your review is complete when:
 - [ ] Full research flow tested (uses 1 credit)
 - [ ] At least 5 pain signals manually reviewed for relevance
 - [ ] Relevance percentage calculated
-- [ ] Report saved to docs/ with all sections completed
+- [ ] Report saved to docs/archive/ with all sections completed
 - [ ] Honest grade assigned with justification
 
 ---

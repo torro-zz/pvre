@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { CommunityVoiceResults } from '@/components/research/community-voice-results'
 import { DataQualityCard } from '@/components/research/data-quality-card'
 import { CompetitorResults } from '@/components/research/competitor-results'
+import { CompetitorRunner } from '@/components/research/competitor-runner'
 import { ViabilityVerdictDisplay } from '@/components/research/viability-verdict'
 import { CompetitorPromptModal, CompetitorPromptBanner } from '@/components/research/competitor-prompt-modal'
 import { Card, CardContent } from '@/components/ui/card'
@@ -16,6 +17,7 @@ import { PDFDownloadButton } from '@/components/research/pdf-download-button'
 import { ReportProblem } from '@/components/research/report-problem'
 import { ResearchMetadata } from '@/components/research/research-metadata'
 import { StatusPoller } from '@/components/research/status-poller'
+import { ResearchTrigger } from '@/components/research/research-trigger'
 import { PartialResultsContainer } from '@/components/research/partial-results-container'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
@@ -286,15 +288,6 @@ export default async function ResearchDetailPage({
 
             <Tabs defaultValue="community" className="space-y-6">
             <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="verdict" className="flex items-center gap-2">
-                <Target className="h-4 w-4" />
-                <span className="hidden sm:inline">Verdict</span>
-                {viabilityVerdict.availableDimensions > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {viabilityVerdict.overallScore.toFixed(1)}
-                  </Badge>
-                )}
-              </TabsTrigger>
               <TabsTrigger value="community" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 <span className="hidden sm:inline">Community</span>
@@ -323,24 +316,16 @@ export default async function ResearchDetailPage({
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                 )}
               </TabsTrigger>
+              <TabsTrigger value="verdict" className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                <span className="hidden sm:inline">Verdict</span>
+                {viabilityVerdict.availableDimensions > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {viabilityVerdict.overallScore.toFixed(1)}
+                  </Badge>
+                )}
+              </TabsTrigger>
             </TabsList>
-
-            {/* Verdict Tab */}
-            <TabsContent value="verdict">
-              {communityVoiceResult?.data && !competitorResult?.data && (
-                <div className="mb-6">
-                  <CompetitorPromptBanner
-                    jobId={id}
-                    hypothesis={researchJob.hypothesis}
-                  />
-                </div>
-              )}
-              <ViabilityVerdictDisplay
-                verdict={viabilityVerdict}
-                hypothesis={researchJob.hypothesis}
-                jobId={id}
-              />
-            </TabsContent>
 
             {/* Community Voice Tab */}
             <TabsContent value="community">
@@ -465,12 +450,29 @@ export default async function ResearchDetailPage({
                 </Card>
               )}
             </TabsContent>
+
+            {/* Verdict Tab */}
+            <TabsContent value="verdict">
+              {communityVoiceResult?.data && !competitorResult?.data && (
+                <div className="mb-6">
+                  <CompetitorPromptBanner
+                    jobId={id}
+                    hypothesis={researchJob.hypothesis}
+                  />
+                </div>
+              )}
+              <ViabilityVerdictDisplay
+                verdict={viabilityVerdict}
+                hypothesis={researchJob.hypothesis}
+                jobId={id}
+              />
+            </TabsContent>
             </Tabs>
           </PartialResultsContainer>
         ) : researchJob.status === 'processing' ? (
           <StatusPoller jobId={id} initialStatus="processing" />
         ) : researchJob.status === 'pending' ? (
-          <StatusPoller jobId={id} initialStatus="pending" />
+          <ResearchTrigger jobId={id} hypothesis={researchJob.hypothesis} />
         ) : researchJob.status === 'failed' ? (
           <Card>
             <CardContent className="py-12">
@@ -515,17 +517,8 @@ export default async function ResearchDetailPage({
               />
             )}
 
-            <Tabs defaultValue="verdict" className="space-y-6">
+            <Tabs defaultValue="community" className="space-y-6">
             <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="verdict" className="flex items-center gap-2">
-                <Target className="h-4 w-4" />
-                <span className="hidden sm:inline">Verdict</span>
-                {viabilityVerdict.availableDimensions > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {viabilityVerdict.overallScore.toFixed(1)}
-                  </Badge>
-                )}
-              </TabsTrigger>
               <TabsTrigger value="community" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 <span className="hidden sm:inline">Community</span>
@@ -554,25 +547,16 @@ export default async function ResearchDetailPage({
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                 )}
               </TabsTrigger>
+              <TabsTrigger value="verdict" className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                <span className="hidden sm:inline">Verdict</span>
+                {viabilityVerdict.availableDimensions > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {viabilityVerdict.overallScore.toFixed(1)}
+                  </Badge>
+                )}
+              </TabsTrigger>
             </TabsList>
-
-            {/* Verdict Tab */}
-            <TabsContent value="verdict">
-              {/* Banner when competitors are missing */}
-              {communityVoiceResult?.data && !competitorResult?.data && (
-                <div className="mb-6">
-                  <CompetitorPromptBanner
-                    jobId={id}
-                    hypothesis={researchJob.hypothesis}
-                  />
-                </div>
-              )}
-              <ViabilityVerdictDisplay
-                verdict={viabilityVerdict}
-                hypothesis={researchJob.hypothesis}
-                jobId={id}
-              />
-            </TabsContent>
 
             {/* Community Voice Tab */}
             <TabsContent value="community">
@@ -880,24 +864,26 @@ export default async function ResearchDetailPage({
               {competitorResult?.data ? (
                 <CompetitorResults results={competitorResult.data} />
               ) : (
-                <Card>
-                  <CardContent className="py-12">
-                    <div className="text-center">
-                      <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Competitor Intelligence Not Run</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Run Competitor Intelligence to analyze the competitive landscape.
-                      </p>
-                      <Link href={`/research/competitors?hypothesis=${encodeURIComponent(researchJob.hypothesis)}`}>
-                        <Button>
-                          <Shield className="h-4 w-4 mr-2" />
-                          Run Competitor Intelligence
-                        </Button>
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
+                <CompetitorRunner jobId={id} hypothesis={researchJob.hypothesis} />
               )}
+            </TabsContent>
+
+            {/* Verdict Tab */}
+            <TabsContent value="verdict">
+              {/* Banner when competitors are missing */}
+              {communityVoiceResult?.data && !competitorResult?.data && (
+                <div className="mb-6">
+                  <CompetitorPromptBanner
+                    jobId={id}
+                    hypothesis={researchJob.hypothesis}
+                  />
+                </div>
+              )}
+              <ViabilityVerdictDisplay
+                verdict={viabilityVerdict}
+                hypothesis={researchJob.hypothesis}
+                jobId={id}
+              />
             </TabsContent>
             </Tabs>
           </>
@@ -911,7 +897,7 @@ export default async function ResearchDetailPage({
                 <p className="text-muted-foreground mb-4">
                   Start your 4-step research process to validate this hypothesis.
                 </p>
-                <Link href={`/research/${id}/steps`}>
+                <Link href={`/research?hypothesis=${encodeURIComponent(researchJob.hypothesis)}`}>
                   <Button size="lg">
                     <TrendingUp className="h-4 w-4 mr-2" />
                     Start Research

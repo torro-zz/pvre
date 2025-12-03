@@ -6,14 +6,14 @@ description: Run a comprehensive CEO-ready product review with detailed UX/UI an
 
 A demanding CEO walkthrough. See what users see. Be brutally honest.
 
-**Duration:** ~15 minutes | **Credits Used:** 1 | **Output:** `docs/ceo-review-report-YYYY-MM-DD.md`
+**Duration:** ~15 minutes | **Credits Used:** 1 | **Output:** `docs/archive/ceo-review-report-YYYY-MM-DD.md`
 
 ## Core Rules
 
 1. **LOOK at every screenshot** - Describe what you literally see
 2. **Check console errors after EVERY navigation** - `mcp__browser-tools__getConsoleErrors`
 3. **Be honest** - This is for fixing problems, not for praise
-4. **Save the report** - Must write to `docs/ceo-review-report-[DATE].md`
+4. **Save the report** - Must write to `docs/archive/ceo-review-report-[DATE].md`
 
 ## Test Hypothesis
 ```
@@ -83,7 +83,7 @@ Click PDF download button
 
 ## Report Template
 
-Save to: `docs/ceo-review-report-YYYY-MM-DD.md`
+Save to: `docs/archive/ceo-review-report-YYYY-MM-DD.md`
 
 ```markdown
 # CEO Review Report - [DATE]

@@ -603,10 +603,19 @@ export async function POST(request: NextRequest) {
         // Save results using shared utility
         await saveResearchResult(jobId, 'community_voice', result)
 
-        // Mark job as completed (backend controls status now)
+        // Mark job as completed and update step_status for all completed modules
+        // This allows competitor-intelligence to see that timing_analysis is complete
         await adminClient
           .from('research_jobs')
-          .update({ status: 'completed' })
+          .update({
+            status: 'completed',
+            step_status: {
+              pain_analysis: 'completed',
+              market_sizing: 'completed',
+              timing_analysis: 'completed',
+              competitor_analysis: 'pending'
+            }
+          })
           .eq('id', jobId)
       } catch (dbError) {
         console.error('Failed to save results to database:', dbError)

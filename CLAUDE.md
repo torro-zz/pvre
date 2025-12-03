@@ -27,7 +27,7 @@
 
 ## Code Quality Standards
 
-**Full guide:** `docs/CODE_HARDENING_GUIDE.md`
+**Full guide:** `docs/TECHNICAL_OVERVIEW.md` → "Code Standards" section
 
 ### Database Operations
 Use typed Supabase clients (`Database` type from `src/types/supabase.ts`).

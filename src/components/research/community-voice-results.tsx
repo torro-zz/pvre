@@ -579,15 +579,23 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 
               {/* CTA Button */}
               <div className="flex-shrink-0">
-                <Link
-                  href={`/research/competitors?${jobId ? `jobId=${jobId}&` : ''}hypothesis=${encodeURIComponent(hypothesis)}`}
+                <Button
+                  size="lg"
+                  className="w-full md:w-auto gap-2 text-base px-6"
+                  onClick={() => {
+                    const competitorsTab = document.querySelector('[data-value="competitors"]') as HTMLElement
+                    if (competitorsTab) {
+                      competitorsTab.click()
+                      setTimeout(() => {
+                        competitorsTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }, 100)
+                    }
+                  }}
                 >
-                  <Button size="lg" className="w-full md:w-auto gap-2 text-base px-6">
-                    <Building2 className="h-5 w-5" />
-                    Run Competitor Analysis
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
+                  <Building2 className="h-5 w-5" />
+                  Run Competitor Analysis
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           </div>

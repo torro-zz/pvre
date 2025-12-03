@@ -21,10 +21,10 @@ interface HypothesisFormProps {
 }
 
 const EXAMPLE_HYPOTHESES = [
-  'Training community for London Hyrox athletes',
-  'Meal planning app for busy parents with picky eaters',
-  'Remote collaboration tools for distributed design teams',
-  'Personal finance coaching for millennials with student debt',
+  'Solo athletes who struggle to stay motivated training alone for Hyrox races',
+  'Busy parents who waste hours figuring out what to cook because their kids reject everything',
+  'Remote designers who feel disconnected from their team and miss spontaneous collaboration',
+  'Millennials drowning in student debt who feel overwhelmed managing their finances',
 ]
 
 export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true }: HypothesisFormProps) {
@@ -89,10 +89,10 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="hypothesis">Business Hypothesis</Label>
+            <Label htmlFor="hypothesis">Who&apos;s struggling and what&apos;s their problem?</Label>
             <Textarea
               id="hypothesis"
-              placeholder="e.g., Training community for London Hyrox athletes"
+              placeholder="e.g., Solo athletes who struggle to stay motivated training alone"
               value={hypothesis}
               onChange={(e) => handleHypothesisChange(e.target.value)}
               disabled={isLoading}
@@ -100,7 +100,7 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
               className="resize-none"
             />
             <p className="text-sm text-muted-foreground">
-              Describe your business idea, target audience, or problem you want to solve.
+              Format: <span className="font-medium">[Audience] who [problem they face]</span>
             </p>
           </div>
 

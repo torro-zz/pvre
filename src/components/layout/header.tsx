@@ -77,13 +77,28 @@ export function Header() {
                 <Button variant="ghost">Dashboard</Button>
               </Link>
 
-              {/* Credits Badge */}
+              {/* Credits Badge with warning states */}
               <Link
                 href="/account/billing"
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition-colors"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  credits !== null && credits <= 1
+                    ? 'bg-red-100 hover:bg-red-200 text-red-700'
+                    : credits !== null && credits <= 3
+                    ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-700'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                }`}
               >
-                <CreditCard className="w-4 h-4 text-gray-500" />
+                <CreditCard className={`w-4 h-4 ${
+                  credits !== null && credits <= 1
+                    ? 'text-red-500'
+                    : credits !== null && credits <= 3
+                    ? 'text-yellow-500'
+                    : 'text-gray-500'
+                }`} />
                 <span>{credits ?? '...'} credits</span>
+                {credits !== null && credits <= 3 && (
+                  <span className="text-xs ml-1">· Get More</span>
+                )}
               </Link>
 
               {/* Account Dropdown */}
