@@ -56,6 +56,15 @@ import { StructuredHypothesis } from '@/types/research'
 
 const anthropic = new Anthropic()
 
+// Individual relevance decision for audit
+interface RelevanceDecision {
+  reddit_id: string
+  title?: string
+  body_preview: string
+  subreddit: string
+  decision: 'Y' | 'N'
+}
+
 // Filter result with metrics for transparency
 interface FilterResult<T> {
   items: T[]
@@ -65,6 +74,7 @@ interface FilterResult<T> {
     filteredOut: number
     filterRate: number // percentage
   }
+  decisions: RelevanceDecision[]  // All Y/N decisions for audit
 }
 
 // Filter posts by relevance to hypothesis using Claude Haiku (strict Y/N filtering)
@@ -80,9 +90,10 @@ async function filterRelevantPosts(
     filteredOut: 0,
     filterRate: 0,
   }
+  const allDecisions: RelevanceDecision[] = []
 
   if (posts.length === 0) {
-    return { items: [], metrics }
+    return { items: [], metrics, decisions: [] }
   }
 
   // Batch posts into groups of 20 for efficiency
@@ -154,12 +165,21 @@ Your response (${batch.length} letters):`
         const decisions = content.text.trim().toUpperCase().replace(/[^YN]/g, '')
 
         batch.forEach((post, idx) => {
-          if (decisions[idx] === 'Y') {
+          const decision = decisions[idx] === 'Y' ? 'Y' : 'N'
+          if (decision === 'Y') {
             relevantPosts.push(post)
           }
+          // Collect decision for audit
+          allDecisions.push({
+            reddit_id: post.id,
+            title: post.title,
+            body_preview: (post.body || '').slice(0, 200),
+            subreddit: post.subreddit,
+            decision,
+          })
         })
 
-        // Log decisions for quality audit (non-blocking)
+        // Also log to database for persistent audit (non-blocking)
         if (jobId) {
           const logs = preparePostDecisionLogs(jobId, batch, decisions, i)
           logRelevanceDecisions(logs).catch(() => {}) // Silently ignore logging failures
@@ -176,7 +196,7 @@ Your response (${batch.length} letters):`
   metrics.filteredOut = metrics.before - metrics.after
   metrics.filterRate = metrics.before > 0 ? (metrics.filteredOut / metrics.before) * 100 : 0
 
-  return { items: relevantPosts, metrics }
+  return { items: relevantPosts, metrics, decisions: allDecisions }
 }
 
 // Filter comments by relevance to hypothesis using Claude Haiku (strict Y/N filtering)
@@ -192,9 +212,10 @@ async function filterRelevantComments(
     filteredOut: 0,
     filterRate: 0,
   }
+  const allDecisions: RelevanceDecision[] = []
 
   if (comments.length === 0) {
-    return { items: [], metrics }
+    return { items: [], metrics, decisions: [] }
   }
 
   // Batch comments into groups of 25 (comments are shorter)
@@ -263,12 +284,20 @@ Your response (${batch.length} letters):`
         const decisions = content.text.trim().toUpperCase().replace(/[^YN]/g, '')
 
         batch.forEach((comment, idx) => {
-          if (decisions[idx] === 'Y') {
+          const decision = decisions[idx] === 'Y' ? 'Y' : 'N'
+          if (decision === 'Y') {
             relevantComments.push(comment)
           }
+          // Collect decision for audit
+          allDecisions.push({
+            reddit_id: comment.id,
+            body_preview: comment.body.slice(0, 200),
+            subreddit: comment.subreddit,
+            decision,
+          })
         })
 
-        // Log decisions for quality audit (non-blocking)
+        // Also log to database for persistent audit (non-blocking)
         if (jobId) {
           const logs = prepareCommentDecisionLogs(jobId, batch, decisions, i)
           logRelevanceDecisions(logs).catch(() => {}) // Silently ignore logging failures
@@ -284,7 +313,7 @@ Your response (${batch.length} letters):`
   metrics.filteredOut = metrics.before - metrics.after
   metrics.filterRate = metrics.before > 0 ? (metrics.filteredOut / metrics.before) * 100 : 0
 
-  return { items: relevantComments, metrics }
+  return { items: relevantComments, metrics, decisions: allDecisions }
 }
 
 // Calculate data quality level based on filter rates
@@ -339,6 +368,11 @@ export interface CommunityVoiceResult {
       totalTokens: number
       totalCostUsd: number
       costBreakdown: { model: string; calls: number; cost: number }[]
+    }
+    // Individual Y/N decisions for quality audit
+    relevanceDecisions?: {
+      posts: RelevanceDecision[]
+      comments: RelevanceDecision[]
     }
   }
 }
@@ -695,6 +729,11 @@ export async function POST(request: NextRequest) {
         timestamp: new Date().toISOString(),
         filteringMetrics,
         tokenUsage: tokenUsage || undefined,
+        // Include all Y/N decisions for quality audit
+        relevanceDecisions: {
+          posts: postFilterResult.decisions,
+          comments: commentFilterResult.decisions,
+        },
       },
     }
 
