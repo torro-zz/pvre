@@ -213,7 +213,7 @@ export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
           </div>
 
           <p className="text-sm text-muted-foreground text-center">
-            Please keep this tab open while we analyze your hypothesis.
+            This takes 1-2 minutes. Feel free to leave - results save automatically.
           </p>
         </CardContent>
       </Card>

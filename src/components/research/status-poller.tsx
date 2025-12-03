@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, RefreshCw, AlertTriangle } from 'lucide-react'
+import { useNotifications } from '@/hooks/use-notifications'
 
 export interface ResearchResult {
   id: string
@@ -18,15 +19,24 @@ export interface ResearchResult {
 interface StatusPollerProps {
   jobId: string
   initialStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  hypothesis?: string // For notification
   onResultsUpdate?: (results: ResearchResult[]) => void
   hidden?: boolean
 }
 
-export function StatusPoller({ jobId, initialStatus, onResultsUpdate, hidden }: StatusPollerProps) {
+export function StatusPoller({ jobId, initialStatus, hypothesis, onResultsUpdate, hidden }: StatusPollerProps) {
   const router = useRouter()
   const [status, setStatus] = useState(initialStatus)
   const [pollCount, setPollCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const { notifyResearchComplete, requestPermission } = useNotifications()
+
+  // Request notification permission on mount if still processing
+  useEffect(() => {
+    if (initialStatus === 'processing' || initialStatus === 'pending') {
+      requestPermission()
+    }
+  }, [initialStatus, requestPermission])
 
   // Poll interval: 3 seconds for first 20 polls, then 10 seconds
   const pollInterval = pollCount < 20 ? 3000 : 10000
@@ -57,8 +67,15 @@ export function StatusPoller({ jobId, initialStatus, onResultsUpdate, hidden }: 
 
         if (statusData.status !== status) {
           setStatus(statusData.status)
-          if (statusData.status === 'completed' || statusData.status === 'failed') {
+          if (statusData.status === 'completed') {
+            // Show browser notification (if permitted and user not on this tab)
+            if (hypothesis) {
+              notifyResearchComplete(hypothesis)
+            }
             // Refresh the page to show final results
+            router.refresh()
+          } else if (statusData.status === 'failed') {
+            // Refresh the page to show error
             router.refresh()
           }
         }

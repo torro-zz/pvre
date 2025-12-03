@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Filter, Search, MessageSquare, Sparkles, X, HelpCircle, TrendingUp, Shield, Target, CreditCard, Zap } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Filter, Search, MessageSquare, Sparkles, X, HelpCircle, TrendingUp, Shield, Target, CreditCard, Zap, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
@@ -276,11 +276,11 @@ export default function ResearchPage() {
         {status === 'loading' && (
           <>
             {/* Warning Banner */}
-            <Alert className="mb-4 border-amber-500/50 bg-amber-500/10">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-700 dark:text-amber-400">
-                <strong>Please keep this tab open.</strong> Research takes 1-2 minutes.
-                Closing the tab may lose your results and credit.
+            <Alert className="mb-4 border-blue-500/50 bg-blue-500/10">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-700 dark:text-blue-400">
+                Research takes 1-2 minutes. <strong>Feel free to leave</strong> - your results
+                will be saved automatically. Check your <Link href="/dashboard" className="underline hover:no-underline">Dashboard</Link> anytime.
               </AlertDescription>
             </Alert>
 

@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { Clock, ArrowRight, FileText, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, Play } from 'lucide-react'
+import { Clock, ArrowRight, FileText, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, Play, RefreshCw } from 'lucide-react'
 import { StepStatusMap, DEFAULT_STEP_STATUS } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
@@ -109,6 +109,9 @@ export default async function DashboardPage() {
 
   const researchJobs = (jobs || []) as ResearchJob[]
 
+  // Find any currently processing jobs (for the "In Progress" banner)
+  const processingJobs = researchJobs.filter(job => job.status === 'processing')
+
   // Find the most recent job that has incomplete steps (not all 4 completed)
   const incompleteJob = researchJobs.find(job => {
     // Skip failed jobs (they can't be continued)
@@ -128,6 +131,42 @@ export default async function DashboardPage() {
           Get automated market research for your business hypothesis
         </p>
       </div>
+
+      {/* In Progress Research Banner */}
+      {processingJobs.length > 0 && (
+        <Card className="border-blue-500/50 bg-blue-500/5">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-blue-500/10">
+                  <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                </div>
+                <div>
+                  <p className="font-medium text-blue-900 dark:text-blue-100">
+                    Research in progress
+                  </p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    "{truncateText(processingJobs[0].hypothesis, 50)}"
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href={`/research/${processingJobs[0].id}`}>
+                  <Button size="sm" variant="outline" className="border-blue-500/50 text-blue-700 hover:bg-blue-500/10">
+                    View Progress
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button size="sm" variant="ghost" className="text-blue-700" title="Refresh to check status">
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Card 1: Start New Research */}

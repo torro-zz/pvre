@@ -18,6 +18,24 @@ Last updated: December 3, 2024
 
 ## UX Improvements
 
+### AI-Powered Exclusion Suggestions for Ambiguous Terms (Dec 3)
+Source: CEO review / UX analysis
+Issue: The "Exclude irrelevant topics" field is empty by default. Users don't know what noise sources exist until they see bad results—by which point they've spent a credit. The placeholder example ("corporate training, dog training, machine learning") only helps if the user's query contains "training." For a visa query, this example is irrelevant and teaches nothing.
+Proposed: After user fills fields 1-2, trigger a lightweight Claude Haiku call that identifies ambiguous terms and suggests exclusions. Display as toggleable chips user can accept/reject before searching.
+Technical Specification
+Trigger Conditions
+Fire the suggestion request when:
+
+Field 1 (Who's struggling?) has ≥3 characters AND
+Field 2 (What's their problem?) has ≥10 characters AND
+User blurs out of field 2, OR clicks a "Suggest exclusions" helper link
+
+Debounce: 500ms after blur to avoid excessive API calls.
+Do NOT fire if:
+
+Exclusions field already has user-typed content (don't overwrite)
+Suggestion already fetched for this exact input (cache by hash of fields 1+2)
+
 *User observations and product feedback. Add items here as you notice them.*
 
 ### ~~Hypothesis Input Optimized for Solutions, Not Problems (Dec 3)~~ ✅ IMPLEMENTED
@@ -59,10 +77,10 @@ Source: User feedback
 **Status: Fixed Dec 3** - Tabs reordered to Community → Market → Timing → Competitors → Verdict. Default set to Community.
 ~~Issue: The overview shows step labels ("Community Voice Step 1, Step 2; Competitors Step 3; Verdict") alongside clickable tabs ("Verdict, Community, Market, Timing, Competitors"). This creates confusion, and "Verdict" appears first, which feels premature and misaligned with the prior flow.~~
 
-### Tab-Close Trap Creates Anxiety (Dec 3)
+### ~~Tab-Close Trap Creates Anxiety (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Flow documentation analysis
-Issue: Warning "Please keep this tab open... Closing may lose your results and credit" feels like a threat. Users feel trapped, can't switch apps on mobile, and blame the product if anything goes wrong—even with auto-refund.
-Proposed: Process asynchronously. Replace with "We'll email you when ready (1-2 min). Feel free to close this tab." Send email notification with direct link to results. Turns friction into re-engagement trigger.
+**Status: Fixed Dec 3** - Replaced scary warning with friendly message: "Feel free to leave - your results will be saved automatically." Added "In Progress" banner on dashboard for returning users. Added browser notification when research completes (if user grants permission).
+~~Issue: Warning "Please keep this tab open... Closing may lose your results and credit" feels like a threat.~~
 
 ### ~~Competitor Analysis Credit Cost Unclear (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Flow documentation analysis
