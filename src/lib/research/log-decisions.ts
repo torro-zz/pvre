@@ -35,10 +35,7 @@ export async function logRelevanceDecisions(
     const adminClient = createAdminClient()
 
     // Batch insert all decisions
-    // Note: After running migration 013_relevance_decisions.sql, regenerate types:
-    // npx supabase gen types typescript --project-id PROJECT_ID > src/types/supabase.ts
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (adminClient as any)
+    const { error } = await adminClient
       .from('relevance_decisions')
       .insert(decisions)
 

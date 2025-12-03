@@ -485,14 +485,63 @@ export type Database = {
         }
         Relationships: []
       }
+      relevance_decisions: {
+        Row: {
+          batch_index: number
+          body_preview: string | null
+          content_type: string
+          created_at: string | null
+          decision: string
+          id: string
+          job_id: string
+          reddit_id: string
+          subreddit: string | null
+          title: string | null
+        }
+        Insert: {
+          batch_index: number
+          body_preview?: string | null
+          content_type: string
+          created_at?: string | null
+          decision: string
+          id?: string
+          job_id: string
+          reddit_id: string
+          subreddit?: string | null
+          title?: string | null
+        }
+        Update: {
+          batch_index?: number
+          body_preview?: string | null
+          content_type?: string
+          created_at?: string | null
+          decision?: string
+          id?: string
+          job_id?: string
+          reddit_id?: string
+          subreddit?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relevance_decisions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "research_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_jobs: {
         Row: {
           competitors: Json | null
+          coverage_data: Json | null
           created_at: string | null
           error_message: string | null
           error_source: string | null
           hypothesis: string
           id: string
+          idempotency_key: string | null
           interview_guide: Json | null
           module_status: Json | null
           pain_signals: Json | null
@@ -504,11 +553,13 @@ export type Database = {
         }
         Insert: {
           competitors?: Json | null
+          coverage_data?: Json | null
           created_at?: string | null
           error_message?: string | null
           error_source?: string | null
           hypothesis: string
           id?: string
+          idempotency_key?: string | null
           interview_guide?: Json | null
           module_status?: Json | null
           pain_signals?: Json | null
@@ -520,11 +571,13 @@ export type Database = {
         }
         Update: {
           competitors?: Json | null
+          coverage_data?: Json | null
           created_at?: string | null
           error_message?: string | null
           error_source?: string | null
           hypothesis?: string
           id?: string
+          idempotency_key?: string | null
           interview_guide?: Json | null
           module_status?: Json | null
           pain_signals?: Json | null
