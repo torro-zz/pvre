@@ -110,7 +110,16 @@ export default async function DashboardPage() {
   const researchJobs = (jobs || []) as ResearchJob[]
 
   // Find any currently processing jobs (for the "In Progress" banner)
-  const processingJobs = researchJobs.filter(job => job.status === 'processing')
+  // Only show jobs updated in the last 15 minutes as "in progress"
+  // Older jobs are likely stuck and will be cleaned up by the cron job
+  const STALE_THRESHOLD_MS = 15 * 60 * 1000 // 15 minutes
+  const now = Date.now()
+
+  const processingJobs = researchJobs.filter(job => {
+    if (job.status !== 'processing') return false
+    const updatedAt = new Date(job.updated_at).getTime()
+    return (now - updatedAt) < STALE_THRESHOLD_MS
+  })
 
   // Find the most recent job that has incomplete steps (not all 4 completed)
   const incompleteJob = researchJobs.find(job => {

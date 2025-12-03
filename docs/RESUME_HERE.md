@@ -1,80 +1,64 @@
-# Resume Point - December 3, 2024
+# Resume Point - December 3, 2024 (Evening)
 
 ## What Was Just Completed
 
-### Massive UX Improvement Sprint (12 commits)
-This session completed nearly the entire UX improvement backlog from the CEO review:
+### Stale Jobs Fix
+Fixed the issue where old stuck research jobs showed as "In Progress" on dashboard:
 
-**Phase 1 - Quick Wins:**
-- Tab order fix (Community → Market → Timing → Competitors → Verdict)
-- Example pattern teaching with problem-first format
-- Credit warning states (yellow at ≤3, red at ≤1)
-- Interview guide prominence in Verdict section
-
-**Phase 2 - Structured Input Redesign:**
-- Replaced single textarea with 4 structured fields
-- Problem language preview in coverage check
-- Subreddit validation UI (checkboxes, add custom)
-- User-selected subreddits passed to community-voice
-
-**Phase 3 - Flow Improvements:**
-- Competitor analysis clarity (completion banner)
-- Negative keywords support (exclude topics field)
-- First-time user guidance ("How It Works" modal)
-- Zero-credit state with purchase CTA
-
-**Additional Fixes:**
-- Admin page bugs (API health button, Claude API costs RLS bypass)
-- Tab-close anxiety removed (friendly messages, browser notifications)
-- "In Progress" banner on dashboard
-
-## Commits This Session
-| Commit | Description |
-|--------|-------------|
-| e584a61 | feat: Remove tab-close anxiety with friendly UX |
-| 9e935c6 | feat: Add subreddit validation to coverage preview |
-| f793524 | fix: Admin page bugs - API health error handling and analytics RLS bypass |
-| 4e7ff5d | feat: Implement Phase 3 UX Flow Improvements |
-| b5e6d20 | fix: Remove redundant progress stepper from research results |
-| 1dedf91 | docs: Mark Phase 2 structured input items as implemented |
-| 626bf6c | feat: Implement Phase 2 Structured Input Redesign |
-| 0205df5 | feat: Implement Phase 1 UX Quick Wins from CEO review |
+1. **Dashboard Staleness Check** - Jobs older than 15 min no longer show in "In Progress" banner
+2. **Auto-Fail Stuck Jobs** - Cleanup endpoint now auto-fails jobs stuck >10 min and refunds credits
+3. **Cron Setup** - Added `vercel.json` for hourly cleanup
 
 ## Uncommitted Changes
-✅ All changes committed
+✅ All changes committed (pending this commit)
+
+## BEFORE DEPLOYING TO VERCEL
+
+### Required Setup
+1. **Add Environment Variable:**
+   ```
+   CRON_SECRET=<generate-a-random-secret>
+   ```
+   Generate with: `openssl rand -hex 32`
+
+2. **Cron will run hourly** at minute 0 (`0 * * * *`)
+   - Endpoint: `/api/admin/cleanup-stale-jobs`
+   - Auto-fails stuck processing jobs
+   - Auto-refunds credits
+
+### How It Works
+- Vercel sends `Authorization: Bearer <CRON_SECRET>` header
+- Endpoint accepts either cron secret OR admin auth
+- Without `CRON_SECRET` env var, cron calls will fail (manual admin calls still work)
 
 ## Build & Test Status
 - **Build:** ✅ Passing
 - **Tests:** 66 passing, 6 skipped
-- **Dev Server:** Running on :3000
+
+## Files Changed This Session
+| File | Change |
+|------|--------|
+| `src/app/(dashboard)/dashboard/page.tsx` | Added 15-min staleness filter for processing jobs |
+| `src/app/api/admin/cleanup-stale-jobs/route.ts` | Auto-fail stuck jobs + cron auth |
+| `vercel.json` | New - hourly cron config |
 
 ## What Needs To Be Done Next
 
 ### Open UX Issues (from KNOWN_ISSUES.md)
-1. **AI-Powered Exclusion Suggestions** - Auto-suggest exclusions for ambiguous terms (e.g., "training" → suggest "corporate training, dog training")
-2. **Google-Only Auth Limits Market** - Add email magic link as secondary auth option
-3. **No Hypothesis Comparison Feature** (Low Priority) - Side-by-side comparison of 2-4 hypotheses
+1. **AI-Powered Exclusion Suggestions** - Auto-suggest exclusions for ambiguous terms
+2. **Google-Only Auth Limits Market** - Add email magic link option
+3. **No Hypothesis Comparison Feature** (Low Priority)
 
 ### Other Priorities
 - Monitor relevance quality (64% problem) - target >70%
-- Consider async email notifications for research completion (deferred)
-
-## Blockers or Open Questions
-None - all planned work completed successfully.
-
-## User Notes
-None
 
 ## Key Files Reference
 | Purpose | File |
 |---------|------|
 | Project instructions | `CLAUDE.md` |
 | Known issues/backlog | `docs/KNOWN_ISSUES.md` |
-| Hypothesis form | `src/components/research/hypothesis-form.tsx` |
-| Coverage preview | `src/components/research/coverage-preview.tsx` |
-| Status poller | `src/components/research/status-poller.tsx` |
-| Browser notifications | `src/hooks/use-notifications.ts` |
-| Community voice API | `src/app/api/research/community-voice/route.ts` |
+| Stale job cleanup | `src/app/api/admin/cleanup-stale-jobs/route.ts` |
+| Vercel cron config | `vercel.json` |
 
 ## Quick Start Commands
 ```bash
@@ -87,4 +71,7 @@ npm run test:run
 
 # Build
 npm run build
+
+# Generate cron secret
+openssl rand -hex 32
 ```

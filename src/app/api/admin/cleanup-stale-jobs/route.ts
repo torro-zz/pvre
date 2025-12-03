@@ -11,6 +11,7 @@ interface StaleJobStats {
   failedWithSource: number
   failedWithoutSource: number
   stuckProcessing: number
+  stuckProcessingAutoFailed: number
   refunded: number
   errorSourceBreakdown: Record<string, number>
 }
@@ -20,23 +21,30 @@ interface StaleJobStats {
  *
  * Processes stale and failed jobs:
  * 1. Jobs with status='failed' AND error_source set → auto-refund + alert admin
- * 2. Jobs stuck in 'processing' > 10 minutes → alert admin only (no auto-refund)
+ * 2. Jobs stuck in 'processing' > 10 minutes → auto-fail + refund + alert admin
  *
- * This endpoint can be called manually or via a cron job.
+ * This endpoint can be called manually (admin auth) or via Vercel cron (CRON_SECRET).
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify admin access
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Check for Vercel cron secret (allows automated cron calls)
+    const authHeader = request.headers.get('authorization')
+    const cronSecret = process.env.CRON_SECRET
+    const isCronCall = cronSecret && authHeader === `Bearer ${cronSecret}`
 
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!isCronCall) {
+      // Verify admin access for manual calls
+      const supabase = await createClient()
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    // Check if user is admin
-    if (!isAdmin(user.email)) {
-      return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 })
+      if (authError || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      // Check if user is admin
+      if (!isAdmin(user.email)) {
+        return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 })
+      }
     }
 
     const adminClient = createAdminClient()
@@ -44,6 +52,7 @@ export async function POST(request: NextRequest) {
       failedWithSource: 0,
       failedWithoutSource: 0,
       stuckProcessing: 0,
+      stuckProcessingAutoFailed: 0,
       refunded: 0,
       errorSourceBreakdown: {},
     }
@@ -110,15 +119,48 @@ export async function POST(request: NextRequest) {
       console.error('Failed to fetch stuck jobs:', stuckError)
     }
 
-    // Alert admin about stuck jobs (but don't auto-refund - uncertain state)
+    // Auto-fail stuck jobs and refund credits
     if (stuckJobs && stuckJobs.length > 0) {
       stats.stuckProcessing = stuckJobs.length
 
+      for (const job of stuckJobs) {
+        // Mark job as failed with timeout error source
+        const { error: updateError } = await adminClient
+          .from('research_jobs')
+          .update({
+            status: 'failed',
+            error_source: 'timeout',
+            error_message: 'Research timed out after 10 minutes. Your credit has been refunded.',
+          })
+          .eq('id', job.id)
+
+        if (updateError) {
+          console.error(`Failed to update stuck job ${job.id}:`, updateError)
+          continue
+        }
+
+        // Auto-refund using the RPC function
+        const { data: refundSuccess, error: refundError } = await adminClient.rpc('refund_credit', {
+          p_user_id: job.user_id,
+          p_job_id: job.id,
+        })
+
+        if (refundError) {
+          console.error(`Failed to refund stuck job ${job.id}:`, refundError)
+        } else if (refundSuccess) {
+          stats.stuckProcessingAutoFailed++
+          stats.refunded++
+        }
+      }
+
+      // Alert admin about the auto-failed stuck jobs
       await sendAdminAlert({
         type: 'stuck_jobs',
-        message: `${stuckJobs.length} jobs stuck in processing for >10 minutes`,
+        message: `Auto-failed ${stats.stuckProcessingAutoFailed} stuck jobs and refunded credits`,
         metadata: {
-          count: stuckJobs.length,
+          total: stuckJobs.length,
+          autoFailed: stats.stuckProcessingAutoFailed,
+          action: 'auto_failed_and_refunded',
           jobs: stuckJobs.map(j => ({
             id: j.id,
             hypothesis: j.hypothesis?.substring(0, 100),
@@ -162,7 +204,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       stats,
-      message: `Processed ${stats.failedWithSource} failed jobs, refunded ${stats.refunded}. ${stats.stuckProcessing} stuck jobs flagged for review.`,
+      message: `Processed ${stats.failedWithSource} failed jobs, auto-failed ${stats.stuckProcessingAutoFailed} stuck jobs, refunded ${stats.refunded} total.`,
     })
   } catch (error) {
     console.error('Cleanup stale jobs failed:', error)
