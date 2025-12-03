@@ -20,47 +20,24 @@ Last updated: December 3, 2024
 
 *User observations and product feedback. Add items here as you notice them.*
 
-### Hypothesis Input Optimized for Solutions, Not Problems (Dec 3)
+### ~~Hypothesis Input Optimized for Solutions, Not Problems (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Core product mechanics analysis
-Issue: Current hypothesis format ("X for Y with Z") captures the user's solution idea, but Reddit users don't discuss solutions—they vent about problems. Searching for "training community Hyrox" finds almost nothing. Searching for "hate training alone" + "Hyrox" finds the pain.
-Proposed: Restructure input to extract the underlying problem first, then use problem-language for search. The AI should translate solution-thinking into problem-language before querying Arctic Shift.
+**Status: Fixed Dec 3** - Structured input form now separates audience, problem, and customer language. Backend uses problem-language directly in search keywords.
+~~Issue: Current hypothesis format ("X for Y with Z") captures the user's solution idea, but Reddit users don't discuss solutions—they vent about problems.~~
 
-### Single Text Field Doesn't Capture Search Intent (Dec 3)
+### ~~Single Text Field Doesn't Capture Search Intent (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Core product mechanics analysis
-Issue: Free-form hypothesis textarea conflates four distinct things: (1) the audience, (2) the problem they have, (3) the solution being proposed, (4) the context/niche. AI must infer all four from one sentence, often incorrectly.
-Proposed: Replace single textarea with structured input:
-WHO are you helping?
-→ "Solo Hyrox athletes in London"
+**Status: Fixed Dec 3** - Replaced single textarea with 4 structured fields:
+1. "Who's struggling?" (audience)
+2. "What's their problem?" (problem)
+3. "How do THEY describe it?" (customer language - key innovation)
+4. "Your solution idea" (optional, collapsible)
+~~Issue: Free-form hypothesis textarea conflates four distinct things.~~
 
-WHAT problem do they have?
-→ "Training alone kills motivation and hurts race performance"
-
-HOW might they describe this problem?
-→ "no one to train with" / "can't push myself" / "hate gym alone"
-
-WHAT's your solution idea? (optional)
-→ "Training partner matching app"
-The third field ("how might they describe it") is the key innovation—it forces users to think in customer language, which directly improves search quality.
-
-### Missing "Problem Language" Extraction Step (Dec 3)
+### ~~Missing "Problem Language" Extraction Step (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Core product mechanics analysis
-Issue: Current flow: Hypothesis → Keywords → Search. But keywords extracted from solution-language don't match Reddit's problem-language. The relevance filtering downstream can't fix garbage-in.
-Proposed: Add explicit extraction step shown to user:
-
-Your hypothesis: "Meal planning app for busy parents with picky eaters"
-
-We'll search for people expressing:
-✓ "kids won't eat anything"
-✓ "dinner time is a nightmare"
-✓ "picky eater driving me crazy"
-✓ "don't know what to cook anymore"
-
-In communities like:
-✓ r/Parenting
-✓ r/MealPrepSunday
-✓ r/Mommit
-
-[Looks right] [Edit search terms]
+**Status: Fixed Dec 3** - Coverage preview now shows "We'll search for people expressing:" with checkmarked phrases extracted from user's problem language input.
+~~Issue: Current flow: Hypothesis → Keywords → Search. But keywords extracted from solution-language don't match Reddit's problem-language.~~
 
 ### No Audience Subreddit Validation (Dec 3)
 Source: CEO review / Core product mechanics analysis
@@ -85,42 +62,6 @@ Proposed: Add optional "Exclude" field:
 EXCLUDE posts about:
 → "corporate training" / "dog training" / "machine learning"
 Or smarter: AI suggests likely noise sources based on ambiguous terms, user confirms exclusions.
-
-Recommended Input Redesign
-Current State
-┌─────────────────────────────────────────────────┐
-│ Enter your hypothesis                           │
-│ ┌─────────────────────────────────────────────┐ │
-│ │ e.g., Training community for London Hyrox   │ │
-│ │ athletes                                    │ │
-│ └─────────────────────────────────────────────┘ │
-│                                                 │
-│ [Example] [Example] [Example] [Example]         │
-│                                                 │
-│ [Check Data Availability]                       │
-└─────────────────────────────────────────────────┘
-
-Proposed State
-┌─────────────────────────────────────────────────┐
-│ Step 1: Who's struggling?                       │
-│ ┌─────────────────────────────────────────────┐ │
-│ │ Solo Hyrox athletes preparing for races     │ │
-│ └─────────────────────────────────────────────┘ │
-│                                                 │
-│ Step 2: What's their problem?                   │
-│ ┌─────────────────────────────────────────────┐ │
-│ │ Training alone kills motivation, can't push │ │
-│ │ hard enough, poor race day performance      │ │
-│ └─────────────────────────────────────────────┘ │
-│                                                 │
-│ Step 3: How do THEY describe it? (optional)     │
-│ ┌─────────────────────────────────────────────┐ │
-│ │ "no one to train with" "hate training alone"│ │
-│ └─────────────────────────────────────────────┘ │
-│ ℹ️ Think: what would they type into Reddit?     │
-│                                                 │
-│ [Check Data Availability]                       │
-└─────────────────────────────────────────────────┘
 
 ### ~~[Research Overview: Tab Order and Labeling Confusion] (Dec 3)~~ ✅ IMPLEMENTED
 Source: User feedback
@@ -147,10 +88,10 @@ Source: CEO review / Flow documentation analysis
 Issue: OAuth-only blocks enterprise users (can't use personal Google), privacy-conscious users, and international users in markets where Google isn't dominant.
 Proposed: Add email magic link as secondary option. Position as: [Sign in with Google] (primary button) + "or" + [Sign in with Email] (text link). Supabase supports this natively.
 
-### Example Buttons Don't Teach the Pattern (Dec 3)
+### ~~Example Buttons Don't Teach the Pattern (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Flow documentation analysis
-Issue: Four example hypotheses span different domains. Users don't see the common formula or understand what makes a good input.
-Proposed: Add label above examples: "Format: [Solution type] for [specific audience] with [specific problem]" — then show examples as illustrations of this pattern.
+**Status: Fixed Dec 3** - Examples now use structured format and clicking them fills all 4 fields with audience, problem, problem language, and solution. Examples teach the pattern by demonstration.
+~~Issue: Four example hypotheses span different domains. Users don't see the common formula or understand what makes a good input.~~
 
 ### ~~No Clear Path to Buy More Credits (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Flow documentation analysis
