@@ -39,16 +39,10 @@ Source: CEO review / Core product mechanics analysis
 **Status: Fixed Dec 3** - Coverage preview now shows "We'll search for people expressing:" with checkmarked phrases extracted from user's problem language input.
 ~~Issue: Current flow: Hypothesis → Keywords → Search. But keywords extracted from solution-language don't match Reddit's problem-language.~~
 
-### No Audience Subreddit Validation (Dec 3)
+### ~~No Audience Subreddit Validation (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Core product mechanics analysis
-Issue: AI guesses relevant subreddits, but user often knows better. A founder building for "freelance designers" knows their audience lives in r/freelanceDesigners, r/graphic_design, not r/Entrepreneur.
-Proposed: During coverage preview, let users:
-
-See AI-suggested subreddits
-Add subreddits they know ("I know my audience is in r/XXX")
-Remove irrelevant ones ("r/business is too broad")
-
-This human-in-the-loop step dramatically improves signal quality.
+**Status: Fixed Dec 3** - Coverage preview now shows checkboxes for AI-suggested subreddits. Users can deselect irrelevant ones and add custom subreddits they know. User selections are passed to community-voice endpoint and used instead of re-discovering.
+~~Issue: AI guesses relevant subreddits, but user often knows better. A founder building for "freelance designers" knows their audience lives in r/freelanceDesigners, r/graphic_design, not r/Entrepreneur.~~
 
 ### ~~Examples Don't Model Good Problem Articulation (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / Core product mechanics analysis

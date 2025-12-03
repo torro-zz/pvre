@@ -416,8 +416,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fetch structured hypothesis from job's coverage_data if available
+    // Fetch structured hypothesis and user-selected subreddits from job's coverage_data if available
     let structuredHypothesis: StructuredHypothesis | undefined
+    let userSelectedSubreddits: string[] | undefined
     if (jobId) {
       const adminClient = createAdminClient()
       // Update status and fetch job data in one query
@@ -429,7 +430,7 @@ export async function POST(request: NextRequest) {
         .select('*')
         .single()
 
-      // coverage_data is a JSON column that may contain structuredHypothesis
+      // coverage_data is a JSON column that may contain structuredHypothesis and user subreddit selections
       const coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
       if (coverageData?.structuredHypothesis) {
         structuredHypothesis = coverageData.structuredHypothesis as StructuredHypothesis
@@ -438,6 +439,12 @@ export async function POST(request: NextRequest) {
           problem: structuredHypothesis.problem?.slice(0, 30),
           hasProblemLanguage: !!structuredHypothesis.problemLanguage,
         })
+      }
+
+      // Check for user-selected subreddits from coverage preview
+      userSelectedSubreddits = coverageData?.userSelectedSubreddits as string[] | undefined
+      if (userSelectedSubreddits && userSelectedSubreddits.length > 0) {
+        console.log('Using user-selected subreddits:', userSelectedSubreddits)
       }
     }
 
@@ -479,10 +486,21 @@ export async function POST(request: NextRequest) {
     })
 
     // Step 2: Discover relevant subreddits using Claude
-    // Use searchContext for better targeting if structured input is available
-    console.log('Step 2: Discovering subreddits for:', searchContext.slice(0, 50))
-    const discoveryResult = await discoverSubreddits(searchContext)
-    const subredditsToSearch = discoveryResult.subreddits.slice(0, 6) // Limit to 6 subreddits
+    // Use user-selected subreddits if available (from coverage preview), otherwise discover
+    let subredditsToSearch: string[]
+    let discoveryResult: { subreddits: string[] }
+
+    if (userSelectedSubreddits && userSelectedSubreddits.length > 0) {
+      // User has selected specific subreddits from coverage preview
+      console.log('Step 2: Using user-selected subreddits:', userSelectedSubreddits)
+      subredditsToSearch = userSelectedSubreddits.slice(0, 8) // Limit to 8 subreddits
+      discoveryResult = { subreddits: subredditsToSearch }
+    } else {
+      // Discover using Claude
+      console.log('Step 2: Discovering subreddits for:', searchContext.slice(0, 50))
+      discoveryResult = await discoverSubreddits(searchContext)
+      subredditsToSearch = discoveryResult.subreddits.slice(0, 6) // Limit to 6 subreddits
+    }
 
     if (subredditsToSearch.length === 0) {
       return NextResponse.json(
@@ -491,7 +509,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('Discovered subreddits:', subredditsToSearch)
+    console.log('Subreddits to search:', subredditsToSearch)
 
     // Step 2.5: Get subreddit relevance weights
     console.log('Step 2.5: Calculating subreddit relevance weights')

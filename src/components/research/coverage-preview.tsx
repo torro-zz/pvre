@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { StructuredHypothesis } from '@/types/research'
 
@@ -20,6 +21,9 @@ export interface CoverageData {
   refinementSuggestions?: string[]
   keywords: string[]
   problemPhrases?: string[] // New: phrases we'll search for
+  // User modifications
+  userSelectedSubreddits?: string[] // AI-suggested subs user wants to keep
+  userAddedSubreddits?: string[] // Custom subs user added
 }
 
 interface CoveragePreviewProps {
@@ -79,6 +83,12 @@ export function CoveragePreview({
   const [checked, setChecked] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Subreddit editing state
+  const [selectedSubreddits, setSelectedSubreddits] = useState<Set<string>>(new Set())
+  const [customSubreddits, setCustomSubreddits] = useState<string[]>([])
+  const [newSubreddit, setNewSubreddit] = useState('')
+  const [showAddInput, setShowAddInput] = useState(false)
+
   const checkCoverage = async () => {
     // Validate based on structured input if available
     const hasValidInput = structuredHypothesis
@@ -110,6 +120,10 @@ export function CoveragePreview({
 
       const data = await res.json()
       setCoverage(data)
+      // Initialize all AI-suggested subreddits as selected
+      const names: string[] = data.subreddits?.map((s: SubredditCoverage) => s.name) || []
+      setSelectedSubreddits(new Set(names))
+      setCustomSubreddits([])
       setChecked(true)
     } catch (err) {
       console.error('Coverage check failed:', err)
@@ -132,6 +146,54 @@ export function CoveragePreview({
     setChecked(false)
     setCoverage(null)
     setError(null)
+    setSelectedSubreddits(new Set())
+    setCustomSubreddits([])
+    setShowAddInput(false)
+    setNewSubreddit('')
+  }
+
+  // Toggle subreddit selection
+  const toggleSubreddit = (name: string) => {
+    setSelectedSubreddits(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) {
+        next.delete(name)
+      } else {
+        next.add(name)
+      }
+      return next
+    })
+  }
+
+  // Add custom subreddit
+  const addCustomSubreddit = () => {
+    const cleaned = newSubreddit.trim().toLowerCase().replace(/^r\//, '')
+    if (cleaned && !customSubreddits.includes(cleaned) && !selectedSubreddits.has(cleaned)) {
+      setCustomSubreddits(prev => [...prev, cleaned])
+      setSelectedSubreddits(prev => new Set([...prev, cleaned]))
+      setNewSubreddit('')
+      setShowAddInput(false)
+    }
+  }
+
+  // Remove custom subreddit
+  const removeCustomSubreddit = (name: string) => {
+    setCustomSubreddits(prev => prev.filter(s => s !== name))
+    setSelectedSubreddits(prev => {
+      const next = new Set(prev)
+      next.delete(name)
+      return next
+    })
+  }
+
+  // Build final coverage data with user modifications
+  const getFinalCoverageData = (): CoverageData => {
+    if (!coverage) throw new Error('No coverage data')
+    return {
+      ...coverage,
+      userSelectedSubreddits: Array.from(selectedSubreddits),
+      userAddedSubreddits: customSubreddits,
+    }
   }
 
   if (error) {
@@ -192,35 +254,123 @@ export function CoveragePreview({
         </Button>
       </div>
 
-      {/* Subreddit breakdown */}
+      {/* Subreddit breakdown - editable */}
       {coverage.subreddits.length > 0 && (
         <div className="space-y-2 mb-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">
-            Communities to analyze
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              Communities to analyze
+            </p>
+            <span className="text-xs text-muted-foreground">
+              {selectedSubreddits.size} selected
+            </span>
+          </div>
           <div className="space-y-1.5">
-            {coverage.subreddits.slice(0, 5).map((sub) => (
+            {/* AI-suggested subreddits with checkboxes */}
+            {coverage.subreddits.slice(0, 8).map((sub) => (
               <div
                 key={sub.name}
-                className="flex items-center justify-between text-sm"
+                className={cn(
+                  'flex items-center justify-between text-sm p-1.5 rounded transition-colors cursor-pointer hover:bg-background/50',
+                  !selectedSubreddits.has(sub.name) && 'opacity-50'
+                )}
+                onClick={() => toggleSubreddit(sub.name)}
               >
-                <span className="font-mono text-xs">r/{sub.name}</span>
                 <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      'text-xs px-2 py-0.5 rounded',
-                      relevanceColors[sub.relevanceScore]
-                    )}
-                  >
-                    {sub.estimatedPosts} posts
-                  </span>
+                  <input
+                    type="checkbox"
+                    checked={selectedSubreddits.has(sub.name)}
+                    onChange={() => toggleSubreddit(sub.name)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-3.5 w-3.5 rounded border-muted-foreground/30"
+                  />
+                  <span className="font-mono text-xs">r/{sub.name}</span>
                 </div>
+                <span
+                  className={cn(
+                    'text-xs px-2 py-0.5 rounded',
+                    relevanceColors[sub.relevanceScore]
+                  )}
+                >
+                  {sub.estimatedPosts} posts
+                </span>
               </div>
             ))}
-            {coverage.subreddits.length > 5 && (
-              <p className="text-xs text-muted-foreground">
-                +{coverage.subreddits.length - 5} more communities
-              </p>
+
+            {/* User-added custom subreddits */}
+            {customSubreddits.map((name) => (
+              <div
+                key={`custom-${name}`}
+                className="flex items-center justify-between text-sm p-1.5 rounded bg-primary/5 border border-primary/20"
+              >
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-3.5 w-3.5 text-primary" />
+                  <span className="font-mono text-xs">r/{name}</span>
+                  <span className="text-xs text-primary">(custom)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeCustomSubreddit(name)}
+                  className="p-0.5 hover:bg-destructive/10 rounded"
+                >
+                  <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                </button>
+              </div>
+            ))}
+
+            {/* Add custom subreddit */}
+            {showAddInput ? (
+              <div className="flex items-center gap-2 p-1.5">
+                <span className="text-xs text-muted-foreground">r/</span>
+                <Input
+                  type="text"
+                  value={newSubreddit}
+                  onChange={(e) => setNewSubreddit(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addCustomSubreddit()
+                    } else if (e.key === 'Escape') {
+                      setShowAddInput(false)
+                      setNewSubreddit('')
+                    }
+                  }}
+                  placeholder="subreddit name"
+                  className="h-7 text-xs font-mono flex-1"
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={addCustomSubreddit}
+                  className="h-7 px-2"
+                  disabled={!newSubreddit.trim()}
+                >
+                  Add
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowAddInput(false)
+                    setNewSubreddit('')
+                  }}
+                  className="h-7 px-2"
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAddInput(true)}
+                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 p-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add a subreddit I know
+              </button>
             )}
           </div>
         </div>
@@ -282,6 +432,15 @@ export function CoveragePreview({
         </div>
       )}
 
+      {/* Validation: need at least one subreddit */}
+      {selectedSubreddits.size === 0 && (
+        <div className="mb-4 p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
+          <p className="text-xs text-yellow-600 dark:text-yellow-400">
+            Select at least one subreddit to analyze
+          </p>
+        </div>
+      )}
+
       {/* Action buttons - type="button" prevents form submission */}
       <div className="flex gap-3">
         {coverage.recommendation === 'refine' ? (
@@ -289,13 +448,13 @@ export function CoveragePreview({
             <Button type="button" onClick={onRefine} variant="default" className="flex-1" disabled={disabled}>
               Refine Hypothesis
             </Button>
-            <Button type="button" onClick={() => onProceed(coverage)} variant="outline" disabled={disabled}>
+            <Button type="button" onClick={() => onProceed(getFinalCoverageData())} variant="outline" disabled={disabled || selectedSubreddits.size === 0}>
               Run Anyway
             </Button>
           </>
         ) : coverage.recommendation === 'caution' ? (
           <>
-            <Button type="button" onClick={() => onProceed(coverage)} variant="default" className="flex-1" disabled={disabled}>
+            <Button type="button" onClick={() => onProceed(getFinalCoverageData())} variant="default" className="flex-1" disabled={disabled || selectedSubreddits.size === 0}>
               {disabled ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -310,7 +469,7 @@ export function CoveragePreview({
             </Button>
           </>
         ) : (
-          <Button type="button" onClick={() => onProceed(coverage)} variant="default" className="flex-1" disabled={disabled}>
+          <Button type="button" onClick={() => onProceed(getFinalCoverageData())} variant="default" className="flex-1" disabled={disabled || selectedSubreddits.size === 0}>
             {disabled ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
