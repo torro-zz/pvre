@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react'
+import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { StructuredHypothesis } from '@/types/research'
 
 export interface SubredditCoverage {
   name: string
@@ -18,10 +19,12 @@ export interface CoverageData {
   recommendation: 'proceed' | 'refine' | 'caution'
   refinementSuggestions?: string[]
   keywords: string[]
+  problemPhrases?: string[] // New: phrases we'll search for
 }
 
 interface CoveragePreviewProps {
   hypothesis: string
+  structuredHypothesis?: StructuredHypothesis // New: structured input
   onProceed: (coverageData: CoverageData) => void
   onRefine: () => void
   disabled?: boolean
@@ -66,6 +69,7 @@ const relevanceColors = {
 
 export function CoveragePreview({
   hypothesis,
+  structuredHypothesis,
   onProceed,
   onRefine,
   disabled = false,
@@ -76,8 +80,13 @@ export function CoveragePreview({
   const [error, setError] = useState<string | null>(null)
 
   const checkCoverage = async () => {
-    if (!hypothesis.trim() || hypothesis.length < 10) {
-      setError('Please enter a hypothesis with at least 10 characters')
+    // Validate based on structured input if available
+    const hasValidInput = structuredHypothesis
+      ? (structuredHypothesis.audience && structuredHypothesis.problem)
+      : (hypothesis.trim() && hypothesis.length >= 10)
+
+    if (!hasValidInput) {
+      setError('Please fill in the required fields')
       return
     }
 
@@ -88,7 +97,10 @@ export function CoveragePreview({
       const res = await fetch('/api/research/coverage-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hypothesis }),
+        body: JSON.stringify({
+          hypothesis,
+          structuredHypothesis, // Pass structured data for better extraction
+        }),
       })
 
       if (!res.ok) {
@@ -214,8 +226,28 @@ export function CoveragePreview({
         </div>
       )}
 
-      {/* Keywords used */}
-      {coverage.keywords.length > 0 && (
+      {/* Problem phrases - key innovation: show users what we're searching for */}
+      {coverage.problemPhrases && coverage.problemPhrases.length > 0 && (
+        <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
+          <div className="flex items-center gap-2 mb-2">
+            <MessageCircle className="h-4 w-4 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              We&apos;ll search for people expressing
+            </p>
+          </div>
+          <div className="space-y-1">
+            {coverage.problemPhrases.map((phrase, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
+                <span className="text-foreground">&ldquo;{phrase}&rdquo;</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Keywords used (fallback if no problem phrases) */}
+      {coverage.keywords.length > 0 && (!coverage.problemPhrases || coverage.problemPhrases.length === 0) && (
         <div className="mb-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
             Search keywords

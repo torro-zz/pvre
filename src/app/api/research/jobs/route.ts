@@ -15,10 +15,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { hypothesis, coverageData } = body
+    const { hypothesis, coverageData, structuredHypothesis } = body
     const idempotencyKey = request.headers.get('X-Idempotency-Key')
 
-    console.log('Job creation request:', { hypothesis: hypothesis?.slice(0, 30), hasCoverageData: !!coverageData, coverageDataKeys: coverageData ? Object.keys(coverageData) : null })
+    // Include structuredHypothesis in coverage_data for storage
+    const enrichedCoverageData = coverageData || structuredHypothesis
+      ? {
+          ...coverageData,
+          structuredHypothesis, // Store structured input for research backend
+        }
+      : null
+
+    console.log('Job creation request:', { hypothesis: hypothesis?.slice(0, 30), hasCoverageData: !!coverageData, hasStructured: !!structuredHypothesis })
 
     if (!hypothesis || typeof hypothesis !== 'string') {
       return NextResponse.json(
@@ -66,7 +74,7 @@ export async function POST(request: NextRequest) {
     let job = null
     let insertError = null
 
-    // First attempt: with coverage_data
+    // First attempt: with coverage_data (includes structuredHypothesis)
     const result1 = await supabase
       .from('research_jobs')
       .insert({
@@ -74,7 +82,7 @@ export async function POST(request: NextRequest) {
         hypothesis: hypothesis.trim(),
         status: 'pending',
         idempotency_key: idempotencyKey || null,
-        coverage_data: coverageData || null,
+        coverage_data: enrichedCoverageData,
       })
       .select()
       .single()

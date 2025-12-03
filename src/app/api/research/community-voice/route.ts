@@ -47,6 +47,7 @@ import {
 } from '@/lib/anthropic'
 import { trackUsage } from '@/lib/analysis/token-tracker'
 import { saveResearchResult } from '@/lib/research/save-result'
+import { StructuredHypothesis } from '@/types/research'
 
 const anthropic = new Anthropic()
 
@@ -415,27 +416,62 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update job status to 'processing' (backend controls status now)
+    // Fetch structured hypothesis from job's coverage_data if available
+    let structuredHypothesis: StructuredHypothesis | undefined
     if (jobId) {
       const adminClient = createAdminClient()
-      await adminClient
+      // Update status and fetch job data in one query
+      // Use raw query since coverage_data may not be in generated types
+      const { data: jobData } = await adminClient
         .from('research_jobs')
         .update({ status: 'processing' })
         .eq('id', jobId)
+        .select('*')
+        .single()
+
+      // coverage_data is a JSON column that may contain structuredHypothesis
+      const coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
+      if (coverageData?.structuredHypothesis) {
+        structuredHypothesis = coverageData.structuredHypothesis as StructuredHypothesis
+        console.log('Using structured hypothesis:', {
+          audience: structuredHypothesis.audience?.slice(0, 30),
+          problem: structuredHypothesis.problem?.slice(0, 30),
+          hasProblemLanguage: !!structuredHypothesis.problemLanguage,
+        })
+      }
     }
 
     // Step 1: Extract hypothesis-specific keywords for better search precision
+    // If structured hypothesis available, use it for better keyword extraction
     console.log('Step 1: Extracting hypothesis-specific keywords')
     lastErrorSource = 'anthropic' // Claude API
-    const extractedKeywords = await extractSearchKeywords(hypothesis)
+
+    // Build enhanced search context if structured input is available
+    const searchContext = structuredHypothesis
+      ? `${structuredHypothesis.audience} who ${structuredHypothesis.problem}${structuredHypothesis.problemLanguage ? ` (searches for: ${structuredHypothesis.problemLanguage})` : ''}`
+      : hypothesis
+
+    const extractedKeywords = await extractSearchKeywords(searchContext)
+
+    // If user provided problem language, add those as primary keywords
+    if (structuredHypothesis?.problemLanguage) {
+      const userPhrases = structuredHypothesis.problemLanguage
+        .split(/[,"]/)
+        .map(p => p.trim())
+        .filter(p => p.length > 3 && p.length < 50)
+      extractedKeywords.primary.unshift(...userPhrases.slice(0, 3))
+      console.log('Added user problem language to keywords:', userPhrases.slice(0, 3))
+    }
+
     console.log('Extracted keywords:', {
       primary: extractedKeywords.primary,
       exclude: extractedKeywords.exclude,
     })
 
     // Step 2: Discover relevant subreddits using Claude
-    console.log('Step 2: Discovering subreddits for:', hypothesis)
-    const discoveryResult = await discoverSubreddits(hypothesis)
+    // Use searchContext for better targeting if structured input is available
+    console.log('Step 2: Discovering subreddits for:', searchContext.slice(0, 50))
+    const discoveryResult = await discoverSubreddits(searchContext)
     const subredditsToSearch = discoveryResult.subreddits.slice(0, 6) // Limit to 6 subreddits
 
     if (subredditsToSearch.length === 0) {

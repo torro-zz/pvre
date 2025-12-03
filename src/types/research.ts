@@ -1,7 +1,45 @@
+/**
+ * Structured hypothesis input - addresses the 64% relevance problem
+ * by separating audience, problem, and customer language
+ */
+export interface StructuredHypothesis {
+  audience: string        // "Who's struggling?" (required)
+  problem: string         // "What's their problem?" (required)
+  problemLanguage?: string // "How do THEY describe it?" (optional)
+  solution?: string       // "Your solution idea" (optional)
+}
+
+/**
+ * Convert structured hypothesis to display string
+ */
+export function formatHypothesis(input: StructuredHypothesis | string): string {
+  if (typeof input === 'string') return input
+  const parts = [input.audience, 'who', input.problem]
+  if (input.solution) {
+    parts.push('— solution:', input.solution)
+  }
+  return parts.join(' ')
+}
+
+/**
+ * Check if input is structured format
+ */
+export function isStructuredHypothesis(input: unknown): input is StructuredHypothesis {
+  return (
+    typeof input === 'object' &&
+    input !== null &&
+    'audience' in input &&
+    'problem' in input &&
+    typeof (input as StructuredHypothesis).audience === 'string' &&
+    typeof (input as StructuredHypothesis).problem === 'string'
+  )
+}
+
 export interface ResearchJob {
   id: string
   user_id: string
   hypothesis: string
+  structured_hypothesis?: StructuredHypothesis // New: structured input if available
   status: 'pending' | 'processing' | 'completed' | 'failed'
   pain_signals: PainSignal[]
   competitors: Competitor[]
@@ -91,4 +129,5 @@ export interface InterviewGuide {
 
 export interface CreateResearchJobInput {
   hypothesis: string
+  structuredHypothesis?: StructuredHypothesis // New: structured input (optional for backwards compat)
 }

@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Filter, Search, MessageSquare, Sparkles } from 'lucide-react'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import { CoverageData } from '@/components/research/coverage-preview'
+import { StructuredHypothesis } from '@/types/research'
 
 type ResearchStatus = 'idle' | 'loading' | 'success' | 'error'
 
@@ -69,7 +70,7 @@ export default function ResearchPage() {
     }
   }, [])
 
-  const runResearch = async (hypothesis: string, coverageData?: CoverageData) => {
+  const runResearch = async (hypothesis: string, coverageData?: CoverageData, structuredHypothesis?: StructuredHypothesis) => {
     setStatus('loading')
     setError(null)
     setResults(null)
@@ -92,14 +93,18 @@ export default function ResearchPage() {
     setProgressSteps(initialSteps)
 
     try {
-      // Step 1: Create a research job first (with coverage data if available)
+      // Step 1: Create a research job first (with coverage data and structured hypothesis if available)
       const jobResponse = await fetch('/api/research/jobs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Idempotency-Key': idempotencyKeyRef.current,
         },
-        body: JSON.stringify({ hypothesis, coverageData }),
+        body: JSON.stringify({
+          hypothesis,
+          coverageData,
+          structuredHypothesis, // New: pass structured input for better research
+        }),
       })
 
       if (!jobResponse.ok) {
