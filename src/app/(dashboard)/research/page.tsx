@@ -110,8 +110,8 @@ export default function ResearchPage() {
       const job = await jobResponse.json()
       const jobId = job.id
 
-      // Redirect to the steps page - it handles the research flow
-      router.push(`/research/${jobId}/steps`)
+      // Redirect to the results page - it shows all steps and handles incomplete research
+      router.push(`/research/${jobId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create research job')
       setStatus('error')

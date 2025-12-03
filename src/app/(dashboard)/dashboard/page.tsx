@@ -180,16 +180,11 @@ export default async function DashboardPage() {
                 "{truncateText(incompleteJob.hypothesis, 80)}"
               </p>
               <div className="flex gap-2">
-                <Link href={`/research/${incompleteJob.id}/steps`} className="flex-1">
+                <Link href={`/research/${incompleteJob.id}`} className="flex-1">
                   <Button className="w-full">
                     {nextStep.icon}
                     <span className="ml-2">Continue to {nextStep.label}</span>
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link href={`/research/${incompleteJob.id}`}>
-                  <Button variant="outline">
-                    <FileText className="h-4 w-4" />
                   </Button>
                 </Link>
               </div>
@@ -228,11 +223,9 @@ export default async function DashboardPage() {
                 const isFullyCompleted = jobNextStep === null
                 const isClickable = job.status !== 'failed'
 
-                // If all steps done, go to results. Otherwise go to steps page.
+                // Always go to results view (it handles incomplete research gracefully)
                 const href = isClickable
-                  ? isFullyCompleted
-                    ? `/research/${job.id}`
-                    : `/research/${job.id}/steps`
+                  ? `/research/${job.id}`
                   : '#'
 
                 return (

@@ -902,7 +902,7 @@ export default async function ResearchDetailPage({
             </Tabs>
           </>
         ) : (
-          /* No results at all - redirect to step-based flow */
+          /* No results at all - offer to start research */
           <Card>
             <CardContent className="py-12">
               <div className="text-center">
@@ -914,7 +914,7 @@ export default async function ResearchDetailPage({
                 <Link href={`/research/${id}/steps`}>
                   <Button size="lg">
                     <TrendingUp className="h-4 w-4 mr-2" />
-                    Continue Research
+                    Start Research
                   </Button>
                 </Link>
               </div>
