@@ -47,6 +47,11 @@ import {
 } from '@/lib/anthropic'
 import { trackUsage } from '@/lib/analysis/token-tracker'
 import { saveResearchResult } from '@/lib/research/save-result'
+import {
+  logRelevanceDecisions,
+  preparePostDecisionLogs,
+  prepareCommentDecisionLogs,
+} from '@/lib/research/log-decisions'
 import { StructuredHypothesis } from '@/types/research'
 
 const anthropic = new Anthropic()
@@ -65,7 +70,9 @@ interface FilterResult<T> {
 // Filter posts by relevance to hypothesis using Claude Haiku (strict Y/N filtering)
 async function filterRelevantPosts(
   posts: RedditPost[],
-  hypothesis: string
+  hypothesis: string,
+  structured?: StructuredHypothesis,
+  jobId?: string
 ): Promise<FilterResult<RedditPost>> {
   const metrics = {
     before: posts.length,
@@ -91,8 +98,16 @@ async function filterRelevantPosts(
       return `[${idx + 1}] ${post.title}${body ? '\n' + body : ''}`
     }).join('\n\n')
 
-    const prompt = `You are evaluating whether Reddit posts are relevant to a specific business hypothesis.
+    // Build context section from structured hypothesis if available
+    const contextSection = structured ? `
+TARGET AUDIENCE: ${structured.audience}
+THEIR PROBLEM: ${structured.problem}${structured.problemLanguage ? `
+LOOK FOR PHRASES LIKE: ${structured.problemLanguage}` : ''}${structured.excludeTopics ? `
+EXCLUDE TOPICS ABOUT: ${structured.excludeTopics}` : ''}
+` : ''
 
+    const prompt = `You are evaluating whether Reddit posts are relevant to a specific business hypothesis.
+${contextSection}
 HYPOTHESIS: "${hypothesis}"
 
 TASK: For each post below, decide if it discusses problems, needs, or experiences DIRECTLY related to the hypothesis.
@@ -106,7 +121,8 @@ NOT RELEVANT (N) means:
 - The post is about unrelated business/life topics
 - The post contains pain language but about different problems
 - The post is tangentially related but not about the core problem
-- The post is from the target audience but discussing unrelated issues
+- The post is from the target audience but discussing unrelated issues${structured?.excludeTopics ? `
+- The post is about excluded topics: ${structured.excludeTopics}` : ''}
 
 POSTS TO EVALUATE:
 ${postSummaries}
@@ -142,6 +158,12 @@ Your response (${batch.length} letters):`
             relevantPosts.push(post)
           }
         })
+
+        // Log decisions for quality audit (non-blocking)
+        if (jobId) {
+          const logs = preparePostDecisionLogs(jobId, batch, decisions, i)
+          logRelevanceDecisions(logs).catch(() => {}) // Silently ignore logging failures
+        }
       }
     } catch (error) {
       console.error('Post filtering batch failed, keeping all posts in batch:', error)
@@ -160,7 +182,9 @@ Your response (${batch.length} letters):`
 // Filter comments by relevance to hypothesis using Claude Haiku (strict Y/N filtering)
 async function filterRelevantComments(
   comments: RedditComment[],
-  hypothesis: string
+  hypothesis: string,
+  structured?: StructuredHypothesis,
+  jobId?: string
 ): Promise<FilterResult<RedditComment>> {
   const metrics = {
     before: comments.length,
@@ -184,8 +208,16 @@ async function filterRelevantComments(
       `[${idx + 1}] ${comment.body.slice(0, 300)}`
     ).join('\n\n')
 
-    const prompt = `You are evaluating whether Reddit comments are relevant to a specific business hypothesis.
+    // Build context section from structured hypothesis if available
+    const contextSection = structured ? `
+TARGET AUDIENCE: ${structured.audience}
+THEIR PROBLEM: ${structured.problem}${structured.problemLanguage ? `
+LOOK FOR PHRASES LIKE: ${structured.problemLanguage}` : ''}${structured.excludeTopics ? `
+EXCLUDE TOPICS ABOUT: ${structured.excludeTopics}` : ''}
+` : ''
 
+    const prompt = `You are evaluating whether Reddit comments are relevant to a specific business hypothesis.
+${contextSection}
 HYPOTHESIS: "${hypothesis}"
 
 TASK: For each comment below, decide if it discusses problems, needs, or experiences DIRECTLY related to the hypothesis.
@@ -198,7 +230,8 @@ RELEVANT (Y) means:
 NOT RELEVANT (N) means:
 - The comment is about unrelated topics
 - The comment contains pain language but about different problems
-- The comment is off-topic, jokes, or generic advice
+- The comment is off-topic, jokes, or generic advice${structured?.excludeTopics ? `
+- The comment is about excluded topics: ${structured.excludeTopics}` : ''}
 
 COMMENTS TO EVALUATE:
 ${commentSummaries}
@@ -234,6 +267,12 @@ Your response (${batch.length} letters):`
             relevantComments.push(comment)
           }
         })
+
+        // Log decisions for quality audit (non-blocking)
+        if (jobId) {
+          const logs = prepareCommentDecisionLogs(jobId, batch, decisions, i)
+          logRelevanceDecisions(logs).catch(() => {}) // Silently ignore logging failures
+        }
       }
     } catch (error) {
       console.error('Comment filtering batch failed, keeping all comments in batch:', error)
@@ -556,8 +595,8 @@ export async function POST(request: NextRequest) {
     console.log('Step 4: Filtering for relevance to hypothesis (strict Y/N)')
     lastErrorSource = 'anthropic' // Claude API for filtering
     const [postFilterResult, commentFilterResult] = await Promise.all([
-      filterRelevantPosts(rawPosts, hypothesis),
-      filterRelevantComments(rawComments, hypothesis),
+      filterRelevantPosts(rawPosts, hypothesis, structuredHypothesis, jobId),
+      filterRelevantComments(rawComments, hypothesis, structuredHypothesis, jobId),
     ])
 
     const posts = postFilterResult.items

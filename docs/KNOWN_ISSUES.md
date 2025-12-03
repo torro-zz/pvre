@@ -18,6 +18,15 @@ Last updated: December 3, 2024
 
 ## UX Improvements
 
+### ~~Relevance Filter Missing Structured Context (Dec 3)~~ ✅ IMPLEMENTED
+Source: Claude Code exploration / Architecture analysis
+**Status: Fixed Dec 3** - Relevance filter now receives full structured context:
+- TARGET AUDIENCE from structured hypothesis
+- THEIR PROBLEM from structured hypothesis
+- LOOK FOR PHRASES LIKE from problemLanguage
+- EXCLUDE TOPICS ABOUT from excludeTopics
+Also added `relevance_decisions` table (migration 013) to log individual Y/N decisions for quality audits. Run migration and regenerate types to enable logging.
+
 ### ~~AI-Powered Exclusion Suggestions for Ambiguous Terms (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / UX analysis
 **Status: Fixed Dec 3** - Added "✨ Suggest exclusions based on your hypothesis" button in the Exclude Topics section. Claude Haiku analyzes the audience + problem fields and suggests relevant exclusions as clickable chips (e.g., "dating" for friend-making queries). Users can select chips and click "Add X exclusion(s) to filter" to apply them.
