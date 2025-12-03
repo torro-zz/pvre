@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { isAdmin } from '@/lib/admin'
 import { NextResponse } from 'next/server'
 
@@ -18,6 +19,9 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Use admin client for data queries to bypass RLS and see all users' data
+  const adminClient = createAdminClient()
+
   try {
     // Fetch all required data in parallel
     const [
@@ -28,31 +32,31 @@ export async function GET() {
       researchResultsResult,
     ] = await Promise.all([
       // All users with credits
-      supabase
+      adminClient
         .from('profiles')
         .select('id, email, credits_balance, total_credits_purchased, total_research_runs, created_at'),
 
       // Credit transactions
-      supabase
+      adminClient
         .from('credit_transactions')
         .select('*')
         .order('created_at', { ascending: false }),
 
       // Research jobs
-      supabase
+      adminClient
         .from('research_jobs')
         .select('id, user_id, status, created_at, updated_at')
         .order('created_at', { ascending: false }),
 
       // Purchases
-      supabase
+      adminClient
         .from('purchases')
         .select('*')
         .eq('status', 'completed')
         .order('created_at', { ascending: false }),
 
       // Research results (for token usage/API costs)
-      supabase
+      adminClient
         .from('research_results')
         .select('id, job_id, module_name, data, created_at')
         .order('created_at', { ascending: false }),

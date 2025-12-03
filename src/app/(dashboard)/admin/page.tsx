@@ -127,6 +127,7 @@ export default function AdminPage() {
   const [creditAuditLoading, setCreditAuditLoading] = useState(false)
   const [apiHealth, setApiHealth] = useState<APIHealthData | null>(null)
   const [apiHealthLoading, setApiHealthLoading] = useState(false)
+  const [apiHealthError, setApiHealthError] = useState<string | null>(null)
   const [cleanupRunning, setCleanupRunning] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -199,13 +200,18 @@ export default function AdminPage() {
   // Fetch API health data
   const fetchApiHealth = async () => {
     setApiHealthLoading(true)
+    setApiHealthError(null)
     try {
       const res = await fetch('/api/admin/cleanup-stale-jobs')
-      if (!res.ok) throw new Error('Failed to fetch API health')
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${res.status}: Failed to fetch API health`)
+      }
       const data = await res.json()
       setApiHealth(data)
     } catch (err) {
       console.error('Failed to fetch API health:', err)
+      setApiHealthError(err instanceof Error ? err.message : 'Failed to fetch API health')
     } finally {
       setApiHealthLoading(false)
     }
@@ -1334,6 +1340,18 @@ export default function AdminPage() {
                 </CardContent>
               </Card>
             </>
+          ) : apiHealthError ? (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="py-12 text-center">
+                <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+                <p className="text-red-700 font-medium mb-2">Failed to Load API Health</p>
+                <p className="text-red-600 text-sm mb-4">{apiHealthError}</p>
+                <Button onClick={fetchApiHealth} variant="outline">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
             <Card>
               <CardContent className="py-12 text-center">

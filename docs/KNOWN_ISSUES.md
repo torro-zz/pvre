@@ -11,8 +11,8 @@ Last updated: December 3, 2024
 | Issue | Location | Status |
 |-------|----------|--------|
 | ~~"Run Full Research" button stays active after completion~~ | ~~Research results page~~ | Cannot Reproduce (Dec 3 - button may have been renamed/removed in unified view refactor) |
-| "Check API Health" button not working | `/admin` page | Needs Fix |
-| Claude API Costs always shows $0 | `/admin` page | Needs Investigation |
+| ~~"Check API Health" button not working~~ | ~~`/admin` page~~ | ✅ Fixed Dec 3 - Added error state handling and UI feedback |
+| ~~Claude API Costs always shows $0~~ | ~~`/admin` page~~ | ✅ Fixed Dec 3 - Analytics route was using user-scoped client with RLS; changed to adminClient to bypass RLS and see all users' data |
 
 ---
 
