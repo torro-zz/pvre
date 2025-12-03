@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, Clock, AlertCircle, TrendingUp, Shield, Target, PieChart, Timer } from 'lucide-react'
-import { ResearchProgress } from '@/components/research/research-progress'
 import { PDFDownloadButton } from '@/components/research/pdf-download-button'
 import { ReportProblem } from '@/components/research/report-problem'
 import { ResearchMetadata } from '@/components/research/research-metadata'
@@ -268,24 +267,6 @@ export default async function ResearchDetailPage({
             jobStatus={researchJob.status}
             initialResultsCount={allResults?.length || 0}
           >
-            {/* Research Progress Stepper */}
-            <div className="mb-6 p-4 bg-muted/30 rounded-lg">
-              <ResearchProgress
-                currentStep={
-                  communityVoiceResult?.data && competitorResult?.data
-                    ? 'viability-verdict'
-                    : competitorResult?.data
-                    ? 'competitor-analysis'
-                    : 'community-voice'
-                }
-                completedSteps={[
-                  ...(communityVoiceResult?.data ? ['community-voice' as const] : []),
-                  ...(competitorResult?.data ? ['competitor-analysis' as const] : []),
-                  ...(communityVoiceResult?.data && competitorResult?.data ? ['viability-verdict' as const] : []),
-                ]}
-              />
-            </div>
-
             <Tabs defaultValue="community" className="space-y-6">
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="community" className="flex items-center gap-2">
@@ -491,24 +472,6 @@ export default async function ResearchDetailPage({
         ) : communityVoiceResult?.data || competitorResult?.data ? (
           /* Tabbed Results Interface */
           <>
-            {/* Research Progress Stepper */}
-            <div className="mb-6 p-4 bg-muted/30 rounded-lg">
-              <ResearchProgress
-                currentStep={
-                  communityVoiceResult?.data && competitorResult?.data
-                    ? 'viability-verdict'
-                    : competitorResult?.data
-                    ? 'competitor-analysis'
-                    : 'community-voice'
-                }
-                completedSteps={[
-                  ...(communityVoiceResult?.data ? ['community-voice' as const] : []),
-                  ...(competitorResult?.data ? ['competitor-analysis' as const] : []),
-                  ...(communityVoiceResult?.data && competitorResult?.data ? ['viability-verdict' as const] : []),
-                ]}
-              />
-            </div>
-
             {/* Competitor Prompt Modal - shows when Community Voice is done but no competitors */}
             {communityVoiceResult?.data && !competitorResult?.data && (
               <CompetitorPromptModal
