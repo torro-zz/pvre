@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,9 +12,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Loader2, Search, Lightbulb, ChevronDown, ChevronUp, Ban } from 'lucide-react'
+import { Loader2, Search, Lightbulb, ChevronDown, ChevronUp, Ban, Sparkles, X, Check } from 'lucide-react'
 import { CoveragePreview, CoverageData } from './coverage-preview'
 import { StructuredHypothesis, formatHypothesis } from '@/types/research'
+
+interface ExclusionSuggestion {
+  term: string
+  reason: string
+}
 
 interface HypothesisFormProps {
   onSubmit: (hypothesis: string, coverageData?: CoverageData, structuredHypothesis?: StructuredHypothesis) => Promise<void>
@@ -59,6 +64,13 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
   const [showExclude, setShowExclude] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
 
+  // AI exclusion suggestions
+  const [exclusionSuggestions, setExclusionSuggestions] = useState<ExclusionSuggestion[]>([])
+  const [selectedExclusions, setSelectedExclusions] = useState<Set<string>>(new Set())
+  const [isSuggestingExclusions, setIsSuggestingExclusions] = useState(false)
+  const [suggestionError, setSuggestionError] = useState<string | null>(null)
+  const lastSuggestionInput = useRef<string>('')
+
   // Build the structured hypothesis
   const structuredHypothesis: StructuredHypothesis = {
     audience: audience.trim(),
@@ -73,6 +85,84 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
 
   // Check if form is valid (required fields filled)
   const isValid = audience.trim() && problem.trim()
+
+  // Check if we can suggest exclusions (audience ≥3 chars, problem ≥10 chars)
+  const canSuggestExclusions = audience.trim().length >= 3 && problem.trim().length >= 10
+
+  // Fetch AI exclusion suggestions
+  const fetchExclusionSuggestions = useCallback(async () => {
+    // Skip if user already typed exclusions
+    if (excludeTopics.trim()) return
+
+    // Skip if we already fetched for this exact input
+    const inputHash = `${audience.trim()}|${problem.trim()}|${problemLanguage.trim()}`
+    if (inputHash === lastSuggestionInput.current) return
+
+    if (!canSuggestExclusions) return
+
+    setIsSuggestingExclusions(true)
+    setSuggestionError(null)
+
+    try {
+      const response = await fetch('/api/research/suggest-exclusions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audience: audience.trim(),
+          problem: problem.trim(),
+          problemLanguage: problemLanguage.trim() || undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get suggestions')
+      }
+
+      const data = await response.json()
+      lastSuggestionInput.current = inputHash
+      setExclusionSuggestions(data.suggestions || [])
+      setSelectedExclusions(new Set()) // Reset selections for new suggestions
+    } catch (error) {
+      console.error('Exclusion suggestion error:', error)
+      setSuggestionError('Could not load suggestions')
+    } finally {
+      setIsSuggestingExclusions(false)
+    }
+  }, [audience, problem, problemLanguage, excludeTopics, canSuggestExclusions])
+
+  // Toggle a suggestion on/off
+  const toggleExclusion = (term: string) => {
+    setSelectedExclusions(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(term)) {
+        newSet.delete(term)
+      } else {
+        newSet.add(term)
+      }
+      return newSet
+    })
+  }
+
+  // Apply selected exclusions to the input field
+  const applySelectedExclusions = () => {
+    if (selectedExclusions.size === 0) return
+
+    const existing = excludeTopics.trim()
+    const existingTerms = existing ? existing.split(',').map(t => t.trim().toLowerCase()) : []
+    const newTerms = Array.from(selectedExclusions).filter(
+      term => !existingTerms.includes(term.toLowerCase())
+    )
+
+    if (newTerms.length === 0) return
+
+    const combined = existing
+      ? `${existing}, ${newTerms.join(', ')}`
+      : newTerms.join(', ')
+
+    setExcludeTopics(combined)
+    setSelectedExclusions(new Set())
+    handleFieldChange()
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -237,7 +327,86 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
                 <span className="text-xs ml-1">(optional)</span>
               </button>
               {showExclude && (
-                <div className="space-y-2">
+                <div className="space-y-3">
+                  {/* AI Suggestion Button */}
+                  {canSuggestExclusions && !excludeTopics.trim() && exclusionSuggestions.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={fetchExclusionSuggestions}
+                      disabled={isSuggestingExclusions || isLoading}
+                      className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                    >
+                      {isSuggestingExclusions ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Analyzing for ambiguous terms...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3 w-3" />
+                          Suggest exclusions based on your hypothesis
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Suggestion Error */}
+                  {suggestionError && (
+                    <p className="text-xs text-destructive">{suggestionError}</p>
+                  )}
+
+                  {/* AI Suggestions Display */}
+                  {exclusionSuggestions.length > 0 && (
+                    <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                          <Sparkles className="h-3 w-3" />
+                          AI detected ambiguous terms. Click to exclude:
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExclusionSuggestions([])
+                            setSelectedExclusions(new Set())
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {exclusionSuggestions.map((suggestion, idx) => {
+                          const isSelected = selectedExclusions.has(suggestion.term)
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => toggleExclusion(suggestion.term)}
+                              title={suggestion.reason}
+                              className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${
+                                isSelected
+                                  ? 'bg-primary text-primary-foreground border-primary'
+                                  : 'bg-background hover:bg-muted border-border'
+                              }`}
+                            >
+                              {isSelected && <Check className="h-3 w-3" />}
+                              {suggestion.term}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {selectedExclusions.size > 0 && (
+                        <button
+                          type="button"
+                          onClick={applySelectedExclusions}
+                          className="text-xs text-primary hover:text-primary/80 font-medium"
+                        >
+                          Add {selectedExclusions.size} exclusion{selectedExclusions.size > 1 ? 's' : ''} to filter
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   <Input
                     id="excludeTopics"
                     placeholder="e.g., corporate training, dog training, machine learning"

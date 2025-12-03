@@ -18,23 +18,10 @@ Last updated: December 3, 2024
 
 ## UX Improvements
 
-### AI-Powered Exclusion Suggestions for Ambiguous Terms (Dec 3)
+### ~~AI-Powered Exclusion Suggestions for Ambiguous Terms (Dec 3)~~ ✅ IMPLEMENTED
 Source: CEO review / UX analysis
-Issue: The "Exclude irrelevant topics" field is empty by default. Users don't know what noise sources exist until they see bad results—by which point they've spent a credit. The placeholder example ("corporate training, dog training, machine learning") only helps if the user's query contains "training." For a visa query, this example is irrelevant and teaches nothing.
-Proposed: After user fills fields 1-2, trigger a lightweight Claude Haiku call that identifies ambiguous terms and suggests exclusions. Display as toggleable chips user can accept/reject before searching.
-Technical Specification
-Trigger Conditions
-Fire the suggestion request when:
-
-Field 1 (Who's struggling?) has ≥3 characters AND
-Field 2 (What's their problem?) has ≥10 characters AND
-User blurs out of field 2, OR clicks a "Suggest exclusions" helper link
-
-Debounce: 500ms after blur to avoid excessive API calls.
-Do NOT fire if:
-
-Exclusions field already has user-typed content (don't overwrite)
-Suggestion already fetched for this exact input (cache by hash of fields 1+2)
+**Status: Fixed Dec 3** - Added "✨ Suggest exclusions based on your hypothesis" button in the Exclude Topics section. Claude Haiku analyzes the audience + problem fields and suggests relevant exclusions as clickable chips (e.g., "dating" for friend-making queries). Users can select chips and click "Add X exclusion(s) to filter" to apply them.
+~~Issue: The "Exclude irrelevant topics" field is empty by default. Users don't know what noise sources exist until they see bad results—by which point they've spent a credit.~~
 
 *User observations and product feedback. Add items here as you notice them.*
 
