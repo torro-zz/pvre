@@ -514,52 +514,117 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
             <CardHeader>
               <CardTitle className="text-lg">Competitor Comparison Matrix</CardTitle>
               <CardDescription>
-                How competitors score across key dimensions (1-10 scale)
+                How competitors score across key dimensions (1-10 scale). Hover over scores for details.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 pr-4 font-medium">Competitor</th>
+                    <tr className="bg-muted/50">
+                      <th className="text-left py-3 px-4 font-semibold border-b-2 border-border sticky left-0 bg-muted/50 min-w-[140px]">
+                        Competitor
+                      </th>
                       {results.competitorMatrix.categories.map((category) => (
-                        <th key={category} className="text-center py-2 px-2 font-medium min-w-[100px]">
-                          {category}
+                        <th key={category} className="text-center py-3 px-3 font-semibold border-b-2 border-border min-w-[90px]">
+                          <span className="text-xs">{category}</span>
                         </th>
                       ))}
+                      <th className="text-center py-3 px-3 font-semibold border-b-2 border-border min-w-[70px] bg-primary/5">
+                        <span className="text-xs">Avg</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {results.competitorMatrix.comparison.map((comp) => (
-                      <tr key={comp.competitorName} className="border-b last:border-0">
-                        <td className="py-3 pr-4 font-medium">{comp.competitorName}</td>
-                        {results.competitorMatrix.categories.map((category) => {
-                          const scoreData = comp.scores.find(s => s.category === category)
-                          const score = scoreData?.score || 0
-                          return (
-                            <td key={category} className="py-3 px-2">
-                              <div className="flex flex-col items-center gap-1">
-                                <div className="flex items-center gap-1">
-                                  <Progress
-                                    value={score * 10}
-                                    className="w-16 h-2"
-                                  />
-                                  <span className="text-xs font-medium w-6 text-right">{score}</span>
+                    {results.competitorMatrix.comparison.map((comp, rowIndex) => {
+                      // Calculate average score for this competitor
+                      const scores = results.competitorMatrix.categories.map(cat => {
+                        const scoreData = comp.scores.find(s => s.category === cat)
+                        return scoreData?.score || 0
+                      })
+                      const avgScore = scores.length > 0
+                        ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+                        : 0
+
+                      return (
+                        <tr
+                          key={comp.competitorName}
+                          className={`${rowIndex % 2 === 0 ? 'bg-white' : 'bg-muted/20'} hover:bg-muted/40 transition-colors`}
+                        >
+                          <td className={`py-3 px-4 font-medium border-b sticky left-0 ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-muted/20'}`}>
+                            {comp.competitorName}
+                          </td>
+                          {results.competitorMatrix.categories.map((category) => {
+                            const scoreData = comp.scores.find(s => s.category === category)
+                            const score = scoreData?.score || 0
+                            // Color coding based on score
+                            const scoreColorClass = score >= 8
+                              ? 'bg-green-500 text-white'
+                              : score >= 6
+                              ? 'bg-green-400 text-white'
+                              : score >= 4
+                              ? 'bg-yellow-400 text-gray-900'
+                              : score >= 2
+                              ? 'bg-orange-400 text-white'
+                              : 'bg-red-400 text-white'
+
+                            return (
+                              <td key={category} className="py-3 px-3 border-b">
+                                <div className="flex justify-center">
+                                  <div
+                                    className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${scoreColorClass} cursor-help shadow-sm`}
+                                    title={scoreData?.notes || `${category}: ${score}/10`}
+                                  >
+                                    {score}
+                                  </div>
                                 </div>
-                                {scoreData?.notes && (
-                                  <span className="text-xs text-muted-foreground text-center">
-                                    {scoreData.notes}
-                                  </span>
-                                )}
+                              </td>
+                            )
+                          })}
+                          <td className="py-3 px-3 border-b bg-primary/5">
+                            <div className="flex justify-center">
+                              <div
+                                className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm border-2 ${
+                                  avgScore >= 7 ? 'border-green-500 text-green-700 bg-green-50' :
+                                  avgScore >= 5 ? 'border-yellow-500 text-yellow-700 bg-yellow-50' :
+                                  'border-red-500 text-red-700 bg-red-50'
+                                }`}
+                                title={`Average score: ${avgScore}/10`}
+                              >
+                                {avgScore}
                               </div>
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Legend */}
+              <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                <span className="font-medium">Score Legend:</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-green-500"></div>
+                  <span>8-10 Excellent</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-green-400"></div>
+                  <span>6-7 Good</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-yellow-400"></div>
+                  <span>4-5 Average</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-orange-400"></div>
+                  <span>2-3 Below Avg</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-red-400"></div>
+                  <span>0-1 Poor</span>
+                </div>
               </div>
             </CardContent>
           </Card>

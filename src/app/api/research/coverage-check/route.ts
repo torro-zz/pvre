@@ -4,7 +4,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
-import { checkCoverage, extractKeywords } from '@/lib/data-sources'
+import { checkCoverage } from '@/lib/data-sources'
+import { extractSearchKeywords } from '@/lib/reddit/keyword-extractor'
 import { StructuredHypothesis } from '@/types/research'
 
 export interface CoverageCheckRequest {
@@ -26,6 +27,14 @@ export interface CoverageCheckResponse {
   refinementSuggestions?: string[]
   keywords: string[]
   problemPhrases?: string[] // New: phrases we'll search for
+  // 3-stage discovery results
+  discoveryWarning?: string | null
+  discoveryRecommendation?: 'proceed' | 'proceed_with_caution' | 'reconsider'
+  domain?: {
+    primaryDomain: string
+    secondaryDomains: string[]
+    audienceDescriptor: string
+  }
 }
 
 /**
@@ -105,15 +114,11 @@ export async function POST(req: Request) {
       ? extractProblemPhrases(structuredHypothesis)
       : undefined
 
-    // Build search context for subreddit discovery
-    // Prefer structured input for better targeting
-    const searchContext = structuredHypothesis
-      ? `${structuredHypothesis.audience} experiencing: ${structuredHypothesis.problem}`
-      : hypothesis
-
-    // Step 1: Discover relevant subreddits using Claude
-    const discovery = await discoverSubreddits(searchContext)
-    const subreddits = discovery.subreddits.slice(0, 8) // Limit to 8 for coverage check
+    // Step 1: Discover relevant subreddits using Claude's 3-stage domain-first pipeline
+    // Pass structured hypothesis when available for better domain extraction
+    const discoveryInput = structuredHypothesis || hypothesis
+    const discovery = await discoverSubreddits(discoveryInput)
+    const subreddits = discovery.subreddits.slice(0, 12) // Increased from 8 to 12 for broader coverage
 
     if (subreddits.length === 0) {
       return NextResponse.json({
@@ -127,11 +132,16 @@ export async function POST(req: Request) {
           'Consider what communities your target customers participate in',
         ],
         keywords: [],
+        discoveryWarning: discovery.warning,
+        discoveryRecommendation: discovery.recommendation,
+        domain: discovery.domain,
       } as CoverageCheckResponse)
     }
 
-    // Step 2: Extract keywords from hypothesis
-    const keywords = extractKeywords(hypothesis)
+    // Step 2: Extract keywords from hypothesis (exclude solution field)
+    const extractedKeywords = await extractSearchKeywords(hypothesis, structuredHypothesis)
+    // Use primary keywords for coverage check - these are the most distinctive terms
+    const keywords = extractedKeywords.primary
 
     // Step 3: Check coverage for each subreddit
     const coverageResult = await checkCoverage(subreddits, keywords)
@@ -159,6 +169,10 @@ export async function POST(req: Request) {
       refinementSuggestions: coverageResult.refinementSuggestions,
       keywords,
       problemPhrases, // New: phrases we'll search for
+      // 3-stage discovery results
+      discoveryWarning: discovery.warning,
+      discoveryRecommendation: discovery.recommendation,
+      domain: discovery.domain,
     } as CoverageCheckResponse)
   } catch (error) {
     console.error('Coverage check failed:', error)

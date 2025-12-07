@@ -1,9 +1,14 @@
 // Subreddit Discovery Service
 // Uses Claude to analyze hypothesis and suggest relevant subreddits
+// Implements 3-stage domain-first discovery pipeline
 
 import { anthropic, getCurrentTracker } from '../anthropic'
 import { trackUsage } from '../analysis/token-tracker'
 import { searchSubreddits } from '../arctic-shift/client'
+
+// =============================================================================
+// TYPES
+// =============================================================================
 
 interface SubredditSuggestion {
   name: string
@@ -11,113 +16,425 @@ interface SubredditSuggestion {
   relevance: 'high' | 'medium' | 'low'
 }
 
-interface DiscoveryResult {
-  subreddits: string[]
-  suggestions: SubredditSuggestion[]
+export interface DomainExtraction {
+  primaryDomain: string
+  secondaryDomains: string[]
+  audienceDescriptor: string
 }
 
+export interface SubredditCandidate {
+  name: string
+  relevanceScore: 'high' | 'medium' | 'low'
+  relevanceReason: string
+  audienceMatch: string
+  priority: number
+}
+
+export interface ValidatedSubreddit extends SubredditCandidate {
+  isValid: boolean
+  problemRelevance: string
+  rejectReason?: string
+}
+
+export interface StructuredHypothesis {
+  audience: string
+  problem: string
+  problemLanguage?: string
+}
+
+export interface DiscoveryResult {
+  subreddits: string[]
+  suggestions: SubredditSuggestion[]
+  domain?: DomainExtraction
+  validatedSubreddits?: ValidatedSubreddit[]
+  warning: string | null
+  recommendation: 'proceed' | 'proceed_with_caution' | 'reconsider'
+}
+
+// =============================================================================
+// STAGE 1: DOMAIN EXTRACTION
+// =============================================================================
+
 /**
- * Use Claude to discover relevant subreddits for a given hypothesis
+ * Extract the problem DOMAIN from a hypothesis, not the audience demographics.
+ * This is the key insight: "men in 50s with aging skin" → domain is "skincare", not "men"
  */
-export async function discoverSubreddits(hypothesis: string): Promise<DiscoveryResult> {
-  const systemPrompt = `You are a Reddit expert helping entrepreneurs find relevant subreddits for market research.
+async function extractDomain(hypothesis: StructuredHypothesis): Promise<DomainExtraction> {
+  const systemPrompt = `You identify the core problem domain from a business hypothesis.
 
-Your task is to suggest subreddits where people discuss problems, challenges, and needs related to a business hypothesis.
+The DOMAIN is the subject area of the PROBLEM, not the audience.
 
-CRITICAL RULES:
-1. Prioritize NICHE communities over large general ones
-2. Focus on WHERE the target user spends time, not WHERE they might mention keywords
-3. For a fitness app: suggest fitness subreddits, NOT entrepreneur subreddits
-4. For a freelancer tool: suggest freelancer subreddits, NOT general business subreddits
+Examples:
+- "men in their 50s with aging skin" → Domain: SKINCARE / ANTI-AGING
+- "busy parents with picky eaters" → Domain: PARENTING / KIDS FOOD
+- "freelancers struggling to find clients" → Domain: FREELANCING / CLIENT ACQUISITION
+- "expats feeling lonely abroad" → Domain: EXPAT LIFE / LONELINESS / SOCIAL CONNECTION
+- "runners with knee pain" → Domain: RUNNING / SPORTS INJURIES
 
-Focus on:
-- Niche communities specific to the PROBLEM DOMAIN (e.g., r/crossfit for fitness, r/freelance for freelancers)
-- Communities where people ASK FOR HELP with this specific problem
-- Subreddits with 10k-500k members (active but not too noisy)
-- Professional or hobby communities where target users hang out
+The domain is about the PROBLEM, not the AUDIENCE.
+Wrong: "men" (that's audience)
+Right: "skincare" (that's the problem domain)
 
-Strongly Avoid:
-- r/Entrepreneur, r/startups, r/smallbusiness (too generic, full of marketers)
-- Giant subreddits like r/AskReddit, r/LifeProTips (too noisy)
-- Meme or entertainment subreddits
-- Subreddits that are likely private or inactive`
+Return JSON only, no explanation.`
 
-  const userPrompt = `Business Hypothesis: "${hypothesis}"
+  const userPrompt = `Extract the problem domain from this hypothesis:
 
-Suggest 6-10 subreddits where the TARGET USERS (not entrepreneurs) discuss problems related to this hypothesis.
+Audience: ${hypothesis.audience}
+Problem: ${hypothesis.problem}
+${hypothesis.problemLanguage ? `Problem Language: ${hypothesis.problemLanguage}` : ''}
 
-Ask yourself: "Who has the problem this hypothesis solves? Where do THEY hang out on Reddit?"
+What is the PROBLEM DOMAIN (not the audience)?
 
-Respond in JSON format:
 {
-  "suggestions": [
-    {
-      "name": "subreddit_name_without_r_prefix",
-      "reason": "Why this subreddit is relevant",
-      "relevance": "high" | "medium" | "low"
-    }
-  ]
+  "primaryDomain": "main problem area",
+  "secondaryDomains": ["related area 1", "related area 2"],
+  "audienceDescriptor": "who they are (for filtering later)"
 }`
 
   try {
     const response = await anthropic.messages.create({
       model: 'claude-3-haiku-20240307',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
+      max_tokens: 512,
+      messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt,
     })
 
-    // Track token usage
     const tracker = getCurrentTracker()
     if (tracker && response.usage) {
       trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
     }
 
-    // Extract text content from response
     const textContent = response.content.find((c) => c.type === 'text')
     if (!textContent || textContent.type !== 'text') {
       throw new Error('No text response from Claude')
     }
 
-    // Parse JSON from response
     const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
-      throw new Error('Could not parse JSON from response')
+      throw new Error('Could not parse JSON from domain extraction')
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as { suggestions: SubredditSuggestion[] }
-
-    // Validate subreddits exist via Arctic Shift
-    const validatedSubreddits = await validateSubreddits(
-      parsed.suggestions.map((s) => s.name)
-    )
-
-    return {
-      subreddits: validatedSubreddits,
-      suggestions: parsed.suggestions.filter((s) =>
-        validatedSubreddits.includes(s.name.toLowerCase())
-      ),
-    }
+    return JSON.parse(jsonMatch[0]) as DomainExtraction
   } catch (error) {
-    console.error('Subreddit discovery failed:', error)
-    // Return fallback general subreddits based on common patterns
-    return getFallbackSubreddits(hypothesis)
+    console.error('Domain extraction failed:', error)
+    // Fallback: use the problem as the domain
+    return {
+      primaryDomain: hypothesis.problem,
+      secondaryDomains: [],
+      audienceDescriptor: hypothesis.audience,
+    }
   }
 }
+
+// =============================================================================
+// STAGE 2: DOMAIN-FIRST SUBREDDIT DISCOVERY
+// =============================================================================
+
+/**
+ * Find subreddits where the PROBLEM DOMAIN is discussed, not just where the audience exists.
+ * This is the critical change: prioritize problem-domain subreddits over demographic subreddits.
+ */
+async function discoverSubredditsByDomain(
+  domain: DomainExtraction,
+  hypothesis: StructuredHypothesis
+): Promise<SubredditCandidate[]> {
+  const systemPrompt = `You are a Reddit expert finding subreddits where a specific PROBLEM is actively discussed.
+
+CRITICAL RULES:
+1. Find subreddits about the PROBLEM DOMAIN first
+2. Then check if the AUDIENCE would be present there
+3. Domain-specific subreddits ALWAYS beat demographic subreddits
+
+PRIORITY ORDER:
+1. HIGH: Subreddits dedicated to the exact problem (r/SkincareAddiction for skincare)
+2. HIGH: Subreddits for the problem + audience intersection (r/30PlusSkinCare for aging skin)
+3. MEDIUM: Large subreddits where the problem is commonly discussed (r/malegrooming)
+4. LOW: Demographic subreddits where problem MIGHT appear (r/AskMenOver30)
+5. AVOID: Generic demographic subreddits with no problem focus (r/malefashionadvice for skincare)
+
+NEVER recommend subreddits just because they match the AUDIENCE if they don't discuss the PROBLEM.
+
+For each subreddit, explain WHY it's relevant to the PROBLEM (not just the audience).
+
+CRITICAL PERSPECTIVE CHECK:
+- Posts must be BY the target audience, not ABOUT them
+- For "elderly people" → r/AskOldPeople ✓ (elderly post here) NOT r/AgingParents ✗ (caregivers post)
+- For "freelancers" → r/freelance ✓ (freelancers post) NOT r/hiring ✗ (employers post)`
+
+  const userPrompt = `Find Reddit communities for this research:
+
+PRIMARY DOMAIN: ${domain.primaryDomain}
+SECONDARY DOMAINS: ${domain.secondaryDomains.join(', ') || 'none'}
+AUDIENCE: ${domain.audienceDescriptor}
+PROBLEM: ${hypothesis.problem}
+${hypothesis.problemLanguage ? `PROBLEM LANGUAGE: ${hypothesis.problemLanguage}` : ''}
+
+Find 8-12 subreddits, prioritizing:
+1. Communities dedicated to ${domain.primaryDomain}
+2. Communities where ${domain.audienceDescriptor} discuss ${domain.primaryDomain}
+3. Communities where "${hypothesis.problem}" is frequently discussed
+
+Return JSON only:
+{
+  "subreddits": [
+    {
+      "name": "subreddit name without r/",
+      "relevanceScore": "high" | "medium" | "low",
+      "relevanceReason": "WHY this sub discusses the PROBLEM",
+      "audienceMatch": "how well the target audience is represented",
+      "priority": 1-5 (1 = best)
+    }
+  ]
+}
+
+IMPORTANT: Do NOT include subreddits that only match the audience but don't discuss the problem.
+Example for skincare hypothesis:
+- YES: r/SkincareAddiction (discusses skincare problems)
+- YES: r/30PlusSkinCare (aging skin specifically)
+- NO: r/malefashionadvice (men's sub but about clothing, not skin)
+- NO: r/menslib (men's sub but about masculinity politics, not skin)`
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: userPrompt }],
+      system: systemPrompt,
+    })
+
+    const tracker = getCurrentTracker()
+    if (tracker && response.usage) {
+      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+    }
+
+    const textContent = response.content.find((c) => c.type === 'text')
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text response from Claude')
+    }
+
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      throw new Error('Could not parse JSON from subreddit discovery')
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as { subreddits: SubredditCandidate[] }
+    return parsed.subreddits || []
+  } catch (error) {
+    console.error('Domain-first subreddit discovery failed:', error)
+    return []
+  }
+}
+
+// =============================================================================
+// STAGE 3: VALIDATION CHECK
+// =============================================================================
+
+/**
+ * Validate that suggested subreddits actually discuss the problem domain.
+ * Be aggressive about rejecting poor matches - better 4 good subs than 8 mediocre ones.
+ */
+async function validateSubredditRelevance(
+  candidates: SubredditCandidate[],
+  domain: DomainExtraction,
+  hypothesis: StructuredHypothesis
+): Promise<ValidatedSubreddit[]> {
+  if (candidates.length === 0) {
+    return []
+  }
+
+  const systemPrompt = `You validate whether suggested subreddits actually discuss a specific problem.
+
+For each subreddit, answer:
+1. Is this subreddit primarily about the PROBLEM DOMAIN? (Yes/No/Partially)
+2. Would posts about the problem be ON-TOPIC in this subreddit? (Yes/No)
+3. What percentage of posts likely relate to the problem? (estimate)
+
+REJECT subreddits where:
+- The problem would be OFF-TOPIC
+- Less than 10% of content relates to the problem
+- The subreddit is about a DIFFERENT problem that happens to share the audience
+
+Be aggressive about rejecting poor matches. Better to have 4 good subreddits than 8 mediocre ones.`
+
+  const subredditList = candidates
+    .map((c) => `- r/${c.name}: "${c.relevanceReason}"`)
+    .join('\n')
+
+  const userPrompt = `Validate these subreddits for researching: "${hypothesis.problem}"
+
+Problem Domain: ${domain.primaryDomain}
+Secondary Domains: ${domain.secondaryDomains.join(', ') || 'none'}
+
+Subreddits to validate:
+${subredditList}
+
+Return JSON only:
+{
+  "validated": [
+    {
+      "name": "subreddit",
+      "isValid": true/false,
+      "problemRelevance": "percentage or description of how much content relates to problem",
+      "rejectReason": "if invalid, why (or null if valid)"
+    }
+  ]
+}
+
+Only include subreddits where the problem would be ON-TOPIC. Reject aggressively.`
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: userPrompt }],
+      system: systemPrompt,
+    })
+
+    const tracker = getCurrentTracker()
+    if (tracker && response.usage) {
+      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+    }
+
+    const textContent = response.content.find((c) => c.type === 'text')
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text response from Claude')
+    }
+
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      throw new Error('Could not parse JSON from validation')
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      validated: { name: string; isValid: boolean; problemRelevance: string; rejectReason?: string }[]
+    }
+
+    // Merge validation results with candidates
+    return candidates.map((candidate) => {
+      const validation = parsed.validated.find(
+        (v) => v.name.toLowerCase() === candidate.name.toLowerCase()
+      )
+      return {
+        ...candidate,
+        isValid: validation?.isValid ?? true, // Default to valid if not found
+        problemRelevance: validation?.problemRelevance ?? 'unknown',
+        rejectReason: validation?.rejectReason,
+      }
+    })
+  } catch (error) {
+    console.error('Subreddit validation failed:', error)
+    // On error, mark all as valid to avoid blocking the flow
+    return candidates.map((c) => ({
+      ...c,
+      isValid: true,
+      problemRelevance: 'validation failed, assuming valid',
+    }))
+  }
+}
+
+// =============================================================================
+// MAIN DISCOVERY FUNCTION (3-STAGE PIPELINE)
+// =============================================================================
+
+/**
+ * Main entry point for subreddit discovery.
+ * Implements 3-stage pipeline: Domain Extraction → Domain-First Discovery → Validation
+ *
+ * @param input - Either a string hypothesis (legacy) or structured hypothesis object
+ */
+export async function discoverSubreddits(
+  input: string | StructuredHypothesis
+): Promise<DiscoveryResult> {
+  // Handle legacy string input by converting to structured format
+  const hypothesis: StructuredHypothesis =
+    typeof input === 'string'
+      ? { audience: input, problem: input }
+      : input
+
+  console.log('[SubredditDiscovery] Stage 1: Extracting problem domain...')
+
+  // STAGE 1: Extract the problem domain
+  const domain = await extractDomain(hypothesis)
+  console.log(`[SubredditDiscovery] Domain extracted: ${domain.primaryDomain} (audience: ${domain.audienceDescriptor})`)
+
+  // STAGE 2: Discover subreddits by domain
+  console.log('[SubredditDiscovery] Stage 2: Finding domain-specific subreddits...')
+  const candidates = await discoverSubredditsByDomain(domain, hypothesis)
+  console.log(`[SubredditDiscovery] Found ${candidates.length} candidate subreddits`)
+
+  if (candidates.length === 0) {
+    // Fallback to legacy discovery if domain-first fails
+    console.log('[SubredditDiscovery] No candidates found, using fallback...')
+    const fallback = getFallbackSubreddits(hypothesis.problem)
+    return {
+      ...fallback,
+      domain,
+      warning: 'No domain-specific communities found. Using general fallback subreddits.',
+      recommendation: 'proceed_with_caution',
+    }
+  }
+
+  // STAGE 3: Validate subreddit relevance
+  console.log('[SubredditDiscovery] Stage 3: Validating subreddit relevance...')
+  const validated = await validateSubredditRelevance(candidates, domain, hypothesis)
+
+  // Filter to only valid subreddits
+  const validSubreddits = validated.filter((s) => s.isValid)
+  console.log(`[SubredditDiscovery] ${validSubreddits.length}/${validated.length} subreddits passed validation`)
+
+  // Log rejected subreddits for debugging
+  const rejected = validated.filter((s) => !s.isValid)
+  if (rejected.length > 0) {
+    console.log('[SubredditDiscovery] Rejected subreddits:')
+    rejected.forEach((s) => console.log(`  - r/${s.name}: ${s.rejectReason}`))
+  }
+
+  // Clean up subreddit names
+  const cleanedNames = await validateSubredditsExist(validSubreddits.map((s) => s.name))
+
+  // Determine recommendation based on results
+  let warning: string | null = null
+  let recommendation: 'proceed' | 'proceed_with_caution' | 'reconsider' = 'proceed'
+
+  if (cleanedNames.length === 0) {
+    warning = 'No communities specifically discussing this problem were found. Consider: (1) rephrasing your problem, (2) manually adding subreddits you know, (3) this problem may not be widely discussed on Reddit.'
+    recommendation = 'reconsider'
+  } else if (cleanedNames.length < 3) {
+    warning = 'Limited communities found for this problem. Results may be sparse. Consider adding more subreddits manually.'
+    recommendation = 'proceed_with_caution'
+  }
+
+  // Convert to legacy format for backwards compatibility
+  const suggestions: SubredditSuggestion[] = validSubreddits
+    .filter((s) => cleanedNames.includes(s.name.toLowerCase()))
+    .map((s) => ({
+      name: s.name,
+      reason: s.relevanceReason,
+      relevance: s.relevanceScore,
+    }))
+
+  return {
+    subreddits: cleanedNames,
+    suggestions,
+    domain,
+    validatedSubreddits: validated,
+    warning,
+    recommendation,
+  }
+}
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
 
 /**
  * Validate that subreddits exist and are accessible via Arctic Shift
  * Note: We now skip strict validation since Arctic Shift posts search
  * will just return empty for non-existent subreddits
  */
-async function validateSubreddits(subreddits: string[]): Promise<string[]> {
+async function validateSubredditsExist(subreddits: string[]): Promise<string[]> {
   // Clean up subreddit names (remove r/ prefix if present, lowercase)
-  const cleaned = subreddits.map(s => {
+  const cleaned = subreddits.map((s) => {
     let name = s.toLowerCase().trim()
     if (name.startsWith('r/')) {
       name = name.substring(2)
@@ -130,7 +447,7 @@ async function validateSubreddits(subreddits: string[]): Promise<string[]> {
   })
 
   // Remove duplicates and empty strings
-  const unique = [...new Set(cleaned)].filter(s => s.length > 0)
+  const unique = [...new Set(cleaned)].filter((s) => s.length > 0)
 
   return unique
 }
@@ -156,52 +473,44 @@ function getFallbackSubreddits(hypothesis: string): DiscoveryResult {
     )
   }
 
-  // Hyrox specific
-  if (lowercaseHypothesis.includes('hyrox')) {
+  // Skincare related
+  if (
+    lowercaseHypothesis.includes('skin') ||
+    lowercaseHypothesis.includes('skincare') ||
+    lowercaseHypothesis.includes('aging') ||
+    lowercaseHypothesis.includes('wrinkle')
+  ) {
     suggestions.push(
-      { name: 'hyrox', reason: 'Direct Hyrox community', relevance: 'high' },
-      { name: 'crossfit', reason: 'Related functional fitness', relevance: 'high' },
-      { name: 'running', reason: 'Running component of Hyrox', relevance: 'medium' },
-      { name: 'ocr', reason: 'Obstacle course racing community', relevance: 'medium' }
+      { name: 'SkincareAddiction', reason: 'Main skincare community', relevance: 'high' },
+      { name: '30PlusSkinCare', reason: 'Aging skin focused', relevance: 'high' },
+      { name: 'malegrooming', reason: 'Men\'s grooming including skincare', relevance: 'medium' }
     )
   }
 
-  // Location based
-  const locations = ['london', 'nyc', 'la', 'sydney', 'melbourne', 'toronto', 'vancouver']
-  for (const location of locations) {
-    if (lowercaseHypothesis.includes(location)) {
-      suggestions.push({
-        name: location,
-        reason: `Local ${location} community`,
-        relevance: 'medium',
-      })
-    }
-  }
-
-  // Business/Entrepreneur related
+  // Parenting related
   if (
-    lowercaseHypothesis.includes('business') ||
-    lowercaseHypothesis.includes('startup') ||
-    lowercaseHypothesis.includes('entrepreneur')
+    lowercaseHypothesis.includes('parent') ||
+    lowercaseHypothesis.includes('kid') ||
+    lowercaseHypothesis.includes('child') ||
+    lowercaseHypothesis.includes('baby')
   ) {
     suggestions.push(
-      { name: 'Entrepreneur', reason: 'Startup and business community', relevance: 'high' },
-      { name: 'smallbusiness', reason: 'Small business owners', relevance: 'high' },
-      { name: 'startups', reason: 'Startup founders', relevance: 'medium' }
+      { name: 'Parenting', reason: 'General parenting community', relevance: 'high' },
+      { name: 'beyondthebump', reason: 'New parents community', relevance: 'high' },
+      { name: 'Mommit', reason: 'Mothers community', relevance: 'medium' }
     )
   }
 
-  // Tech related
+  // Freelance related
   if (
-    lowercaseHypothesis.includes('app') ||
-    lowercaseHypothesis.includes('software') ||
-    lowercaseHypothesis.includes('saas') ||
-    lowercaseHypothesis.includes('tech')
+    lowercaseHypothesis.includes('freelance') ||
+    lowercaseHypothesis.includes('client') ||
+    lowercaseHypothesis.includes('self-employed')
   ) {
     suggestions.push(
-      { name: 'SaaS', reason: 'SaaS product community', relevance: 'high' },
-      { name: 'webdev', reason: 'Web developers', relevance: 'medium' },
-      { name: 'programming', reason: 'General programming', relevance: 'low' }
+      { name: 'freelance', reason: 'Freelancer community', relevance: 'high' },
+      { name: 'graphic_design', reason: 'Design freelancers', relevance: 'medium' },
+      { name: 'webdev', reason: 'Web development freelancers', relevance: 'medium' }
     )
   }
 
@@ -217,6 +526,8 @@ function getFallbackSubreddits(hypothesis: string): DiscoveryResult {
   return {
     subreddits: suggestions.map((s) => s.name),
     suggestions,
+    warning: 'Using fallback subreddits. Consider manually adding more specific communities.',
+    recommendation: 'proceed_with_caution',
   }
 }
 

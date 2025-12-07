@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X } from 'lucide-react'
+import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { StructuredHypothesis } from '@/types/research'
+import { StructuredHypothesis, TargetGeography, GeographyScope, detectGeographyFromAudience } from '@/types/research'
 
 export interface SubredditCoverage {
   name: string
@@ -21,9 +21,22 @@ export interface CoverageData {
   refinementSuggestions?: string[]
   keywords: string[]
   problemPhrases?: string[] // New: phrases we'll search for
+  // 3-stage discovery results
+  discoveryWarning?: string | null
+  discoveryRecommendation?: 'proceed' | 'proceed_with_caution' | 'reconsider'
+  domain?: {
+    primaryDomain: string
+    secondaryDomains: string[]
+    audienceDescriptor: string
+  }
   // User modifications
   userSelectedSubreddits?: string[] // AI-suggested subs user wants to keep
   userAddedSubreddits?: string[] // Custom subs user added
+  // Geography for market sizing scoping
+  targetGeography?: TargetGeography
+  // Revenue goal and pricing for market sizing
+  mscTarget?: number // Minimum Success Criteria (revenue goal in $)
+  targetPrice?: number // Monthly price per customer in $
 }
 
 interface CoveragePreviewProps {
@@ -89,6 +102,34 @@ export function CoveragePreview({
   const [newSubreddit, setNewSubreddit] = useState('')
   const [showAddInput, setShowAddInput] = useState(false)
 
+  // Geography state for market sizing scoping
+  const [targetGeography, setTargetGeography] = useState<TargetGeography | undefined>(undefined)
+  const [showGeographyEditor, setShowGeographyEditor] = useState(false)
+  const [customLocation, setCustomLocation] = useState('')
+
+  // Revenue goal and pricing state for market sizing
+  const [mscTarget, setMscTarget] = useState<number>(1000000) // Default $1M ARR
+  const [targetPrice, setTargetPrice] = useState<number>(29) // Default $29/month
+  const [showPricingEditor, setShowPricingEditor] = useState(false)
+
+  // MSC presets
+  const mscPresets = [
+    { value: 100000, label: '$100k', description: 'Lifestyle business' },
+    { value: 500000, label: '$500k', description: 'Sustainable small business' },
+    { value: 1000000, label: '$1M', description: 'Growth business' },
+    { value: 10000000, label: '$10M+', description: 'Venture-scale' },
+  ]
+
+  // Detect geography from audience on mount
+  useEffect(() => {
+    if (structuredHypothesis?.audience && !targetGeography) {
+      const detected = detectGeographyFromAudience(structuredHypothesis.audience)
+      if (detected) {
+        setTargetGeography(detected)
+      }
+    }
+  }, [structuredHypothesis?.audience, targetGeography])
+
   const checkCoverage = async () => {
     // Validate based on structured input if available
     const hasValidInput = structuredHypothesis
@@ -120,8 +161,12 @@ export function CoveragePreview({
 
       const data = await res.json()
       setCoverage(data)
-      // Initialize all AI-suggested subreddits as selected
-      const names: string[] = data.subreddits?.map((s: SubredditCoverage) => s.name) || []
+      // Only auto-select high and medium relevance subreddits
+      // Low-relevance subreddits are shown but NOT pre-selected (user can opt-in)
+      const highMediumSubs = data.subreddits?.filter(
+        (s: SubredditCoverage) => s.relevanceScore === 'high' || s.relevanceScore === 'medium'
+      ) || []
+      const names: string[] = highMediumSubs.map((s: SubredditCoverage) => s.name)
       setSelectedSubreddits(new Set(names))
       setCustomSubreddits([])
       setChecked(true)
@@ -141,7 +186,7 @@ export function CoveragePreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Only run on mount
 
-  // Reset when hypothesis changes significantly
+  // Reset and re-check coverage
   const resetCheck = () => {
     setChecked(false)
     setCoverage(null)
@@ -150,6 +195,10 @@ export function CoveragePreview({
     setCustomSubreddits([])
     setShowAddInput(false)
     setNewSubreddit('')
+    // Re-trigger coverage check after state clears
+    setTimeout(() => {
+      checkCoverage()
+    }, 0)
   }
 
   // Toggle subreddit selection
@@ -193,6 +242,33 @@ export function CoveragePreview({
       ...coverage,
       userSelectedSubreddits: Array.from(selectedSubreddits),
       userAddedSubreddits: customSubreddits,
+      targetGeography: targetGeography,
+      mscTarget: mscTarget,
+      targetPrice: targetPrice,
+    }
+  }
+
+  // Geography scope display helpers
+  const geographyIcons: Record<GeographyScope, typeof Globe> = {
+    local: MapPin,
+    national: Building2,
+    global: Globe,
+  }
+
+  const geographyLabels: Record<GeographyScope, string> = {
+    local: 'Local (City/Region)',
+    national: 'National (Country)',
+    global: 'Global (Online business)',
+  }
+
+  const setGeographyScope = (scope: GeographyScope) => {
+    if (scope === 'global') {
+      setTargetGeography({ scope: 'global' })
+    } else {
+      setTargetGeography(prev => ({
+        scope,
+        location: prev?.location || customLocation || '',
+      }))
     }
   }
 
@@ -253,6 +329,38 @@ export function CoveragePreview({
           Reset
         </Button>
       </div>
+
+      {/* Domain-first discovery warning banner */}
+      {coverage.discoveryWarning && (
+        <div className={cn(
+          'mb-4 p-3 rounded-lg flex items-start gap-3',
+          coverage.discoveryRecommendation === 'reconsider'
+            ? 'bg-red-500/10 border border-red-500/20'
+            : 'bg-yellow-500/10 border border-yellow-500/20'
+        )}>
+          <AlertTriangle className={cn(
+            'w-5 h-5 mt-0.5 flex-shrink-0',
+            coverage.discoveryRecommendation === 'reconsider' ? 'text-red-500' : 'text-yellow-500'
+          )} />
+          <div className="flex-1">
+            <p className={cn(
+              'text-sm font-medium',
+              coverage.discoveryRecommendation === 'reconsider' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
+            )}>
+              {coverage.discoveryRecommendation === 'reconsider' ? 'Consider Refining' : 'Limited Coverage'}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">{coverage.discoveryWarning}</p>
+            {coverage.domain && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Detected domain: <span className="font-medium">{coverage.domain.primaryDomain}</span>
+                {coverage.domain.secondaryDomains.length > 0 && (
+                  <span> + {coverage.domain.secondaryDomains.join(', ')}</span>
+                )}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Subreddit breakdown - editable */}
       {coverage.subreddits.length > 0 && (
@@ -414,6 +522,209 @@ export function CoveragePreview({
           </div>
         </div>
       )}
+
+      {/* Geography selector for market sizing */}
+      <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              Target Market (for market sizing)
+            </p>
+          </div>
+          {!showGeographyEditor && (
+            <button
+              type="button"
+              onClick={() => setShowGeographyEditor(true)}
+              className="text-xs text-primary hover:text-primary/80"
+            >
+              Change
+            </button>
+          )}
+        </div>
+
+        {showGeographyEditor ? (
+          <div className="space-y-3">
+            {/* Scope selection */}
+            <div className="flex flex-wrap gap-2">
+              {(['local', 'national', 'global'] as GeographyScope[]).map((scope) => {
+                const Icon = geographyIcons[scope]
+                return (
+                  <button
+                    key={scope}
+                    type="button"
+                    onClick={() => setGeographyScope(scope)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors',
+                      targetGeography?.scope === scope
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary hover:bg-secondary/80'
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {geographyLabels[scope]}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Location input for local/national */}
+            {targetGeography?.scope && targetGeography.scope !== 'global' && (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  value={targetGeography?.location || customLocation}
+                  onChange={(e) => {
+                    setCustomLocation(e.target.value)
+                    setTargetGeography(prev => ({
+                      scope: prev?.scope || 'local',
+                      location: e.target.value,
+                    }))
+                  }}
+                  placeholder={targetGeography?.scope === 'local' ? 'e.g., London, UK' : 'e.g., United States'}
+                  className="h-8 text-sm flex-1"
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowGeographyEditor(false)}
+                className="text-xs"
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {targetGeography ? (
+              <>
+                {(() => {
+                  const Icon = geographyIcons[targetGeography.scope]
+                  return <Icon className="h-4 w-4 text-primary" />
+                })()}
+                <span className="text-sm font-medium">
+                  {targetGeography.scope === 'global'
+                    ? 'Global (no geographic limit)'
+                    : targetGeography.location || geographyLabels[targetGeography.scope]}
+                </span>
+                {targetGeography.detectedFrom && (
+                  <span className="text-xs text-muted-foreground">
+                    (detected from {targetGeography.detectedFrom})
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <Globe className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  Global (click Change to set target market)
+                </span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Revenue Goal and Pricing for market sizing */}
+      <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              Revenue Goal & Pricing (for market sizing)
+            </p>
+          </div>
+          {!showPricingEditor && (
+            <button
+              type="button"
+              onClick={() => setShowPricingEditor(true)}
+              className="text-xs text-primary hover:text-primary/80"
+            >
+              Change
+            </button>
+          )}
+        </div>
+
+        {showPricingEditor ? (
+          <div className="space-y-4">
+            {/* Revenue Goal selection */}
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">3-Year Revenue Goal (MSC):</p>
+              <div className="flex flex-wrap gap-2">
+                {mscPresets.map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => setMscTarget(preset.value)}
+                    className={cn(
+                      'flex flex-col items-center px-3 py-2 rounded-md text-xs transition-colors',
+                      mscTarget === preset.value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary hover:bg-secondary/80'
+                    )}
+                  >
+                    <span className="font-medium">{preset.label}</span>
+                    <span className="text-[10px] opacity-70">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Pricing input */}
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Monthly Price per Customer:</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">$</span>
+                <Input
+                  type="number"
+                  value={targetPrice}
+                  onChange={(e) => setTargetPrice(Number(e.target.value) || 29)}
+                  placeholder="29"
+                  className="h-8 text-sm w-24"
+                  min={1}
+                />
+                <span className="text-sm text-muted-foreground">/month</span>
+                <span className="text-xs text-muted-foreground ml-2">
+                  = ${(targetPrice * 12).toLocaleString()}/year per customer
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowPricingEditor(false)}
+                className="text-xs"
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-1">
+              <Target className="h-4 w-4 text-primary" />
+              <span className="font-medium">
+                {mscPresets.find(p => p.value === mscTarget)?.label || `$${(mscTarget / 1000000).toFixed(1)}M`}
+              </span>
+              <span className="text-muted-foreground">goal</span>
+            </div>
+            <span className="text-muted-foreground">•</span>
+            <div className="flex items-center gap-1">
+              <DollarSign className="h-4 w-4 text-primary" />
+              <span className="font-medium">${targetPrice}/mo</span>
+              <span className="text-muted-foreground">(${(targetPrice * 12).toLocaleString()}/yr)</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Suggestions if coverage is low */}
       {coverage.refinementSuggestions && coverage.refinementSuggestions.length > 0 && (

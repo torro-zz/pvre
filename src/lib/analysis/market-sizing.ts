@@ -7,9 +7,12 @@
 import { anthropic, getCurrentTracker } from "../anthropic";
 import { trackUsage } from "./token-tracker";
 
+export type GeographyScope = 'local' | 'national' | 'global';
+
 export interface MarketSizingInput {
   hypothesis: string;
-  geography?: string;
+  geography?: string;           // Location string (e.g., "London, UK" or "United States")
+  geographyScope?: GeographyScope; // Scoping level for TAM/SAM/SOM
   targetPrice?: number;
   mscTarget?: number; // Minimum Success Criteria (revenue goal)
 }
@@ -45,20 +48,51 @@ export async function calculateMarketSize(
   input: MarketSizingInput
 ): Promise<MarketSizingResult> {
   const geography = input.geography || "Global";
+  const scope = input.geographyScope || "global";
   const price = input.targetPrice || 29; // default $29/month
   const msc = input.mscTarget || 1000000; // default $1M ARR
+
+  // Build scoping instructions based on geography scope
+  let scopingRules = "";
+  if (scope === "local") {
+    scopingRules = `
+GEOGRAPHIC SCOPING (Local/City Target):
+- TAM: National market (${geography} country)
+- SAM: Regional market around ${geography}
+- SOM: ${geography} city/metro area - realistic Year 1 capture
+This is for a founder launching in a specific city. Use LOCAL numbers, not global.`;
+  } else if (scope === "national") {
+    scopingRules = `
+GEOGRAPHIC SCOPING (National Target):
+- TAM: Continental/regional market (e.g., Europe, North America)
+- SAM: ${geography} national market
+- SOM: Realistic Year 1 capture within ${geography}
+This is for a founder launching nationally. Use NATIONAL numbers, not global.`;
+  } else {
+    scopingRules = `
+GEOGRAPHIC SCOPING (Global/Online Target):
+- TAM: Worldwide market for this problem
+- SAM: Accessible markets (English-speaking, online access, etc.)
+- SOM: Realistic Year 1 capture with online marketing
+This is for an online business with no geographic constraints.`;
+  }
 
   const prompt = `You are a market sizing expert. Perform a Fermi estimation for this business hypothesis.
 
 HYPOTHESIS: "${input.hypothesis}"
 TARGET GEOGRAPHY: ${geography}
+GEOGRAPHIC SCOPE: ${scope.toUpperCase()}
 ASSUMED PRICE: $${price}/month ($${price * 12}/year)
 REVENUE GOAL (MSC): $${msc.toLocaleString()} ARR
+${scopingRules}
+
+CRITICAL: Founders need ACTIONABLE numbers for their target market, not vanity global TAM figures.
+If targeting London, give London numbers. If targeting USA, give USA numbers.
 
 Perform a bottom-up Fermi estimation:
 
 1. TAM (Total Addressable Market)
-   - Start with the total population or market
+   - Scope according to the GEOGRAPHIC SCOPING rules above
    - Apply relevant filters to get to everyone who COULD use this
 
 2. SAM (Serviceable Available Market)
@@ -66,13 +100,14 @@ Perform a bottom-up Fermi estimation:
    - Consider geography, language, channel access
 
 3. SOM (Serviceable Obtainable Market)
-   - Realistically, who can you capture in 2-3 years?
+   - Realistically, who can you capture in Year 1?
    - Consider competition, awareness, adoption rates
+   - This should be a LOCAL, ACHIEVABLE number
 
 4. MSC Analysis
    - Customers needed = MSC / (price × 12)
    - Penetration required = customers needed / SOM
-   - Is this achievable?
+   - Is this achievable in the TARGET GEOGRAPHY?
 
 SCORING GUIDE for market_score (0-10):
 - Penetration < 5% needed → 9/10 (highly achievable)

@@ -38,6 +38,8 @@ interface User {
   total_research_runs: number
   created_at: string
   research_jobs: { count: number }[]
+  total_spent_cents: number
+  avg_spend_per_credit: string | null
 }
 
 interface WaitlistEntry {
@@ -440,6 +442,7 @@ export default function AdminPage() {
                     <tr>
                       <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">User</th>
                       <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Credits</th>
+                      <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">$/Credit</th>
                       <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Runs</th>
                       <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Joined</th>
                       <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Actions</th>
@@ -456,6 +459,9 @@ export default function AdminPage() {
                           <Badge variant={user.credits_balance > 0 ? 'default' : 'secondary'}>
                             {user.credits_balance}
                           </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm text-gray-500">
+                          {user.avg_spend_per_credit ? `$${user.avg_spend_per_credit}` : '-'}
                         </td>
                         <td className="px-4 py-3 text-right text-gray-600">
                           {user.total_research_runs}

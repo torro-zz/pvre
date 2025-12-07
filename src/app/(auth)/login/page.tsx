@@ -1,10 +1,18 @@
 'use client'
 
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Mail, Loader2, CheckCircle2 } from 'lucide-react'
 
 export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const handleGoogleLogin = async () => {
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
@@ -13,6 +21,67 @@ export default function LoginPage() {
         redirectTo: `${window.location.origin}/api/auth/callback`,
       },
     })
+  }
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) return
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const supabase = createClient()
+      const { error: signInError } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+        },
+      })
+
+      if (signInError) {
+        throw signInError
+      }
+
+      setEmailSent(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send magic link')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (emailSent) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle2 className="h-6 w-6 text-green-600" />
+              </div>
+              <h2 className="text-xl font-semibold">Check your email</h2>
+              <p className="text-muted-foreground">
+                We sent a magic link to <strong>{email}</strong>
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Click the link in the email to sign in. You can close this tab.
+              </p>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setEmailSent(false)
+                  setEmail('')
+                }}
+                className="mt-4"
+              >
+                Use a different email
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -24,7 +93,7 @@ export default function LoginPage() {
             Pre-Validation Research Engine - Get automated market research in minutes
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <Button
             onClick={handleGoogleLogin}
             className="w-full"
@@ -50,6 +119,49 @@ export default function LoginPage() {
             </svg>
             Sign in with Google
           </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-muted-foreground">or</span>
+            </div>
+          </div>
+
+          <form onSubmit={handleEmailLogin} className="space-y-3">
+            <div className="space-y-2">
+              <Input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                required
+              />
+            </div>
+            {error && (
+              <p className="text-sm text-red-600">{error}</p>
+            )}
+            <Button
+              type="submit"
+              variant="outline"
+              className="w-full"
+              size="lg"
+              disabled={isLoading || !email.trim()}
+            >
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Mail className="mr-2 h-4 w-4" />
+              )}
+              Sign in with Email
+            </Button>
+          </form>
+
+          <p className="text-xs text-center text-muted-foreground">
+            We&apos;ll send you a magic link to sign in instantly
+          </p>
         </CardContent>
       </Card>
     </div>

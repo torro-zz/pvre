@@ -94,10 +94,11 @@ function sanitizeSubreddit(subreddit: string | undefined): string | undefined {
  */
 export async function searchPosts(params: SearchPostsParams): Promise<RedditPost[]> {
   // Sanitize parameters to prevent 422 errors
+  // Use 'auto' for limit to allow API to return up to 1000 results based on capacity
   const sanitizedParams: SearchPostsParams = {
     ...params,
     subreddit: sanitizeSubreddit(params.subreddit),
-    limit: Math.min(Math.max(params.limit || DEFAULT_LIMIT, 1), 100), // Clamp to valid range
+    limit: params.limit === 'auto' ? 'auto' : Math.min(Math.max(params.limit || DEFAULT_LIMIT, 1), 100), // Support 'auto' or clamp to valid range
   }
 
   // Remove empty query to avoid 422
@@ -117,10 +118,11 @@ export async function searchPosts(params: SearchPostsParams): Promise<RedditPost
  */
 export async function searchComments(params: SearchCommentsParams): Promise<RedditComment[]> {
   // Sanitize parameters to prevent 422 errors
+  // Use 'auto' for limit to allow API to return up to 1000 results based on capacity
   const sanitizedParams: SearchCommentsParams = {
     ...params,
     subreddit: sanitizeSubreddit(params.subreddit),
-    limit: Math.min(Math.max(params.limit || DEFAULT_LIMIT, 1), 100), // Clamp to valid range
+    limit: params.limit === 'auto' ? 'auto' : Math.min(Math.max(params.limit || DEFAULT_LIMIT, 1), 100), // Support 'auto' or clamp to valid range
   }
 
   // Remove empty body query to avoid 422

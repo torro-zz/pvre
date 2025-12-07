@@ -52,7 +52,7 @@ import {
   preparePostDecisionLogs,
   prepareCommentDecisionLogs,
 } from '@/lib/research/log-decisions'
-import { StructuredHypothesis } from '@/types/research'
+import { StructuredHypothesis, TargetGeography } from '@/types/research'
 
 const anthropic = new Anthropic()
 
@@ -123,12 +123,22 @@ HYPOTHESIS: "${hypothesis}"
 
 TASK: For each post below, decide if it discusses problems, needs, or experiences DIRECTLY related to the hypothesis.
 
+AUTOMATIC REJECTION (always N):
+- Post is NOT primarily in English (foreign language posts)
+- Post author is clearly NOT the target audience (e.g., post by teenager when target is "elderly people")
+- Post is from wrong perspective (e.g., caregiver talking ABOUT elderly, not elderly person posting)
+
 RELEVANT (Y) means:
+- Post is in English
+- Post is from the target audience's FIRST-PERSON perspective
 - The post discusses the actual problem the hypothesis solves
 - The post is about the target user's specific pain point
 - The post mentions the domain/activity the hypothesis addresses
 
 NOT RELEVANT (N) means:
+- Post is not primarily in English
+- Post is from wrong demographic (teens when seeking seniors, etc.)
+- Post is third-person perspective about target audience
 - The post is about unrelated business/life topics
 - The post contains pain language but about different problems
 - The post is tangentially related but not about the core problem
@@ -243,12 +253,22 @@ HYPOTHESIS: "${hypothesis}"
 
 TASK: For each comment below, decide if it discusses problems, needs, or experiences DIRECTLY related to the hypothesis.
 
+AUTOMATIC REJECTION (always N):
+- Comment is NOT primarily in English (foreign language)
+- Commenter is clearly NOT the target audience (wrong demographic)
+- Comment is third-person perspective about target audience
+
 RELEVANT (Y) means:
+- Comment is in English
+- Comment is from target audience's FIRST-PERSON perspective
 - The comment discusses the actual problem the hypothesis solves
 - The comment expresses frustration/pain about the specific topic
 - The comment mentions the domain/activity the hypothesis addresses
 
 NOT RELEVANT (N) means:
+- Comment is not primarily in English
+- Comment is from wrong demographic
+- Comment is third-person about target audience
 - The comment is about unrelated topics
 - The comment contains pain language but about different problems
 - The comment is off-topic, jokes, or generic advice${structured?.excludeTopics ? `
@@ -489,9 +509,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fetch structured hypothesis and user-selected subreddits from job's coverage_data if available
+    // Fetch structured hypothesis, user-selected subreddits, and geography from job's coverage_data if available
     let structuredHypothesis: StructuredHypothesis | undefined
     let userSelectedSubreddits: string[] | undefined
+    let targetGeography: TargetGeography | undefined
+    let mscTarget: number | undefined
+    let targetPrice: number | undefined
     if (jobId) {
       const adminClient = createAdminClient()
       // Update status and fetch job data in one query
@@ -518,6 +541,19 @@ export async function POST(request: NextRequest) {
       userSelectedSubreddits = coverageData?.userSelectedSubreddits as string[] | undefined
       if (userSelectedSubreddits && userSelectedSubreddits.length > 0) {
         console.log('Using user-selected subreddits:', userSelectedSubreddits)
+      }
+
+      // Check for target geography from coverage preview (for market sizing scoping)
+      targetGeography = coverageData?.targetGeography as TargetGeography | undefined
+      if (targetGeography) {
+        console.log('Using target geography:', targetGeography)
+      }
+
+      // Check for MSC target and target price from coverage preview (for market sizing)
+      mscTarget = coverageData?.mscTarget as number | undefined
+      targetPrice = coverageData?.targetPrice as number | undefined
+      if (mscTarget || targetPrice) {
+        console.log('Using market sizing inputs:', { mscTarget, targetPrice })
       }
     }
 
@@ -566,13 +602,13 @@ export async function POST(request: NextRequest) {
     if (userSelectedSubreddits && userSelectedSubreddits.length > 0) {
       // User has selected specific subreddits from coverage preview
       console.log('Step 2: Using user-selected subreddits:', userSelectedSubreddits)
-      subredditsToSearch = userSelectedSubreddits.slice(0, 8) // Limit to 8 subreddits
+      subredditsToSearch = userSelectedSubreddits.slice(0, 12) // Increased to 12 subreddits for more data
       discoveryResult = { subreddits: subredditsToSearch }
     } else {
       // Discover using Claude
       console.log('Step 2: Discovering subreddits for:', searchContext.slice(0, 50))
       discoveryResult = await discoverSubreddits(searchContext)
-      subredditsToSearch = discoveryResult.subreddits.slice(0, 6) // Limit to 6 subreddits
+      subredditsToSearch = discoveryResult.subreddits.slice(0, 10) // Increased to 10 subreddits for more data
     }
 
     if (subredditsToSearch.length === 0) {
@@ -600,7 +636,7 @@ export async function POST(request: NextRequest) {
     const redditData = await fetchRedditData({
       subreddits: subredditsToSearch,
       keywords: searchKeywords,
-      limit: 100,
+      limit: 100, // 100/subreddit × 10-12 subreddits = 1000-1200 posts max (API caps at 100/request)
       timeRange: {
         after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
       },
@@ -683,9 +719,12 @@ export async function POST(request: NextRequest) {
     try {
       marketSizing = await calculateMarketSize({
         hypothesis,
-        // Use defaults for geography and pricing - can be customized later
+        geography: targetGeography?.location || 'Global',
+        geographyScope: targetGeography?.scope || 'global',
+        mscTarget,
+        targetPrice,
       })
-      console.log(`Market sizing complete - Score: ${marketSizing.score}/10`)
+      console.log(`Market sizing complete - Score: ${marketSizing.score}/10, Geography: ${targetGeography?.location || 'Global'}, MSC: $${mscTarget || 1000000}, Price: $${targetPrice || 29}/mo`)
     } catch (marketError) {
       console.error('Market sizing failed (non-blocking):', marketError)
       // Continue without market sizing - it's optional

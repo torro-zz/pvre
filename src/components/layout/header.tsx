@@ -33,6 +33,8 @@ export function Header() {
     setMounted(true)
     if (!supabase) return
 
+    let profileSubscription: ReturnType<typeof supabase.channel> | null = null
+
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
@@ -44,6 +46,26 @@ export function Header() {
           .eq('id', user.id)
           .single()
         setCredits(profile?.credits_balance ?? 0)
+
+        // Subscribe to real-time updates for this user's profile
+        profileSubscription = supabase
+          .channel(`profile-${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${user.id}`
+            },
+            (payload) => {
+              const newCredits = (payload.new as { credits_balance?: number }).credits_balance
+              if (typeof newCredits === 'number') {
+                setCredits(newCredits)
+              }
+            }
+          )
+          .subscribe()
       }
     }
     getUser()
@@ -52,10 +74,15 @@ export function Header() {
       setUser(session?.user ?? null)
       if (!session?.user) {
         setCredits(null)
+        profileSubscription?.unsubscribe()
+        profileSubscription = null
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      profileSubscription?.unsubscribe()
+    }
   }, [supabase])
 
   const handleSignOut = async () => {

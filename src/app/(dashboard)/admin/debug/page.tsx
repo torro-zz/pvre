@@ -798,6 +798,20 @@ export default function AdminDebugPage() {
                         </TabsContent>
 
                         <TabsContent value="raw" className="mt-4">
+                          {/* Clarify the difference between raw scores and calculated verdict */}
+                          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                            <p className="font-medium text-blue-800 mb-1">Note: Raw JSON vs Calculated Verdict</p>
+                            <p className="text-blue-700">
+                              The raw JSON contains individual dimension scores (Pain, Market, Timing).
+                              The <strong>Viability Verdict</strong> shown in Summary tab is dynamically calculated
+                              using weighted averages of all available dimensions including Competition (if run).
+                              {viabilityVerdict && (
+                                <span className="block mt-1">
+                                  Current calculated verdict: <strong>{viabilityVerdict.overallScore.toFixed(1)}/10</strong> ({viabilityVerdict.availableDimensions}/{viabilityVerdict.totalDimensions} dimensions)
+                                </span>
+                              )}
+                            </p>
+                          </div>
                           <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto max-h-[500px] text-xs">
                             {JSON.stringify(cvResult?.data, null, 2)}
                           </pre>

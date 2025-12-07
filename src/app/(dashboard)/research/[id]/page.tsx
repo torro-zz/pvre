@@ -9,7 +9,9 @@ import { CompetitorPromptModal, CompetitorPromptBanner } from '@/components/rese
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ResearchTabsProvider } from '@/components/research/research-tabs-context'
+import { ControlledTabs } from '@/components/research/controlled-tabs'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, Clock, AlertCircle, TrendingUp, Shield, Target, PieChart, Timer } from 'lucide-react'
 import { PDFDownloadButton } from '@/components/research/pdf-download-button'
@@ -262,12 +264,13 @@ export default async function ResearchDetailPage({
         {/* Results or status message */}
         {/* Show partial results during processing if we have any results */}
         {(researchJob.status === 'processing' || researchJob.status === 'pending') && (communityVoiceResult?.data || competitorResult?.data) ? (
+          <ResearchTabsProvider>
           <PartialResultsContainer
             jobId={id}
             jobStatus={researchJob.status}
             initialResultsCount={allResults?.length || 0}
           >
-            <Tabs defaultValue="community" className="space-y-6">
+            <ControlledTabs className="space-y-6">
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="community" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
@@ -448,8 +451,9 @@ export default async function ResearchDetailPage({
                 jobId={id}
               />
             </TabsContent>
-            </Tabs>
+            </ControlledTabs>
           </PartialResultsContainer>
+          </ResearchTabsProvider>
         ) : researchJob.status === 'processing' ? (
           <StatusPoller jobId={id} initialStatus="processing" hypothesis={researchJob.hypothesis} />
         ) : researchJob.status === 'pending' ? (
@@ -471,7 +475,7 @@ export default async function ResearchDetailPage({
           </Card>
         ) : communityVoiceResult?.data || competitorResult?.data ? (
           /* Tabbed Results Interface */
-          <>
+          <ResearchTabsProvider>
             {/* Competitor Prompt Modal - shows when Community Voice is done but no competitors */}
             {communityVoiceResult?.data && !competitorResult?.data && (
               <CompetitorPromptModal
@@ -480,7 +484,7 @@ export default async function ResearchDetailPage({
               />
             )}
 
-            <Tabs defaultValue="community" className="space-y-6">
+            <ControlledTabs className="space-y-6">
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="community" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
@@ -848,8 +852,8 @@ export default async function ResearchDetailPage({
                 jobId={id}
               />
             </TabsContent>
-            </Tabs>
-          </>
+            </ControlledTabs>
+          </ResearchTabsProvider>
         ) : (
           /* No results at all - offer to start research */
           <Card>

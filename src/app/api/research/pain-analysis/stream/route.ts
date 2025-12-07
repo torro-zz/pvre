@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { deductCredit } from '@/lib/credits'
+import { StructuredHypothesis } from '@/types/research'
 import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
 import { fetchRedditData, RedditPost, RedditComment } from '@/lib/data-sources'
 import {
@@ -343,6 +344,21 @@ export async function POST(request: NextRequest) {
           return
         }
 
+        // Fetch structured hypothesis from job's coverage_data (excludes solution field)
+        let structuredHypothesis: StructuredHypothesis | undefined
+        const adminClient = createAdminClient()
+        const { data: jobData } = await adminClient
+          .from('research_jobs')
+          .select('coverage_data')
+          .eq('id', jobId)
+          .single()
+
+        // coverage_data is a JSON column that may contain structuredHypothesis
+        const coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
+        if (coverageData?.structuredHypothesis) {
+          structuredHypothesis = coverageData.structuredHypothesis as StructuredHypothesis
+        }
+
         // Update step status to in_progress
         await updateStepStatus(jobId, 'pain_analysis', 'in_progress')
 
@@ -359,8 +375,9 @@ export async function POST(request: NextRequest) {
         const startTime = Date.now()
 
         // Step 1: Extract keywords
+        // CRITICAL: Pass structured hypothesis to exclude solution field from keywords
         send('keywords', 'Extracting search keywords from your hypothesis...')
-        const keywords = await extractSearchKeywords(hypothesis)
+        const keywords = await extractSearchKeywords(hypothesis, structuredHypothesis)
         send('keywords', `Found ${keywords.primary.length} primary keywords`, { keywords })
 
         // Step 2: Discover subreddits
@@ -487,7 +504,6 @@ export async function POST(request: NextRequest) {
         await updateStepStatus(jobId, 'pain_analysis', 'completed', 'market_sizing')
 
         // Update job status to processing (not completed, as there are more steps)
-        const adminClient = createAdminClient()
         await adminClient
           .from('research_jobs')
           .update({ status: 'processing' })

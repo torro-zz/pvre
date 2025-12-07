@@ -40,17 +40,18 @@ export class ArcticShiftSource implements DataSource {
   }
 
   async searchPosts(params: SearchParams): Promise<RedditPost[]> {
-    const { subreddits, limit = 50, timeRange } = params
+    const { subreddits, limit = 100, timeRange } = params
     const allPosts: RedditPost[] = []
 
     // Don't use query param - multi-word queries cause Arctic Shift timeouts (422 errors)
     // Fetch by subreddit + time range only, let Claude relevance filter do the filtering
+    // Arctic Shift API caps at 100 per request; 'auto' is supported but unpredictable (100-1000)
 
     for (const subreddit of subreddits) {
       try {
         const posts = await arcticSearchPosts({
           subreddit,
-          limit: Math.min(limit, 100),
+          limit: limit === 'auto' ? 'auto' : Math.min(limit, 100),
           after: timeRange?.after ? this.formatDate(timeRange.after) : undefined,
           before: timeRange?.before ? this.formatDate(timeRange.before) : undefined,
           sort: 'desc',
@@ -67,7 +68,7 @@ export class ArcticShiftSource implements DataSource {
   }
 
   async searchComments(params: SearchParams): Promise<RedditComment[]> {
-    const { subreddits, limit = 30, timeRange } = params
+    const { subreddits, limit = 100, timeRange } = params
     const allComments: RedditComment[] = []
 
     // Don't use body param - multi-word queries cause Arctic Shift timeouts (422 errors)
@@ -77,7 +78,7 @@ export class ArcticShiftSource implements DataSource {
       try {
         const comments = await arcticSearchComments({
           subreddit,
-          limit: Math.min(limit, 100),
+          limit: limit === 'auto' ? 'auto' : Math.min(limit, 100),
           after: timeRange?.after ? this.formatDate(timeRange.after) : undefined,
           before: timeRange?.before ? this.formatDate(timeRange.before) : undefined,
           sort: 'desc',

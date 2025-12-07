@@ -42,42 +42,66 @@ export async function POST(request: NextRequest) {
       problemLanguage?.trim(),
     ].filter(Boolean).join(' | ')
 
+    // Extract user's core terms to protect from exclusion
+    const userTerms = new Set(
+      [audience, problem, problemLanguage || '']
+        .join(' ')
+        .toLowerCase()
+        .split(/[\s,]+/)
+        .map(w => w.trim())
+        .filter(w => w.length > 3) // Only meaningful words
+    )
+
     const response = await anthropic.messages.create({
       model: 'claude-3-haiku-20240307',
       max_tokens: 512,
-      system: `You analyze search queries to identify ambiguous terms that could return irrelevant results on Reddit.
+      system: `You analyze search queries to identify WRONG CONTEXTS that could pollute Reddit search results.
 
-Your task: Identify words/phrases in the user's hypothesis that have multiple meanings, where some meanings are clearly NOT what they're looking for.
+CRITICAL RULE: NEVER suggest excluding terms the user explicitly typed in their problem description.
+If they typed "skin" or "skin elasticity" - those are the CORE TERMS they want to find.
 
-Examples:
-- "training" → ambiguous (fitness training, corporate training, dog training, ML training)
-- "expat" + "lonely" → "dating" should be excluded if they want friend-making, not romance
-- "freelancer" + "invoicing" → "medical billing" should be excluded
-- "visa" + "issues" → exclude "credit card" (Visa the card brand)
+Your task: Find OTHER topics/contexts that share words with the hypothesis but are about DIFFERENT problems.
 
-Be conservative - only suggest exclusions that would genuinely pollute results.
-Output 3-6 suggestions maximum. If the query is unambiguous, return empty suggestions array.`,
+GOOD exclusions (different contexts that share words):
+- For "visa issues" → exclude "Visa credit card" (different meaning of "visa")
+- For "training struggles" → exclude "dog training", "ML training" (different types of training)
+- For "skin aging" → exclude "fortnite skin", "skin in the game" (different meanings of "skin")
+- For "skin aging" → exclude "skin cancer", "dermatologist" (medical, not cosmetic)
+
+BAD exclusions (NEVER suggest these):
+- Any word the user typed in "What's their problem?"
+- Any word the user typed in "How do THEY describe it?"
+- Core domain terms (for skincare: skin, wrinkles, aging, moisturizer, etc.)
+- The actual problem they want to research
+
+The test: Would excluding this remove IRRELEVANT posts or RELEVANT posts?
+If it removes relevant posts → DON'T suggest it.
+
+Be very conservative. Output 2-4 suggestions maximum. If the query is clear, return empty arrays.`,
       messages: [
         {
           role: 'user',
-          content: `Analyze this hypothesis for ambiguous terms that could return irrelevant Reddit results:
+          content: `Analyze this hypothesis for WRONG CONTEXTS that could pollute results:
 
 Audience: ${audience}
 Problem: ${problem}
 ${problemLanguage ? `How they describe it: ${problemLanguage}` : ''}
 
+REMEMBER: The terms above are what they WANT to find. Don't suggest excluding them.
+Only suggest OTHER contexts that would bring irrelevant posts.
+
 Return JSON:
 {
-  "ambiguousTerms": ["list", "of", "ambiguous", "terms", "found"],
+  "ambiguousTerms": ["terms", "that", "have", "multiple", "meanings"],
   "suggestions": [
     {
-      "term": "topic to exclude",
-      "reason": "why this would pollute results"
+      "term": "wrong context to exclude",
+      "reason": "why this context is different from their problem"
     }
   ]
 }
 
-Only suggest exclusions for genuinely ambiguous terms. If nothing is ambiguous, return empty arrays.`,
+If the hypothesis is clear and unambiguous, return empty arrays. Be conservative.`,
         },
       ],
     })
@@ -101,9 +125,29 @@ Only suggest exclusions for genuinely ambiguous terms. If nothing is ambiguous, 
 
     const parsed = JSON.parse(jsonMatch[0]) as SuggestExclusionsResult
 
+    // SAFETY FILTER: Never suggest excluding terms the user explicitly typed
+    // This catches any suggestions that slip through despite the prompt instructions
+    const safeSuggestions = (parsed.suggestions || []).filter(suggestion => {
+      const suggestionWords = suggestion.term.toLowerCase().split(/[\s,]+/)
+      // Reject if ANY word in the suggestion matches a user's core term
+      const containsUserTerm = suggestionWords.some(word =>
+        word.length > 3 && userTerms.has(word)
+      )
+      if (containsUserTerm) {
+        console.log(`[ExclusionSuggester] Filtered out "${suggestion.term}" - contains user's core term`)
+      }
+      return !containsUserTerm
+    })
+
+    // Also filter ambiguous terms that are actually the user's core terms
+    const safeAmbiguousTerms = (parsed.ambiguousTerms || []).filter(term => {
+      const termWords = term.toLowerCase().split(/[\s,]+/)
+      return !termWords.some(word => word.length > 3 && userTerms.has(word))
+    })
+
     return NextResponse.json({
-      suggestions: parsed.suggestions || [],
-      ambiguousTerms: parsed.ambiguousTerms || [],
+      suggestions: safeSuggestions,
+      ambiguousTerms: safeAmbiguousTerms,
     })
   } catch (error) {
     console.error('Exclusion suggestion failed:', error)

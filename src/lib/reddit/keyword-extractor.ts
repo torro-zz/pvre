@@ -1,9 +1,11 @@
 // Keyword Extractor Module
 // Extracts hypothesis-specific keywords for better search precision
+// CRITICAL: Only extracts from audience/problem fields, NEVER from solution
 
 import Anthropic from '@anthropic-ai/sdk'
 import { getCurrentTracker } from '@/lib/anthropic'
 import { trackUsage } from '@/lib/analysis/token-tracker'
+import { StructuredHypothesis, formatHypothesisForSearch } from '@/types/research'
 
 const anthropic = new Anthropic()
 
@@ -17,15 +19,28 @@ export interface ExtractedKeywords {
  * Extracts hypothesis-specific keywords for searching.
  * Uses Claude Haiku for cost efficiency.
  *
- * @param hypothesis - The business hypothesis to extract keywords from
+ * CRITICAL: When structured hypothesis is provided, we ONLY extract from:
+ * - audience field
+ * - problem field
+ * - problemLanguage field
+ * We NEVER include terms from the solution field to prevent polluting search results.
+ *
+ * @param hypothesis - The business hypothesis string (may contain solution words - avoid if possible)
+ * @param structuredHypothesis - Optional structured hypothesis (preferred - excludes solution)
  * @returns Keywords categorized as primary, secondary, and exclude
  */
 export async function extractSearchKeywords(
-  hypothesis: string
+  hypothesis: string,
+  structuredHypothesis?: StructuredHypothesis
 ): Promise<ExtractedKeywords> {
+  // CRITICAL: Use search-optimized context when structured hypothesis available
+  // This excludes solution field which would pollute search results
+  const searchContext = structuredHypothesis
+    ? formatHypothesisForSearch(structuredHypothesis)
+    : hypothesis
   const prompt = `Extract search keywords from this business hypothesis for Reddit search.
 
-HYPOTHESIS: "${hypothesis}"
+HYPOTHESIS: "${searchContext}"
 
 Your task:
 1. PRIMARY keywords (2-4): The most distinctive 1-2 word terms that identify THIS SPECIFIC problem domain. These will be used for search, so pick words that are:
@@ -73,14 +88,14 @@ Respond with JSON only:
     const content = response.content[0]
     if (content.type !== 'text') {
       console.warn('Keyword extraction: unexpected response type')
-      return getDefaultKeywords(hypothesis)
+      return getDefaultKeywords(searchContext)
     }
 
     // Extract JSON from response
     const jsonMatch = content.text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
       console.warn('Keyword extraction: could not parse JSON response')
-      return getDefaultKeywords(hypothesis)
+      return getDefaultKeywords(searchContext)
     }
 
     const result = JSON.parse(jsonMatch[0]) as ExtractedKeywords
@@ -88,7 +103,7 @@ Respond with JSON only:
     // Validate the result has required fields
     if (!result.primary || !Array.isArray(result.primary)) {
       console.warn('Keyword extraction: invalid primary keywords')
-      return getDefaultKeywords(hypothesis)
+      return getDefaultKeywords(searchContext)
     }
 
     return {
@@ -98,7 +113,7 @@ Respond with JSON only:
     }
   } catch (error) {
     console.error('Keyword extraction failed:', error)
-    return getDefaultKeywords(hypothesis)
+    return getDefaultKeywords(searchContext)
   }
 }
 

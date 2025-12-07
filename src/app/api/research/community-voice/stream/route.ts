@@ -3,7 +3,9 @@
 
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { deductCredit } from '@/lib/credits'
+import { StructuredHypothesis, TargetGeography } from '@/types/research'
 import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
 import { fetchRedditData, RedditPost, RedditComment } from '@/lib/data-sources'
 import {
@@ -97,10 +99,11 @@ function sendEvent(controller: ReadableStreamDefaultController, event: ProgressE
   controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
 }
 
-// Relevance filter for posts (Y/N binary)
+// Relevance filter for posts (Y/N binary) - with domain context
 async function filterRelevantPosts(
   posts: RedditPost[],
   hypothesis: string,
+  structured: StructuredHypothesis | null,
   sendProgress: (msg: string, data?: Record<string, unknown>) => void
 ): Promise<{ items: RedditPost[]; metrics: { before: number; after: number; filteredOut: number; filterRate: number } }> {
   if (posts.length === 0) {
@@ -113,24 +116,44 @@ async function filterRelevantPosts(
   const relevantPosts: RedditPost[] = []
   let processedCount = 0
 
+  // Build context section from structured hypothesis if available
+  const contextSection = structured ? `
+TARGET AUDIENCE: ${structured.audience}
+THEIR PROBLEM: ${structured.problem}${structured.problemLanguage ? `
+LOOK FOR PHRASES LIKE: ${structured.problemLanguage}` : ''}${structured.excludeTopics ? `
+EXCLUDE TOPICS ABOUT: ${structured.excludeTopics}` : ''}
+` : ''
+
   for (let i = 0; i < posts.length; i += batchSize) {
     const batch = posts.slice(i, i + batchSize)
 
     const prompt = `You are evaluating whether Reddit posts are relevant to a specific business hypothesis.
-
+${contextSection}
 HYPOTHESIS: "${hypothesis}"
 
-TASK: For each post below, decide if it discusses problems, needs, or experiences DIRECTLY related to the hypothesis.
+TASK: For each post below, decide if it discusses problems DIRECTLY related to the PROBLEM (not just the audience).
+
+CRITICAL: Match the PROBLEM DOMAIN, not just the AUDIENCE.
+${structured ? `- Posts about "${structured.audience}" but NOT about "${structured.problem}" → N
+- Posts specifically about "${structured.problem}" → Y` : ''}
+
+AUTOMATIC REJECTION (always N):
+- Post is NOT primarily in English (foreign language posts)
+- Post author is clearly NOT the target audience (wrong demographic)
+- Post is from wrong perspective (third-person about target audience)
+- Post is about the same AUDIENCE but DIFFERENT problem
 
 RELEVANT (Y) means:
-- The post discusses the actual problem the hypothesis solves
-- The post is about the target user's specific pain point
-- The post mentions the domain/activity the hypothesis addresses
+- Post is in English
+- Post is from the target audience's FIRST-PERSON perspective
+- Post discusses the SPECIFIC PROBLEM: ${structured?.problem || 'from the hypothesis'}
+- Post mentions ${structured?.problemLanguage || 'the problem domain'}
 
 NOT RELEVANT (N) means:
-- The post is about unrelated business/life topics
-- The post contains pain language but about different problems
-- The post is tangentially related but not about the core problem
+- Post is about unrelated topics (even if from same audience)
+- Post contains pain language but about DIFFERENT problems
+- Post is from the target audience but discussing unrelated issues${structured?.excludeTopics ? `
+- Post is about excluded topics: ${structured.excludeTopics}` : ''}
 
 POSTS TO EVALUATE:
 ${batch.map((p, idx) => `[${idx}] "${p.title}" - ${(p.body || '').slice(0, 200)}...`).join('\n')}
@@ -190,10 +213,11 @@ Respond with ONLY a JSON array of "Y" or "N" for each post in order:
   return { items: relevantPosts, metrics }
 }
 
-// Relevance filter for comments (Y/N binary)
+// Relevance filter for comments (Y/N binary) - with domain context
 async function filterRelevantComments(
   comments: RedditComment[],
   hypothesis: string,
+  structured: StructuredHypothesis | null,
   sendProgress: (msg: string, data?: Record<string, unknown>) => void
 ): Promise<{ items: RedditComment[]; metrics: { before: number; after: number; filteredOut: number; filterRate: number } }> {
   if (comments.length === 0) {
@@ -205,14 +229,41 @@ async function filterRelevantComments(
   const batchSize = 25
   const relevantComments: RedditComment[] = []
 
+  // Build context section from structured hypothesis if available
+  const contextSection = structured ? `
+TARGET AUDIENCE: ${structured.audience}
+THEIR PROBLEM: ${structured.problem}${structured.problemLanguage ? `
+LOOK FOR PHRASES LIKE: ${structured.problemLanguage}` : ''}${structured.excludeTopics ? `
+EXCLUDE TOPICS ABOUT: ${structured.excludeTopics}` : ''}
+` : ''
+
   for (let i = 0; i < comments.length; i += batchSize) {
     const batch = comments.slice(i, i + batchSize)
 
     const prompt = `You are evaluating whether Reddit comments are relevant to a specific business hypothesis.
-
+${contextSection}
 HYPOTHESIS: "${hypothesis}"
 
-For each comment, respond Y if it discusses problems DIRECTLY related to the hypothesis, N otherwise.
+TASK: For each comment, decide if it discusses the SPECIFIC PROBLEM (not just the audience).
+
+CRITICAL: Match the PROBLEM DOMAIN, not just the AUDIENCE.
+${structured ? `- Comments about "${structured.audience}" but NOT about "${structured.problem}" → N
+- Comments specifically about "${structured.problem}" → Y` : ''}
+
+AUTOMATIC REJECTION (always N):
+- Comment is NOT primarily in English
+- Commenter is clearly NOT the target audience
+- Comment is third-person about target audience
+- Comment is about DIFFERENT problem (even if same audience)
+
+RELEVANT (Y) means:
+- Comment discusses the SPECIFIC PROBLEM: ${structured?.problem || 'from the hypothesis'}
+- Comment expresses frustration/pain about ${structured?.problemLanguage || 'the problem domain'}
+
+NOT RELEVANT (N) means:
+- Comment is about unrelated topics
+- Comment is about the same audience but different problem${structured?.excludeTopics ? `
+- Comment is about excluded topics: ${structured.excludeTopics}` : ''}
 
 COMMENTS:
 ${batch.map((c, idx) => `[${idx}] "${(c.body || '').slice(0, 150)}..."`).join('\n')}
@@ -305,6 +356,31 @@ export async function POST(request: NextRequest) {
           return
         }
 
+        // Fetch structured hypothesis from job's coverage_data (excludes solution field)
+        let structuredHypothesis: StructuredHypothesis | undefined
+        const adminClient = createAdminClient()
+        const { data: jobData } = await adminClient
+          .from('research_jobs')
+          .select('coverage_data')
+          .eq('id', jobId)
+          .single()
+
+        // coverage_data is a JSON column that may contain structuredHypothesis and targetGeography
+        const coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
+        if (coverageData?.structuredHypothesis) {
+          structuredHypothesis = coverageData.structuredHypothesis as StructuredHypothesis
+        }
+
+        // Extract target geography for market sizing scoping
+        let targetGeography: TargetGeography | undefined
+        if (coverageData?.targetGeography) {
+          targetGeography = coverageData.targetGeography as TargetGeography
+        }
+
+        // Extract MSC target and target price for market sizing
+        const mscTarget = coverageData?.mscTarget as number | undefined
+        const targetPrice = coverageData?.targetPrice as number | undefined
+
         const creditDeducted = await deductCredit(user.id, jobId)
         if (!creditDeducted) {
           sendEvent(controller, { type: 'error', step: 'credits', message: 'Insufficient credits' })
@@ -316,14 +392,15 @@ export async function POST(request: NextRequest) {
         const startTime = Date.now()
 
         // Step 1: Extract keywords
+        // CRITICAL: Pass structured hypothesis to exclude solution field from keywords
         send('keywords', 'Extracting search keywords from your hypothesis...')
-        const keywords = await extractSearchKeywords(hypothesis)
+        const keywords = await extractSearchKeywords(hypothesis, structuredHypothesis)
         send('keywords', `Found ${keywords.primary.length} primary keywords`, { keywords })
 
         // Step 2: Discover subreddits
         send('subreddits', 'Discovering relevant communities...')
         const { subreddits: discoveredSubreddits } = await discoverSubreddits(hypothesis)
-        const subredditsToSearch = discoveredSubreddits.slice(0, 6)
+        const subredditsToSearch = discoveredSubreddits.slice(0, 10) // Increased to 10 for more data
         send('subreddits', `Found ${subredditsToSearch.length} relevant subreddits: ${subredditsToSearch.join(', ')}`, {
           subreddits: subredditsToSearch,
         })
@@ -338,7 +415,7 @@ export async function POST(request: NextRequest) {
         const redditData = await fetchRedditData({
           subreddits: subredditsToSearch,
           keywords: keywords.primary,
-          limit: 100,
+          limit: 100, // 100/subreddit × 10 subreddits = 1000 posts max (API caps at 100/request)
           timeRange: {
             after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
           },
@@ -361,13 +438,14 @@ export async function POST(request: NextRequest) {
         }
 
         // Step 4: Filter for relevance (with streaming progress)
+        // CRITICAL: Pass structured hypothesis for domain-aware filtering (not just audience matching)
         send('filtering', `Filtering ${preFilteredPosts.length} posts for relevance to your hypothesis...`)
-        const postFilterResult = await filterRelevantPosts(preFilteredPosts, hypothesis, (msg, data) => {
+        const postFilterResult = await filterRelevantPosts(preFilteredPosts, hypothesis, structuredHypothesis || null, (msg, data) => {
           send('filtering', msg, data)
         })
         let posts = postFilterResult.items
 
-        const commentFilterResult = await filterRelevantComments(preFilteredComments, hypothesis, (msg, data) => {
+        const commentFilterResult = await filterRelevantComments(preFilteredComments, hypothesis, structuredHypothesis || null, (msg, data) => {
           send('filtering', msg, data)
         })
         let comments = commentFilterResult.items
@@ -403,11 +481,17 @@ export async function POST(request: NextRequest) {
         const interviewQuestions = await generateInterviewQuestions(themeAnalysis, hypothesis)
         send('interview', 'Interview guide ready')
 
-        // Step 9: Market sizing
-        send('market', 'Analyzing market size...')
+        // Step 9: Market sizing (with geographic scoping and user's revenue/pricing targets)
+        send('market', `Analyzing market size${targetGeography?.location ? ` for ${targetGeography.location}` : ''}...`)
         let marketSizing: MarketSizingResult | undefined
         try {
-          marketSizing = await calculateMarketSize({ hypothesis })
+          marketSizing = await calculateMarketSize({
+            hypothesis,
+            geography: targetGeography?.location || 'Global',
+            geographyScope: targetGeography?.scope || 'global',
+            mscTarget,
+            targetPrice,
+          })
           send('market', `Market sizing complete - Score: ${marketSizing.score}/10`)
         } catch (error) {
           console.error('Market sizing failed:', error)

@@ -102,6 +102,9 @@ export class PullPushSource implements DataSource {
     const { subreddits, keywords, limit = 50, timeRange } = params
     const allPosts: RedditPost[] = []
 
+    // PullPush doesn't support 'auto' - use 100 as max if 'auto' is passed
+    const effectiveLimit = limit === 'auto' ? 100 : limit
+
     // Use first 2 keywords for focused search
     const queryKeywords = keywords?.slice(0, 2)
 
@@ -111,7 +114,7 @@ export class PullPushSource implements DataSource {
       try {
         const queryParams = new URLSearchParams({
           subreddit,
-          size: String(Math.min(limit, 100)),
+          size: String(Math.min(effectiveLimit, 100)),
           sort: 'score',
           sort_type: 'desc',
         })
@@ -151,6 +154,9 @@ export class PullPushSource implements DataSource {
     const { subreddits, keywords, limit = 30, timeRange } = params
     const allComments: RedditComment[] = []
 
+    // PullPush doesn't support 'auto' - use 100 as max if 'auto' is passed
+    const effectiveLimit = limit === 'auto' ? 100 : limit
+
     // Use first 2 keywords for focused search
     const queryKeywords = keywords?.slice(0, 2)
 
@@ -160,7 +166,7 @@ export class PullPushSource implements DataSource {
       try {
         const queryParams = new URLSearchParams({
           subreddit,
-          size: String(Math.min(limit, 100)),
+          size: String(Math.min(effectiveLimit, 100)),
           sort: 'score',
           sort_type: 'desc',
         })

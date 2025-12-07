@@ -334,16 +334,16 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
                       type="button"
                       onClick={fetchExclusionSuggestions}
                       disabled={isSuggestingExclusions || isLoading}
-                      className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                      className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition-all disabled:opacity-50 animate-pulse-subtle"
                     >
                       {isSuggestingExclusions ? (
                         <>
-                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                           Analyzing for ambiguous terms...
                         </>
                       ) : (
                         <>
-                          <Sparkles className="h-3 w-3" />
+                          <Sparkles className="h-4 w-4" />
                           Suggest exclusions based on your hypothesis
                         </>
                       )}

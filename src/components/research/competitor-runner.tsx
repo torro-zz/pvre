@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
-import { Shield, Loader2, AlertCircle, Plus, X, CheckCircle2, TrendingUp, PieChart, Timer } from 'lucide-react'
+import { Shield, Loader2, AlertCircle, Plus, X, CheckCircle2, TrendingUp, PieChart, Timer, Sparkles, Building2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface CompetitorRunnerProps {
@@ -19,6 +19,16 @@ interface ProgressStep {
   status: 'pending' | 'active' | 'complete'
 }
 
+interface CompetitorSuggestion {
+  name: string
+  type: 'direct_competitor' | 'adjacent_solution' | 'workaround'
+  confidence: 'high' | 'medium' | 'low'
+  sentiment: 'positive' | 'negative' | 'mixed' | 'neutral'
+  context: string
+  isActualProduct: boolean
+  whySuggested: string
+}
+
 export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
   const router = useRouter()
   const [isRunning, setIsRunning] = useState(false)
@@ -28,6 +38,31 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
   const [knownCompetitors, setKnownCompetitors] = useState<string[]>([])
   const [competitorInput, setCompetitorInput] = useState('')
 
+  // AI Suggestions state
+  const [suggestions, setSuggestions] = useState<CompetitorSuggestion[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(true)
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null)
+
+  // Fetch AI suggestions on mount
+  useEffect(() => {
+    async function fetchSuggestions() {
+      try {
+        const response = await fetch(`/api/research/competitor-suggestions?jobId=${jobId}`)
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error || 'Failed to fetch suggestions')
+        }
+        const data = await response.json()
+        setSuggestions(data.suggestions || [])
+      } catch (err) {
+        setSuggestionsError(err instanceof Error ? err.message : 'Failed to load suggestions')
+      } finally {
+        setLoadingSuggestions(false)
+      }
+    }
+    fetchSuggestions()
+  }, [jobId])
+
   const addCompetitor = () => {
     const trimmed = competitorInput.trim()
     if (trimmed && !knownCompetitors.includes(trimmed)) {
@@ -36,9 +71,20 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
     }
   }
 
+  const addSuggestedCompetitor = (name: string) => {
+    if (!knownCompetitors.includes(name)) {
+      setKnownCompetitors([...knownCompetitors, name])
+    }
+  }
+
   const removeCompetitor = (index: number) => {
     setKnownCompetitors(knownCompetitors.filter((_, i) => i !== index))
   }
+
+  // Filter out suggestions that are already added
+  const availableSuggestions = suggestions.filter(
+    s => s.isActualProduct && !knownCompetitors.includes(s.name)
+  )
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -174,10 +220,66 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
               </p>
             </div>
 
+          {/* AI Suggested Competitors */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              <label className="text-sm font-medium text-violet-700">
+                AI-Suggested Competitors
+              </label>
+            </div>
+
+            {loadingSuggestions ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Analyzing community discussions for competitors...</span>
+              </div>
+            ) : suggestionsError ? (
+              <p className="text-sm text-muted-foreground">
+                {suggestionsError.includes('No pain analysis')
+                  ? 'Competitor suggestions will be available after pain analysis completes.'
+                  : 'Could not load suggestions.'}
+              </p>
+            ) : availableSuggestions.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground mb-2">
+                  Based on community discussions, click to add:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {availableSuggestions.map((suggestion, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => addSuggestedCompetitor(suggestion.name)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-full text-sm hover:bg-violet-100 transition-colors group"
+                      title={suggestion.context}
+                    >
+                      <Building2 className="h-3 w-3" />
+                      <span>{suggestion.name}</span>
+                      <Plus className="h-3 w-3 opacity-50 group-hover:opacity-100" />
+                      {suggestion.confidence === 'high' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="High confidence" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : suggestions.length > 0 ? (
+              <p className="text-sm text-green-600">
+                <CheckCircle2 className="h-4 w-4 inline mr-1" />
+                All suggested competitors have been added.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No competitor suggestions found. Add your own below.
+              </p>
+            )}
+          </div>
+
           {/* Known Competitors Input */}
           <div className="mb-6">
             <label className="block text-sm font-medium mb-2">
-              Known Competitors (optional)
+              Add Competitors Manually
             </label>
             <div className="flex gap-2">
               <Input
@@ -200,22 +302,27 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
 
             {/* Added Competitors List */}
             {knownCompetitors.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {knownCompetitors.map((competitor, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary rounded-full text-sm"
-                  >
-                    {competitor}
-                    <button
-                      type="button"
-                      onClick={() => removeCompetitor(idx)}
-                      className="hover:bg-primary/20 rounded-full p-0.5"
+              <div className="mt-3">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Competitors to analyze ({knownCompetitors.length}):
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {knownCompetitors.map((competitor, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary rounded-full text-sm"
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
+                      {competitor}
+                      <button
+                        type="button"
+                        onClick={() => removeCompetitor(idx)}
+                        className="hover:bg-primary/20 rounded-full p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>

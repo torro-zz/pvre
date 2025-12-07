@@ -45,7 +45,7 @@ export interface SearchPostsParams {
   query?: string
   after?: string   // ISO date string or Unix timestamp
   before?: string  // ISO date string or Unix timestamp
-  limit?: number   // 1-100, default 25
+  limit?: number | 'auto'   // 1-100, or 'auto' for up to 1000 based on server capacity
   sort?: 'asc' | 'desc'
 }
 
@@ -57,7 +57,7 @@ export interface SearchCommentsParams {
   parent_id?: string
   after?: string
   before?: string
-  limit?: number
+  limit?: number | 'auto'   // 1-100, or 'auto' for up to 1000 based on server capacity
   sort?: 'asc' | 'desc'
 }
 

@@ -352,9 +352,15 @@ function generateFallbackAnalysis(
 // COMPETITOR ANALYSIS
 // =============================================================================
 
+interface GeographyInfo {
+  location?: string
+  scope?: 'local' | 'national' | 'global'
+}
+
 async function analyzeCompetitors(
   hypothesis: string,
-  knownCompetitors?: string[]
+  knownCompetitors?: string[],
+  geography?: GeographyInfo
 ): Promise<CompetitorIntelligenceResult> {
   const startTime = Date.now()
 
@@ -362,12 +368,30 @@ async function analyzeCompetitors(
     ? `The user has mentioned these known competitors: ${knownCompetitors.join(', ')}. Include these and identify additional competitors.`
     : 'Identify the main competitors in this space.'
 
+  // Build geography-specific instructions
+  let geographyPrompt = ''
+  if (geography?.location && geography.scope !== 'global') {
+    geographyPrompt = `
+CRITICAL GEOGRAPHIC FOCUS:
+The founder is targeting ${geography.location} specifically (${geography.scope} scope).
+- PRIORITIZE competitors that operate in or target ${geography.location}
+- Include local/regional competitors specific to ${geography.location}
+- For global competitors, note whether they have presence/localization in ${geography.location}
+- Consider local market dynamics, regulations, and cultural factors specific to ${geography.location}
+- If a global competitor doesn't have good ${geography.location} presence, note this as a weakness
+`
+  } else if (geography?.location) {
+    geographyPrompt = `
+The founder is building a global/online business but is based in ${geography.location}. Include both global competitors and any regional players that may be relevant.
+`
+  }
+
   const prompt = `You are a competitive intelligence analyst specializing in startup market analysis. Analyze the competitive landscape for this business hypothesis:
 
 "${hypothesis}"
 
 ${competitorListPrompt}
-
+${geographyPrompt}
 Provide a comprehensive competitive analysis in the following JSON format. Be specific and detailed. For pricing, use real-world estimates based on similar products if exact data isn't available.
 
 IMPORTANT: For each competitor, assess:
@@ -566,16 +590,30 @@ export async function POST(request: NextRequest) {
     // Generate job ID if not provided (for credit deduction tracking)
     const researchJobId = jobId || crypto.randomUUID()
 
-    // If jobId provided, check step guard
+    // Geography info for localization
+    let geography: GeographyInfo | undefined
+
+    // If jobId provided, check step guard and fetch geography
     if (jobId) {
       const adminClient = createAdminClient()
       const { data: job } = await adminClient
         .from('research_jobs')
-        .select('step_status')
+        .select('step_status, coverage_data')
         .eq('id', jobId)
         .single()
 
       const stepStatus = job?.step_status as unknown as StepStatusMap | null
+
+      // Extract geography from coverage_data for localized competitor analysis
+      const coverageData = (job as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
+      if (coverageData?.targetGeography) {
+        const targetGeo = coverageData.targetGeography as { location?: string; scope?: string }
+        geography = {
+          location: targetGeo.location,
+          scope: targetGeo.scope as 'local' | 'national' | 'global',
+        }
+        console.log('Using target geography for competitor analysis:', geography)
+      }
 
       // Check if timing_analysis is completed (required before competitor_analysis)
       if (stepStatus && stepStatus.timing_analysis !== 'completed') {
@@ -616,9 +654,12 @@ export async function POST(request: NextRequest) {
     if (knownCompetitors?.length) {
       console.log('Known competitors:', knownCompetitors)
     }
+    if (geography) {
+      console.log('Target geography:', geography.location, `(${geography.scope})`)
+    }
 
-    // Run the competitor analysis
-    const result = await analyzeCompetitors(hypothesis, knownCompetitors)
+    // Run the competitor analysis with geography context
+    const result = await analyzeCompetitors(hypothesis, knownCompetitors, geography)
 
     console.log(`Found ${result.competitors.length} competitors`)
     console.log(`Identified ${result.gaps.length} market gaps`)

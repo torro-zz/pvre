@@ -24,6 +24,7 @@ import {
   PieChart,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useResearchTabs } from './research-tabs-context'
 import {
   ViabilityVerdict,
   VerdictColors,
@@ -48,6 +49,7 @@ export function ViabilityVerdictDisplay({
   onRunCompetitors,
 }: ViabilityVerdictProps) {
   const colors = VerdictColors[verdict.verdict]
+  const { setActiveTab } = useResearchTabs()
 
   const getVerdictIcon = (level: VerdictLevel) => {
     switch (level) {
@@ -243,15 +245,7 @@ export function ViabilityVerdictDisplay({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      const competitorsTab = document.querySelector('[data-value="competitors"]') as HTMLElement
-                      if (competitorsTab) {
-                        competitorsTab.click()
-                        setTimeout(() => {
-                          competitorsTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                        }, 100)
-                      }
-                    }}
+                    onClick={() => setActiveTab('competitors')}
                   >
                     <Shield className="h-4 w-4 mr-1" />
                     Run Competitor Intelligence
@@ -338,19 +332,16 @@ export function ViabilityVerdictDisplay({
                     size="lg"
                     className="bg-green-600 hover:bg-green-700"
                     onClick={() => {
-                      // Click the Community tab first
-                      const communityTab = document.querySelector('[data-state][value="community"]') as HTMLElement
-                      if (communityTab) {
-                        communityTab.click()
-                        // Then click the interview subtab after a short delay
-                        setTimeout(() => {
-                          const interviewTab = document.querySelector('[data-state][value="interview"]') as HTMLElement
-                          if (interviewTab) {
-                            interviewTab.click()
-                            interviewTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                          }
-                        }, 100)
-                      }
+                      // Switch to Community tab using context
+                      setActiveTab('community')
+                      // Then click the interview subtab after a short delay
+                      setTimeout(() => {
+                        const interviewTab = document.querySelector('[data-state][value="interview"]') as HTMLElement
+                        if (interviewTab) {
+                          interviewTab.click()
+                          interviewTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        }
+                      }, 150)
                     }}
                   >
                     View Interview Guide

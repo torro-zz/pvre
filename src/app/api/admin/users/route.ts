@@ -49,8 +49,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
     }
 
+    // Fetch purchase stats for all users in this batch
+    const userIds = users?.map(u => u.id) || []
+    const { data: purchases } = await adminClient
+      .from('purchases')
+      .select('user_id, credits_purchased, amount_cents')
+      .in('user_id', userIds)
+      .eq('status', 'completed')
+
+    // Calculate avg spend per credit for each user
+    const purchaseStats: Record<string, { totalSpentCents: number; totalCreditsPurchased: number }> = {}
+    purchases?.forEach(p => {
+      if (!purchaseStats[p.user_id]) {
+        purchaseStats[p.user_id] = { totalSpentCents: 0, totalCreditsPurchased: 0 }
+      }
+      purchaseStats[p.user_id].totalSpentCents += p.amount_cents
+      purchaseStats[p.user_id].totalCreditsPurchased += p.credits_purchased
+    })
+
+    // Merge purchase stats into user data
+    const usersWithStats = users?.map(user => ({
+      ...user,
+      total_spent_cents: purchaseStats[user.id]?.totalSpentCents || 0,
+      avg_spend_per_credit: purchaseStats[user.id]?.totalCreditsPurchased > 0
+        ? (purchaseStats[user.id].totalSpentCents / purchaseStats[user.id].totalCreditsPurchased / 100).toFixed(2)
+        : null
+    }))
+
     return NextResponse.json({
-      users,
+      users: usersWithStats,
       pagination: {
         page,
         limit,

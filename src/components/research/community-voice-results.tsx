@@ -28,6 +28,7 @@ import {
   Building2,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useResearchTabs } from './research-tabs-context'
 import { PainScoreCard, PainScoreCardCompact } from './pain-score-card'
 import { PainScoreDisplay } from './pain-score-display'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
@@ -42,6 +43,7 @@ interface CommunityVoiceResultsProps {
 export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep = true }: CommunityVoiceResultsProps) {
   const [showAllSignals, setShowAllSignals] = useState(false)
   const [copiedSection, setCopiedSection] = useState<string | null>(null)
+  const { setActiveTab } = useResearchTabs()
 
   // Safely handle null/undefined painSignals array
   const painSignals = results.painSignals ?? []
@@ -582,15 +584,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                 <Button
                   size="lg"
                   className="w-full md:w-auto gap-2 text-base px-6"
-                  onClick={() => {
-                    const competitorsTab = document.querySelector('[data-value="competitors"]') as HTMLElement
-                    if (competitorsTab) {
-                      competitorsTab.click()
-                      setTimeout(() => {
-                        competitorsTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }, 100)
-                    }
-                  }}
+                  onClick={() => setActiveTab('competitors')}
                 >
                   <Building2 className="h-5 w-5" />
                   Run Competitor Analysis

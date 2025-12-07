@@ -29,7 +29,7 @@ export interface RedditComment {
 export interface SearchParams {
   subreddits: string[]
   keywords?: string[]
-  limit?: number
+  limit?: number | 'auto'  // 'auto' allows API to return up to 1000 results based on capacity
   sort?: 'relevance' | 'new' | 'top' | 'score'
   timeRange?: {
     after?: Date

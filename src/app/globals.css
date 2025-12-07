@@ -331,3 +331,19 @@
 .animate-pulse-slow {
   animation: pulseSlow 8s ease-in-out infinite;
 }
+
+/* Subtle pulse for attention-grabbing buttons */
+@keyframes pulseSubtle {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 oklch(0.7 0.2 280 / 0.4);
+  }
+  50% {
+    opacity: 0.95;
+    box-shadow: 0 0 0 4px oklch(0.7 0.2 280 / 0);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulseSubtle 2.5s ease-in-out infinite;
+}

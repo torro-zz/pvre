@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useResearchTabs } from './research-tabs-context'
 
 interface CompetitorPromptModalProps {
   jobId: string
@@ -19,6 +20,7 @@ interface CompetitorPromptModalProps {
 
 export function CompetitorPromptModal({ jobId, hypothesis }: CompetitorPromptModalProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const { setActiveTab } = useResearchTabs()
   const storageKey = `competitor-prompt-dismissed-${jobId}`
 
   useEffect(() => {
@@ -34,6 +36,11 @@ export function CompetitorPromptModal({ jobId, hypothesis }: CompetitorPromptMod
   const handleDismiss = () => {
     localStorage.setItem(storageKey, 'true')
     setIsOpen(false)
+  }
+
+  const handleRunCompetitors = () => {
+    handleDismiss()
+    setActiveTab('competitors')
   }
 
   return (
@@ -79,17 +86,7 @@ export function CompetitorPromptModal({ jobId, hypothesis }: CompetitorPromptMod
           </Button>
           <Button
             className="w-full sm:w-auto"
-            onClick={() => {
-              handleDismiss()
-              // Click the Competitors tab and scroll to it
-              const competitorsTab = document.querySelector('[data-value="competitors"]') as HTMLElement
-              if (competitorsTab) {
-                competitorsTab.click()
-                setTimeout(() => {
-                  competitorsTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }, 100)
-              }
-            }}
+            onClick={handleRunCompetitors}
           >
             <Shield className="h-4 w-4 mr-2" />
             Run Competitor Analysis
@@ -106,15 +103,7 @@ interface CompetitorPromptBannerProps {
 }
 
 export function CompetitorPromptBanner({ jobId, hypothesis }: CompetitorPromptBannerProps) {
-  const scrollToCompetitors = () => {
-    const competitorsTab = document.querySelector('[data-value="competitors"]') as HTMLElement
-    if (competitorsTab) {
-      competitorsTab.click()
-      setTimeout(() => {
-        competitorsTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }, 100)
-    }
-  }
+  const { setActiveTab } = useResearchTabs()
 
   return (
     <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-4">
@@ -131,7 +120,7 @@ export function CompetitorPromptBanner({ jobId, hypothesis }: CompetitorPromptBa
         size="sm"
         variant="outline"
         className="border-amber-300 hover:bg-amber-100"
-        onClick={scrollToCompetitors}
+        onClick={() => setActiveTab('competitors')}
       >
         <Shield className="h-4 w-4 mr-2" />
         Add Competitors

@@ -126,13 +126,13 @@ function getVerdictLabel(verdict: VerdictLevel): string {
 function getVerdictDescription(verdict: VerdictLevel): string {
   switch (verdict) {
     case 'strong':
-      return 'Proceed to interviews with confidence. Strong market signals detected.'
+      return 'Proceed to user interviews with confidence. Strong market signals detected.'
     case 'mixed':
-      return 'Refine hypothesis and investigate weak areas before proceeding.'
+      return 'Conduct user interviews to validate assumptions. Mixed signals suggest talking to real users will clarify the opportunity.'
     case 'weak':
-      return 'Major concerns detected. Consider pivoting or significantly refining approach.'
+      return 'User interviews are critical before proceeding. Weak signals may indicate a pivot is needed - talk to users to understand why.'
     case 'none':
-      return 'Likely not viable as defined. Pivot or abandon this hypothesis.'
+      return 'Consider a significant pivot. If you proceed, start with discovery interviews to understand if the problem space itself is viable.'
   }
 }
 
@@ -274,6 +274,11 @@ export function calculateMVPViability(
   const verdict = getVerdict(overallScore)
   const verdictLabel = getVerdictLabel(verdict)
   const verdictDescription = getVerdictDescription(verdict)
+
+  // Always recommend user interviews as the key next step
+  if (dimensions.length >= 2) {
+    recommendations.push('Conduct 5-10 user interviews using the Interview Guide to validate these findings with real users')
+  }
 
   // Combine confidence levels
   const confidences = dimensions.map((d) => d.confidence)
@@ -475,6 +480,11 @@ export function calculateViability(
   const verdict = getVerdict(overallScore)
   const verdictLabel = getVerdictLabel(verdict)
   const verdictDescription = getVerdictDescription(verdict)
+
+  // Always recommend user interviews as the key next step
+  if (dimensions.length >= 2) {
+    recommendations.push('Conduct 5-10 user interviews using the Interview Guide to validate these findings with real users')
+  }
 
   // Combine confidence levels
   const confidences = dimensions.map((d) => d.confidence)

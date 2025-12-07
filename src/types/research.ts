@@ -1,4 +1,15 @@
 /**
+ * Target geography type for market sizing scoping
+ */
+export type GeographyScope = 'local' | 'national' | 'global'
+
+export interface TargetGeography {
+  scope: GeographyScope
+  location?: string       // City/region for local, country for national
+  detectedFrom?: string   // Where we inferred this from (e.g., "audience field")
+}
+
+/**
  * Structured hypothesis input - addresses the 64% relevance problem
  * by separating audience, problem, and customer language
  */
@@ -8,10 +19,54 @@ export interface StructuredHypothesis {
   problemLanguage?: string // "How do THEY describe it?" (optional)
   solution?: string       // "Your solution idea" (optional)
   excludeTopics?: string  // "Exclude posts about:" (optional) - filters out irrelevant noise
+  targetGeography?: TargetGeography // Where will you launch? (for market sizing)
 }
 
 /**
- * Convert structured hypothesis to display string
+ * Common location patterns for geography detection
+ */
+const LOCATION_PATTERNS: { pattern: RegExp; location: string; scope: GeographyScope }[] = [
+  // Cities
+  { pattern: /\b(london|uk|british)\b/i, location: 'London, UK', scope: 'local' },
+  { pattern: /\b(new york|nyc|manhattan)\b/i, location: 'New York, USA', scope: 'local' },
+  { pattern: /\b(los angeles|la|socal)\b/i, location: 'Los Angeles, USA', scope: 'local' },
+  { pattern: /\b(san francisco|sf|bay area)\b/i, location: 'San Francisco, USA', scope: 'local' },
+  { pattern: /\b(chicago)\b/i, location: 'Chicago, USA', scope: 'local' },
+  { pattern: /\b(toronto)\b/i, location: 'Toronto, Canada', scope: 'local' },
+  { pattern: /\b(vancouver)\b/i, location: 'Vancouver, Canada', scope: 'local' },
+  { pattern: /\b(sydney)\b/i, location: 'Sydney, Australia', scope: 'local' },
+  { pattern: /\b(melbourne)\b/i, location: 'Melbourne, Australia', scope: 'local' },
+  { pattern: /\b(berlin)\b/i, location: 'Berlin, Germany', scope: 'local' },
+  { pattern: /\b(paris)\b/i, location: 'Paris, France', scope: 'local' },
+  { pattern: /\b(amsterdam)\b/i, location: 'Amsterdam, Netherlands', scope: 'local' },
+  // Countries
+  { pattern: /\b(american|united states|usa|u\.s\.)\b/i, location: 'United States', scope: 'national' },
+  { pattern: /\b(canadian|canada)\b/i, location: 'Canada', scope: 'national' },
+  { pattern: /\b(australian|australia)\b/i, location: 'Australia', scope: 'national' },
+  { pattern: /\b(german|germany)\b/i, location: 'Germany', scope: 'national' },
+  { pattern: /\b(french|france)\b/i, location: 'France', scope: 'national' },
+  { pattern: /\b(indian|india)\b/i, location: 'India', scope: 'national' },
+]
+
+/**
+ * Detect geography from audience text
+ * Returns undefined if no geography detected (defaults to global)
+ */
+export function detectGeographyFromAudience(audience: string): TargetGeography | undefined {
+  for (const { pattern, location, scope } of LOCATION_PATTERNS) {
+    if (pattern.test(audience)) {
+      return {
+        scope,
+        location,
+        detectedFrom: 'audience field',
+      }
+    }
+  }
+  return undefined
+}
+
+/**
+ * Convert structured hypothesis to display string (includes solution for UI display)
  */
 export function formatHypothesis(input: StructuredHypothesis | string): string {
   if (typeof input === 'string') return input
@@ -19,6 +74,21 @@ export function formatHypothesis(input: StructuredHypothesis | string): string {
   if (input.solution) {
     parts.push('— solution:', input.solution)
   }
+  return parts.join(' ')
+}
+
+/**
+ * Convert structured hypothesis to search-optimized string
+ * CRITICAL: Excludes solution field to prevent polluting search results
+ * Solution terms like "community dinners" would find irrelevant posts
+ */
+export function formatHypothesisForSearch(input: StructuredHypothesis | string): string {
+  if (typeof input === 'string') return input
+  const parts = [input.audience, 'who', input.problem]
+  if (input.problemLanguage) {
+    parts.push(`(describing it as: ${input.problemLanguage})`)
+  }
+  // NEVER include solution field - it pollutes search results
   return parts.join(' ')
 }
 
