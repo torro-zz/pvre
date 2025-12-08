@@ -19,32 +19,6 @@ Last updated: December 8, 2025
 **Proposed:** Add a feature to allow administrators to reset the API Health statistics.
 
 
-### Relevance Filter Matches Audience Instead of Problem Domain — Garbage Posts Slip Through (Dec 7)
-**Source:** CEO review / JSON analysis
-**Status:** Open, December 7th
-**Issue:** The relevance filter marks posts as "Y" (relevant) if they mention the target audience with any problem, rather than the specific problem domain. Result: A skincare hypothesis for "men in their 50s" returns posts about sex ("I am 21 year old male and have little to no actual experience with sex"), loneliness, and clothing fit — none related to skincare. At £4/credit, this is unacceptable. At future VC pricing (£50+/research), this is product-killing. The filter sees "men" + "struggling" and says Y, when it should see "no mention of skin/aging/wrinkles" and say N.
-
-**Proposed Solution:** Implement multi-stage relevance filtering:
-
-**Stage 1 — Domain Gate (fast, cheap, first):**
-Before any detailed analysis, ask a simple binary question: "Is this post about [primaryDomain]?" For skincare, reject anything about clothing, relationships, sex, loneliness, career, fitness, etc. Use Claude Haiku, batch 50+ posts, respond Y/N only. This eliminates 60-70% of garbage before expensive analysis. Be STRICT — when in doubt, reject.
-
-**Stage 2 — Problem Match (current filter, improved):**
-For posts that pass the domain gate, run the existing relevance filter but with clearer instructions: "Does this post discuss THIS SPECIFIC PROBLEM?" Not just the domain, but the actual problem (skin aging/wrinkling, not acne or eczema). Match the problem, not just the audience.
-
-**Stage 3 — Quality Gate (automatic, no AI):**
-Final pass to catch garbage: reject posts where body is "[removed]" or "[deleted]", body is under 50 characters, post is not in English, or title contains obvious spam patterns. No AI needed — just code filters.
-
-**Expected outcome:**
-- Stage 1 filters 60-70% (domain mismatch)
-- Stage 2 filters 30-40% of remainder (problem mismatch)
-- Stage 3 filters 10-20% of remainder (quality issues)
-- Final: ~15-25% of original posts retained, but HIGH QUALITY
-- Cost increase: ~10-15% (Stage 1 uses cheapest model)
-- Zero sex posts in skincare results
-
----
-
 ### Low-Priority
 
 #### No Hypothesis Comparison Feature (Dec 3)
@@ -59,6 +33,15 @@ Proposed: Dashboard feature: side-by-side comparison of 2-4 hypotheses. "Which i
 *All resolved bugs, UX improvements, and feature requests.*
 
 ### December 8, 2025
+
+#### ~~Relevance Filter Matches Audience Instead of Problem Domain~~ ✅ FIXED
+Source: CEO review / JSON analysis (Dec 7 report)
+**Status: Fixed Dec 8** - Implemented 3-stage relevance filtering in `src/lib/research/relevance-filter.ts`:
+1. **Stage 3 (Quality Gate)**: Code filters remove posts that are deleted, too short (<50 chars), non-English, or spam
+2. **Stage 1 (Domain Gate)**: Fast AI check asks "Is this post about [domain]?" to filter off-topic posts
+3. **Stage 2 (Problem Match)**: Detailed AI check verifies the specific problem is being discussed
+
+Testing with skincare hypothesis: 522 posts → 64 analyzed (88% filtered), 44 high-quality pain signals. All results now relevant to the hypothesis - no more sex/relationship/clothing posts in skincare results.
 
 #### ~~AI Suggested Competitors Not Visible During Processing~~ ✅ FIXED
 Source: Testing (Dec 11 report)
