@@ -1,21 +1,12 @@
 # Known Issues & Backlog
 
-Last updated: December 7, 2025
+Last updated: December 8, 2025
 
 ---
 
 
 ## UX Improvements
 
-### Community Voice Research Input Field (Dec 11)
-**Source:** Testing
-**Issue:** In the "Revenue Global and Pricing for Market Sizing" section, the "monthly price per customer" input field, which has up and down arrows, does not allow users to manually type in their own numerical value.
-**Proposed:** Modify the input field to allow users to type in a custom number. Consider dynamically changing the currency symbol (e.g., from $ to £) based on the user's selected geographical location, though this can be addressed later.
-
-### Missing Explanations for Ambiguous Terms (Dec 11)
-**Source:** Testing
-**Issue:** In Community Voice Research, the "AI detected ambiguous terms" no longer show an explanation tooltip when hovering over them. Previously, a question mark would appear, and hovering over the suggested term to exclude would explain the reasoning.
-**Proposed:** Restore the functionality where hovering over a suggested ambiguous term displays a tooltip explaining why it is recommended for exclusion.
 ### Non-functional AI Suggested Competitors (Dec 11)
 **Source:** Testing
 **Issue:** In the "Complete your research" section for Competitor Intelligence, clicking on the purple "AI suggested competitors" line does nothing.
@@ -59,65 +50,6 @@ Final pass to catch garbage: reject posts where body is "[removed]" or "[deleted
 
 ---
 
-### Low-Relevance Subreddits Auto-Selected Despite Being Marked "Low" (Dec 7)
-**Source:** JSON analysis
-**Status:** Open, December 7th
-**Issue:** Subreddit discovery marks r/askmen as `relevanceScore: "low"` for a skincare hypothesis, but it's still pre-selected and searched. Low-relevance subreddits contribute mostly noise that pollutes themes and wastes API calls. User didn't manually add it — the system auto-selected it despite knowing it's low quality.
-
-**Proposed Solution:** Change subreddit selection logic:
-- Only auto-select subreddits with "high" or "medium" relevance scores
-- "Low" relevance subreddits should either: (a) be shown but NOT pre-checked, letting user opt-in, or (b) not be shown at all
-- If fewer than 3 high/medium subreddits found, show a warning rather than padding with low-relevance ones
-
----
-
-### Simplify Hypothesis Input to Two Required Fields (Dec 7)
-**Source:** UX review / target market analysis
-**Status:** Open, December 7th
-**Issue:** Current form requires/shows too many fields: audience, problem, problemLanguage, solution, exclusions, subreddit selection, MSC, geography, price. This is cognitive overload for entrepreneurs who just want to know "is this problem real?" The target market (and future VC/PM customers at higher price points) expects simplicity. Several fields don't affect search quality and can be AI-generated or moved.
-
-**Proposed Solution:** Reduce visible required fields to two:
-
-**User provides only:**
-1. "Who's struggling?" (audience)
-2. "What's frustrating them?" (problem)
-
-**AI generates silently:**
-- problemLanguage — infer from problem field ("what would they type into Reddit?")
-- domain — extract from problem for subreddit discovery and domain gate
-- exclusions — generate based on domain and apply automatically
-- subreddits — discover based on domain, only pre-select high/medium relevance
-
-**Move or hide:**
-- Solution field → ask AFTER search completes (only needed for competitor analysis), or collapse into hidden "Advanced" section
-- Exclusions → apply automatically, only show in "Advanced options" if user wants to override
-- problemLanguage → generate automatically, only show in "Advanced options"
-- MSC/geography/price → can remain in coverage preview step, or use smart defaults
-
-**Show user a simple confirmation:**
-"Found X relevant discussions in Y communities" with list of selected subreddits, expandable "Advanced options" for power users who want control.
-
----
-
-### Add Auto-Generation of Problem Language from Problem Field (Dec 7)
-**Source:** UX simplification
-**Status:** Open, December 7th
-**Issue:** The "How do THEY describe it?" field asks users to think like their customers and guess what they'd type into Reddit. Most users leave it blank or copy their problem statement. This field is valuable for search quality but creates friction and cognitive load.
-
-**Proposed Solution:** Auto-generate problemLanguage using AI:
-
-When user fills in audience + problem, call Claude to generate 3-5 natural phrases:
-- Input: audience ("men in their 50s") + problem ("seeing themselves age, skin wrinkling")
-- Output: ["my skin is getting wrinkly", "best anti-aging cream for men", "how do I reduce wrinkles", "losing skin elasticity"]
-
-The prompt should generate:
-- First-person language ("my skin is...", "I'm struggling with...")
-- Natural Reddit phrasing, not marketing speak
-- Specific to the problem, not generic
-
-Show the AI-generated phrases in "Advanced options" so user can see/edit them, but don't require user input. Default to AI generation if user leaves field blank.
-
-
 ### Low-Priority
 
 #### No Hypothesis Comparison Feature (Dec 3)
@@ -130,6 +62,33 @@ Proposed: Dashboard feature: side-by-side comparison of 2-4 hypotheses. "Which i
 ## Completed Issues
 
 *All resolved bugs, UX improvements, and feature requests.*
+
+### December 8, 2025
+
+#### ~~Price Input Doesn't Allow Manual Typing~~ ✅ FIXED
+Source: Testing (Dec 11 report)
+**Status: Fixed Dec 8** - Updated `coverage-preview.tsx` price input to allow manual typing. Input now clears on delete and restores $29 default on blur if empty.
+
+#### ~~Missing Explanations for Ambiguous Terms~~ ✅ FIXED
+Source: Testing (Dec 11 report)
+**Status: Fixed Dec 8** - Added HelpCircle icon to exclusion suggestion chips in `hypothesis-form.tsx`. Hover shows styled dark tooltip with AI's reasoning for suggesting exclusion.
+
+#### ~~Problem Language Field Requires Manual Input~~ ✅ FIXED
+Source: UX simplification (Dec 7 proposal)
+**Status: Fixed Dec 8** - Implemented auto-generation of problem language:
+1. New `/api/research/generate-problem-language` endpoint using Claude Haiku
+2. Generates 3-5 Reddit-style phrases when user fills audience + problem
+3. Triggers automatically on problem field blur
+4. Shows as collapsible "Reddit search phrases" section with "AI-generated, editable" label
+5. User can edit or regenerate at any time
+
+#### ~~Hypothesis Form Shows Too Many Fields~~ ✅ FIXED
+Source: UX review (Dec 7 proposal)
+**Status: Fixed Dec 8** - Simplified form structure:
+- Required fields: Only audience + problem (unchanged)
+- Problem language: Now auto-generated (collapsed by default, expands when generated)
+- Solution/Exclusions: Already collapsible (unchanged)
+- Low-relevance subreddits: Already filtered to high/medium only (Dec 7 fix verified)
 
 ### December 7, 2025
 

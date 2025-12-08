@@ -71,6 +71,12 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
   const [suggestionError, setSuggestionError] = useState<string | null>(null)
   const lastSuggestionInput = useRef<string>('')
 
+  // AI problem language generation
+  const [isGeneratingLanguage, setIsGeneratingLanguage] = useState(false)
+  const [languageWasGenerated, setLanguageWasGenerated] = useState(false)
+  const [showProblemLanguage, setShowProblemLanguage] = useState(false)
+  const lastLanguageInput = useRef<string>('')
+
   // Build the structured hypothesis
   const structuredHypothesis: StructuredHypothesis = {
     audience: audience.trim(),
@@ -88,6 +94,52 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
 
   // Check if we can suggest exclusions (audience ≥3 chars, problem ≥10 chars)
   const canSuggestExclusions = audience.trim().length >= 3 && problem.trim().length >= 10
+
+  // Check if we can generate problem language
+  const canGenerateLanguage = audience.trim().length >= 3 && problem.trim().length >= 10
+
+  // Generate problem language from audience + problem
+  const generateProblemLanguage = useCallback(async () => {
+    // Skip if user already typed their own problem language
+    if (problemLanguage.trim()) return
+
+    // Skip if we already generated for this exact input
+    const inputHash = `${audience.trim()}|${problem.trim()}`
+    if (inputHash === lastLanguageInput.current) return
+
+    if (!canGenerateLanguage) return
+
+    setIsGeneratingLanguage(true)
+
+    try {
+      const response = await fetch('/api/research/generate-problem-language', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audience: audience.trim(),
+          problem: problem.trim(),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate problem language')
+      }
+
+      const data = await response.json()
+      lastLanguageInput.current = inputHash
+
+      if (data.combined) {
+        setProblemLanguage(data.combined)
+        setLanguageWasGenerated(true)
+        setShowProblemLanguage(true)
+      }
+    } catch (error) {
+      console.error('Problem language generation error:', error)
+      // Silently fail - user can still type manually
+    } finally {
+      setIsGeneratingLanguage(false)
+    }
+  }, [audience, problem, problemLanguage, canGenerateLanguage])
 
   // Fetch AI exclusion suggestions
   const fetchExclusionSuggestions = useCallback(async () => {
@@ -188,6 +240,9 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
     setProblemLanguage(example.problemLanguage || '')
     setSolution(example.solution || '')
     setShowSolution(!!example.solution)
+    setShowProblemLanguage(!!example.problemLanguage) // Show if example has it
+    setLanguageWasGenerated(false) // Example language is not AI-generated
+    lastLanguageInput.current = `${example.audience}|${example.problem}` // Prevent auto-regen
     setShowPreview(false) // Reset preview when example changes
   }
 
@@ -254,7 +309,15 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
               value={problem}
               onChange={(e) => {
                 setProblem(e.target.value)
+                setLanguageWasGenerated(false) // User changed problem, need to regenerate
+                lastLanguageInput.current = '' // Reset so we can regenerate
                 handleFieldChange()
+              }}
+              onBlur={() => {
+                // Auto-generate problem language when problem field loses focus
+                if (canGenerateLanguage && !problemLanguage.trim()) {
+                  generateProblemLanguage()
+                }
               }}
               disabled={isLoading}
               rows={2}
@@ -262,29 +325,57 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
             />
           </div>
 
-          {/* Step 3: Problem Language (optional but important) */}
-          <div className="space-y-2">
-            <Label htmlFor="problemLanguage" className="flex items-center gap-1">
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted text-muted-foreground text-xs font-medium">3</span>
-              How do THEY describe it?
-              <span className="text-xs text-muted-foreground ml-1">(optional)</span>
-            </Label>
-            <Textarea
-              id="problemLanguage"
-              placeholder="e.g., no one to train with, hate training alone, can't push myself"
-              value={problemLanguage}
-              onChange={(e) => {
-                setProblemLanguage(e.target.value)
-                handleFieldChange()
+          {/* AI-Generated Search Phrases (shown after generation or user expansion) */}
+          {(showProblemLanguage || problemLanguage.trim() || isGeneratingLanguage) && (
+            <div className="space-y-2 p-3 bg-muted/30 rounded-lg border border-muted">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="problemLanguage" className="flex items-center gap-1.5 text-sm">
+                  <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                  Reddit search phrases
+                  {languageWasGenerated && (
+                    <span className="text-xs text-muted-foreground">(AI-generated, editable)</span>
+                  )}
+                </Label>
+                {isGeneratingLanguage && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              <Textarea
+                id="problemLanguage"
+                placeholder="e.g., no one to train with, hate training alone, can't push myself"
+                value={problemLanguage}
+                onChange={(e) => {
+                  setProblemLanguage(e.target.value)
+                  setLanguageWasGenerated(false) // User edited, no longer "AI-generated"
+                  handleFieldChange()
+                }}
+                disabled={isLoading || isGeneratingLanguage}
+                rows={2}
+                className="resize-none bg-background"
+              />
+              <p className="text-xs text-muted-foreground">
+                What would they type into Reddit? This improves search relevance.
+              </p>
+            </div>
+          )}
+
+          {/* Manual trigger if not shown and generation hasn't happened */}
+          {!showProblemLanguage && !problemLanguage.trim() && !isGeneratingLanguage && canGenerateLanguage && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!problemLanguage.trim()) {
+                  generateProblemLanguage()
+                } else {
+                  setShowProblemLanguage(true)
+                }
               }}
-              disabled={isLoading}
-              rows={2}
-              className="resize-none"
-            />
-            <p className="text-xs text-muted-foreground">
-              Think: what would they type into Reddit? This dramatically improves search quality.
-            </p>
-          </div>
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Generate Reddit search phrases
+            </button>
+          )}
 
           {/* Optional Sections (collapsible) */}
           <div className="space-y-3 pt-2 border-t">
