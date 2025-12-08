@@ -29,12 +29,13 @@ import {
   getSubredditWeights,
   applySubredditWeights,
 } from '@/lib/analysis/subreddit-weights'
-import Anthropic from '@anthropic-ai/sdk'
 import { trackUsage } from '@/lib/analysis/token-tracker'
 import { StepStatusMap } from '@/types/database'
 import { saveResearchResult } from '@/lib/research/save-result'
-
-const anthropic = new Anthropic()
+import {
+  filterRelevantPosts,
+  filterRelevantComments,
+} from '@/lib/research/relevance-filter'
 
 // Robust JSON array extraction with multiple fallback strategies
 function extractJSONArray(text: string): string[] | null {
@@ -95,172 +96,6 @@ function sendEvent(controller: ReadableStreamDefaultController, event: ProgressE
   const data = JSON.stringify(event)
   controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
 }
-
-// Relevance filter for posts (Y/N binary)
-async function filterRelevantPosts(
-  posts: RedditPost[],
-  hypothesis: string,
-  sendProgress: (msg: string, data?: Record<string, unknown>) => void
-): Promise<{ items: RedditPost[]; metrics: { before: number; after: number; filteredOut: number; filterRate: number } }> {
-  if (posts.length === 0) {
-    return { items: [], metrics: { before: 0, after: 0, filteredOut: 0, filterRate: 0 } }
-  }
-
-  sendProgress(`Analyzing ${posts.length} posts for relevance...`)
-
-  const batchSize = 20
-  const relevantPosts: RedditPost[] = []
-  let processedCount = 0
-
-  for (let i = 0; i < posts.length; i += batchSize) {
-    const batch = posts.slice(i, i + batchSize)
-
-    const prompt = `You are evaluating whether Reddit posts are relevant to a specific business hypothesis.
-
-HYPOTHESIS: "${hypothesis}"
-
-TASK: For each post below, decide if it discusses problems, needs, or experiences DIRECTLY related to the hypothesis.
-
-RELEVANT (Y) means:
-- The post discusses the actual problem the hypothesis solves
-- The post is about the target user's specific pain point
-- The post mentions the domain/activity the hypothesis addresses
-
-NOT RELEVANT (N) means:
-- The post is about unrelated business/life topics
-- The post contains pain language but about different problems
-- The post is tangentially related but not about the core problem
-
-POSTS TO EVALUATE:
-${batch.map((p, idx) => `[${idx}] "${p.title}" - ${(p.body || '').slice(0, 200)}...`).join('\n')}
-
-Respond with ONLY a JSON array of "Y" or "N" for each post in order:
-["Y", "N", "Y", ...]`
-
-    try {
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-haiku-latest',
-        max_tokens: 200,
-        messages: [{ role: 'user', content: prompt }],
-      })
-
-      const tracker = getCurrentTracker()
-      if (tracker && response.usage) {
-        trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
-      }
-
-      const content = response.content[0]
-      if (content.type === 'text') {
-        const decisions = extractJSONArray(content.text)
-        if (decisions) {
-          batch.forEach((post, idx) => {
-            if (decisions[idx]?.toString().toUpperCase() === 'Y') {
-              relevantPosts.push(post)
-            }
-          })
-        } else {
-          // Fallback: include all posts if we can't parse the response
-          console.warn('[filterRelevantPosts] Could not parse decisions, including all posts in batch')
-          relevantPosts.push(...batch)
-        }
-      }
-    } catch (error) {
-      console.error('Relevance filter batch failed:', error)
-      relevantPosts.push(...batch)
-    }
-
-    processedCount += batch.length
-    const relevantCount = relevantPosts.length
-    const filterRate = ((processedCount - relevantCount) / processedCount * 100).toFixed(0)
-    sendProgress(`Checked ${processedCount}/${posts.length} posts (${relevantCount} relevant so far, ${filterRate}% filtered)`, {
-      processed: processedCount,
-      total: posts.length,
-      relevant: relevantCount,
-    })
-  }
-
-  const metrics = {
-    before: posts.length,
-    after: relevantPosts.length,
-    filteredOut: posts.length - relevantPosts.length,
-    filterRate: posts.length > 0 ? ((posts.length - relevantPosts.length) / posts.length) * 100 : 0,
-  }
-
-  return { items: relevantPosts, metrics }
-}
-
-// Relevance filter for comments (Y/N binary)
-async function filterRelevantComments(
-  comments: RedditComment[],
-  hypothesis: string,
-  sendProgress: (msg: string, data?: Record<string, unknown>) => void
-): Promise<{ items: RedditComment[]; metrics: { before: number; after: number; filteredOut: number; filterRate: number } }> {
-  if (comments.length === 0) {
-    return { items: [], metrics: { before: 0, after: 0, filteredOut: 0, filterRate: 0 } }
-  }
-
-  sendProgress(`Analyzing ${comments.length} comments for relevance...`)
-
-  const batchSize = 25
-  const relevantComments: RedditComment[] = []
-
-  for (let i = 0; i < comments.length; i += batchSize) {
-    const batch = comments.slice(i, i + batchSize)
-
-    const prompt = `You are evaluating whether Reddit comments are relevant to a specific business hypothesis.
-
-HYPOTHESIS: "${hypothesis}"
-
-For each comment, respond Y if it discusses problems DIRECTLY related to the hypothesis, N otherwise.
-
-COMMENTS:
-${batch.map((c, idx) => `[${idx}] "${(c.body || '').slice(0, 150)}..."`).join('\n')}
-
-Respond with ONLY a JSON array: ["Y", "N", ...]`
-
-    try {
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-haiku-latest',
-        max_tokens: 150,
-        messages: [{ role: 'user', content: prompt }],
-      })
-
-      const tracker = getCurrentTracker()
-      if (tracker && response.usage) {
-        trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
-      }
-
-      const content = response.content[0]
-      if (content.type === 'text') {
-        const decisions = extractJSONArray(content.text)
-        if (decisions) {
-          batch.forEach((comment, idx) => {
-            if (decisions[idx]?.toString().toUpperCase() === 'Y') {
-              relevantComments.push(comment)
-            }
-          })
-        } else {
-          // Fallback: include all comments if we can't parse the response
-          console.warn('[filterRelevantComments] Could not parse decisions, including all comments in batch')
-          relevantComments.push(...batch)
-        }
-      }
-    } catch (error) {
-      console.error('Comment relevance filter batch failed:', error)
-      relevantComments.push(...batch)
-    }
-  }
-
-  const metrics = {
-    before: comments.length,
-    after: relevantComments.length,
-    filteredOut: comments.length - relevantComments.length,
-    filterRate: comments.length > 0 ? ((comments.length - relevantComments.length) / comments.length) * 100 : 0,
-  }
-
-  return { items: relevantComments, metrics }
-}
-
 function calculateQualityLevel(postFilterRate: number, commentFilterRate: number): 'high' | 'medium' | 'low' {
   const avgFilterRate = (postFilterRate + commentFilterRate) / 2
   if (avgFilterRate <= 40) return 'high'
@@ -420,16 +255,22 @@ export async function POST(request: NextRequest) {
           send('prefilter', `Removed ${preFilteredPostCount} posts and ${preFilteredCommentCount} comments with off-topic keywords`)
         }
 
-        // Step 4: Filter for relevance (with streaming progress)
-        send('filtering', `Filtering ${preFilteredPosts.length} posts for relevance to your hypothesis...`)
-        const postFilterResult = await filterRelevantPosts(preFilteredPosts, hypothesis, (msg, data) => {
-          send('filtering', msg, data)
-        })
+        // Step 4: 3-Stage Relevance Filter (Quality Gate → Domain Gate → Problem Match)
+        send('filtering', `Running 3-stage relevance filter on ${preFilteredPosts.length} posts...`)
+        const postFilterResult = await filterRelevantPosts(
+          preFilteredPosts,
+          hypothesis,
+          structuredHypothesis,
+          (msg, data) => send('filtering', msg, data)
+        )
         const posts = postFilterResult.items
 
-        const commentFilterResult = await filterRelevantComments(preFilteredComments, hypothesis, (msg, data) => {
-          send('filtering', msg, data)
-        })
+        const commentFilterResult = await filterRelevantComments(
+          preFilteredComments,
+          hypothesis,
+          structuredHypothesis,
+          (msg) => send('filtering', msg)
+        )
         const comments = commentFilterResult.items
 
         const qualityLevel = calculateQualityLevel(postFilterResult.metrics.filterRate, commentFilterResult.metrics.filterRate)
@@ -487,6 +328,10 @@ export async function POST(request: NextRequest) {
               postsAnalyzed: postFilterResult.metrics.after,
               postsFiltered: postFilterResult.metrics.filteredOut,
               postFilterRate: postFilterResult.metrics.filterRate,
+              // 3-stage breakdown for posts
+              postStage3Filtered: postFilterResult.metrics.stage3Filtered, // Quality gate
+              postStage1Filtered: postFilterResult.metrics.stage1Filtered, // Domain gate
+              postStage2Filtered: postFilterResult.metrics.stage2Filtered, // Problem match
               commentsFound: commentFilterResult.metrics.before,
               commentsAnalyzed: commentFilterResult.metrics.after,
               commentsFiltered: commentFilterResult.metrics.filteredOut,
