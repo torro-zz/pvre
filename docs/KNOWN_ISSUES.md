@@ -7,11 +7,6 @@ Last updated: December 8, 2025
 
 ## UX Improvements
 
-### Non-functional AI Suggested Competitors (Dec 11)
-**Source:** Testing
-**Issue:** In the "Complete your research" section for Competitor Intelligence, clicking on the purple "AI suggested competitors" line does nothing.
-**Proposed:** Implement the functionality so that clicking the link triggers the AI to suggest relevant competitors, which the user can then add to their research.
-
 
 ### Admin Dashboard Analytics Reset (Dec 11)
 **Source:** CEO review
@@ -64,6 +59,10 @@ Proposed: Dashboard feature: side-by-side comparison of 2-4 hypotheses. "Which i
 *All resolved bugs, UX improvements, and feature requests.*
 
 ### December 8, 2025
+
+#### ~~AI Suggested Competitors Not Visible During Processing~~ ✅ FIXED
+Source: Testing (Dec 11 report)
+**Status: Fixed Dec 8** - Updated `research/[id]/page.tsx` to show `CompetitorRunner` component during processing state instead of static "Processing" message. Users can now see and add AI-suggested competitors while other modules are still processing.
 
 #### ~~Price Input Doesn't Allow Manual Typing~~ ✅ FIXED
 Source: Testing (Dec 11 report)

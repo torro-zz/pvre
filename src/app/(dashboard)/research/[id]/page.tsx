@@ -423,15 +423,7 @@ export default async function ResearchDetailPage({
               {competitorResult?.data ? (
                 <CompetitorResults results={competitorResult.data} />
               ) : (
-                <Card>
-                  <CardContent className="py-12">
-                    <div className="text-center">
-                      <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Competitor Analysis Processing</h3>
-                      <p className="text-muted-foreground">Analysis is still in progress...</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <CompetitorRunner jobId={id} hypothesis={researchJob.hypothesis} />
               )}
             </TabsContent>
 
