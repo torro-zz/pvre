@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Loader2, Search, Lightbulb, ChevronDown, ChevronUp, Ban, Sparkles, X, Check } from 'lucide-react'
+import { Loader2, Search, Lightbulb, ChevronDown, ChevronUp, Ban, Sparkles, X, Check, HelpCircle } from 'lucide-react'
 import { CoveragePreview, CoverageData } from './coverage-preview'
 import { StructuredHypothesis, formatHypothesis } from '@/types/research'
 
@@ -378,20 +378,26 @@ export function HypothesisForm({ onSubmit, isLoading, showCoveragePreview = true
                         {exclusionSuggestions.map((suggestion, idx) => {
                           const isSelected = selectedExclusions.has(suggestion.term)
                           return (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => toggleExclusion(suggestion.term)}
-                              title={suggestion.reason}
-                              className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${
-                                isSelected
-                                  ? 'bg-primary text-primary-foreground border-primary'
-                                  : 'bg-background hover:bg-muted border-border'
-                              }`}
-                            >
-                              {isSelected && <Check className="h-3 w-3" />}
-                              {suggestion.term}
-                            </button>
+                            <div key={idx} className="relative group inline-flex">
+                              <button
+                                type="button"
+                                onClick={() => toggleExclusion(suggestion.term)}
+                                className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${
+                                  isSelected
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-background hover:bg-muted border-border'
+                                }`}
+                              >
+                                {isSelected && <Check className="h-3 w-3" />}
+                                {suggestion.term}
+                                <HelpCircle className="h-3 w-3 opacity-50 group-hover:opacity-100" />
+                              </button>
+                              {/* Tooltip */}
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 max-w-[200px] text-center">
+                                {suggestion.reason}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
+                              </div>
+                            </div>
                           )
                         })}
                       </div>

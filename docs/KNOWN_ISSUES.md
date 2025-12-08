@@ -7,6 +7,32 @@ Last updated: December 7, 2025
 
 ## UX Improvements
 
+### Community Voice Research Input Field (Dec 11)
+**Source:** Testing
+**Issue:** In the "Revenue Global and Pricing for Market Sizing" section, the "monthly price per customer" input field, which has up and down arrows, does not allow users to manually type in their own numerical value.
+**Proposed:** Modify the input field to allow users to type in a custom number. Consider dynamically changing the currency symbol (e.g., from $ to £) based on the user's selected geographical location, though this can be addressed later.
+
+### Missing Explanations for Ambiguous Terms (Dec 11)
+**Source:** Testing
+**Issue:** In Community Voice Research, the "AI detected ambiguous terms" no longer show an explanation tooltip when hovering over them. Previously, a question mark would appear, and hovering over the suggested term to exclude would explain the reasoning.
+**Proposed:** Restore the functionality where hovering over a suggested ambiguous term displays a tooltip explaining why it is recommended for exclusion.
+### Non-functional AI Suggested Competitors (Dec 11)
+**Source:** Testing
+**Issue:** In the "Complete your research" section for Competitor Intelligence, clicking on the purple "AI suggested competitors" line does nothing.
+**Proposed:** Implement the functionality so that clicking the link triggers the AI to suggest relevant competitors, which the user can then add to their research.
+
+
+### Admin Dashboard Analytics Reset (Dec 11)
+**Source:** CEO review
+**Issue:** The analytics on the admin dashboard, such as "Cloud API costs," cannot be reset to zero. This makes it difficult to track costs for specific periods as test data accumulates.
+**Proposed:** Implement a method to reset analytics data (like API costs) to zero. This should be done while also archiving or storing the previous data for historical tracking.
+
+### Admin Dashboard API Health Reset (Dec 11)
+**Source:** CEO review
+**Issue:** The metrics on the API Health page within the admin dashboard (e.g., "stuck processing," "unknown failures") cannot be reset.
+**Proposed:** Add a feature to allow administrators to reset the API Health statistics.
+
+
 ### Relevance Filter Matches Audience Instead of Problem Domain — Garbage Posts Slip Through (Dec 7)
 **Source:** CEO review / JSON analysis
 **Status:** Open, December 7th

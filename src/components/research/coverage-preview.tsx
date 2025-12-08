@@ -682,8 +682,23 @@ export function CoveragePreview({
                 <span className="text-sm text-muted-foreground">$</span>
                 <Input
                   type="number"
-                  value={targetPrice}
-                  onChange={(e) => setTargetPrice(Number(e.target.value) || 29)}
+                  value={targetPrice || ''}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === '') {
+                      setTargetPrice(0)
+                    } else {
+                      const num = Number(val)
+                      if (!isNaN(num) && num >= 0) {
+                        setTargetPrice(num)
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (!e.target.value || Number(e.target.value) <= 0) {
+                      setTargetPrice(29)
+                    }
+                  }}
                   placeholder="29"
                   className="h-8 text-sm w-24"
                   min={1}
