@@ -23,18 +23,17 @@ import { analyzeTiming, TimingResult } from '@/lib/analysis/timing-analyzer'
 import {
   startTokenTracking,
   endTokenTracking,
-  getCurrentTracker,
 } from '@/lib/anthropic'
 import { extractSearchKeywords, preFilterByExcludeKeywords } from '@/lib/reddit/keyword-extractor'
 import {
   getSubredditWeights,
   applySubredditWeights,
 } from '@/lib/analysis/subreddit-weights'
-import Anthropic from '@anthropic-ai/sdk'
-import { trackUsage } from '@/lib/analysis/token-tracker'
 import { saveResearchResult } from '@/lib/research/save-result'
-
-const anthropic = new Anthropic()
+import {
+  filterRelevantPosts,
+  filterRelevantComments,
+} from '@/lib/research/relevance-filter'
 
 /**
  * Robust JSON array extraction from Claude responses
@@ -97,220 +96,6 @@ interface ProgressEvent {
 function sendEvent(controller: ReadableStreamDefaultController, event: ProgressEvent) {
   const data = JSON.stringify(event)
   controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
-}
-
-// Relevance filter for posts (Y/N binary) - with domain context
-async function filterRelevantPosts(
-  posts: RedditPost[],
-  hypothesis: string,
-  structured: StructuredHypothesis | null,
-  sendProgress: (msg: string, data?: Record<string, unknown>) => void
-): Promise<{ items: RedditPost[]; metrics: { before: number; after: number; filteredOut: number; filterRate: number } }> {
-  if (posts.length === 0) {
-    return { items: [], metrics: { before: 0, after: 0, filteredOut: 0, filterRate: 0 } }
-  }
-
-  sendProgress(`Analyzing ${posts.length} posts for relevance...`)
-
-  const batchSize = 20
-  const relevantPosts: RedditPost[] = []
-  let processedCount = 0
-
-  // Build context section from structured hypothesis if available
-  const contextSection = structured ? `
-TARGET AUDIENCE: ${structured.audience}
-THEIR PROBLEM: ${structured.problem}${structured.problemLanguage ? `
-LOOK FOR PHRASES LIKE: ${structured.problemLanguage}` : ''}${structured.excludeTopics ? `
-EXCLUDE TOPICS ABOUT: ${structured.excludeTopics}` : ''}
-` : ''
-
-  for (let i = 0; i < posts.length; i += batchSize) {
-    const batch = posts.slice(i, i + batchSize)
-
-    const prompt = `You are evaluating whether Reddit posts are relevant to a specific business hypothesis.
-${contextSection}
-HYPOTHESIS: "${hypothesis}"
-
-TASK: For each post below, decide if it discusses problems DIRECTLY related to the PROBLEM (not just the audience).
-
-CRITICAL: Match the PROBLEM DOMAIN, not just the AUDIENCE.
-${structured ? `- Posts about "${structured.audience}" but NOT about "${structured.problem}" → N
-- Posts specifically about "${structured.problem}" → Y` : ''}
-
-AUTOMATIC REJECTION (always N):
-- Post is NOT primarily in English (foreign language posts)
-- Post author is clearly NOT the target audience (wrong demographic)
-- Post is from wrong perspective (third-person about target audience)
-- Post is about the same AUDIENCE but DIFFERENT problem
-
-RELEVANT (Y) means:
-- Post is in English
-- Post is from the target audience's FIRST-PERSON perspective
-- Post discusses the SPECIFIC PROBLEM: ${structured?.problem || 'from the hypothesis'}
-- Post mentions ${structured?.problemLanguage || 'the problem domain'}
-
-NOT RELEVANT (N) means:
-- Post is about unrelated topics (even if from same audience)
-- Post contains pain language but about DIFFERENT problems
-- Post is from the target audience but discussing unrelated issues${structured?.excludeTopics ? `
-- Post is about excluded topics: ${structured.excludeTopics}` : ''}
-
-POSTS TO EVALUATE:
-${batch.map((p, idx) => `[${idx}] "${p.title}" - ${(p.body || '').slice(0, 200)}...`).join('\n')}
-
-Respond with ONLY a JSON array of "Y" or "N" for each post in order:
-["Y", "N", "Y", ...]`
-
-    try {
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-haiku-latest',
-        max_tokens: 200,
-        messages: [{ role: 'user', content: prompt }],
-      })
-
-      const tracker = getCurrentTracker()
-      if (tracker && response.usage) {
-        trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
-      }
-
-      const content = response.content[0]
-      if (content.type === 'text') {
-        const decisions = extractJSONArray(content.text)
-        if (decisions) {
-          batch.forEach((post, idx) => {
-            if (decisions[idx]?.toString().toUpperCase() === 'Y') {
-              relevantPosts.push(post)
-            }
-          })
-        } else {
-          // Fallback: include all posts if we can't parse the response
-          console.warn('[filterRelevantPosts] Could not parse decisions, including all posts in batch')
-          relevantPosts.push(...batch)
-        }
-      }
-    } catch (error) {
-      console.error('Relevance filter batch failed:', error)
-      relevantPosts.push(...batch)
-    }
-
-    processedCount += batch.length
-    const relevantCount = relevantPosts.length
-    const filterRate = ((processedCount - relevantCount) / processedCount * 100).toFixed(0)
-    sendProgress(`Checked ${processedCount}/${posts.length} posts (${relevantCount} relevant so far, ${filterRate}% filtered)`, {
-      processed: processedCount,
-      total: posts.length,
-      relevant: relevantCount,
-    })
-  }
-
-  const metrics = {
-    before: posts.length,
-    after: relevantPosts.length,
-    filteredOut: posts.length - relevantPosts.length,
-    filterRate: posts.length > 0 ? ((posts.length - relevantPosts.length) / posts.length) * 100 : 0,
-  }
-
-  return { items: relevantPosts, metrics }
-}
-
-// Relevance filter for comments (Y/N binary) - with domain context
-async function filterRelevantComments(
-  comments: RedditComment[],
-  hypothesis: string,
-  structured: StructuredHypothesis | null,
-  sendProgress: (msg: string, data?: Record<string, unknown>) => void
-): Promise<{ items: RedditComment[]; metrics: { before: number; after: number; filteredOut: number; filterRate: number } }> {
-  if (comments.length === 0) {
-    return { items: [], metrics: { before: 0, after: 0, filteredOut: 0, filterRate: 0 } }
-  }
-
-  sendProgress(`Analyzing ${comments.length} comments for relevance...`)
-
-  const batchSize = 25
-  const relevantComments: RedditComment[] = []
-
-  // Build context section from structured hypothesis if available
-  const contextSection = structured ? `
-TARGET AUDIENCE: ${structured.audience}
-THEIR PROBLEM: ${structured.problem}${structured.problemLanguage ? `
-LOOK FOR PHRASES LIKE: ${structured.problemLanguage}` : ''}${structured.excludeTopics ? `
-EXCLUDE TOPICS ABOUT: ${structured.excludeTopics}` : ''}
-` : ''
-
-  for (let i = 0; i < comments.length; i += batchSize) {
-    const batch = comments.slice(i, i + batchSize)
-
-    const prompt = `You are evaluating whether Reddit comments are relevant to a specific business hypothesis.
-${contextSection}
-HYPOTHESIS: "${hypothesis}"
-
-TASK: For each comment, decide if it discusses the SPECIFIC PROBLEM (not just the audience).
-
-CRITICAL: Match the PROBLEM DOMAIN, not just the AUDIENCE.
-${structured ? `- Comments about "${structured.audience}" but NOT about "${structured.problem}" → N
-- Comments specifically about "${structured.problem}" → Y` : ''}
-
-AUTOMATIC REJECTION (always N):
-- Comment is NOT primarily in English
-- Commenter is clearly NOT the target audience
-- Comment is third-person about target audience
-- Comment is about DIFFERENT problem (even if same audience)
-
-RELEVANT (Y) means:
-- Comment discusses the SPECIFIC PROBLEM: ${structured?.problem || 'from the hypothesis'}
-- Comment expresses frustration/pain about ${structured?.problemLanguage || 'the problem domain'}
-
-NOT RELEVANT (N) means:
-- Comment is about unrelated topics
-- Comment is about the same audience but different problem${structured?.excludeTopics ? `
-- Comment is about excluded topics: ${structured.excludeTopics}` : ''}
-
-COMMENTS:
-${batch.map((c, idx) => `[${idx}] "${(c.body || '').slice(0, 150)}..."`).join('\n')}
-
-Respond with ONLY a JSON array: ["Y", "N", ...]`
-
-    try {
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-haiku-latest',
-        max_tokens: 150,
-        messages: [{ role: 'user', content: prompt }],
-      })
-
-      const tracker = getCurrentTracker()
-      if (tracker && response.usage) {
-        trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
-      }
-
-      const content = response.content[0]
-      if (content.type === 'text') {
-        const decisions = extractJSONArray(content.text)
-        if (decisions) {
-          batch.forEach((comment, idx) => {
-            if (decisions[idx]?.toString().toUpperCase() === 'Y') {
-              relevantComments.push(comment)
-            }
-          })
-        } else {
-          // Fallback: include all comments if we can't parse the response
-          console.warn('[filterRelevantComments] Could not parse decisions, including all comments in batch')
-          relevantComments.push(...batch)
-        }
-      }
-    } catch (error) {
-      console.error('Comment relevance filter batch failed:', error)
-      relevantComments.push(...batch)
-    }
-  }
-
-  const metrics = {
-    before: comments.length,
-    after: relevantComments.length,
-    filteredOut: comments.length - relevantComments.length,
-    filterRate: comments.length > 0 ? ((comments.length - relevantComments.length) / comments.length) * 100 : 0,
-  }
-
-  return { items: relevantComments, metrics }
 }
 
 function calculateQualityLevel(postFilterRate: number, commentFilterRate: number): 'high' | 'medium' | 'low' {
@@ -440,13 +225,13 @@ export async function POST(request: NextRequest) {
         // Step 4: Filter for relevance (with streaming progress)
         // CRITICAL: Pass structured hypothesis for domain-aware filtering (not just audience matching)
         send('filtering', `Filtering ${preFilteredPosts.length} posts for relevance to your hypothesis...`)
-        const postFilterResult = await filterRelevantPosts(preFilteredPosts, hypothesis, structuredHypothesis || null, (msg, data) => {
+        const postFilterResult = await filterRelevantPosts(preFilteredPosts, hypothesis, structuredHypothesis, (msg, data) => {
           send('filtering', msg, data)
         })
         let posts = postFilterResult.items
 
-        const commentFilterResult = await filterRelevantComments(preFilteredComments, hypothesis, structuredHypothesis || null, (msg, data) => {
-          send('filtering', msg, data)
+        const commentFilterResult = await filterRelevantComments(preFilteredComments, hypothesis, structuredHypothesis, (msg) => {
+          send('filtering', msg)
         })
         let comments = commentFilterResult.items
 
