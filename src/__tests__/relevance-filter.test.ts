@@ -124,15 +124,17 @@ describe('Relevance Filter', () => {
       })
 
       it('should allow custom minimum length', () => {
+        // Note: For posts, we now check title + body combined length
+        // Mock post has title "Test Post Title" (15 chars), so we need shorter body
         const posts = [
-          createMockPost({ body: 'This is 40 characters exactly!!! 123456' }),
+          createMockPost({ title: '', body: 'Short body 40 chars exactly!!! 1234567' }), // 40 chars, no title
         ]
 
-        // With default (50), should filter
+        // With default (50), should filter (40 < 50)
         const result50 = qualityGateFilter(posts, 50)
         expect(result50.filtered).toHaveLength(1)
 
-        // With lower threshold (30), should pass
+        // With lower threshold (30), should pass (40 >= 30)
         const result30 = qualityGateFilter(posts, 30)
         expect(result30.passed).toHaveLength(1)
       })

@@ -50,10 +50,13 @@ export interface FilterResult<T> {
 // STAGE 3: Quality Gate (Code-Only Filters) - Run FIRST
 // ============================================================================
 
+// Spam patterns - be conservative to avoid false positives
+// Only match clear promotional/self-promo content
 const SPAM_PATTERNS = [
-  /\b(free|discount|promo|sale|limited time|act now|click here)\b/i,
-  /\b(subscribe|follow me|check out my|my youtube|my channel)\b/i,
-  /\b(dm me|message me|link in bio)\b/i,
+  /\b(limited time offer|act now|click here|buy now)\b/i,
+  /\b(check out my|my youtube channel|subscribe to my|follow me on)\b/i,
+  /\b(dm me for|message me for|link in bio)\b/i,
+  /\b(promo code|discount code|use code)\b/i,
 ]
 
 const REMOVED_PATTERNS = [
@@ -99,7 +102,7 @@ function isRemovedOrDeleted(body: string): boolean {
  */
 export function qualityGateFilter<T extends RedditPost | RedditComment>(
   items: T[],
-  minBodyLength: number = 50
+  minContentLength: number = 50
 ): { passed: T[]; filtered: T[]; decisions: RelevanceDecision[] } {
   const passed: T[] = []
   const filtered: T[] = []
@@ -110,14 +113,17 @@ export function qualityGateFilter<T extends RedditPost | RedditComment>(
     const body = isPost ? (item as RedditPost).body || '' : (item as RedditComment).body
     const title = isPost ? (item as RedditPost).title : ''
 
+    // For posts: combine title + body for length check (many posts have content in title)
+    const totalContent = isPost ? `${title} ${body}`.trim() : body
+
     let filterReason: string | null = null
 
     // Check 1: Removed/deleted content
     if (isRemovedOrDeleted(body)) {
       filterReason = 'removed_deleted'
     }
-    // Check 2: Too short (less meaningful content)
-    else if (body.length < minBodyLength) {
+    // Check 2: Too short - check total content (title + body for posts)
+    else if (totalContent.length < minContentLength) {
       filterReason = 'too_short'
     }
     // Check 3: Non-English content
@@ -253,16 +259,16 @@ export async function domainGateFilter(
       ? `\nREJECT posts about: ${antiDomains.join(', ')}`
       : ''
 
-    const prompt = `DOMAIN CHECK: Is each post about "${domain}"?
+    const prompt = `DOMAIN CHECK: Is each post related to "${domain}"?
 ${antiDomainList}
 
 Posts:
 ${postSummaries}
 
 Rules:
-- Y = post discusses ${domain} (even tangentially)
-- N = post is about something else (relationships, career, fitness, etc.)
-- Be STRICT: when in doubt, say N
+- Y = post discusses or relates to ${domain} (even tangentially or as context)
+- N = post is clearly about a completely different topic
+- When in doubt, say Y (we filter more precisely in the next stage)
 
 Respond with exactly ${batch.length} letters (Y or N), one per post:`
 
@@ -345,31 +351,40 @@ export async function problemMatchFilter(
     }).join('\n\n')
 
     // Build detailed context from structured hypothesis
-    const contextSection = structured ? `
-TARGET AUDIENCE: ${structured.audience}
-SPECIFIC PROBLEM: ${structured.problem}${structured.problemLanguage ? `
-PHRASES TO LOOK FOR: ${structured.problemLanguage}` : ''}${structured.excludeTopics ? `
+    // Use asymmetric matching: STRICT on problem, LOOSE on audience
+    const problemDescription = structured?.problem || hypothesis
+    const audienceDescription = structured?.audience || ''
+
+    const prompt = `ASYMMETRIC RELEVANCE CHECK: Problem must match. Audience is loose.
+
+PROBLEM (must match): ${problemDescription}
+TARGET AUDIENCE: ${audienceDescription}${structured?.problemLanguage ? `
+PHRASES TO LOOK FOR: ${structured.problemLanguage}` : ''}${structured?.excludeTopics ? `
 EXCLUDE POSTS ABOUT: ${structured.excludeTopics}` : ''}
-` : ''
 
-    const prompt = `PROBLEM MATCH: Does each post discuss THIS SPECIFIC problem?
+For each post, answer TWO questions:
 
-${contextSection}HYPOTHESIS: "${hypothesis}"
+Q1: Does this post discuss "${problemDescription}"?
+- YES if the post expresses pain/frustration about this problem
+- NO if the post is about a different topic
 
-CRITICAL: Match the PROBLEM, not just the audience.
-- "Men in 50s with aging skin" → match posts about SKINCARE/AGING, not posts about dating or career
-- Same person might post about many topics; only the problem-relevant posts matter
+Q2: Does the post explicitly state demographics that CONFLICT with "${audienceDescription}"?
+- CONFLICT only if post explicitly states age/gender/role that clearly doesn't match
+  Examples of CONFLICT: "23F here" for "men in 40s", "as a teenager" for "professionals"
+- NO CONFLICT if demographics match OR are unstated
 
-RELEVANT (Y):
-- Post discusses the specific problem (${structured?.problem || 'the hypothesis problem'})
-- Post is from someone experiencing this problem firsthand
-- Post contains pain signals related to this exact issue
+DECISION RULE:
+- Q1=NO → N (wrong problem, reject)
+- Q1=YES + Q2=CONFLICT → N (explicitly wrong audience, reject)
+- Q1=YES + Q2=NO CONFLICT → Y (accept)
 
-NOT RELEVANT (N):
-- Post is from right audience but WRONG problem (e.g., skincare audience but post about dating)
-- Post mentions keywords but isn't actually about the problem
-- Post is asking for advice about unrelated issues${structured?.excludeTopics ? `
-- Post is about: ${structured.excludeTopics}` : ''}
+CRITICAL: Most posts don't state demographics. A post about the problem with NO stated demographics IS RELEVANT. Do not require explicit audience match.
+
+Example for "men in their 40s struggling to make friends":
+- "I'm so lonely, can't make friends as an adult" → Y (problem matches, no conflicting demographics)
+- "23F here, lonely and looking for friends" → N (problem matches but explicitly conflicts with "men in 40s")
+- "Best restaurants in my city" → N (wrong problem entirely)${structured?.excludeTopics ? `
+- Post about ${structured.excludeTopics} → N (excluded topic)` : ''}
 
 POSTS:
 ${postSummaries}
@@ -569,18 +584,27 @@ export async function filterRelevantComments(
 
     const summaries = batch.map((c, idx) => `[${idx + 1}] ${c.body.slice(0, 200)}`).join('\n\n')
 
-    const contextSection = structured ? `
-TARGET: ${structured.audience} with ${structured.problem}${structured.problemLanguage ? `
-PHRASES: ${structured.problemLanguage}` : ''}` : ''
+    // Use asymmetric matching: STRICT on problem, LOOSE on audience
+    const problemDescription = structured?.problem || hypothesis
+    const audienceDescription = structured?.audience || ''
 
-    const prompt = `Does each comment discuss the problem: "${structured?.problem || hypothesis}"?
-${contextSection}
+    const prompt = `ASYMMETRIC RELEVANCE CHECK for comments:
+
+PROBLEM (must match): ${problemDescription}
+TARGET AUDIENCE: ${audienceDescription}${structured?.problemLanguage ? `
+PHRASES: ${structured.problemLanguage}` : ''}
+
+DECISION RULE:
+- Y if comment discusses the problem (even if demographics unstated)
+- N if comment is about a different topic
+- N if comment explicitly states conflicting demographics (e.g., "23F" for "men in 40s")
+
+CRITICAL: Accept comments about the problem even if author doesn't state their demographics.
 
 Comments:
 ${summaries}
 
-Y = discusses this problem, N = unrelated
-Respond with ${batch.length} letters:`
+Respond with ${batch.length} letters (Y or N):`
 
     try {
       const response = await anthropic.messages.create({

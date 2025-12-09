@@ -1,12 +1,66 @@
 # Known Issues & Backlog
 
-Last updated: December 8, 2025
+Last updated: December 9, 2025
 
 ---
 
-
 ## UX Improvements
 
+# 12-09 Workshop: Product Research UX and Scoring Calibration Enhancements
+
+### [Market Sizing Dependencies] (Dec)
+**Source:** User feedback  
+**Issue:** Revenue goals and pricing are shown without a “Suggested solution,” creating confusion about whether market sizing should be active.  
+**Proposed:**  
+- Gate “Revenue Goals” and “Pricing for Market Sizing” behind the presence of a “Suggested Solution.”  
+- If no solution exists, show market sizing as “Setup Required” with a prompt to add a suggested solution first.  
+- When a solution exists, use revenue goals + pricing to auto-fetch competitor pricing and validate revenue goal reasonableness.
+
+### [Community Metrics Clarity] (Dec)
+**Source:** User feedback  
+**Issue:** “Posts analyzed” shows 60 while total content processed is 1306 and comments are 89; metrics are confusing.  
+**Proposed:**  
+- Replace “Posts analyzed” with “Posts and Comments Analyzed” and display the combined count (e.g., 60 + 89).  
+- Add a secondary line with “Total Content Processed.”  
+- Provide a metric dictionary tooltip for each item in the Community tab.
+
+### [Signals Found Definition] (Dec)
+**Source:** User feedback  
+**Issue:** Unclear what “Signals found” represents.  
+**Proposed:**  
+- Add hover tooltips explaining “Pain Score,” “Signals Found,” “Posts and Comments Analyzed,” and “Processing Time.”  
+- Link to a short help modal defining signal types, extraction logic, and thresholds.
+
+### [Tooltip Overlays for Community Tab] (Dec)
+**Source:** User feedback  
+**Issue:** No quick explanations for community metrics.  
+**Proposed:**  
+- Implement mouse-over overlays on all Community metrics with concise definitions and examples.  
+- Include an “i” icon next to each metric to open a detailed modal.
+
+### [Competitor Suggestion Workflow] (Dec)
+**Source:** User feedback  
+**Issue:** After skipping the competitor pop-up and later pressing “Add Competitors,” the “AI suggested competitors” feature does not work.  
+**Proposed:**  
+- Ensure “AI Suggested Competitors” populates based on the current research context (solution, market, keywords).  
+- Add a refresh/retry option and display loading and error states with actionable guidance.  
+- Persist competitor suggestions across tabs via a shared board state per research.
+
+### [Viability Verdict Calibration] (Dec)
+**Source:** User feedback  
+**Issue:** Verdict scores cluster in a mixed zone (6–6.7/10), rarely hitting extremes, suggesting weak calibration.  
+**Proposed:**  
+- Recalibrate scoring distribution: widen variance, adjust thresholds, and introduce confidence intervals.  
+- Display contributing dimensions and weights, plus an explanation of what pushes scores into weak/strong.  
+- Add a data sufficiency indicator to guard against overconfident mid-range scores.
+
+### [Interview Guide Navigation Bug] (Dec)
+**Source:** Testing  
+**Issue:** “View the interview guide” from the Verdict tab routes to Community Themes instead of Interview Guide.  
+**Proposed:**  
+- Fix routing to direct to Interview Guide.  
+- Add a breadcrumb and deep-link that preserves the current research context.  
+- Include a quick access button to return to Verdict.
 
 ### Admin Dashboard Analytics Reset (Dec 11)
 **Source:** CEO review
@@ -31,6 +85,18 @@ Proposed: Dashboard feature: side-by-side comparison of 2-4 hypotheses. "Which i
 ## Completed Issues
 
 *All resolved bugs, UX improvements, and feature requests.*
+
+### December 9, 2025
+
+#### ~~Problem Gate Over-Filters by Requiring Explicit Audience Match~~ ✅ FIXED
+Source: Pipeline analysis / CC documentation vs actual results
+**Status: Fixed Dec 9** - Updated `problemMatchFilter()` and `filterRelevantComments()` in `src/lib/research/relevance-filter.ts` to use asymmetric matching:
+- **Problem = STRICT**: Post must discuss the specific problem to pass
+- **Audience = LOOSE (exclusionary only)**: Only reject if post explicitly states CONFLICTING demographics (e.g., "23F" for "men in 40s")
+- Posts about the problem with NO stated demographics now pass (previously rejected)
+
+Before: 45 posts from 742 fetched (6% retention, 94% filter rate)
+Expected after: 100-200 posts (15-25% retention) - posts like "I'm lonely, can't make friends" will now pass for "men in 40s making friends" hypothesis.
 
 ### December 8, 2025
 
