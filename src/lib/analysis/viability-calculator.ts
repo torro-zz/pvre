@@ -24,8 +24,11 @@ export interface DimensionScore {
   summary?: string
 }
 
+export type SampleSizeLabel = 'high_confidence' | 'moderate_confidence' | 'low_confidence' | 'very_limited'
+
 export interface ViabilityVerdict {
-  overallScore: number // 0-10 scale
+  overallScore: number // 0-10 scale (calibrated)
+  rawScore: number // 0-10 scale (before calibration)
   verdict: VerdictLevel
   verdictLabel: string
   verdictDescription: string
@@ -37,6 +40,16 @@ export interface ViabilityVerdict {
   isComplete: boolean // true if all dimensions have data
   availableDimensions: number
   totalDimensions: number
+  // v2: Data sufficiency indicator
+  dataSufficiency: DataSufficiency
+  dataSufficiencyReason: string
+  // v3: Sample size indicator (posts analyzed)
+  sampleSize?: {
+    postsAnalyzed: number
+    signalsFound: number
+    label: SampleSizeLabel
+    description: string
+  }
 }
 
 export interface PainScoreInput {
@@ -44,6 +57,7 @@ export interface PainScoreInput {
   confidence: 'very_low' | 'low' | 'medium' | 'high'
   totalSignals: number
   willingnessToPayCount: number
+  postsAnalyzed?: number // Number of posts that passed relevance filtering
 }
 
 export interface CompetitionScoreInput {
@@ -98,6 +112,134 @@ export const VERDICT_THRESHOLDS = {
 
 // Dealbreaker threshold - any dimension below this is a red flag
 export const DEALBREAKER_THRESHOLD = 3.0
+
+// =============================================================================
+// SCORE CALIBRATION
+// =============================================================================
+
+/**
+ * Apply variance-widening transformation to spread mid-range scores.
+ *
+ * Problem: Raw scores tend to cluster around 5-7, producing "mixed" verdicts.
+ * Solution: Apply a sigmoid-based transformation that:
+ *   - Preserves extreme scores (< 3 or > 8)
+ *   - Pushes mid-range scores away from center (5.5)
+ *   - Increases discrimination between "good" and "mediocre"
+ *
+ * The formula uses a soft S-curve centered at 5.5:
+ *   transformed = 5.5 + (score - 5.5) * amplification_factor
+ *   where amplification_factor = 1.0 + 0.3 * (1 - distance_from_center/4.5)
+ *
+ * This means:
+ *   - Score of 5.5 stays at 5.5 (center)
+ *   - Score of 7.0 → ~7.4 (pushed higher)
+ *   - Score of 4.0 → ~3.6 (pushed lower)
+ *   - Score of 9.0 → ~9.2 (slight push, near limit)
+ *   - Score of 1.0 → ~0.9 (slight push, near limit)
+ */
+function applyScoreCalibration(rawScore: number): number {
+  // Don't calibrate if no data (score of 0)
+  if (rawScore === 0) return 0
+
+  const CENTER = 5.5
+  const MAX_AMPLIFICATION = 1.4  // Maximum stretch factor for scores near center
+  const MIN_AMPLIFICATION = 1.0  // No stretch for scores at extremes
+
+  // Distance from center (0 to 4.5 for 1-10 scale)
+  const distanceFromCenter = Math.abs(rawScore - CENTER)
+
+  // Amplification decreases as we get further from center
+  // At center: 1.4x, at edges (1 or 10): 1.0x
+  const amplification = MAX_AMPLIFICATION - (MAX_AMPLIFICATION - MIN_AMPLIFICATION) * (distanceFromCenter / 4.5)
+
+  // Apply transformation
+  let transformed = CENTER + (rawScore - CENTER) * amplification
+
+  // Clamp to valid range
+  transformed = Math.max(0, Math.min(10, transformed))
+
+  // Round to 1 decimal
+  return Math.round(transformed * 10) / 10
+}
+
+/**
+ * Calculate data sufficiency score based on available dimensions and confidence levels.
+ * Returns a rating that indicates how much to trust the verdict.
+ */
+export type DataSufficiency = 'insufficient' | 'limited' | 'adequate' | 'strong'
+
+function calculateDataSufficiency(
+  dimensions: DimensionScore[],
+  totalDimensions: number
+): { sufficiency: DataSufficiency; reason: string } {
+  if (dimensions.length === 0) {
+    return { sufficiency: 'insufficient', reason: 'No research data available' }
+  }
+
+  if (dimensions.length === 1) {
+    return { sufficiency: 'limited', reason: 'Only 1 of 4 dimensions analyzed - run more modules for reliable verdict' }
+  }
+
+  // Count low confidence dimensions
+  const lowConfidenceCount = dimensions.filter(d => d.confidence === 'low').length
+  const completionRatio = dimensions.length / totalDimensions
+
+  if (dimensions.length === 2 && lowConfidenceCount >= 1) {
+    return { sufficiency: 'limited', reason: '2 dimensions with low confidence data' }
+  }
+
+  if (dimensions.length >= 3 && lowConfidenceCount <= 1) {
+    return { sufficiency: 'strong', reason: `${dimensions.length} dimensions analyzed with good confidence` }
+  }
+
+  if (completionRatio >= 0.75) {
+    return { sufficiency: 'adequate', reason: `${dimensions.length} of ${totalDimensions} dimensions analyzed` }
+  }
+
+  return { sufficiency: 'limited', reason: `Only ${dimensions.length} dimensions - consider running more analyses` }
+}
+
+/**
+ * Calculate sample size indicator based on posts analyzed.
+ *
+ * Thresholds based on KNOWN_ISSUES.md proposal:
+ *   100+ posts = "High confidence"
+ *   50-99 posts = "Moderate confidence"
+ *   20-49 posts = "Low confidence — consider broader search"
+ *   <20 posts = "Very limited data — interpret with caution"
+ */
+function calculateSampleSizeIndicator(
+  postsAnalyzed: number | undefined,
+  signalsFound: number
+): ViabilityVerdict['sampleSize'] | undefined {
+  if (postsAnalyzed === undefined) {
+    return undefined
+  }
+
+  let label: SampleSizeLabel
+  let description: string
+
+  if (postsAnalyzed >= 100) {
+    label = 'high_confidence'
+    description = 'High confidence — substantial data sample'
+  } else if (postsAnalyzed >= 50) {
+    label = 'moderate_confidence'
+    description = 'Moderate confidence — good data sample'
+  } else if (postsAnalyzed >= 20) {
+    label = 'low_confidence'
+    description = 'Low confidence — consider broader search terms'
+  } else {
+    label = 'very_limited'
+    description = 'Very limited data — interpret with caution'
+  }
+
+  return {
+    postsAnalyzed,
+    signalsFound,
+    label,
+    description,
+  }
+}
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -234,24 +376,27 @@ export function calculateMVPViability(
     }
   }
 
-  // Calculate weighted score
-  let overallScore = 0
+  // Calculate weighted raw score
+  let rawScore = 0
 
   if (availableDimensions === 2) {
     // Both dimensions available - use MVP weights
-    overallScore =
+    rawScore =
       (painScore!.overallScore * MVP_WEIGHTS.pain) +
       (competitionScore!.score * MVP_WEIGHTS.competition)
   } else if (painScore) {
     // Only pain available
-    overallScore = painScore.overallScore
+    rawScore = painScore.overallScore
   } else if (competitionScore) {
     // Only competition available
-    overallScore = competitionScore.score
+    rawScore = competitionScore.score
   }
 
   // Round to 1 decimal place
-  overallScore = Math.round(overallScore * 10) / 10
+  rawScore = Math.round(rawScore * 10) / 10
+
+  // Apply calibration to spread mid-range scores
+  const calibratedScore = applyScoreCalibration(rawScore)
 
   // Find weakest dimension
   const weakestDimension = dimensions.length > 0
@@ -270,8 +415,8 @@ export function calculateMVPViability(
     }
   }
 
-  // Determine verdict
-  const verdict = getVerdict(overallScore)
+  // Determine verdict (using calibrated score)
+  const verdict = getVerdict(calibratedScore)
   const verdictLabel = getVerdictLabel(verdict)
   const verdictDescription = getVerdictDescription(verdict)
 
@@ -284,8 +429,17 @@ export function calculateMVPViability(
   const confidences = dimensions.map((d) => d.confidence)
   const overallConfidence = combineConfidences(confidences)
 
+  // Calculate data sufficiency
+  const { sufficiency: dataSufficiency, reason: dataSufficiencyReason } = calculateDataSufficiency(dimensions, 2)
+
+  // Calculate sample size indicator if we have pain score data
+  const sampleSize = painScore
+    ? calculateSampleSizeIndicator(painScore.postsAnalyzed, painScore.totalSignals)
+    : undefined
+
   return {
-    overallScore,
+    overallScore: calibratedScore,
+    rawScore,
     verdict,
     verdictLabel,
     verdictDescription,
@@ -297,6 +451,9 @@ export function calculateMVPViability(
     isComplete: availableDimensions === 2, // MVP requires 2 dimensions
     availableDimensions,
     totalDimensions: 2, // MVP has 2 dimensions
+    dataSufficiency,
+    dataSufficiencyReason,
+    sampleSize,
   }
 }
 
@@ -445,14 +602,17 @@ export function calculateViability(
     dimensions[i].weight = normalizedWeights[dimName] || 0
   }
 
-  // Calculate weighted score
-  let overallScore = 0
+  // Calculate weighted raw score
+  let rawScore = 0
   for (const d of availableWeights) {
-    overallScore += d.score * normalizedWeights[d.name]
+    rawScore += d.score * normalizedWeights[d.name]
   }
 
   // Round to 1 decimal place
-  overallScore = Math.round(overallScore * 10) / 10
+  rawScore = Math.round(rawScore * 10) / 10
+
+  // Apply calibration to spread mid-range scores
+  const calibratedScore = applyScoreCalibration(rawScore)
 
   // Find weakest dimension
   const weakestDimension = dimensions.length > 0
@@ -476,8 +636,8 @@ export function calculateViability(
     recommendations.unshift('Run Timing Analysis to assess market timing')
   }
 
-  // Determine verdict
-  const verdict = getVerdict(overallScore)
+  // Determine verdict (using calibrated score)
+  const verdict = getVerdict(calibratedScore)
   const verdictLabel = getVerdictLabel(verdict)
   const verdictDescription = getVerdictDescription(verdict)
 
@@ -490,8 +650,17 @@ export function calculateViability(
   const confidences = dimensions.map((d) => d.confidence)
   const overallConfidence = combineConfidences(confidences)
 
+  // Calculate data sufficiency
+  const { sufficiency: dataSufficiency, reason: dataSufficiencyReason } = calculateDataSufficiency(dimensions, 4)
+
+  // Calculate sample size indicator if we have pain score data
+  const sampleSize = painScore
+    ? calculateSampleSizeIndicator(painScore.postsAnalyzed, painScore.totalSignals)
+    : undefined
+
   return {
-    overallScore,
+    overallScore: calibratedScore,
+    rawScore,
     verdict,
     verdictLabel,
     verdictDescription,
@@ -503,6 +672,9 @@ export function calculateViability(
     isComplete: availableDimensions === 4, // Full version requires all 4 dimensions
     availableDimensions,
     totalDimensions: 4, // Supports all 4 dimensions
+    dataSufficiency,
+    dataSufficiencyReason,
+    sampleSize,
   }
 }
 

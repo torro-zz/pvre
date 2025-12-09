@@ -1,32 +1,29 @@
-# Resume Point - December 8, 2025
+# Resume Point - December 9, 2025
 
 ## What Was Just Completed
 
 ### Session Work
-1. **Code Quality Audit Cleanup** (from previous session):
-   - Split admin dashboard into 8 smaller modules (`src/components/admin/`)
-   - Added 31 unit tests for relevance filter stages
-   - Updated patch dependencies
 
-2. **CEO Review** (this session):
-   - Full product walkthrough via Puppeteer
-   - Tested complete research flow with "Freelance invoicing" hypothesis
-   - **Pain Score: 8/10**, **100% theme relevance** (major improvement!)
-   - All pages functioning correctly
-   - Report saved to `docs/archive/ceo-review-report-2025-12-08.md`
+1. **Internal Documentation Created:**
+   - Created `docs/INTERNAL_FAQ_RESEARCH_FLOW.md` - comprehensive developer FAQ explaining the 10-step research pipeline
+   - Added `docs/INTERNAL_*` to `.gitignore` to keep internal docs out of repo
 
-### Today's Commits (6 commits)
-- `21c1849` refactor: Split admin dashboard + add relevance filter tests
-- `98a1162` refactor: Consolidate relevance filtering to shared module
-- `2279e80` docs: Mark 3-stage relevance filter as completed
-- `6bdd6de` feat: 3-stage relevance filter for high-quality pain signals
-- `cbba99f` fix: Show AI-suggested competitors during research processing
-- `6b39d38` feat: Auto-generate Reddit search phrases from hypothesis
+2. **Relevance Filter Improvements (Problem Gate Over-Filtering Fix):**
+   - **Problem Gate:** Implemented asymmetric matching (strict problem, loose audience)
+   - **Quality Gate:** Fixed title+body combined length check (was body-only, missing title-only posts)
+   - **Quality Gate:** Made spam patterns less aggressive (reduced false positives)
+   - **Domain Gate:** Changed from "be strict" to "when in doubt, say Y"
+   - Retention improved from 5.6% → 8.6% in testing
 
-## Uncommitted Changes
-⚠️ **WARNING: You have uncommitted changes!**
-- `docs/RESUME_HERE.md` (modified)
-- `docs/archive/ceo-review-report-2025-12-08.md` (new)
+3. **Credit System Verification:**
+   - Investigated credit refund behavior after auto-cleanup
+   - Confirmed system working correctly (19 refunds processed for stuck/failed jobs)
+
+4. **New Workshop Items Added:**
+   - User added 7 new UX improvement items from "12-09 Workshop" to KNOWN_ISSUES.md
+
+### Today's Commit
+- `64721c4` fix: Improve relevance filter retention (asymmetric matching + quality gate fixes)
 
 ## Build & Test Status
 - **Build:** ✅ Passing
@@ -35,22 +32,28 @@
 
 ## What Needs To Be Done Next
 
-### From Known Issues (Low Priority)
-1. **Admin Dashboard Analytics Reset** - Add reset/archive for API cost metrics
-2. **Admin Dashboard API Health Reset** - Add reset for health statistics
-3. **Hypothesis Comparison Feature** - Side-by-side view for comparing research results
+### From Known Issues - 12-09 Workshop (7 new items)
+1. **Market Sizing Dependencies** - Gate revenue goals behind "Suggested Solution"
+2. **Community Metrics Clarity** - Replace "Posts analyzed" with combined count
+3. **Signals Found Definition** - Add hover tooltips explaining metrics
+4. **Tooltip Overlays for Community Tab** - Mouse-over explanations
+5. **Competitor Suggestion Workflow** - Fix AI suggestions after skipping popup
+6. **Viability Verdict Calibration** - Widen score variance, add confidence intervals
+7. **Interview Guide Navigation Bug** - Fix routing from Verdict tab
 
-### Minor Issue from CEO Review
-- **Posts Analyzed: 2** despite ~600 available - may warrant investigation
+### From Known Issues - Admin (Low Priority)
+- Admin Dashboard Analytics Reset
+- Admin Dashboard API Health Reset
+- Hypothesis Comparison Feature
 
 ### Implementation Plan Status
-- **Phase 1-3:** ✅ COMPLETE (all UX improvements implemented)
+- **Phase 1-3:** ✅ COMPLETE
 - **Phase 4:** Deferred (async email, hypothesis comparison)
 
 ## Key Quality Metrics
-- **Relevance:** 100% of themes relevant in test (vs 64% irrelevance issue)
-- **Pain Score:** 8/10 - strong hypothesis validation
-- **Processing Time:** 82.9s - acceptable
+- **Relevance Filter Retention:** 5.6% → 8.6% (target: 15-25%)
+- **Tests:** 97 passing, 6 skipped
+- **Build:** Clean
 
 ## User Notes
 None
@@ -62,9 +65,8 @@ None
 | Known bugs & UX backlog | `docs/KNOWN_ISSUES.md` |
 | 4-phase implementation roadmap | `docs/IMPLEMENTATION_PLAN.md` |
 | Technical overview | `docs/TECHNICAL_OVERVIEW.md` |
-| Today's CEO review | `docs/archive/ceo-review-report-2025-12-08.md` |
+| Internal research flow FAQ | `docs/INTERNAL_FAQ_RESEARCH_FLOW.md` |
 | Relevance filter (3-stage) | `src/lib/research/relevance-filter.ts` |
-| Admin components (new) | `src/components/admin/` |
 
 ## Quick Start Commands
 ```bash

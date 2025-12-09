@@ -3,10 +3,13 @@
 import { createContext, useContext, useState, ReactNode, useCallback } from 'react'
 
 type TabValue = 'community' | 'market' | 'timing' | 'competitors' | 'verdict'
+type CommunitySubTab = 'themes' | 'signals' | 'quotes' | 'interview'
 
 interface ResearchTabsContextType {
   activeTab: TabValue
   setActiveTab: (tab: TabValue) => void
+  communitySubTab: CommunitySubTab
+  setCommunitySubTab: (subTab: CommunitySubTab) => void
 }
 
 const ResearchTabsContext = createContext<ResearchTabsContextType | null>(null)
@@ -26,6 +29,7 @@ interface ResearchTabsProviderProps {
 
 export function ResearchTabsProvider({ children, defaultTab = 'community' }: ResearchTabsProviderProps) {
   const [activeTab, setActiveTabState] = useState<TabValue>(defaultTab)
+  const [communitySubTab, setCommunitySubTabState] = useState<CommunitySubTab>('themes')
 
   const setActiveTab = useCallback((tab: TabValue) => {
     setActiveTabState(tab)
@@ -38,8 +42,12 @@ export function ResearchTabsProvider({ children, defaultTab = 'community' }: Res
     }, 50)
   }, [])
 
+  const setCommunitySubTab = useCallback((subTab: CommunitySubTab) => {
+    setCommunitySubTabState(subTab)
+  }, [])
+
   return (
-    <ResearchTabsContext.Provider value={{ activeTab, setActiveTab }}>
+    <ResearchTabsContext.Provider value={{ activeTab, setActiveTab, communitySubTab, setCommunitySubTab }}>
       {children}
     </ResearchTabsContext.Provider>
   )

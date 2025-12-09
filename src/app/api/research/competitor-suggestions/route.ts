@@ -54,17 +54,33 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Job not found' }, { status: 404 })
   }
 
-  // Fetch pain analysis results (new step-based flow uses pain_analysis module_name)
-  const { data: painAnalysisResult, error: resultsError } = await supabase
+  // Fetch pain analysis results
+  // Try 'pain_analysis' first (new step-based flow), then fall back to 'community_voice' (old flow)
+  let { data: painAnalysisResult, error: resultsError } = await supabase
     .from('research_results')
     .select('*')
     .eq('job_id', jobId)
     .eq('module_name', 'pain_analysis')
     .single()
 
+  // If not found, try 'community_voice' (main production flow)
+  if (resultsError || !painAnalysisResult) {
+    const { data: communityVoiceResult, error: cvError } = await supabase
+      .from('research_results')
+      .select('*')
+      .eq('job_id', jobId)
+      .eq('module_name', 'community_voice')
+      .single()
+
+    if (!cvError && communityVoiceResult) {
+      painAnalysisResult = communityVoiceResult
+      resultsError = null
+    }
+  }
+
   if (resultsError || !painAnalysisResult) {
     return NextResponse.json(
-      { error: 'No pain analysis results found. Complete Pain Analysis first.' },
+      { error: 'No pain analysis results found. Complete Community Voice analysis first.' },
       { status: 404 }
     )
   }

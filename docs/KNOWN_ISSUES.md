@@ -6,72 +6,44 @@ Last updated: December 9, 2025
 
 ## UX Improvements
 
-# 12-09 Workshop: Product Research UX and Scoring Calibration Enhancements
+### 12-09 Workshop: Open Items
 
-### [Market Sizing Dependencies] (Dec)
-**Source:** User feedback  
-**Issue:** Revenue goals and pricing are shown without a “Suggested solution,” creating confusion about whether market sizing should be active.  
-**Proposed:**  
-- Gate “Revenue Goals” and “Pricing for Market Sizing” behind the presence of a “Suggested Solution.”  
-- If no solution exists, show market sizing as “Setup Required” with a prompt to add a suggested solution first.  
-- When a solution exists, use revenue goals + pricing to auto-fetch competitor pricing and validate revenue goal reasonableness.
+### ~~[Market Sizing Pricing Scenarios]~~ ✅ FIXED (Dec 9)
+**Source:** UX review
+**Status: Fixed Dec 9** - Implemented Part 2 of the pricing improvement:
+- Added `PricingScenario` type and `generatePricingScenarios()` function to `market-sizing.ts`
+- Generates 3-5 pricing scenarios centered around user's selected price
+- Shows table with: Price, Customers Needed, Penetration %, and Achievability badge
+- User's selected price is highlighted with "Selected" badge
+- Color-coded achievability: green (highly achievable), blue (achievable), gray (challenging), red (difficult/unlikely)
+- Shows insight tip: "Higher prices mean fewer customers needed but may limit your addressable market"
 
-### [Community Metrics Clarity] (Dec)
-**Source:** User feedback  
-**Issue:** “Posts analyzed” shows 60 while total content processed is 1306 and comments are 89; metrics are confusing.  
-**Proposed:**  
-- Replace “Posts analyzed” with “Posts and Comments Analyzed” and display the combined count (e.g., 60 + 89).  
-- Add a secondary line with “Total Content Processed.”  
-- Provide a metric dictionary tooltip for each item in the Community tab.
+**Remaining (Part 1 - Future Enhancement):**
+- Infer pricing from competitor analysis (extract pricing ranges)
+- Calculate median competitor price as fallback default
 
-### [Signals Found Definition] (Dec)
-**Source:** User feedback  
-**Issue:** Unclear what “Signals found” represents.  
-**Proposed:**  
-- Add hover tooltips explaining “Pain Score,” “Signals Found,” “Posts and Comments Analyzed,” and “Processing Time.”  
-- Link to a short help modal defining signal types, extraction logic, and thresholds.
+### ~~[Viability Verdict Calibration]~~ ✅ FIXED (Dec 9)
+**Source:** User feedback
+**Status: Fixed Dec 9** - Implemented score calibration and data sufficiency indicator:
+- Added `applyScoreCalibration()` function that spreads mid-range scores (5-7) away from center (5.5)
+  - Scores near center get 1.4x amplification, extreme scores stay nearly unchanged
+  - Example: raw 6.5 → calibrated ~6.9, raw 4.0 → calibrated ~3.5
+- Added `DataSufficiency` type with levels: insufficient, limited, adequate, strong
+- Added `rawScore` field to `ViabilityVerdict` for transparency
+- UI shows both confidence level AND data sufficiency indicator with explanatory text
+- Updated 34 viability calculator tests to verify calibration behavior
 
-### [Tooltip Overlays for Community Tab] (Dec)
-**Source:** User feedback  
-**Issue:** No quick explanations for community metrics.  
-**Proposed:**  
-- Implement mouse-over overlays on all Community metrics with concise definitions and examples.  
-- Include an “i” icon next to each metric to open a detailed modal.
-
-### [Competitor Suggestion Workflow] (Dec)
-**Source:** User feedback  
-**Issue:** After skipping the competitor pop-up and later pressing “Add Competitors,” the “AI suggested competitors” feature does not work.  
-**Proposed:**  
-- Ensure “AI Suggested Competitors” populates based on the current research context (solution, market, keywords).  
-- Add a refresh/retry option and display loading and error states with actionable guidance.  
-- Persist competitor suggestions across tabs via a shared board state per research.
-
-### [Viability Verdict Calibration] (Dec)
-**Source:** User feedback  
-**Issue:** Verdict scores cluster in a mixed zone (6–6.7/10), rarely hitting extremes, suggesting weak calibration.  
-**Proposed:**  
-- Recalibrate scoring distribution: widen variance, adjust thresholds, and introduce confidence intervals.  
-- Display contributing dimensions and weights, plus an explanation of what pushes scores into weak/strong.  
-- Add a data sufficiency indicator to guard against overconfident mid-range scores.
-
-### [Interview Guide Navigation Bug] (Dec)
-**Source:** Testing  
-**Issue:** “View the interview guide” from the Verdict tab routes to Community Themes instead of Interview Guide.  
-**Proposed:**  
-- Fix routing to direct to Interview Guide.  
-- Add a breadcrumb and deep-link that preserves the current research context.  
-- Include a quick access button to return to Verdict.
-
-### Admin Dashboard Analytics Reset (Dec 11)
+### Admin Dashboard Analytics Reset (Dec 9)
 **Source:** CEO review
+**Status:** Open
 **Issue:** The analytics on the admin dashboard, such as "Cloud API costs," cannot be reset to zero. This makes it difficult to track costs for specific periods as test data accumulates.
 **Proposed:** Implement a method to reset analytics data (like API costs) to zero. This should be done while also archiving or storing the previous data for historical tracking.
 
-### Admin Dashboard API Health Reset (Dec 11)
+### Admin Dashboard API Health Reset (Dec 9)
 **Source:** CEO review
+**Status:** Open
 **Issue:** The metrics on the API Health page within the admin dashboard (e.g., "stuck processing," "unknown failures") cannot be reset.
 **Proposed:** Add a feature to allow administrators to reset the API Health statistics.
-
 
 ### Low-Priority
 
@@ -87,6 +59,67 @@ Proposed: Dashboard feature: side-by-side comparison of 2-4 hypotheses. "Which i
 *All resolved bugs, UX improvements, and feature requests.*
 
 ### December 9, 2025
+
+#### ~~[Report Should Indicate When Sample Size Is Thin]~~ ✅ FIXED
+**Source:** Investigation into 98.3% filter rate
+**Status: Fixed Dec 9** - Implemented sample size indicator for viability verdicts:
+- Added `sampleSize` field to `ViabilityVerdict` with: `postsAnalyzed`, `signalsFound`, `label`, and `description`
+- Confidence labels based on posts analyzed:
+  - 100+ posts: "High confidence — substantial data sample"
+  - 50-99 posts: "Moderate confidence — good data sample"
+  - 20-49 posts: "Low confidence — consider broader search terms"
+  - <20 posts: "Very limited data — interpret with caution"
+- Added prominent warning banner when sample size is limited (<50 posts)
+- Sample size indicator shown in Confidence & Data Sufficiency section
+- Updated `PainScoreInput` to accept optional `postsAnalyzed` field
+- 10 new unit tests covering all threshold edge cases
+- Users now see: "Sample: 9 posts analyzed (29 signals) — Very limited data — interpret with caution"
+
+**Files modified:**
+- `src/lib/analysis/viability-calculator.ts` - Added `SampleSizeLabel` type, `calculateSampleSizeIndicator()`, updated return types
+- `src/components/research/viability-verdict.tsx` - Added sample size display + warning banner
+- `src/app/(dashboard)/research/[id]/page.tsx` - Pass `postsAnalyzed` to calculator
+- `src/__tests__/viability-calculator.test.ts` - 10 new tests
+
+#### ~~[problemLanguage Data Flow Investigation]~~ ✅ VERIFIED WORKING
+**Source:** CC deep-dive trace of data flow + job 52f2414b analysis
+**Status: Verified Dec 9** - After extensive diagnostic tracing, confirmed the `problemLanguage` data flow IS working correctly:
+- Created test job with explicit `problemLanguage` phrases
+- Verified via debug output that **"PHRASES TO LOOK FOR"** appears in the Problem Gate prompt
+- Data flow confirmed: `coverage_data.structuredHypothesis.problemLanguage` → `filterRelevantPosts()` → prompt template
+
+**Original Misdiagnosis:** The 98.3% rejection rate for job 52f2414b was NOT due to missing problemLanguage - it was due to:
+- Quality Gate rejecting ~48% of posts (deleted/removed content from Reddit)
+- Domain Gate rejecting ~42% (posts not about "product validation" domain)
+- Problem Gate only rejecting ~10% (working correctly)
+
+The high rejection rate is expected behavior when searching broad entrepreneur subreddits for a specific problem like "building without validation."
+
+#### ~~[Interview Guide Navigation Bug]~~ ✅ FIXED
+**Source:** Testing
+**Status: Fixed Dec 9** - Extended ResearchTabsContext to include `communitySubTab` state. "View Interview Guide" button now properly sets both main tab to 'community' and subtab to 'interview' using context state instead of brittle DOM manipulation.
+
+#### ~~[Community Metrics Clarity]~~ ✅ FIXED
+**Source:** User feedback
+**Status: Fixed Dec 9** - Changed "Posts Analyzed" to "Content Analyzed" showing combined total (posts + comments). Added secondary line showing breakdown "X posts + Y comments".
+
+#### ~~[Signals Found Definition]~~ ✅ FIXED
+**Source:** User feedback
+**Status: Fixed Dec 9** - Added hover tooltips with HelpCircle icons to all 4 Community metrics (Pain Score, Signals Found, Content Analyzed, Processing Time) explaining what each metric measures.
+
+#### ~~[Tooltip Overlays for Community Tab]~~ ✅ FIXED
+**Source:** User feedback
+**Status: Fixed Dec 9** - Implemented mouse-over overlays on all Community summary metrics with concise definitions. Uses styled dark tooltips with HelpCircle icons.
+
+#### ~~[Competitor Suggestion Workflow]~~ ✅ FIXED
+**Source:** User feedback
+**Status: Fixed Dec 9** - Added retry/refresh functionality to AI-suggested competitors:
+- Refactored `fetchSuggestions` as reusable function
+- Added "Retry" button with RefreshCw icon when suggestions fail to load
+- Added "Refresh" button when no suggestions found or all added
+- Error state now shows clear message + retry option
+- Suggestions can now be re-fetched at any time after skipping initial popup
+- **Additional fix:** Updated `/api/research/competitor-suggestions` to check BOTH `community_voice` AND `pain_analysis` module names (the old flow uses `community_voice`, new step-based flow uses `pain_analysis`)
 
 #### ~~Problem Gate Over-Filters by Requiring Explicit Audience Match~~ ✅ FIXED
 Source: Pipeline analysis / CC documentation vs actual results

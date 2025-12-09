@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
-import { Shield, Loader2, AlertCircle, Plus, X, CheckCircle2, TrendingUp, PieChart, Timer, Sparkles, Building2 } from 'lucide-react'
+import { Shield, Loader2, AlertCircle, Plus, X, CheckCircle2, TrendingUp, PieChart, Timer, Sparkles, Building2, RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface CompetitorRunnerProps {
@@ -43,23 +43,27 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
   const [loadingSuggestions, setLoadingSuggestions] = useState(true)
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null)
 
-  // Fetch AI suggestions on mount
-  useEffect(() => {
-    async function fetchSuggestions() {
-      try {
-        const response = await fetch(`/api/research/competitor-suggestions?jobId=${jobId}`)
-        if (!response.ok) {
-          const data = await response.json()
-          throw new Error(data.error || 'Failed to fetch suggestions')
-        }
+  // Fetch AI suggestions
+  const fetchSuggestions = async () => {
+    setLoadingSuggestions(true)
+    setSuggestionsError(null)
+    try {
+      const response = await fetch(`/api/research/competitor-suggestions?jobId=${jobId}`)
+      if (!response.ok) {
         const data = await response.json()
-        setSuggestions(data.suggestions || [])
-      } catch (err) {
-        setSuggestionsError(err instanceof Error ? err.message : 'Failed to load suggestions')
-      } finally {
-        setLoadingSuggestions(false)
+        throw new Error(data.error || 'Failed to fetch suggestions')
       }
+      const data = await response.json()
+      setSuggestions(data.suggestions || [])
+    } catch (err) {
+      setSuggestionsError(err instanceof Error ? err.message : 'Failed to load suggestions')
+    } finally {
+      setLoadingSuggestions(false)
     }
+  }
+
+  // Fetch on mount
+  useEffect(() => {
     fetchSuggestions()
   }, [jobId])
 
@@ -235,11 +239,22 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
                 <span>Analyzing community discussions for competitors...</span>
               </div>
             ) : suggestionsError ? (
-              <p className="text-sm text-muted-foreground">
-                {suggestionsError.includes('No pain analysis')
-                  ? 'Competitor suggestions will be available after pain analysis completes.'
-                  : 'Could not load suggestions.'}
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-muted-foreground">
+                  {suggestionsError.includes('No pain analysis')
+                    ? 'Competitor suggestions will be available after pain analysis completes.'
+                    : 'Could not load suggestions.'}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchSuggestions}
+                  className="text-xs"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Retry
+                </Button>
+              </div>
             ) : availableSuggestions.length > 0 ? (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground mb-2">
@@ -265,14 +280,36 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
                 </div>
               </div>
             ) : suggestions.length > 0 ? (
-              <p className="text-sm text-green-600">
-                <CheckCircle2 className="h-4 w-4 inline mr-1" />
-                All suggested competitors have been added.
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-green-600">
+                  <CheckCircle2 className="h-4 w-4 inline mr-1" />
+                  All suggested competitors have been added.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchSuggestions}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Refresh
+                </Button>
+              </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No competitor suggestions found. Add your own below.
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-muted-foreground">
+                  No competitor suggestions found.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchSuggestions}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Refresh
+                </Button>
+              </div>
             )}
           </div>
 

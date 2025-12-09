@@ -163,6 +163,7 @@ export default async function ResearchDetailPage({
       confidence: painScoreResult.confidence,
       totalSignals: painSummary.totalSignals,
       willingnessToPayCount: painSummary.willingnessToPayCount,
+      postsAnalyzed: communityVoiceResult.data.metadata?.postsAnalyzed,
     }
   }
 
@@ -664,6 +665,77 @@ export default async function ResearchDetailPage({
                       </p>
                     </CardContent>
                   </Card>
+
+                  {/* Pricing Scenarios */}
+                  {marketData.pricingScenarios && marketData.pricingScenarios.length > 0 && (
+                    <Card>
+                      <CardContent className="pt-6">
+                        <h3 className="text-lg font-semibold mb-2">Pricing Scenarios</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          How different price points affect your path to revenue goal
+                        </p>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b">
+                                <th className="text-left py-2 px-3 font-medium">Price</th>
+                                <th className="text-right py-2 px-3 font-medium">Customers</th>
+                                <th className="text-right py-2 px-3 font-medium">Penetration</th>
+                                <th className="text-left py-2 px-3 font-medium">Achievability</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {marketData.pricingScenarios.map((scenario: { price: number; label: string; customersNeeded: number; penetrationRequired: number; achievability: string; isUserPrice: boolean }, i: number) => (
+                                <tr
+                                  key={i}
+                                  className={`border-b last:border-0 ${scenario.isUserPrice ? 'bg-primary/5 font-medium' : ''}`}
+                                >
+                                  <td className="py-2 px-3">
+                                    <div className="flex items-center gap-2">
+                                      <span>${scenario.price}/mo</span>
+                                      <span className="text-xs text-muted-foreground">({scenario.label})</span>
+                                      {scenario.isUserPrice && (
+                                        <Badge variant="outline" className="text-xs">Selected</Badge>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="text-right py-2 px-3">
+                                    {scenario.customersNeeded.toLocaleString()}
+                                  </td>
+                                  <td className="text-right py-2 px-3">
+                                    {scenario.penetrationRequired.toFixed(1)}%
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <Badge
+                                      variant={
+                                        scenario.achievability === 'highly_achievable' || scenario.achievability === 'achievable'
+                                          ? 'default'
+                                          : scenario.achievability === 'challenging'
+                                          ? 'secondary'
+                                          : 'destructive'
+                                      }
+                                      className={
+                                        scenario.achievability === 'highly_achievable'
+                                          ? 'bg-green-500 hover:bg-green-600'
+                                          : scenario.achievability === 'achievable'
+                                          ? 'bg-blue-500 hover:bg-blue-600'
+                                          : ''
+                                      }
+                                    >
+                                      {scenario.achievability.replace('_', ' ')}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-4">
+                          💡 Higher prices mean fewer customers needed but may limit your addressable market
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {/* Suggestions */}
                   {marketData.suggestions && marketData.suggestions.length > 0 && (

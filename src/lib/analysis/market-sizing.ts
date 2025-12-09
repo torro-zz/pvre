@@ -17,6 +17,15 @@ export interface MarketSizingInput {
   mscTarget?: number; // Minimum Success Criteria (revenue goal)
 }
 
+export interface PricingScenario {
+  price: number; // Monthly price
+  label: string; // e.g., "Budget", "Standard", "Premium"
+  customersNeeded: number;
+  penetrationRequired: number; // percentage
+  achievability: 'highly_achievable' | 'achievable' | 'challenging' | 'difficult' | 'unlikely';
+  isUserPrice: boolean; // True if this is the user's selected price
+}
+
 export interface MarketSizingResult {
   score: number; // 0-10
   confidence: 'high' | 'medium' | 'low' | 'very_low';
@@ -42,6 +51,8 @@ export interface MarketSizingResult {
     achievability: 'highly_achievable' | 'achievable' | 'challenging' | 'difficult' | 'unlikely';
   };
   suggestions: string[];
+  // New: Pricing scenarios for comparison
+  pricingScenarios?: PricingScenario[];
 }
 
 export async function calculateMarketSize(
@@ -167,6 +178,10 @@ Respond with ONLY valid JSON in this exact format:
 
   const data = JSON.parse(jsonMatch[0]);
 
+  // Generate pricing scenarios to help user understand pricing impact
+  const somValue = data.som.value;
+  const pricingScenarios = generatePricingScenarios(price, msc, somValue);
+
   return {
     score: data.market_score,
     confidence: data.confidence,
@@ -179,6 +194,71 @@ Respond with ONLY valid JSON in this exact format:
       verdict: data.verdict,
       achievability: data.achievability
     },
-    suggestions: data.suggestions
+    suggestions: data.suggestions,
+    pricingScenarios,
   };
+}
+
+/**
+ * Get achievability rating based on penetration percentage
+ */
+function getAchievability(penetration: number): PricingScenario['achievability'] {
+  if (penetration < 5) return 'highly_achievable';
+  if (penetration < 10) return 'achievable';
+  if (penetration < 25) return 'challenging';
+  if (penetration < 50) return 'difficult';
+  return 'unlikely';
+}
+
+/**
+ * Generate pricing scenarios for comparison
+ * Shows how different price points affect achievability
+ */
+function generatePricingScenarios(
+  userPrice: number,
+  mscTarget: number,
+  somValue: number
+): PricingScenario[] {
+  // Define standard price tiers
+  const priceTiers = [
+    { price: 15, label: 'Budget' },
+    { price: 29, label: 'Standard' },
+    { price: 49, label: 'Professional' },
+    { price: 99, label: 'Premium' },
+    { price: 199, label: 'Enterprise' },
+  ];
+
+  // Add user's price if it's not already in the tiers
+  const userPriceNormalized = Math.round(userPrice);
+  const existingTier = priceTiers.find(t => t.price === userPriceNormalized);
+  if (!existingTier && userPrice > 0) {
+    priceTiers.push({ price: userPriceNormalized, label: 'Your Price' });
+    priceTiers.sort((a, b) => a.price - b.price);
+  }
+
+  // Calculate scenarios
+  const scenarios: PricingScenario[] = priceTiers.map(tier => {
+    const annualPrice = tier.price * 12;
+    const customersNeeded = Math.ceil(mscTarget / annualPrice);
+    const penetrationRequired = somValue > 0 ? (customersNeeded / somValue) * 100 : 100;
+
+    return {
+      price: tier.price,
+      label: tier.label,
+      customersNeeded,
+      penetrationRequired: Math.round(penetrationRequired * 10) / 10,
+      achievability: getAchievability(penetrationRequired),
+      isUserPrice: tier.price === userPriceNormalized || tier.label === 'Your Price',
+    };
+  });
+
+  // Filter to show only relevant scenarios (3-5 around the user's price)
+  // Include: user's price + 2 lower + 2 higher if available
+  const userIndex = scenarios.findIndex(s => s.isUserPrice);
+  if (userIndex === -1) return scenarios.slice(0, 5);
+
+  const startIndex = Math.max(0, userIndex - 2);
+  const endIndex = Math.min(scenarios.length, startIndex + 5);
+
+  return scenarios.slice(startIndex, endIndex);
 }

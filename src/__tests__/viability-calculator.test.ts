@@ -231,7 +231,8 @@ describe('Viability Calculator', () => {
         expect(result.dimensions).toHaveLength(1)
         expect(result.availableDimensions).toBe(1)
         expect(result.dimensions[0].weight).toBe(1.0)
-        expect(result.overallScore).toBe(strongPainScore.overallScore)
+        // rawScore should match input, overallScore is calibrated
+        expect(result.rawScore).toBe(strongPainScore.overallScore)
       })
     })
 
@@ -397,7 +398,7 @@ describe('Viability Calculator', () => {
     })
 
     describe('Score calculation accuracy', () => {
-      it('should calculate correct weighted score with all dimensions', () => {
+      it('should calculate correct weighted raw score with all dimensions', () => {
         const pain = 8.0
         const competition = 6.0
         const market = 7.0
@@ -410,13 +411,56 @@ describe('Viability Calculator', () => {
           { ...mediumTimingScore, score: timing }
         )
 
-        const expectedScore =
+        const expectedRawScore =
           (pain * FULL_WEIGHTS.pain) +
           (competition * FULL_WEIGHTS.competition) +
           (market * FULL_WEIGHTS.market) +
           (timing * FULL_WEIGHTS.timing)
 
-        expect(result.overallScore).toBeCloseTo(expectedScore, 1)
+        // rawScore should match the weighted average before calibration
+        expect(result.rawScore).toBeCloseTo(expectedRawScore, 1)
+        // overallScore should be calibrated (different from raw)
+        expect(result.overallScore).toBeDefined()
+      })
+
+      it('should apply calibration that spreads mid-range scores', () => {
+        // Test that mid-range scores (5-7) are pushed toward extremes
+        const result = calculateViability(
+          { ...mediumPainScore, overallScore: 6.5 },
+          { ...mediumCompetitionScore, score: 6.5 },
+          { ...mediumMarketScore, score: 6.5 },
+          { ...mediumTimingScore, score: 6.5 }
+        )
+
+        // Raw score should be 6.5 (all dimensions = 6.5)
+        expect(result.rawScore).toBeCloseTo(6.5, 1)
+        // Calibrated score should be higher (pushed away from 5.5 center)
+        expect(result.overallScore).toBeGreaterThan(result.rawScore)
+      })
+    })
+
+    describe('Data sufficiency', () => {
+      it('should have strong sufficiency with 3+ high-confidence dimensions', () => {
+        const result = calculateViability(
+          { ...strongPainScore, confidence: 'high' },
+          { ...strongCompetitionScore, confidence: 'high' },
+          { ...strongMarketScore, confidence: 'high' },
+          null
+        )
+
+        expect(result.dataSufficiency).toBe('strong')
+      })
+
+      it('should have limited sufficiency with only 1 dimension', () => {
+        const result = calculateViability(strongPainScore, null, null, null)
+
+        expect(result.dataSufficiency).toBe('limited')
+      })
+
+      it('should have insufficient sufficiency with no dimensions', () => {
+        const result = calculateViability(null, null, null, null)
+
+        expect(result.dataSufficiency).toBe('insufficient')
       })
     })
   })
@@ -435,7 +479,8 @@ describe('Viability Calculator', () => {
 
       expect(result.dimensions).toHaveLength(1)
       expect(result.isComplete).toBe(false)
-      expect(result.overallScore).toBe(strongPainScore.overallScore)
+      // rawScore should match input, overallScore is calibrated
+      expect(result.rawScore).toBe(strongPainScore.overallScore)
     })
 
     it('should work with only competition score', () => {
@@ -443,7 +488,8 @@ describe('Viability Calculator', () => {
 
       expect(result.dimensions).toHaveLength(1)
       expect(result.isComplete).toBe(false)
-      expect(result.overallScore).toBe(strongCompetitionScore.score)
+      // rawScore should match input, overallScore is calibrated
+      expect(result.rawScore).toBe(strongCompetitionScore.score)
     })
   })
 
@@ -459,21 +505,21 @@ describe('Viability Calculator', () => {
     })
 
     it('should handle scores at exact thresholds', () => {
-      // Exactly at strong threshold
+      // High scores should produce strong verdict (calibration pushes them higher)
       const strongResult = calculateViability(
-        { ...strongPainScore, overallScore: 7.5 },
-        { ...strongCompetitionScore, score: 7.5 },
-        { ...strongMarketScore, score: 7.5 },
-        { ...strongTimingScore, score: 7.5 }
+        { ...strongPainScore, overallScore: 8.0 },
+        { ...strongCompetitionScore, score: 8.0 },
+        { ...strongMarketScore, score: 8.0 },
+        { ...strongTimingScore, score: 8.0 }
       )
       expect(strongResult.verdict).toBe('strong')
 
-      // Just below strong threshold
+      // Lower mid-range scores should produce mixed verdict
       const mixedResult = calculateViability(
-        { ...strongPainScore, overallScore: 7.4 },
-        { ...strongCompetitionScore, score: 7.4 },
-        { ...strongMarketScore, score: 7.4 },
-        { ...strongTimingScore, score: 7.4 }
+        { ...strongPainScore, overallScore: 6.0 },
+        { ...strongCompetitionScore, score: 6.0 },
+        { ...strongMarketScore, score: 6.0 },
+        { ...strongTimingScore, score: 6.0 }
       )
       expect(mixedResult.verdict).toBe('mixed')
     })
@@ -500,6 +546,125 @@ describe('Viability Calculator', () => {
 
       const painDim = result.dimensions.find(d => d.name === 'Pain Score')
       expect(painDim?.confidence).toBe('low')
+    })
+  })
+
+  describe('Sample Size Indicator', () => {
+    it('should return high_confidence for 100+ posts', () => {
+      const result = calculateViability(
+        { ...strongPainScore, postsAnalyzed: 150 },
+        strongCompetitionScore,
+        strongMarketScore,
+        strongTimingScore
+      )
+
+      expect(result.sampleSize).toBeDefined()
+      expect(result.sampleSize?.label).toBe('high_confidence')
+      expect(result.sampleSize?.postsAnalyzed).toBe(150)
+      expect(result.sampleSize?.description).toContain('High confidence')
+    })
+
+    it('should return moderate_confidence for 50-99 posts', () => {
+      const result = calculateViability(
+        { ...strongPainScore, postsAnalyzed: 75 },
+        strongCompetitionScore,
+        null,
+        null
+      )
+
+      expect(result.sampleSize?.label).toBe('moderate_confidence')
+      expect(result.sampleSize?.description).toContain('Moderate confidence')
+    })
+
+    it('should return low_confidence for 20-49 posts', () => {
+      const result = calculateViability(
+        { ...strongPainScore, postsAnalyzed: 35 },
+        null,
+        null,
+        null
+      )
+
+      expect(result.sampleSize?.label).toBe('low_confidence')
+      expect(result.sampleSize?.description).toContain('Low confidence')
+    })
+
+    it('should return very_limited for <20 posts', () => {
+      const result = calculateViability(
+        { ...strongPainScore, postsAnalyzed: 9 },
+        strongCompetitionScore,
+        null,
+        null
+      )
+
+      expect(result.sampleSize?.label).toBe('very_limited')
+      expect(result.sampleSize?.description).toContain('Very limited')
+      expect(result.sampleSize?.postsAnalyzed).toBe(9)
+    })
+
+    it('should not include sampleSize when postsAnalyzed is undefined', () => {
+      const result = calculateViability(
+        strongPainScore, // no postsAnalyzed field
+        strongCompetitionScore,
+        null,
+        null
+      )
+
+      expect(result.sampleSize).toBeUndefined()
+    })
+
+    it('should not include sampleSize when no pain score is provided', () => {
+      const result = calculateViability(
+        null,
+        strongCompetitionScore,
+        strongMarketScore,
+        strongTimingScore
+      )
+
+      expect(result.sampleSize).toBeUndefined()
+    })
+
+    it('should include signalsFound from totalSignals', () => {
+      const result = calculateViability(
+        { ...strongPainScore, postsAnalyzed: 50, totalSignals: 29 },
+        null,
+        null,
+        null
+      )
+
+      expect(result.sampleSize?.signalsFound).toBe(29)
+    })
+
+    it('should handle edge case of exactly 100 posts (high_confidence threshold)', () => {
+      const result = calculateViability(
+        { ...strongPainScore, postsAnalyzed: 100 },
+        null,
+        null,
+        null
+      )
+
+      expect(result.sampleSize?.label).toBe('high_confidence')
+    })
+
+    it('should handle edge case of exactly 50 posts (moderate_confidence threshold)', () => {
+      const result = calculateViability(
+        { ...strongPainScore, postsAnalyzed: 50 },
+        null,
+        null,
+        null
+      )
+
+      expect(result.sampleSize?.label).toBe('moderate_confidence')
+    })
+
+    it('should handle edge case of exactly 20 posts (low_confidence threshold)', () => {
+      const result = calculateViability(
+        { ...strongPainScore, postsAnalyzed: 20 },
+        null,
+        null,
+        null
+      )
+
+      expect(result.sampleSize?.label).toBe('low_confidence')
     })
   })
 })

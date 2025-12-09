@@ -31,6 +31,7 @@ import {
   StatusColors,
   StatusLabels,
   VerdictLevel,
+  SampleSizeLabel,
 } from '@/lib/analysis/viability-calculator'
 
 interface ViabilityVerdictProps {
@@ -49,7 +50,7 @@ export function ViabilityVerdictDisplay({
   onRunCompetitors,
 }: ViabilityVerdictProps) {
   const colors = VerdictColors[verdict.verdict]
-  const { setActiveTab } = useResearchTabs()
+  const { setActiveTab, setCommunitySubTab } = useResearchTabs()
 
   const getVerdictIcon = (level: VerdictLevel) => {
     switch (level) {
@@ -72,6 +73,19 @@ export function ViabilityVerdictDisplay({
         return 'Medium confidence - more data would improve accuracy'
       case 'low':
         return 'Low confidence - limited data available'
+    }
+  }
+
+  const getSampleSizeColor = (label: SampleSizeLabel) => {
+    switch (label) {
+      case 'high_confidence':
+        return 'bg-green-500'
+      case 'moderate_confidence':
+        return 'bg-blue-500'
+      case 'low_confidence':
+        return 'bg-yellow-500'
+      case 'very_limited':
+        return 'bg-orange-500'
     }
   }
 
@@ -143,20 +157,64 @@ export function ViabilityVerdictDisplay({
             <p className={`font-medium ${colors.text}`}>{verdict.verdictDescription}</p>
           </div>
 
-          {/* Confidence Indicator */}
-          <div className="flex items-center gap-2 text-sm">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                verdict.confidence === 'high'
-                  ? 'bg-green-500'
-                  : verdict.confidence === 'medium'
-                  ? 'bg-yellow-500'
-                  : 'bg-gray-400'
-              }`}
-            />
-            <span className="text-muted-foreground">
-              {getConfidenceLabel(verdict.confidence)}
-            </span>
+          {/* Limited Data Warning */}
+          {verdict.sampleSize && (verdict.sampleSize.label === 'very_limited' || verdict.sampleSize.label === 'low_confidence') && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-800">Limited data available</p>
+                <p className="text-sm text-amber-700 mt-1">
+                  This verdict is based on {verdict.sampleSize.postsAnalyzed} relevant posts.
+                  {verdict.sampleSize.postsAnalyzed < 20
+                    ? ' Consider this a directional signal rather than definitive evidence. Try broader search terms or additional communities to gather more data.'
+                    : ' More data would increase confidence. Consider expanding your search to additional communities.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Confidence & Data Sufficiency Indicators */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 text-sm">
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  verdict.confidence === 'high'
+                    ? 'bg-green-500'
+                    : verdict.confidence === 'medium'
+                    ? 'bg-yellow-500'
+                    : 'bg-gray-400'
+                }`}
+              />
+              <span className="text-muted-foreground">
+                {getConfidenceLabel(verdict.confidence)}
+              </span>
+            </div>
+            {/* Data Sufficiency Indicator */}
+            <div className="flex items-center gap-2 text-sm">
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  verdict.dataSufficiency === 'strong'
+                    ? 'bg-green-500'
+                    : verdict.dataSufficiency === 'adequate'
+                    ? 'bg-blue-500'
+                    : verdict.dataSufficiency === 'limited'
+                    ? 'bg-yellow-500'
+                    : 'bg-red-500'
+                }`}
+              />
+              <span className="text-muted-foreground">
+                Data: {verdict.dataSufficiencyReason}
+              </span>
+            </div>
+            {/* Sample Size Indicator */}
+            {verdict.sampleSize && (
+              <div className="flex items-center gap-2 text-sm">
+                <div className={`w-3 h-3 rounded-full ${getSampleSizeColor(verdict.sampleSize.label)}`} />
+                <span className="text-muted-foreground">
+                  Sample: {verdict.sampleSize.postsAnalyzed} posts analyzed ({verdict.sampleSize.signalsFound} signals) — {verdict.sampleSize.description}
+                </span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -332,16 +390,9 @@ export function ViabilityVerdictDisplay({
                     size="lg"
                     className="bg-green-600 hover:bg-green-700"
                     onClick={() => {
-                      // Switch to Community tab using context
+                      // Switch to Community tab and Interview subtab using context
+                      setCommunitySubTab('interview')
                       setActiveTab('community')
-                      // Then click the interview subtab after a short delay
-                      setTimeout(() => {
-                        const interviewTab = document.querySelector('[data-state][value="interview"]') as HTMLElement
-                        if (interviewTab) {
-                          interviewTab.click()
-                          interviewTab.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                        }
-                      }, 150)
                     }}
                   >
                     View Interview Guide

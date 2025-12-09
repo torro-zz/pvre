@@ -26,6 +26,7 @@ import {
   Check,
   ArrowRight,
   Building2,
+  HelpCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useResearchTabs } from './research-tabs-context'
@@ -43,7 +44,7 @@ interface CommunityVoiceResultsProps {
 export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep = true }: CommunityVoiceResultsProps) {
   const [showAllSignals, setShowAllSignals] = useState(false)
   const [copiedSection, setCopiedSection] = useState<string | null>(null)
-  const { setActiveTab } = useResearchTabs()
+  const { setActiveTab, communitySubTab, setCommunitySubTab } = useResearchTabs()
 
   // Safely handle null/undefined painSignals array
   const painSignals = results.painSignals ?? []
@@ -83,9 +84,14 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative group">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Pain Score</span>
+              <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
+                Aggregated measure of how intensely your audience feels this problem (1-10). Based on language intensity, urgency, and emotional signals.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
+              </div>
             </div>
             <p className="text-2xl font-bold mt-1">
               {results.themeAnalysis.overallPainScore}/10
@@ -95,9 +101,14 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 
         <Card>
           <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative group">
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Signals Found</span>
+              <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
+                Specific mentions of the problem extracted from posts and comments. Each signal is a distinct expression of the pain point.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
+              </div>
             </div>
             <p className="text-2xl font-bold mt-1">
               {totalSignals}
@@ -107,21 +118,34 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 
         <Card>
           <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative group">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Posts Analyzed</span>
+              <span className="text-sm text-muted-foreground">Content Analyzed</span>
+              <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
+                Total posts and comments that passed relevance filtering and were analyzed for pain signals.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
+              </div>
             </div>
             <p className="text-2xl font-bold mt-1">
-              {results.metadata.postsAnalyzed}
+              {results.metadata.postsAnalyzed + (results.metadata.commentsAnalyzed || 0)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {results.metadata.postsAnalyzed} posts + {results.metadata.commentsAnalyzed || 0} comments
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative group">
               <Clock className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Processing Time</span>
+              <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
+                Total time to fetch data, filter for relevance, and analyze for pain signals.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
+              </div>
             </div>
             <p className="text-2xl font-bold mt-1">
               {(results.metadata.processingTimeMs / 1000).toFixed(1)}s
@@ -150,7 +174,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
       </Card>
 
       {/* Tabbed Content */}
-      <Tabs defaultValue="themes" className="space-y-4">
+      <Tabs value={communitySubTab} onValueChange={(v) => setCommunitySubTab(v as 'themes' | 'signals' | 'quotes' | 'interview')} className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="themes">Themes</TabsTrigger>
           <TabsTrigger value="signals">Pain Signals</TabsTrigger>
