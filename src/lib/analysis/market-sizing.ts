@@ -7,6 +7,14 @@
 import { anthropic, getCurrentTracker } from "../anthropic";
 import { trackUsage } from "./token-tracker";
 
+// Re-export pricing utilities for backwards compatibility
+export {
+  extractMonthlyPrice,
+  extractCompetitorPricing,
+  type CompetitorPricingInfo,
+  type PricingSuggestion,
+} from './pricing-utils';
+
 export type GeographyScope = 'local' | 'national' | 'global';
 
 export interface MarketSizingInput {

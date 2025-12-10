@@ -68,8 +68,25 @@ export async function extractThemes(
 
 Your task is to analyze Reddit posts/comments and extract actionable insights for validating a business hypothesis.
 
+CRITICAL REQUIREMENTS FOR THEMES:
+- Each theme name MUST be a descriptive phrase of 3-6 words
+- Theme names must describe SPECIFIC pain points, not generic categories
+- Themes must connect directly to the business hypothesis
+
+BAD THEME EXAMPLES (NEVER produce these):
+- "Pain point: concerns" (too vague, uses bad prefix)
+- "Problems" (single word, not descriptive)
+- "Issues with things" (too generic)
+- Names starting with "Pain point:" prefix
+
+GOOD THEME EXAMPLES:
+- "Difficulty finding reliable contractors"
+- "Time-consuming manual invoicing process"
+- "Lack of client communication tools"
+- "Uncertainty about pricing strategies"
+
 Focus on:
-- Identifying recurring pain themes
+- Identifying recurring pain themes (3-6 word descriptive names)
 - Extracting the exact language customers use
 - Finding mentions of existing solutions, alternatives, competitors, tools, products, or services (be thorough - these are critical for competitive analysis)
 - Identifying signals that people would pay for a solution
@@ -150,7 +167,7 @@ Identify 3-7 themes, 5-10 customer language phrases, and 3-5 key quotes.`
     const parsed = JSON.parse(jsonMatch[0]) as ThemeAnalysis
 
     // Validate and clean up the response
-    return {
+    const result = {
       themes: parsed.themes || [],
       customerLanguage: parsed.customerLanguage || [],
       alternativesMentioned: parsed.alternativesMentioned || [],
@@ -159,10 +176,47 @@ Identify 3-7 themes, 5-10 customer language phrases, and 3-5 key quotes.`
       keyQuotes: parsed.keyQuotes || [],
       summary: parsed.summary || 'Analysis complete.',
     }
+
+    // Validate theme quality - reject if themes look like word frequencies
+    const hasLowQualityThemes = result.themes.some(
+      (t) =>
+        t.name.startsWith('Pain point:') ||
+        t.description.includes('frequently express') ||
+        t.description.includes('Users frequently') ||
+        /^[A-Za-z]+$/.test(t.name) // Single word only (allows 2+ word themes)
+    )
+
+    if (hasLowQualityThemes && result.themes.length > 0) {
+      console.warn('Theme extraction produced low-quality results, retrying...')
+      // Retry once with explicit instruction
+      const retryResult = await retryThemeExtraction(painSignals, hypothesis)
+
+      // Check if retry also produced low-quality themes
+      const retryHasLowQuality = retryResult.themes.some(
+        (t) =>
+          t.name.startsWith('Pain point:') ||
+          t.description.includes('frequently express') ||
+          t.description.includes('Users frequently') ||
+          /^[A-Za-z]+$/.test(t.name) // Single word only (allows 2+ word themes)
+      )
+
+      if (retryHasLowQuality || retryResult.themes.length === 0) {
+        // Throw error to trigger refund - don't show garbage to users
+        throw new Error(
+          'Unable to extract meaningful themes from the data. Our AI analysis service may be experiencing issues. Your credit has been refunded.'
+        )
+      }
+
+      return retryResult
+    }
+
+    return result
   } catch (error) {
     console.error('Theme extraction failed:', error)
-    // Return fallback analysis based on pain signals
-    return getFallbackAnalysis(painSignals, hypothesis)
+    // Throw error to trigger refund - don't silently fail with empty results
+    throw new Error(
+      'Theme analysis failed. Your credit has been refunded. Please try again later.'
+    )
   }
 }
 
@@ -178,6 +232,122 @@ function getEmptyAnalysis(): ThemeAnalysis {
     overallPainScore: 0,
     keyQuotes: [],
     summary: 'No pain signals were found in the analyzed content. Consider broadening your search to more subreddits or adjusting your hypothesis.',
+  }
+}
+
+/**
+ * Get empty analysis with custom message
+ */
+function getEmptyAnalysisWithMessage(message: string): ThemeAnalysis {
+  return {
+    themes: [],
+    customerLanguage: [],
+    alternativesMentioned: [],
+    willingnessToPaySignals: [],
+    overallPainScore: 0,
+    keyQuotes: [],
+    summary: message,
+  }
+}
+
+/**
+ * Retry theme extraction with more explicit instructions
+ */
+async function retryThemeExtraction(
+  painSignals: PainSignal[],
+  hypothesis: string
+): Promise<ThemeAnalysis> {
+  const topSignals = painSignals.slice(0, 30)
+
+  const signalTexts = topSignals.map((signal, index) => ({
+    index: index + 1,
+    text: truncateText(signal.text, 500),
+    title: signal.title || '',
+    painScore: signal.score,
+    subreddit: signal.source.subreddit,
+  }))
+
+  const systemPrompt = `You are a market research analyst. Your task is to synthesize pain themes from Reddit discussions.
+
+CRITICAL: Each theme must be:
+- A descriptive phrase of 3-6 words (NOT single words like "concerns" or "problem")
+- A specific pain point, not a generic category
+- Connected to the business hypothesis
+
+BAD EXAMPLES (do NOT produce these):
+- "Pain point: concerns"
+- "Pain point: problem"
+- "Users frequently express X"
+
+GOOD EXAMPLES:
+- "Difficulty finding reliable contractors"
+- "Time-consuming manual invoicing process"
+- "Lack of client communication tools"`
+
+  const userPrompt = `Business Hypothesis: "${hypothesis}"
+
+Analyze these ${topSignals.length} Reddit posts and extract 3-7 SPECIFIC pain themes:
+
+${JSON.stringify(signalTexts, null, 2)}
+
+Return JSON:
+{
+  "themes": [
+    {
+      "name": "Descriptive 3-6 word theme name",
+      "description": "1-2 sentence description of this specific pain",
+      "frequency": <count>,
+      "intensity": "low" | "medium" | "high",
+      "examples": ["example 1", "example 2"]
+    }
+  ],
+  "customerLanguage": ["exact phrases from posts"],
+  "alternativesMentioned": ["products/tools mentioned"],
+  "willingnessToPaySignals": ["quotes showing payment intent"],
+  "overallPainScore": <0-10>,
+  "keyQuotes": [{"quote": "...", "source": "r/sub", "painScore": <n>}],
+  "summary": "2-3 sentence summary"
+}`
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: userPrompt }],
+      system: systemPrompt,
+    })
+
+    const tracker = getCurrentTracker()
+    if (tracker && response.usage) {
+      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+    }
+
+    const textContent = response.content.find((c) => c.type === 'text')
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text response from Claude')
+    }
+
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      throw new Error('Could not parse JSON from retry response')
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as ThemeAnalysis
+
+    return {
+      themes: parsed.themes || [],
+      customerLanguage: parsed.customerLanguage || [],
+      alternativesMentioned: parsed.alternativesMentioned || [],
+      willingnessToPaySignals: parsed.willingnessToPaySignals || [],
+      overallPainScore: Math.min(10, Math.max(0, parsed.overallPainScore || 0)),
+      keyQuotes: parsed.keyQuotes || [],
+      summary: parsed.summary || 'Analysis complete.',
+    }
+  } catch (error) {
+    console.error('Theme extraction retry failed:', error)
+    return getEmptyAnalysisWithMessage(
+      `Theme analysis could not be completed after retry. Found ${painSignals.length} pain signals but synthesis failed.`
+    )
   }
 }
 

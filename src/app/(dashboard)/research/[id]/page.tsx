@@ -40,6 +40,7 @@ interface ResearchJob {
   created_at: string
   updated_at: string
   user_id: string
+  error_message?: string | null
 }
 
 interface ResearchResult<T = CommunityVoiceResult | CompetitorIntelligenceResult> {
@@ -457,8 +458,11 @@ export default async function ResearchDetailPage({
               <div className="text-center">
                 <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Research Failed</h3>
-                <p className="text-muted-foreground mb-4">
-                  Unfortunately, the research process encountered an error.
+                <p className="text-muted-foreground mb-2">
+                  {researchJob.error_message || 'Unfortunately, the research process encountered an error.'}
+                </p>
+                <p className="text-sm text-green-600 mb-4">
+                  Your credit has been automatically refunded.
                 </p>
                 <Link href="/research">
                   <Button>Try Again</Button>

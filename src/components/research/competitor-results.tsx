@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Card,
   CardContent,
@@ -31,8 +31,10 @@ import {
   Sparkles,
   TrendingDown,
   CircleDot,
+  Tag,
 } from 'lucide-react'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
+import { extractCompetitorPricing, type PricingSuggestion } from '@/lib/analysis/pricing-utils'
 
 interface CompetitorResultsProps {
   results: CompetitorIntelligenceResult
@@ -40,6 +42,11 @@ interface CompetitorResultsProps {
 
 export function CompetitorResults({ results }: CompetitorResultsProps) {
   const [expandedCompetitor, setExpandedCompetitor] = useState<string | null>(null)
+
+  // Calculate pricing suggestion from competitors
+  const pricingSuggestion = useMemo<PricingSuggestion>(() => {
+    return extractCompetitorPricing(results.competitors)
+  }, [results.competitors])
 
   const toggleCompetitor = (name: string) => {
     setExpandedCompetitor(expandedCompetitor === name ? null : name)
@@ -179,6 +186,102 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Competitor Pricing Intelligence */}
+      {pricingSuggestion.competitorsWithPricing > 0 && (
+        <Card className="border-green-200 bg-green-50/30">
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Tag className="h-5 w-5 text-green-600" />
+                  Competitor Pricing Intelligence
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Based on {pricingSuggestion.competitorsWithPricing} of {pricingSuggestion.totalCompetitors} competitors with pricing data
+                </CardDescription>
+              </div>
+              <Badge
+                variant="outline"
+                className={
+                  pricingSuggestion.confidence === 'high'
+                    ? 'border-green-500 text-green-700 bg-green-50'
+                    : pricingSuggestion.confidence === 'medium'
+                    ? 'border-yellow-500 text-yellow-700 bg-yellow-50'
+                    : 'border-gray-400 text-gray-600'
+                }
+              >
+                {pricingSuggestion.confidence} confidence
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-4">
+              {/* Suggested Price */}
+              <div className="p-4 rounded-lg bg-white border border-green-200">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                  <DollarSign className="h-4 w-4 text-green-600" />
+                  Suggested Price
+                </div>
+                <p className="text-3xl font-bold text-green-700">
+                  ${pricingSuggestion.suggestedPrice}
+                  <span className="text-sm font-normal text-muted-foreground">/mo</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Median competitor price
+                </p>
+              </div>
+
+              {/* Price Range */}
+              {pricingSuggestion.priceRange && (
+                <div className="p-4 rounded-lg bg-white border">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <BarChart3 className="h-4 w-4" />
+                    Market Price Range
+                  </div>
+                  <p className="text-2xl font-semibold">
+                    ${pricingSuggestion.priceRange.min} - ${pricingSuggestion.priceRange.max}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Avg: ${pricingSuggestion.averagePrice}/mo
+                  </p>
+                </div>
+              )}
+
+              {/* Pricing Models */}
+              <div className="p-4 rounded-lg bg-white border">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                  <Sparkles className="h-4 w-4" />
+                  Common Models
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {pricingSuggestion.pricingModels.slice(0, 4).map((model, i) => (
+                    <Badge key={i} variant="secondary" className="text-xs">
+                      {model}
+                    </Badge>
+                  ))}
+                  {pricingSuggestion.pricingModels.length === 0 && (
+                    <span className="text-xs text-muted-foreground">Not specified</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing Insight */}
+            <div className="mt-3 p-2 rounded bg-blue-50 border border-blue-100 flex items-start gap-2">
+              <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700">
+                Use this pricing as a starting point for your market sizing calculations.
+                {pricingSuggestion.priceRange && pricingSuggestion.priceRange.max > pricingSuggestion.priceRange.min * 3 && (
+                  <span className="block mt-1">
+                    Wide price range suggests opportunity for both budget and premium positioning.
+                  </span>
+                )}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Competition Score Analysis - NEW for Viability Verdict */}
       {competitionScore && (

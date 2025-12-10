@@ -1,72 +1,91 @@
-# Resume Point - December 9, 2025
+# Resume Point - December 10, 2025
 
 ## What Was Just Completed
 
-### Session Work
+### Admin Dashboard Reset Features
+- **Analytics Reset**: Added ability to reset API cost tracking from a specific timestamp
+- **API Health Reset**: Added ability to reset error statistics from a specific timestamp
+- Both use localStorage for persistence, historical data preserved in database
 
-1. **Internal Documentation Created:**
-   - Created `docs/INTERNAL_FAQ_RESEARCH_FLOW.md` - comprehensive developer FAQ explaining the 10-step research pipeline
-   - Added `docs/INTERNAL_*` to `.gitignore` to keep internal docs out of repo
+### Competitor Pricing Intelligence
+- Created pricing extraction utilities to parse competitor pricing strings
+- Added "Competitor Pricing Intelligence" card to competitor results page
+- Shows suggested price (median), price range, common pricing models
+- 11 new unit tests for pricing extraction
 
-2. **Relevance Filter Improvements (Problem Gate Over-Filtering Fix):**
-   - **Problem Gate:** Implemented asymmetric matching (strict problem, loose audience)
-   - **Quality Gate:** Fixed title+body combined length check (was body-only, missing title-only posts)
-   - **Quality Gate:** Made spam patterns less aggressive (reduced false positives)
-   - **Domain Gate:** Changed from "be strict" to "when in doubt, say Y"
-   - Retention improved from 5.6% → 8.6% in testing
+### Theme Extraction Fix (Critical)
+- **Problem**: Theme extraction was producing word-frequency fallbacks like "Pain point: concerns" / "Users frequently express X..."
+- **Root Cause**: Claude API failures triggered fallback function that did simple word counting
+- **Fix Applied**:
+  1. Quality validation detects low-quality patterns (names starting with "Pain point:", descriptions with "frequently express", ≤2 word names)
+  2. Auto-retry with explicit BAD/GOOD examples in prompt
+  3. Returns empty analysis with error message instead of low-quality output
 
-3. **Credit System Verification:**
-   - Investigated credit refund behavior after auto-cleanup
-   - Confirmed system working correctly (19 refunds processed for stuck/failed jobs)
+## Files Modified This Session
+| File | Status | Purpose |
+|------|--------|---------|
+| `src/app/api/admin/analytics/route.ts` | Modified | Added `apiCostResetAt` query param filter |
+| `src/app/api/admin/cleanup-stale-jobs/route.ts` | Modified | Added `apiHealthResetAt` query param filter |
+| `src/app/(dashboard)/admin/page.tsx` | Modified | Added reset state/handlers for both tabs |
+| `src/components/admin/analytics-tab.tsx` | Modified | Added Reset button + tracking since indicator |
+| `src/components/admin/api-health-tab.tsx` | Modified | Added Reset Stats button + tracking indicator |
+| `src/components/admin/types.ts` | Modified | Added `apiCostResetAt` and `apiHealthResetAt` to types |
+| `src/components/research/competitor-results.tsx` | Modified | Added Competitor Pricing Intelligence card |
+| `src/lib/analysis/market-sizing.ts` | Modified | Re-exports pricing utils for backwards compatibility |
+| `src/lib/analysis/pricing-utils.ts` | **New** | `extractMonthlyPrice()`, `extractCompetitorPricing()` |
+| `src/__tests__/pricing-extraction.test.ts` | **New** | 11 tests for pricing extraction |
+| `src/lib/analysis/theme-extractor.ts` | Modified | Quality validation, retry logic, graceful failure |
+| `docs/KNOWN_ISSUES.md` | Modified | Marked theme extraction fix as completed |
 
-4. **New Workshop Items Added:**
-   - User added 7 new UX improvement items from "12-09 Workshop" to KNOWN_ISSUES.md
+## Uncommitted Changes
+**WARNING: You have uncommitted changes!**
 
-### Today's Commit
-- `64721c4` fix: Improve relevance filter retention (asymmetric matching + quality gate fixes)
+Modified files:
+- `docs/KNOWN_ISSUES.md`
+- `docs/RESUME_HERE.md`
+- `src/app/(dashboard)/admin/page.tsx`
+- `src/app/api/admin/analytics/route.ts`
+- `src/app/api/admin/cleanup-stale-jobs/route.ts`
+- `src/components/admin/analytics-tab.tsx`
+- `src/components/admin/api-health-tab.tsx`
+- `src/components/admin/types.ts`
+- `src/components/research/competitor-results.tsx`
+- `src/lib/analysis/market-sizing.ts`
+- `src/lib/analysis/theme-extractor.ts`
+
+New files:
+- `src/__tests__/pricing-extraction.test.ts`
+- `src/lib/analysis/pricing-utils.ts`
 
 ## Build & Test Status
-- **Build:** ✅ Passing
-- **Tests:** 97 passing, 6 skipped
+- **Build:** Passing
+- **Tests:** 122 passing, 0 failing, 6 skipped
 - **Dev Server:** Running on :3000
 
 ## What Needs To Be Done Next
 
-### From Known Issues - 12-09 Workshop (7 new items)
-1. **Market Sizing Dependencies** - Gate revenue goals behind "Suggested Solution"
-2. **Community Metrics Clarity** - Replace "Posts analyzed" with combined count
-3. **Signals Found Definition** - Add hover tooltips explaining metrics
-4. **Tooltip Overlays for Community Tab** - Mouse-over explanations
-5. **Competitor Suggestion Workflow** - Fix AI suggestions after skipping popup
-6. **Viability Verdict Calibration** - Widen score variance, add confidence intervals
-7. **Interview Guide Navigation Bug** - Fix routing from Verdict tab
+### Commit Changes
+All work is complete and tested. Ready to commit:
+```bash
+git add -A && git commit -m "feat: Admin dashboard resets + competitor pricing + theme extraction fix"
+```
 
-### From Known Issues - Admin (Low Priority)
-- Admin Dashboard Analytics Reset
-- Admin Dashboard API Health Reset
-- Hypothesis Comparison Feature
+### From Known Issues (Low Priority)
+1. **Hypothesis Comparison Feature** - Side-by-side comparison of 2-4 hypotheses
 
-### Implementation Plan Status
-- **Phase 1-3:** ✅ COMPLETE
-- **Phase 4:** Deferred (async email, hypothesis comparison)
-
-## Key Quality Metrics
-- **Relevance Filter Retention:** 5.6% → 8.6% (target: 15-25%)
-- **Tests:** 97 passing, 6 skipped
-- **Build:** Clean
-
-## User Notes
-None
+## Blockers or Open Questions
+None - all features implemented and tested.
 
 ## Key Files Reference
 | Purpose | File |
 |---------|------|
 | Project instructions | `CLAUDE.md` |
 | Known bugs & UX backlog | `docs/KNOWN_ISSUES.md` |
-| 4-phase implementation roadmap | `docs/IMPLEMENTATION_PLAN.md` |
 | Technical overview | `docs/TECHNICAL_OVERVIEW.md` |
-| Internal research flow FAQ | `docs/INTERNAL_FAQ_RESEARCH_FLOW.md` |
-| Relevance filter (3-stage) | `src/lib/research/relevance-filter.ts` |
+| Admin dashboard page | `src/app/(dashboard)/admin/page.tsx` |
+| Pricing extraction utils | `src/lib/analysis/pricing-utils.ts` |
+| Theme extractor (fixed) | `src/lib/analysis/theme-extractor.ts` |
+| Competitor results UI | `src/components/research/competitor-results.tsx` |
 
 ## Quick Start Commands
 ```bash
@@ -79,4 +98,7 @@ npm run test:run
 
 # Build
 npm run build
+
+# Commit today's work
+git add -A && git commit -m "feat: Admin dashboard resets + competitor pricing + theme extraction fix"
 ```

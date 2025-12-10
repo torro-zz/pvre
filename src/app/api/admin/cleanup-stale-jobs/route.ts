@@ -223,6 +223,10 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    // Get optional resetAt timestamp for filtering stats
+    const searchParams = request.nextUrl.searchParams
+    const apiHealthResetAt = searchParams.get('apiHealthResetAt')
+
     // Verify admin access
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -239,38 +243,53 @@ export async function GET(request: NextRequest) {
     const adminClient = createAdminClient()
     const staleThreshold = new Date(Date.now() - STALE_THRESHOLD_MS).toISOString()
 
-    // Get counts
+    // Use reset timestamp if provided, otherwise use 24h ago for error breakdown
+    const errorBreakdownSince = apiHealthResetAt || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+    // Get counts - filter by reset timestamp if provided
     const [failedWithSource, failedWithoutSource, stuckProcessing, recentErrorSources] = await Promise.all([
       // Failed with error source (pending refund)
-      adminClient
-        .from('research_jobs')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'failed')
-        .not('error_source', 'is', null)
-        .is('refunded_at', null),
+      (async () => {
+        let query = adminClient
+          .from('research_jobs')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'failed')
+          .not('error_source', 'is', null)
+          .is('refunded_at', null)
+        if (apiHealthResetAt) {
+          query = query.gte('created_at', apiHealthResetAt)
+        }
+        return query
+      })(),
 
       // Failed without error source
-      adminClient
-        .from('research_jobs')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'failed')
-        .is('error_source', null)
-        .is('refunded_at', null),
+      (async () => {
+        let query = adminClient
+          .from('research_jobs')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'failed')
+          .is('error_source', null)
+          .is('refunded_at', null)
+        if (apiHealthResetAt) {
+          query = query.gte('created_at', apiHealthResetAt)
+        }
+        return query
+      })(),
 
-      // Stuck in processing
+      // Stuck in processing (always show current stuck jobs regardless of reset)
       adminClient
         .from('research_jobs')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'processing')
         .lt('created_at', staleThreshold),
 
-      // Recent error source breakdown (last 24 hours)
+      // Error source breakdown (since reset or last 24 hours)
       adminClient
         .from('research_jobs')
         .select('error_source')
         .eq('status', 'failed')
         .not('error_source', 'is', null)
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+        .gte('created_at', errorBreakdownSince),
     ])
 
     // Calculate error source breakdown
@@ -288,6 +307,7 @@ export async function GET(request: NextRequest) {
       stuckProcessing: stuckProcessing.count || 0,
       errorSourceBreakdown,
       staleThresholdMinutes: STALE_THRESHOLD_MS / 60000,
+      apiHealthResetAt: apiHealthResetAt || null,
     })
   } catch (error) {
     console.error('Get stale job stats failed:', error)

@@ -46,6 +46,13 @@ export default function AdminPage() {
   // Analytics state
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [apiCostResetAt, setApiCostResetAt] = useState<string | null>(() => {
+    // Load from localStorage on initial render
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('pvre_admin_api_cost_reset_at')
+    }
+    return null
+  })
 
   // Credit audit state
   const [creditAudit, setCreditAudit] = useState<CreditAuditData | null>(null)
@@ -56,6 +63,13 @@ export default function AdminPage() {
   const [apiHealthLoading, setApiHealthLoading] = useState(false)
   const [apiHealthError, setApiHealthError] = useState<string | null>(null)
   const [cleanupRunning, setCleanupRunning] = useState(false)
+  const [apiHealthResetAt, setApiHealthResetAt] = useState<string | null>(() => {
+    // Load from localStorage on initial render
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('pvre_admin_api_health_reset_at')
+    }
+    return null
+  })
 
   // Fetch functions
   const fetchUsers = async (search = '') => {
@@ -86,10 +100,16 @@ export default function AdminPage() {
     }
   }
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (resetAt?: string | null) => {
     setAnalyticsLoading(true)
     try {
-      const res = await fetch('/api/admin/analytics')
+      const params = new URLSearchParams()
+      const effectiveResetAt = resetAt !== undefined ? resetAt : apiCostResetAt
+      if (effectiveResetAt) {
+        params.set('apiCostResetAt', effectiveResetAt)
+      }
+      const url = `/api/admin/analytics${params.toString() ? '?' + params.toString() : ''}`
+      const res = await fetch(url)
       if (!res.ok) throw new Error('Failed to fetch analytics')
       const data = await res.json()
       setAnalytics(data)
@@ -98,6 +118,22 @@ export default function AdminPage() {
     } finally {
       setAnalyticsLoading(false)
     }
+  }
+
+  const resetApiCosts = () => {
+    if (!confirm('Reset API cost tracking? This will only show costs from this point forward. Historical data is preserved in the database.')) {
+      return
+    }
+    const now = new Date().toISOString()
+    setApiCostResetAt(now)
+    localStorage.setItem('pvre_admin_api_cost_reset_at', now)
+    fetchAnalytics(now)
+  }
+
+  const clearApiCostReset = () => {
+    setApiCostResetAt(null)
+    localStorage.removeItem('pvre_admin_api_cost_reset_at')
+    fetchAnalytics(null)
   }
 
   const fetchCreditAudit = async () => {
@@ -114,11 +150,17 @@ export default function AdminPage() {
     }
   }
 
-  const fetchApiHealth = async () => {
+  const fetchApiHealth = async (resetAt?: string | null) => {
     setApiHealthLoading(true)
     setApiHealthError(null)
     try {
-      const res = await fetch('/api/admin/cleanup-stale-jobs')
+      const params = new URLSearchParams()
+      const effectiveResetAt = resetAt !== undefined ? resetAt : apiHealthResetAt
+      if (effectiveResetAt) {
+        params.set('apiHealthResetAt', effectiveResetAt)
+      }
+      const url = `/api/admin/cleanup-stale-jobs${params.toString() ? '?' + params.toString() : ''}`
+      const res = await fetch(url)
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${res.status}: Failed to fetch API health`)
@@ -131,6 +173,22 @@ export default function AdminPage() {
     } finally {
       setApiHealthLoading(false)
     }
+  }
+
+  const resetApiHealthStats = () => {
+    if (!confirm('Reset API health statistics? This will only show failures from this point forward.')) {
+      return
+    }
+    const now = new Date().toISOString()
+    setApiHealthResetAt(now)
+    localStorage.setItem('pvre_admin_api_health_reset_at', now)
+    fetchApiHealth(now)
+  }
+
+  const clearApiHealthReset = () => {
+    setApiHealthResetAt(null)
+    localStorage.removeItem('pvre_admin_api_health_reset_at')
+    fetchApiHealth(null)
   }
 
   const runCleanup = async () => {
@@ -385,7 +443,10 @@ export default function AdminPage() {
           <AnalyticsTab
             analytics={analytics}
             loading={analyticsLoading}
-            onFetch={fetchAnalytics}
+            onFetch={() => fetchAnalytics()}
+            onResetApiCosts={resetApiCosts}
+            onClearApiCostReset={apiCostResetAt ? clearApiCostReset : undefined}
+            apiCostResetAt={apiCostResetAt}
           />
         </TabsContent>
 
@@ -403,8 +464,11 @@ export default function AdminPage() {
             loading={apiHealthLoading}
             error={apiHealthError}
             cleanupRunning={cleanupRunning}
-            onFetch={fetchApiHealth}
+            onFetch={() => fetchApiHealth()}
             onCleanup={runCleanup}
+            onResetStats={resetApiHealthStats}
+            onClearReset={apiHealthResetAt ? clearApiHealthReset : undefined}
+            apiHealthResetAt={apiHealthResetAt}
           />
         </TabsContent>
       </Tabs>

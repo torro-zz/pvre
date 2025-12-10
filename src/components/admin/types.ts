@@ -60,6 +60,7 @@ export interface AnalyticsData {
   }
   topUsers: { email: string; runs: number; credits: number; purchased: number }[]
   generatedAt: string
+  apiCostResetAt: string | null
 }
 
 export interface OrphanedJob {
@@ -89,4 +90,5 @@ export interface APIHealthData {
   stuckProcessing: number
   errorSourceBreakdown: Record<string, number>
   staleThresholdMinutes: number
+  apiHealthResetAt: string | null
 }

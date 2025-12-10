@@ -1,16 +1,37 @@
 # Known Issues & Backlog
 
-Last updated: December 9, 2025
+Last updated: December 10, 2025
 
 ---
 
 ## UX Improvements
 
+### ~~[Theme Extraction Producing Word Frequencies]~~ ✅ FIXED (Dec 10)
+**Source:** Customer perspective review
+**Status: Fixed Dec 10** - Added quality validation and retry logic to prevent low-quality fallback themes:
+
+**Root Cause:** The fallback function in `theme-extractor.ts` was triggered when Claude API failed, producing generic themes like "Pain point: concerns" / "Users frequently express X..."
+
+**Fix Applied:**
+1. Added quality validation after theme extraction to detect word-frequency patterns:
+   - Rejects themes starting with "Pain point:"
+   - Rejects descriptions containing "frequently express"
+   - Rejects theme names with ≤2 words
+2. If low-quality themes detected, automatically retries with explicit instructions
+3. If retry fails, returns empty analysis with clear error message instead of low-quality fallback
+4. Retry prompt includes explicit BAD/GOOD examples to guide Claude
+
+**Files Modified:**
+- `src/lib/analysis/theme-extractor.ts` - Added `retryThemeExtraction()`, `getEmptyAnalysisWithMessage()`, quality validation logic
+
+**Note:** Investigation showed recent jobs (Dec 9-10) have proper themes. The original issue was likely a transient Claude API failure that triggered the fallback. The fix prevents this from happening again.
+
 ### 12-09 Workshop: Open Items
 
-### ~~[Market Sizing Pricing Scenarios]~~ ✅ FIXED (Dec 9)
+### ~~[Market Sizing Pricing Scenarios]~~ ✅ FIXED (Dec 9-10)
 **Source:** UX review
-**Status: Fixed Dec 9** - Implemented Part 2 of the pricing improvement:
+**Status: Fixed Dec 9-10** - Fully implemented pricing intelligence:
+**Part 2 (Dec 9):**
 - Added `PricingScenario` type and `generatePricingScenarios()` function to `market-sizing.ts`
 - Generates 3-5 pricing scenarios centered around user's selected price
 - Shows table with: Price, Customers Needed, Penetration %, and Achievability badge
@@ -18,9 +39,15 @@ Last updated: December 9, 2025
 - Color-coded achievability: green (highly achievable), blue (achievable), gray (challenging), red (difficult/unlikely)
 - Shows insight tip: "Higher prices mean fewer customers needed but may limit your addressable market"
 
-**Remaining (Part 1 - Future Enhancement):**
-- Infer pricing from competitor analysis (extract pricing ranges)
-- Calculate median competitor price as fallback default
+**Part 1 (Dec 10):**
+- Created `src/lib/analysis/pricing-utils.ts` with `extractMonthlyPrice()` and `extractCompetitorPricing()` functions
+- Parses competitor pricing strings (handles ranges, freemium, annual, per-user formats)
+- Calculates median competitor price as suggested default
+- Added "Competitor Pricing Intelligence" card to competitor results showing:
+  - Suggested price (median), price range, average price
+  - Common pricing models (Subscription, Freemium, etc.)
+  - Confidence level based on data coverage
+- 11 new unit tests for pricing extraction
 
 ### ~~[Viability Verdict Calibration]~~ ✅ FIXED (Dec 9)
 **Source:** User feedback
@@ -33,17 +60,27 @@ Last updated: December 9, 2025
 - UI shows both confidence level AND data sufficiency indicator with explanatory text
 - Updated 34 viability calculator tests to verify calibration behavior
 
-### Admin Dashboard Analytics Reset (Dec 9)
+### ~~[Admin Dashboard Analytics Reset]~~ ✅ FIXED (Dec 10)
 **Source:** CEO review
-**Status:** Open
-**Issue:** The analytics on the admin dashboard, such as "Cloud API costs," cannot be reset to zero. This makes it difficult to track costs for specific periods as test data accumulates.
-**Proposed:** Implement a method to reset analytics data (like API costs) to zero. This should be done while also archiving or storing the previous data for historical tracking.
+**Status: Fixed Dec 10** - Implemented API cost tracking reset:
+- Added `apiCostResetAt` query param to `/api/admin/analytics` endpoint
+- Analytics now filters `research_results` by reset timestamp
+- Added "Reset" button to Claude API Costs card in analytics tab
+- Shows "Tracking since: [date]" when reset is active
+- "Show all time" link to clear reset filter
+- Reset timestamp persisted in localStorage (`pvre_admin_api_cost_reset_at`)
+- Historical data preserved in database (non-destructive)
 
-### Admin Dashboard API Health Reset (Dec 9)
+### ~~[Admin Dashboard API Health Reset]~~ ✅ FIXED (Dec 10)
 **Source:** CEO review
-**Status:** Open
-**Issue:** The metrics on the API Health page within the admin dashboard (e.g., "stuck processing," "unknown failures") cannot be reset.
-**Proposed:** Add a feature to allow administrators to reset the API Health statistics.
+**Status: Fixed Dec 10** - Implemented API health statistics reset:
+- Added `apiHealthResetAt` query param to `/api/admin/cleanup-stale-jobs` GET endpoint
+- Filters pending refunds, unknown failures, and error breakdown by reset timestamp
+- Added "Reset Stats" button to Error Source Breakdown card
+- Shows "Tracking since: [date]" when reset is active (otherwise "Showing last 24 hours")
+- "Show last 24h" link to clear reset filter
+- Reset timestamp persisted in localStorage (`pvre_admin_api_health_reset_at`)
+- Note: Stuck processing always shows current state (real-time metric)
 
 ### Low-Priority
 

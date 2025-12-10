@@ -1,9 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isAdmin } from '@/lib/admin'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Get optional resetAt timestamp for filtering API costs
+  const searchParams = request.nextUrl.searchParams
+  const apiCostResetAt = searchParams.get('apiCostResetAt')
   const supabase = await createClient()
 
   // Auth check
@@ -55,11 +58,16 @@ export async function GET() {
         .eq('status', 'completed')
         .order('created_at', { ascending: false }),
 
-      // Research results (for token usage/API costs)
-      adminClient
-        .from('research_results')
-        .select('id, job_id, module_name, data, created_at')
-        .order('created_at', { ascending: false }),
+      // Research results (for token usage/API costs) - filtered by reset timestamp if provided
+      (async () => {
+        let query = adminClient
+          .from('research_results')
+          .select('id, job_id, module_name, data, created_at')
+        if (apiCostResetAt) {
+          query = query.gte('created_at', apiCostResetAt)
+        }
+        return query.order('created_at', { ascending: false })
+      })(),
     ])
 
     const users = usersResult.data || []
@@ -307,6 +315,9 @@ export async function GET() {
 
       // Last updated
       generatedAt: new Date().toISOString(),
+
+      // Reset timestamp (if filtering is active)
+      apiCostResetAt: apiCostResetAt || null,
     })
   } catch (error) {
     console.error('Analytics error:', error)

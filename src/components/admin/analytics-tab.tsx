@@ -14,6 +14,7 @@ import {
   DollarSign,
   Cpu,
   TrendingDown,
+  RotateCcw,
 } from 'lucide-react'
 import type { AnalyticsData } from './types'
 
@@ -21,9 +22,12 @@ interface AnalyticsTabProps {
   analytics: AnalyticsData | null
   loading: boolean
   onFetch: () => void
+  onResetApiCosts: () => void
+  onClearApiCostReset?: () => void
+  apiCostResetAt: string | null
 }
 
-export function AnalyticsTab({ analytics, loading, onFetch }: AnalyticsTabProps) {
+export function AnalyticsTab({ analytics, loading, onFetch, onResetApiCosts, onClearApiCostReset, apiCostResetAt }: AnalyticsTabProps) {
   if (loading) {
     return (
       <Card>
@@ -194,12 +198,36 @@ export function AnalyticsTab({ analytics, loading, onFetch }: AnalyticsTabProps)
       <div className="grid md:grid-cols-2 gap-6">
         <Card className="border-orange-200">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Cpu className="h-5 w-5 text-orange-500" />
-              Claude API Costs
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Cpu className="h-5 w-5 text-orange-500" />
+                Claude API Costs
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onResetApiCosts}
+                className="text-orange-600 border-orange-300 hover:bg-orange-50"
+              >
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Reset
+              </Button>
+            </div>
             <CardDescription>
               Token usage and API expenses
+              {apiCostResetAt && (
+                <span className="text-xs text-blue-600 block mt-1">
+                  Tracking since: {new Date(apiCostResetAt).toLocaleDateString()} {new Date(apiCostResetAt).toLocaleTimeString()}
+                  {onClearApiCostReset && (
+                    <button
+                      onClick={onClearApiCostReset}
+                      className="ml-2 underline hover:text-blue-800"
+                    >
+                      (Show all time)
+                    </button>
+                  )}
+                </span>
+              )}
               {analytics.apiCosts.researchWithoutCostTracking > 0 && (
                 <span className="text-xs text-amber-600 block mt-1">
                   * {analytics.apiCosts.researchWithoutCostTracking} research runs without cost tracking (pre-feature)

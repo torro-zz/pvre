@@ -9,6 +9,7 @@ import {
   AlertCircle,
   HeartPulse,
   Zap,
+  RotateCcw,
 } from 'lucide-react'
 import type { APIHealthData } from './types'
 
@@ -19,6 +20,9 @@ interface APIHealthTabProps {
   cleanupRunning: boolean
   onFetch: () => void
   onCleanup: () => void
+  onResetStats: () => void
+  onClearReset?: () => void
+  apiHealthResetAt: string | null
 }
 
 export function APIHealthTab({
@@ -28,6 +32,9 @@ export function APIHealthTab({
   cleanupRunning,
   onFetch,
   onCleanup,
+  onResetStats,
+  onClearReset,
+  apiHealthResetAt,
 }: APIHealthTabProps) {
   if (loading) {
     return (
@@ -130,12 +137,38 @@ export function APIHealthTab({
       {/* Error Source Breakdown */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-yellow-500" />
-            Error Source Breakdown (Last 24 Hours)
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-yellow-500" />
+              Error Source Breakdown
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onResetStats}
+              className="text-yellow-600 border-yellow-300 hover:bg-yellow-50"
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Reset Stats
+            </Button>
+          </div>
           <CardDescription>
             Which APIs or components caused failures
+            {apiHealthResetAt ? (
+              <span className="text-xs text-blue-600 block mt-1">
+                Tracking since: {new Date(apiHealthResetAt).toLocaleDateString()} {new Date(apiHealthResetAt).toLocaleTimeString()}
+                {onClearReset && (
+                  <button
+                    onClick={onClearReset}
+                    className="ml-2 underline hover:text-blue-800"
+                  >
+                    (Show last 24h)
+                  </button>
+                )}
+              </span>
+            ) : (
+              <span className="text-xs text-gray-500 block mt-1">Showing last 24 hours</span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
