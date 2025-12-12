@@ -45,16 +45,31 @@ export async function extractThemes(
   painSignals: PainSignal[],
   hypothesis: string
 ): Promise<ThemeAnalysis> {
+  // Sort signals: CORE first, then RELATED, then untagged
+  // This ensures themes are primarily derived from CORE signals
+  const sortedSignals = [...painSignals].sort((a, b) => {
+    const tierOrder = { CORE: 0, RELATED: 1, undefined: 2 }
+    const aOrder = tierOrder[a.tier as keyof typeof tierOrder] ?? 2
+    const bOrder = tierOrder[b.tier as keyof typeof tierOrder] ?? 2
+    if (aOrder !== bOrder) return aOrder - bOrder
+    return b.score - a.score // Secondary sort by score
+  })
+
   // Take top 30 signals for analysis to manage token usage
-  const topSignals = painSignals.slice(0, 30)
+  const topSignals = sortedSignals.slice(0, 30)
 
   if (topSignals.length === 0) {
     return getEmptyAnalysis()
   }
 
-  // Prepare signals for Claude
+  // Count CORE vs RELATED for context
+  const coreCount = topSignals.filter(s => s.tier === 'CORE').length
+  const relatedCount = topSignals.filter(s => s.tier === 'RELATED').length
+
+  // Prepare signals for Claude with tier information
   const signalTexts = topSignals.map((signal, index) => ({
     index: index + 1,
+    tier: signal.tier || 'CORE', // Default to CORE if not specified
     text: truncateText(signal.text, 500),
     title: signal.title || '',
     painScore: signal.score,
@@ -68,10 +83,17 @@ export async function extractThemes(
 
 Your task is to analyze Reddit posts/comments and extract actionable insights for validating a business hypothesis.
 
+SIGNAL TIER SYSTEM:
+- CORE signals: Directly about the hypothesis intersection (most valuable - weight heavily)
+- RELATED signals: About the general problem space but not the specific context (useful context)
+- Prioritize themes that emerge from CORE signals. Label themes derived mainly from RELATED signals as "[CONTEXTUAL]"
+
 CRITICAL REQUIREMENTS FOR THEMES:
 - Each theme name MUST be a descriptive phrase of 3-6 words
 - Theme names must describe SPECIFIC pain points, not generic categories
 - Themes must connect directly to the business hypothesis
+- CORE-derived themes should appear FIRST in your list
+- If a theme is derived mainly from RELATED signals, prefix with "[CONTEXTUAL] "
 
 BAD THEME EXAMPLES (NEVER produce these):
 - "Pain point: concerns" (too vague, uses bad prefix)
@@ -82,11 +104,10 @@ BAD THEME EXAMPLES (NEVER produce these):
 GOOD THEME EXAMPLES:
 - "Difficulty finding reliable contractors"
 - "Time-consuming manual invoicing process"
-- "Lack of client communication tools"
-- "Uncertainty about pricing strategies"
+- "[CONTEXTUAL] General social anxiety in public spaces"
 
 Focus on:
-- Identifying recurring pain themes (3-6 word descriptive names)
+- Identifying recurring pain themes from CORE signals first (3-6 word descriptive names)
 - Extracting the exact language customers use
 - Finding mentions of existing solutions, alternatives, competitors, tools, products, or services (be thorough - these are critical for competitive analysis)
 - Identifying signals that people would pay for a solution
@@ -102,7 +123,7 @@ Be specific and actionable. Avoid generic observations.`
 
   const userPrompt = `Business Hypothesis: "${hypothesis}"
 
-Analyze these ${topSignals.length} Reddit posts/comments about problems and needs related to this hypothesis:
+Analyze these ${topSignals.length} Reddit posts/comments (${coreCount} CORE, ${relatedCount} RELATED) about problems and needs related to this hypothesis:
 
 ${JSON.stringify(signalTexts, null, 2)}
 

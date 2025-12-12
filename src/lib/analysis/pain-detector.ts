@@ -215,6 +215,8 @@ const WILLINGNESS_TO_PAY_KEYWORDS = {
 // INTERFACES
 // =============================================================================
 
+export type RelevanceTier = 'CORE' | 'RELATED' | 'N'
+
 export interface PainSignal {
   text: string
   title?: string
@@ -224,6 +226,7 @@ export interface PainSignal {
   solutionSeeking: boolean
   willingnessToPaySignal: boolean
   wtpConfidence: 'none' | 'low' | 'medium' | 'high'
+  tier?: RelevanceTier  // CORE = intersection match, RELATED = single-domain match
   source: {
     type: 'post' | 'comment'
     id: string
@@ -669,6 +672,17 @@ function getQualityWeightedConfidence(summary: PainSummary): {
 // POST/COMMENT ANALYSIS
 // =============================================================================
 
+// Weight multiplier for title-only posts (recovered from [removed] posts)
+// P0 FIX: Increased from 0.5 to 0.7 — titles are often the clearest pain expression
+const TITLE_ONLY_WEIGHT = 0.7
+
+/**
+ * Check if a post is a title-only recovery (body was [removed])
+ */
+function isTitleOnlyPost(post: RedditPost): boolean {
+  return (post.body || '').startsWith('[Title-only analysis]')
+}
+
 /**
  * Analyze an array of Reddit posts for pain signals
  */
@@ -676,20 +690,30 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
   const painSignals: PainSignal[] = []
 
   for (const post of posts) {
-    // Combine title and body for analysis
-    const fullText = `${post.title} ${post.body || ''}`
+    // Check if this is a title-only recovered post
+    const titleOnly = isTitleOnlyPost(post)
+
+    // For title-only posts, analyze just the title
+    const textToAnalyze = titleOnly ? post.title : `${post.title} ${post.body || ''}`
     const engagement = calculateEngagementScore(post.score, post.numComments)
     // v3.0: Pass createdUtc for recency weighting
-    const scoreResult = calculatePainScore(fullText, post.score, post.createdUtc)
+    const scoreResult = calculatePainScore(textToAnalyze, post.score, post.createdUtc)
+
+    // Apply title-only weight penalty if applicable
+    const finalScore = titleOnly
+      ? scoreResult.score * TITLE_ONLY_WEIGHT
+      : scoreResult.score
 
     // Only include posts with some pain signals
-    if (scoreResult.score > 0 || scoreResult.signals.length > 0) {
+    if (finalScore > 0 || scoreResult.signals.length > 0) {
       painSignals.push({
-        text: post.body || post.title,
+        text: titleOnly ? post.title : (post.body || post.title),
         title: post.title,
-        score: scoreResult.score,
-        intensity: getIntensity(scoreResult.score),
-        signals: scoreResult.signals,
+        score: finalScore,
+        intensity: getIntensity(finalScore),
+        signals: titleOnly
+          ? [...scoreResult.signals, 'title-only']
+          : scoreResult.signals,
         solutionSeeking: scoreResult.solutionSeekingCount > 0,
         willingnessToPaySignal: scoreResult.willingnessToPayCount > 0,
         wtpConfidence: scoreResult.wtpConfidence,

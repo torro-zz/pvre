@@ -16,10 +16,100 @@ interface SubredditSuggestion {
   relevance: 'high' | 'medium' | 'low'
 }
 
+/**
+ * Context about whether the hypothesis describes a TRANSITION state
+ * (current state → desired state) vs a static problem
+ */
+export interface TransitionContext {
+  isTransition: boolean
+  currentState?: string      // e.g., "employed", "corporate job"
+  desiredState?: string      // e.g., "entrepreneur", "business owner"
+  transitionType?: 'career' | 'lifestyle' | 'skill' | 'other'
+}
+
+// Patterns that indicate the hypothesis is about TRANSITIONING to something
+const TRANSITION_PATTERNS = {
+  career: [
+    /\b(want(?:ing|s)? to|trying to|considering|thinking about|planning to)\s+(start|launch|build|create|begin|open)\s+(\w+\s+)?(a\s+)?(\w+\s+)?(business|company|startup|side hustle|freelance)/i,
+    /\b(escape|leave|quit)\s+(my\s+)?(\w+\s+)?(job|9-5|corporate|career)/i,
+    /\b(become|becoming)\s+(an?\s+)?(\w+\s+)?(entrepreneur|freelancer|founder|business owner|self-employed|independent)/i,
+    /\b(transition(?:ing)?|switch(?:ing)?|move|moving)\s+(from|to|into)\s+/i,
+    /\b(build|start|launch|create)\s+(\w+\s+)?(own\s+)?(business|company)/i,  // "build their own business"
+  ],
+  lifestyle: [
+    /\b(want(?:ing|s)? to|trying to)\s+(be(?:come)?|get)\s+(fit|healthy|active)/i,
+    /\b(start(?:ing)?|begin(?:ning)?)\s+(to\s+)?(exercise|workout|work out|run|gym)/i,
+  ],
+}
+
+// Audience indicators that suggest CURRENT state (not goal achieved)
+const EMPLOYED_AUDIENCE_PATTERNS = [
+  /\b(employed|employee|corporate|9-5|nine-to-five|office job|day job|full-time job|w-2|salaried)\b/i,
+  /\b(stuck in|trapped in|escape from)\s+(a\s+)?(job|career|corporate)/i,
+  /\b(working professional|office worker|desk job)\b/i,
+]
+
+// Subreddits for people ALREADY running businesses (wrong audience for transition hypotheses)
+const ESTABLISHED_BUSINESS_SUBREDDITS = [
+  'entrepreneur', 'smallbusiness', 'startups', 'ecommerce', 'sweatystartup',
+  'EntrepreneurRideAlong', 'SideProject', 'indiehackers',
+]
+
+// Subreddits where EMPLOYED people discuss career transitions
+const TRANSITION_SUBREDDITS = [
+  'careerguidance', 'careeradvice', 'jobs', 'antiwork', 'findapath',
+  'financialindependence', 'Fire', 'leanfire', 'overemployed',
+  'sidehustle', 'WorkOnline', 'beermoney',
+]
+
 export interface DomainExtraction {
   primaryDomain: string
   secondaryDomains: string[]
   audienceDescriptor: string
+  transition?: TransitionContext  // Added: transition context for audience-aware discovery
+}
+
+// =============================================================================
+// TRANSITION DETECTION
+// =============================================================================
+
+/**
+ * Detect if a hypothesis describes a TRANSITION (current state → desired state)
+ * This is critical for audience-aware subreddit selection.
+ *
+ * Example: "employed people wanting to start a business"
+ * - Current state: employed
+ * - Desired state: business owner
+ * - We want subreddits where EMPLOYED people discuss this, not where business owners hang out
+ */
+export function detectTransitionContext(hypothesis: StructuredHypothesis): TransitionContext {
+  const combinedText = `${hypothesis.audience} ${hypothesis.problem} ${hypothesis.problemLanguage || ''}`
+
+  // Check for career transition patterns
+  for (const pattern of TRANSITION_PATTERNS.career) {
+    if (pattern.test(combinedText)) {
+      // Check if audience is currently employed
+      const isEmployedAudience = EMPLOYED_AUDIENCE_PATTERNS.some(p => p.test(combinedText))
+      return {
+        isTransition: true,
+        currentState: isEmployedAudience ? 'employed' : undefined,
+        desiredState: 'entrepreneur/business owner',
+        transitionType: 'career',
+      }
+    }
+  }
+
+  // Check for lifestyle transition patterns
+  for (const pattern of TRANSITION_PATTERNS.lifestyle) {
+    if (pattern.test(combinedText)) {
+      return {
+        isTransition: true,
+        transitionType: 'lifestyle',
+      }
+    }
+  }
+
+  return { isTransition: false }
 }
 
 export interface SubredditCandidate {
@@ -58,8 +148,13 @@ export interface DiscoveryResult {
 /**
  * Extract the problem DOMAIN from a hypothesis, not the audience demographics.
  * This is the key insight: "men in 50s with aging skin" → domain is "skincare", not "men"
+ *
+ * Also detects TRANSITION context for audience-aware subreddit selection.
  */
 async function extractDomain(hypothesis: StructuredHypothesis): Promise<DomainExtraction> {
+  // First, detect if this is a transition hypothesis
+  const transition = detectTransitionContext(hypothesis)
+
   const systemPrompt = `You identify the core problem domain from a business hypothesis.
 
 The DOMAIN is the subject area of the PROBLEM, not the audience.
@@ -114,7 +209,10 @@ What is the PROBLEM DOMAIN (not the audience)?
       throw new Error('Could not parse JSON from domain extraction')
     }
 
-    return JSON.parse(jsonMatch[0]) as DomainExtraction
+    const result = JSON.parse(jsonMatch[0]) as DomainExtraction
+    // Attach transition context
+    result.transition = transition
+    return result
   } catch (error) {
     console.error('Domain extraction failed:', error)
     // Fallback: use the problem as the domain
@@ -122,6 +220,7 @@ What is the PROBLEM DOMAIN (not the audience)?
       primaryDomain: hypothesis.problem,
       secondaryDomains: [],
       audienceDescriptor: hypothesis.audience,
+      transition,
     }
   }
 }
@@ -133,12 +232,19 @@ What is the PROBLEM DOMAIN (not the audience)?
 /**
  * Find subreddits where the PROBLEM DOMAIN is discussed, not just where the audience exists.
  * This is the critical change: prioritize problem-domain subreddits over demographic subreddits.
+ *
+ * For TRANSITION hypotheses (e.g., "employed people wanting to start business"):
+ * - Prioritize subreddits where the CURRENT state audience discusses the transition
+ * - Deprioritize subreddits for people who already achieved the goal
  */
 async function discoverSubredditsByDomain(
   domain: DomainExtraction,
   hypothesis: StructuredHypothesis
 ): Promise<SubredditCandidate[]> {
-  const systemPrompt = `You are a Reddit expert finding subreddits where a specific PROBLEM is actively discussed.
+  const isEmployedTransition = domain.transition?.currentState === 'employed' && domain.transition?.transitionType === 'career'
+
+  // Build transition-aware system prompt
+  let systemPrompt = `You are a Reddit expert finding subreddits where a specific PROBLEM is actively discussed.
 
 CRITICAL RULES:
 1. Find subreddits about the PROBLEM DOMAIN first
@@ -161,13 +267,53 @@ CRITICAL PERSPECTIVE CHECK:
 - For "elderly people" → r/AskOldPeople ✓ (elderly post here) NOT r/AgingParents ✗ (caregivers post)
 - For "freelancers" → r/freelance ✓ (freelancers post) NOT r/hiring ✗ (employers post)`
 
-  const userPrompt = `Find Reddit communities for this research:
+  // Add transition-specific instructions
+  if (isEmployedTransition) {
+    systemPrompt += `
+
+⚠️ CRITICAL - TRANSITION HYPOTHESIS DETECTED ⚠️
+This hypothesis is about EMPLOYED PEOPLE wanting to START a business.
+The audience is people CURRENTLY EMPLOYED, not existing business owners.
+
+MUST PRIORITIZE subreddits where EMPLOYED people discuss:
+- Career transitions, escape from 9-5
+- Side hustles while employed
+- Financial independence / FIRE
+- Career guidance and job dissatisfaction
+
+MUST DEPRIORITIZE subreddits for ESTABLISHED entrepreneurs:
+- r/Entrepreneur (people already running businesses)
+- r/smallbusiness (existing business owners)
+- r/startups (funded startup founders)
+These are the WRONG AUDIENCE - they've already made the transition.
+
+GOOD subreddits for employed→entrepreneur transition:
+- r/careerguidance, r/careeradvice (employed people seeking guidance)
+- r/antiwork, r/jobs (job dissatisfaction discussions)
+- r/financialindependence, r/Fire (people planning exit from employment)
+- r/sidehustle, r/overemployed (employed people with side income)
+- r/findapath (career direction seekers)`
+  }
+
+  let userPrompt = `Find Reddit communities for this research:
 
 PRIMARY DOMAIN: ${domain.primaryDomain}
 SECONDARY DOMAINS: ${domain.secondaryDomains.join(', ') || 'none'}
 AUDIENCE: ${domain.audienceDescriptor}
 PROBLEM: ${hypothesis.problem}
-${hypothesis.problemLanguage ? `PROBLEM LANGUAGE: ${hypothesis.problemLanguage}` : ''}
+${hypothesis.problemLanguage ? `PROBLEM LANGUAGE: ${hypothesis.problemLanguage}` : ''}`
+
+  // Add transition context to user prompt
+  if (isEmployedTransition) {
+    userPrompt += `
+
+⚠️ TRANSITION CONTEXT:
+- Current state: EMPLOYED (this is who we want to hear from)
+- Desired state: Business owner/entrepreneur (this is NOT who we want)
+- Find subreddits where EMPLOYED people discuss wanting to start businesses, NOT where existing entrepreneurs hang out`
+  }
+
+  userPrompt += `
 
 Find 8-12 subreddits, prioritizing:
 1. Communities dedicated to ${domain.primaryDomain}
@@ -187,12 +333,19 @@ Return JSON only:
   ]
 }
 
-IMPORTANT: Do NOT include subreddits that only match the audience but don't discuss the problem.
+IMPORTANT: Do NOT include subreddits that only match the audience but don't discuss the problem.`
+
+  if (isEmployedTransition) {
+    userPrompt += `
+CRITICAL: Do NOT include r/Entrepreneur, r/smallbusiness, r/startups - these are for people who ALREADY have businesses, not for employed people considering the transition.`
+  } else {
+    userPrompt += `
 Example for skincare hypothesis:
 - YES: r/SkincareAddiction (discusses skincare problems)
 - YES: r/30PlusSkinCare (aging skin specifically)
 - NO: r/malefashionadvice (men's sub but about clothing, not skin)
 - NO: r/menslib (men's sub but about masculinity politics, not skin)`
+  }
 
   try {
     const response = await anthropic.messages.create({
@@ -218,7 +371,59 @@ Example for skincare hypothesis:
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as { subreddits: SubredditCandidate[] }
-    return parsed.subreddits || []
+    let subreddits = parsed.subreddits || []
+
+    // Post-processing for transition hypotheses: deprioritize/filter established business subs
+    if (isEmployedTransition && subreddits.length > 0) {
+      console.log('[SubredditDiscovery] Transition hypothesis detected - applying audience-aware filtering')
+
+      // Deprioritize established business subreddits (set to low priority)
+      subreddits = subreddits.map(sub => {
+        const lowerName = sub.name.toLowerCase()
+        if (ESTABLISHED_BUSINESS_SUBREDDITS.some(s => s.toLowerCase() === lowerName)) {
+          console.log(`[SubredditDiscovery] Deprioritizing r/${sub.name} (established business audience)`)
+          return {
+            ...sub,
+            relevanceScore: 'low' as const,
+            priority: 5,
+            relevanceReason: `${sub.relevanceReason} [DEPRIORITIZED: established business owners, not employed transition seekers]`,
+          }
+        }
+        return sub
+      })
+
+      // Check if we have any transition-friendly subreddits
+      const hasTransitionSubs = subreddits.some(sub =>
+        TRANSITION_SUBREDDITS.some(ts => ts.toLowerCase() === sub.name.toLowerCase())
+      )
+
+      // Inject high-priority transition subreddits if missing
+      if (!hasTransitionSubs) {
+        console.log('[SubredditDiscovery] No transition subreddits found - injecting r/careerguidance, r/sidehustle')
+        const injectedSubs: SubredditCandidate[] = [
+          {
+            name: 'careerguidance',
+            relevanceScore: 'high',
+            relevanceReason: 'Employed people seeking career transition advice',
+            audienceMatch: 'Excellent - primarily employed people considering changes',
+            priority: 1,
+          },
+          {
+            name: 'sidehustle',
+            relevanceScore: 'high',
+            relevanceReason: 'Employed people building side businesses',
+            audienceMatch: 'Excellent - people with day jobs exploring business ideas',
+            priority: 1,
+          },
+        ]
+        subreddits = [...injectedSubs, ...subreddits]
+      }
+
+      // Sort by priority (transition-friendly first)
+      subreddits.sort((a, b) => a.priority - b.priority)
+    }
+
+    return subreddits
   } catch (error) {
     console.error('Domain-first subreddit discovery failed:', error)
     return []

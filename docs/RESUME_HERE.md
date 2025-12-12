@@ -1,61 +1,46 @@
-# Resume Point - December 10, 2025
+# Resume Point - December 12, 2025
 
 ## What Was Just Completed
 
-### Admin Dashboard Reset Features
-- **Analytics Reset**: Added ability to reset API cost tracking from a specific timestamp
-- **API Health Reset**: Added ability to reset error statistics from a specific timestamp
-- Both use localStorage for persistence, historical data preserved in database
+### P0 Audience-Aware Search Discovery (DONE)
+Three-part fix for transition hypotheses like "employed people wanting to start a business":
 
-### Competitor Pricing Intelligence
-- Created pricing extraction utilities to parse competitor pricing strings
-- Added "Competitor Pricing Intelligence" card to competitor results page
-- Shows suggested price (median), price range, common pricing models
-- 11 new unit tests for pricing extraction
+**Part 1: Subreddit Discovery** (`src/lib/reddit/subreddit-discovery.ts`)
+- Added transition detection patterns
+- Claude prompts now warn against r/Entrepreneur, r/smallbusiness, r/startups
+- Post-processing deprioritizes established business subs
+- Injects r/careerguidance, r/sidehustle if missing
 
-### Theme Extraction Fix (Critical)
-- **Problem**: Theme extraction was producing word-frequency fallbacks like "Pain point: concerns" / "Users frequently express X..."
-- **Root Cause**: Claude API failures triggered fallback function that did simple word counting
-- **Fix Applied**:
-  1. Quality validation detects low-quality patterns (names starting with "Pain point:", descriptions with "frequently express", ≤2 word names)
-  2. Auto-retry with explicit BAD/GOOD examples in prompt
-  3. Returns empty analysis with error message instead of low-quality output
+**Part 2: Keyword Extractor** (`src/lib/reddit/keyword-extractor.ts`)
+- Detects transition hypotheses
+- Extracts "gap phrases" (e.g., "scared to quit", "escape 9-5")
+
+**Part 3: Relevance Filter** (`src/lib/research/relevance-filter.ts`)
+- Added `buildTransitionTieredPrompt()` for audience-aware tiering
+- CORE = employed person seeking transition
+- RELATED = established entrepreneur (useful but wrong audience)
+
+### Test Results
+- **Subreddits discovered:** r/careerguidance, r/financialindependence, r/sidehustle, r/findapath, r/antiwork, r/overemployed (all transition-focused)
+- **Excluded:** r/Entrepreneur, r/smallbusiness, r/startups (established business owners)
+- **Tier distribution:** 11 CORE, 7 RELATED, 32 UNKNOWN (comments)
+
+### Previous P0s (Also Done)
+- Signal Tiering for Multi-Domain Hypotheses (CORE/RELATED/N)
+- Always Include Removed Posts (>30 char titles)
 
 ## Files Modified This Session
 | File | Status | Purpose |
 |------|--------|---------|
-| `src/app/api/admin/analytics/route.ts` | Modified | Added `apiCostResetAt` query param filter |
-| `src/app/api/admin/cleanup-stale-jobs/route.ts` | Modified | Added `apiHealthResetAt` query param filter |
-| `src/app/(dashboard)/admin/page.tsx` | Modified | Added reset state/handlers for both tabs |
-| `src/components/admin/analytics-tab.tsx` | Modified | Added Reset button + tracking since indicator |
-| `src/components/admin/api-health-tab.tsx` | Modified | Added Reset Stats button + tracking indicator |
-| `src/components/admin/types.ts` | Modified | Added `apiCostResetAt` and `apiHealthResetAt` to types |
-| `src/components/research/competitor-results.tsx` | Modified | Added Competitor Pricing Intelligence card |
-| `src/lib/analysis/market-sizing.ts` | Modified | Re-exports pricing utils for backwards compatibility |
-| `src/lib/analysis/pricing-utils.ts` | **New** | `extractMonthlyPrice()`, `extractCompetitorPricing()` |
-| `src/__tests__/pricing-extraction.test.ts` | **New** | 11 tests for pricing extraction |
-| `src/lib/analysis/theme-extractor.ts` | Modified | Quality validation, retry logic, graceful failure |
-| `docs/KNOWN_ISSUES.md` | Modified | Marked theme extraction fix as completed |
-
-## Uncommitted Changes
-**WARNING: You have uncommitted changes!**
-
-Modified files:
-- `docs/KNOWN_ISSUES.md`
-- `docs/RESUME_HERE.md`
-- `src/app/(dashboard)/admin/page.tsx`
-- `src/app/api/admin/analytics/route.ts`
-- `src/app/api/admin/cleanup-stale-jobs/route.ts`
-- `src/components/admin/analytics-tab.tsx`
-- `src/components/admin/api-health-tab.tsx`
-- `src/components/admin/types.ts`
-- `src/components/research/competitor-results.tsx`
-- `src/lib/analysis/market-sizing.ts`
-- `src/lib/analysis/theme-extractor.ts`
-
-New files:
-- `src/__tests__/pricing-extraction.test.ts`
-- `src/lib/analysis/pricing-utils.ts`
+| `src/lib/reddit/subreddit-discovery.ts` | Modified | Transition detection + audience-aware prompts |
+| `src/lib/reddit/keyword-extractor.ts` | Modified | Gap phrase extraction for transitions |
+| `src/lib/research/relevance-filter.ts` | Modified | Audience-aware tiering prompt |
+| `src/lib/analysis/pain-detector.ts` | Modified | Tier field on PainSignal |
+| `src/lib/analysis/theme-extractor.ts` | Modified | CORE-first sorting |
+| `src/app/api/research/community-voice/*.ts` | Modified | Tier-aware analysis |
+| `src/app/api/research/pain-analysis/stream/route.ts` | Modified | Tier-aware analysis |
+| `docs/KNOWN_ISSUES.md` | Modified | Marked P0 complete |
+| `docs/test-results-transition-hypothesis-20251212.*` | Added | Test artifacts |
 
 ## Build & Test Status
 - **Build:** Passing
@@ -64,28 +49,27 @@ New files:
 
 ## What Needs To Be Done Next
 
-### Commit Changes
-All work is complete and tested. Ready to commit:
-```bash
-git add -A && git commit -m "feat: Admin dashboard resets + competitor pricing + theme extraction fix"
-```
+### Q4 2025 Remaining
+- [ ] Conversational input redesign (P0)
+- [ ] Live post preview
+- [ ] Actionable executive summaries
 
-### From Known Issues (Low Priority)
-1. **Hypothesis Comparison Feature** - Side-by-side comparison of 2-4 hypotheses
+### P1 (Lower Priority)
+- Hypothesis comparison feature (side-by-side view)
 
 ## Blockers or Open Questions
-None - all features implemented and tested.
+None
+
+## User Notes
+None
 
 ## Key Files Reference
 | Purpose | File |
 |---------|------|
 | Project instructions | `CLAUDE.md` |
-| Known bugs & UX backlog | `docs/KNOWN_ISSUES.md` |
-| Technical overview | `docs/TECHNICAL_OVERVIEW.md` |
-| Admin dashboard page | `src/app/(dashboard)/admin/page.tsx` |
-| Pricing extraction utils | `src/lib/analysis/pricing-utils.ts` |
-| Theme extractor (fixed) | `src/lib/analysis/theme-extractor.ts` |
-| Competitor results UI | `src/components/research/competitor-results.tsx` |
+| Known issues & specs | `docs/KNOWN_ISSUES.md` |
+| 4-phase roadmap | `docs/IMPLEMENTATION_PLAN.md` |
+| Test results | `docs/test-results-transition-hypothesis-20251212.json` |
 
 ## Quick Start Commands
 ```bash
@@ -98,7 +82,4 @@ npm run test:run
 
 # Build
 npm run build
-
-# Commit today's work
-git add -A && git commit -m "feat: Admin dashboard resets + competitor pricing + theme extraction fix"
 ```

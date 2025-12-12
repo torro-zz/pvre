@@ -274,16 +274,22 @@ export async function POST(request: NextRequest) {
         const comments = commentFilterResult.items
 
         const qualityLevel = calculateQualityLevel(postFilterResult.metrics.filterRate, commentFilterResult.metrics.filterRate)
-        send('filtering', `Found ${posts.length} relevant posts (${postFilterResult.metrics.filterRate.toFixed(0)}% filtered for quality)`, {
+        const coreCount = postFilterResult.metrics.coreSignals
+        const relatedCount = postFilterResult.metrics.relatedSignals
+        send('filtering', `Found ${posts.length} relevant posts (${coreCount} CORE, ${relatedCount} RELATED)`, {
           relevantPosts: posts.length,
           relevantComments: comments.length,
+          coreSignals: coreCount,
+          relatedSignals: relatedCount,
           qualityLevel,
           filterRate: postFilterResult.metrics.filterRate,
         })
 
-        // Step 5: Analyze pain signals
+        // Step 5: Analyze pain signals with tier awareness
         send('analyzing', 'Analyzing pain signals in relevant content...')
-        const postSignals = analyzePosts(posts)
+        const corePostSignals = analyzePosts(postFilterResult.coreItems).map(s => ({ ...s, tier: 'CORE' as const }))
+        const relatedPostSignals = analyzePosts(postFilterResult.relatedItems).map(s => ({ ...s, tier: 'RELATED' as const }))
+        const postSignals = [...corePostSignals, ...relatedPostSignals]
         const commentSignals = analyzeComments(comments)
         const allPainSignals = combinePainSignals(postSignals, commentSignals)
 

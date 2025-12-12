@@ -13,6 +13,43 @@ export interface ExtractedKeywords {
   primary: string[]   // Must match (specific to problem domain)
   secondary: string[] // Nice to have (related terms)
   exclude: string[]   // Filter out if present (off-topic indicators)
+  transitionPhrases?: string[]  // Gap phrases for transition hypotheses
+}
+
+// =============================================================================
+// TRANSITION DETECTION (mirrors subreddit-discovery.ts)
+// =============================================================================
+
+// Patterns that indicate the hypothesis is about TRANSITIONING to something
+const TRANSITION_PATTERNS = {
+  career: [
+    /\b(want(?:ing|s)? to|trying to|considering|thinking about|planning to)\s+(start|launch|build|create|begin|open)\s+(\w+\s+)?(a\s+)?(\w+\s+)?(business|company|startup|side hustle|freelance)/i,
+    /\b(escape|leave|quit)\s+(my\s+)?(\w+\s+)?(job|9-5|corporate|career)/i,
+    /\b(become|becoming)\s+(an?\s+)?(\w+\s+)?(entrepreneur|freelancer|founder|business owner|self-employed|independent)/i,
+    /\b(transition(?:ing)?|switch(?:ing)?|move|moving)\s+(from|to|into)\s+/i,
+    /\b(build|start|launch|create)\s+(\w+\s+)?(own\s+)?(business|company)/i,  // "build their own business"
+  ],
+}
+
+// Audience indicators that suggest CURRENT state (not goal achieved)
+const EMPLOYED_AUDIENCE_PATTERNS = [
+  /\b(employed|employee|corporate|9-5|nine-to-five|office job|day job|full-time job|w-2|salaried)\b/i,
+  /\b(stuck in|trapped in|escape from)\s+(a\s+)?(job|career|corporate)/i,
+  /\b(working professional|office worker|desk job)\b/i,
+]
+
+/**
+ * Detect if a hypothesis describes an employed→entrepreneur transition
+ */
+function isEmployedTransitionHypothesis(hypothesis: string, structured?: StructuredHypothesis): boolean {
+  const combinedText = structured
+    ? `${structured.audience} ${structured.problem} ${structured.problemLanguage || ''}`
+    : hypothesis
+
+  const hasTransitionPattern = TRANSITION_PATTERNS.career.some(p => p.test(combinedText))
+  const hasEmployedAudience = EMPLOYED_AUDIENCE_PATTERNS.some(p => p.test(combinedText))
+
+  return hasTransitionPattern && hasEmployedAudience
 }
 
 /**
@@ -38,7 +75,11 @@ export async function extractSearchKeywords(
   const searchContext = structuredHypothesis
     ? formatHypothesisForSearch(structuredHypothesis)
     : hypothesis
-  const prompt = `Extract search keywords from this business hypothesis for Reddit search.
+
+  // Detect if this is a transition hypothesis
+  const isTransition = isEmployedTransitionHypothesis(hypothesis, structuredHypothesis)
+
+  let prompt = `Extract search keywords from this business hypothesis for Reddit search.
 
 HYPOTHESIS: "${searchContext}"
 
@@ -50,7 +91,23 @@ Your task:
 
 2. SECONDARY keywords (3-5): Related activity or pain words. These help identify relevant discussions.
 
-3. EXCLUDE keywords (3-5): Terms that would make a post CLEARLY off-topic, even if it contains primary keywords. Be specific.
+3. EXCLUDE keywords (3-5): Terms that would make a post CLEARLY off-topic, even if it contains primary keywords. Be specific.`
+
+  // Add transition-specific instructions
+  if (isTransition) {
+    prompt += `
+
+4. TRANSITION PHRASES (4-6): This hypothesis is about people TRANSITIONING from employment to entrepreneurship.
+   Extract phrases that capture the GAP/STRUGGLE of making this transition:
+   - Phrases about fear/hesitation: "scared to quit", "afraid to leave", "golden handcuffs"
+   - Phrases about desire: "escape 9-5", "hate my job", "want to quit"
+   - Phrases about the leap: "making the jump", "take the plunge", "side hustle"
+   - Phrases about planning: "how did you quit", "when to leave", "financial runway"
+
+   These are phrases that EMPLOYED people use when discussing wanting to START a business.`
+  }
+
+  prompt += `
 
 CRITICAL RULES:
 - PRIMARY keywords should be 1-2 words maximum, not phrases
@@ -69,7 +126,8 @@ Respond with JSON only:
 {
   "primary": ["keyword1", "keyword2", ...],
   "secondary": ["keyword1", "keyword2", ...],
-  "exclude": ["keyword1", "keyword2", ...]
+  "exclude": ["keyword1", "keyword2", ...]${isTransition ? `,
+  "transitionPhrases": ["phrase1", "phrase2", ...]` : ''}
 }`
 
   try {
@@ -106,11 +164,19 @@ Respond with JSON only:
       return getDefaultKeywords(searchContext)
     }
 
-    return {
+    const keywords: ExtractedKeywords = {
       primary: result.primary.slice(0, 6),
       secondary: (result.secondary || []).slice(0, 6),
       exclude: (result.exclude || []).slice(0, 4),
     }
+
+    // Include transition phrases if present
+    if (result.transitionPhrases && Array.isArray(result.transitionPhrases)) {
+      keywords.transitionPhrases = result.transitionPhrases.slice(0, 6)
+      console.log('[KeywordExtractor] Transition phrases extracted:', keywords.transitionPhrases)
+    }
+
+    return keywords
   } catch (error) {
     console.error('Keyword extraction failed:', error)
     return getDefaultKeywords(searchContext)

@@ -404,10 +404,13 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Data quality level: ${filteringMetrics.qualityLevel}`)
+    console.log(`Signal tiers: ${postFilterResult.metrics.coreSignals} CORE, ${postFilterResult.metrics.relatedSignals} RELATED`)
 
-    // Step 5: Analyze posts and comments for pain signals
+    // Step 5: Analyze posts and comments for pain signals with tier awareness
     console.log('Step 5: Analyzing pain signals')
-    const postSignals = analyzePosts(posts)
+    const corePostSignals = analyzePosts(postFilterResult.coreItems).map(s => ({ ...s, tier: 'CORE' as const }))
+    const relatedPostSignals = analyzePosts(postFilterResult.relatedItems).map(s => ({ ...s, tier: 'RELATED' as const }))
+    const postSignals = [...corePostSignals, ...relatedPostSignals]
     const commentSignals = analyzeComments(comments)
     const allPainSignals = combinePainSignals(postSignals, commentSignals)
 
