@@ -20,9 +20,10 @@ Three-part fix for transition hypotheses like "employed people wanting to start 
 - CORE = employed person seeking transition
 - RELATED = established entrepreneur (useful but wrong audience)
 
-### Test Results
+### Test Results (Verified)
+- **Hypothesis:** "employed people wanting to build their own business and become independent"
 - **Subreddits discovered:** r/careerguidance, r/financialindependence, r/sidehustle, r/findapath, r/antiwork, r/overemployed (all transition-focused)
-- **Excluded:** r/Entrepreneur, r/smallbusiness, r/startups (established business owners)
+- **Excluded:** r/Entrepreneur, r/smallbusiness, r/startups (established business owners - wrong audience)
 - **Tier distribution:** 11 CORE, 7 RELATED, 32 UNKNOWN (comments)
 
 ### Previous P0s (Also Done)
@@ -39,26 +40,48 @@ Three-part fix for transition hypotheses like "employed people wanting to start 
 | `src/lib/analysis/theme-extractor.ts` | Modified | CORE-first sorting |
 | `src/app/api/research/community-voice/*.ts` | Modified | Tier-aware analysis |
 | `src/app/api/research/pain-analysis/stream/route.ts` | Modified | Tier-aware analysis |
-| `docs/KNOWN_ISSUES.md` | Modified | Marked P0 complete |
+| `docs/KNOWN_ISSUES.md` | Modified | Marked P0s complete |
 | `docs/test-results-transition-hypothesis-20251212.*` | Added | Test artifacts |
 
+## Uncommitted Changes
+✅ All changes committed
+
+**Commit:** `59a95f7` - feat: Audience-aware search for transition hypotheses + signal tiering
+
 ## Build & Test Status
-- **Build:** Passing
+- **Build:** ✅ Passing
 - **Tests:** 122 passing, 0 failing, 6 skipped
 - **Dev Server:** Running on :3000
 
 ## What Needs To Be Done Next
 
-### Q4 2025 Remaining
-- [ ] Conversational input redesign (P0)
+### From Known Issues (docs/KNOWN_ISSUES.md)
+
+**P0 — Critical:** None! All cleared ✅
+
+**P1 — Important:**
+- [ ] **Hypothesis Comparison Feature** — Dashboard for side-by-side comparison of 2-4 hypotheses (scores, pain signals, market size)
+
+### From Implementation Plan (4-Phase Roadmap)
+
+**Phase 1: Data Quality Fixes** — ✅ COMPLETE
+- ✅ Signal Tiering System (CORE/RELATED/N)
+- ✅ Always Include Removed Posts
+- ✅ Audience-Aware Search Discovery
+
+**Phase 2: UX Improvements** — Next
+- [ ] Conversational input redesign
 - [ ] Live post preview
 - [ ] Actionable executive summaries
 
-### P1 (Lower Priority)
-- Hypothesis comparison feature (side-by-side view)
+**Phase 3: Multi-Source Data Expansion** — Future
+- Hacker News, Indie Hackers, TikTok, App Stores
+
+**Phase 4: VC Features** — Future
+- VC-specific pricing and features
 
 ## Blockers or Open Questions
-None
+None — all P0s resolved, product in good shape
 
 ## User Notes
 None
@@ -67,9 +90,12 @@ None
 | Purpose | File |
 |---------|------|
 | Project instructions | `CLAUDE.md` |
-| Known issues & specs | `docs/KNOWN_ISSUES.md` |
+| Known bugs & priorities | `docs/KNOWN_ISSUES.md` |
 | 4-phase roadmap | `docs/IMPLEMENTATION_PLAN.md` |
+| Technical overview | `docs/TECHNICAL_OVERVIEW.md` |
 | Test results | `docs/test-results-transition-hypothesis-20251212.json` |
+| Subreddit discovery | `src/lib/reddit/subreddit-discovery.ts` |
+| Relevance filter | `src/lib/research/relevance-filter.ts` |
 
 ## Quick Start Commands
 ```bash
@@ -82,4 +108,7 @@ npm run test:run
 
 # Build
 npm run build
+
+# Test auth
+curl -X POST http://localhost:3000/api/dev/login -c /tmp/pvre-cookies.txt
 ```
