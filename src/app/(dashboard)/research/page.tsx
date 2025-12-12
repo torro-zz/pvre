@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { HypothesisForm } from '@/components/research/hypothesis-form'
+import { ConversationalInput } from '@/components/research/conversational-input'
 import { CommunityVoiceResults } from '@/components/research/community-voice-results'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
@@ -266,9 +266,9 @@ export default function ResearchPage() {
             </CardContent>
           </Card>
         ) : (
-          /* Hypothesis Form */
+          /* Conversational Input */
           <div className="mb-8">
-            <HypothesisForm onSubmit={runResearch} isLoading={status === 'loading'} />
+            <ConversationalInput onSubmit={runResearch} isLoading={status === 'loading'} />
           </div>
         )}
 

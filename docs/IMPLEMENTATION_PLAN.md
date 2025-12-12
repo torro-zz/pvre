@@ -984,7 +984,8 @@ New revenue stream:
 ### Q4 2025 (Now)
 - [x] Signal tiering implementation ✅ (Dec 12)
 - [x] Always include removed posts ✅ (Dec 12)
-- [ ] **Conversational input redesign** (P0)
+- [x] **Conversational input redesign** ✅ (Dec 12) — Single text field → AI interprets → User confirms
+- [x] Hypothesis comparison feature ✅ (Dec 12)
 - [ ] Live post preview
 - [ ] Actionable executive summaries
 
