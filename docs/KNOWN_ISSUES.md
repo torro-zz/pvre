@@ -18,9 +18,42 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 
 ---
 
+## P2 — Low Priority
+
+### Refinement Suggestions for Vague Input
+**Status:** Open, December 12th
+**Impact:** Vague hypotheses still produce vague searches
+
+**Problem:** When user enters something broad like "gym socializing", AI interprets it but doesn't offer narrower alternatives. User might not realize a more specific angle would get better results.
+
+**Solution:** Detect vague/broad inputs and show refinement suggestions:
+```
+Your input is quite broad. You might get better results with:
+- "introverts wanting to make gym friends"
+- "fear of being creepy when approaching people at gym"
+- "gym etiquette for starting conversations"
+```
+
+---
+## P3 — Future Enhancements
+
+### Input Quality Indicator
+**Status:** Open, December 12th
+**Impact:** Users don't know if their input is detailed enough
+
+**Problem:** No feedback on whether the free-form input has enough detail for a good search. Users might submit one-word inputs and get poor results.
+
+**Solution:** Show real-time hint below input:
+- < 20 chars: "Try adding more detail"
+- 20-50 chars: "Good start — who's the audience?"
+- 50+ chars with audience + problem: "Great detail ✓"
+
+---
+
 ## Completed Issues
 
 ### December 12, 2025 (afternoon)
+- ✅ **[P2] Editable Search Phrase Pills** — Users can now remove irrelevant AI-generated phrases (x button) and add custom ones ("+ Add" button) directly in the confirmation step.
 - ✅ **[P0] Conversational Input Redesign** — Single text field → AI interprets → User confirms. New `/api/research/interpret-hypothesis` endpoint uses Claude to extract audience, problem, and search phrases. Three-step wizard: input → confirm interpretation → adjust if needed. Dramatically reduces input friction.
 - ✅ **[P1] Hypothesis Comparison Feature** — Side-by-side comparison of 2-4 hypotheses. Dashboard has "Compare Hypotheses" button that enters selection mode. Comparison page shows Best Performers summary, Score Comparison grid with color-coded cells and trophy badges, and Detailed Metrics table (pain signals, WTP, TAM, trend, posts analyzed).
 

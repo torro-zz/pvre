@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Sparkles, ArrowRight, ArrowLeft, Check, Edit2, Users, AlertTriangle, Lightbulb, MessageSquare, X } from 'lucide-react'
+import { Loader2, Sparkles, ArrowRight, ArrowLeft, Check, Edit2, Users, AlertTriangle, Lightbulb, MessageSquare, X, Plus } from 'lucide-react'
 import { CoveragePreview, CoverageData } from './coverage-preview'
 import { StructuredHypothesis, formatHypothesis } from '@/types/research'
 import { HypothesisInterpretation, RefinementSuggestion, InterpretHypothesisResponse } from '@/app/api/research/interpret-hypothesis/route'
@@ -47,6 +47,11 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   const [adjustedProblem, setAdjustedProblem] = useState('')
   const [adjustedPhrases, setAdjustedPhrases] = useState<string[]>([])
   const [newPhrase, setNewPhrase] = useState('')
+
+  // Confirm step phrase editing
+  const [confirmNewPhrase, setConfirmNewPhrase] = useState('')
+  const [showAddPhrase, setShowAddPhrase] = useState(false)
+  const addPhraseInputRef = useRef<HTMLInputElement>(null)
 
   // Coverage preview state
   const [showPreview, setShowPreview] = useState(false)
@@ -149,6 +154,35 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   // Step 3: Remove a search phrase
   const removePhrase = (phrase: string) => {
     setAdjustedPhrases(adjustedPhrases.filter(p => p !== phrase))
+  }
+
+  // Confirm step: Remove a phrase directly from interpretation
+  const removePhraseFromInterpretation = (phrase: string) => {
+    if (interpretation) {
+      setInterpretation({
+        ...interpretation,
+        searchPhrases: interpretation.searchPhrases.filter(p => p !== phrase),
+      })
+      // Also update adjusted phrases to stay in sync
+      setAdjustedPhrases(prev => prev.filter(p => p !== phrase))
+    }
+  }
+
+  // Confirm step: Add a phrase directly to interpretation
+  const addPhraseToInterpretation = () => {
+    if (confirmNewPhrase.trim() && interpretation) {
+      const newPhraseClean = confirmNewPhrase.trim()
+      if (!interpretation.searchPhrases.includes(newPhraseClean)) {
+        setInterpretation({
+          ...interpretation,
+          searchPhrases: [...interpretation.searchPhrases, newPhraseClean],
+        })
+        // Also update adjusted phrases to stay in sync
+        setAdjustedPhrases(prev => [...prev, newPhraseClean])
+      }
+      setConfirmNewPhrase('')
+      setShowAddPhrase(false)
+    }
   }
 
   // Step 3: Confirm adjustments
@@ -295,18 +329,79 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                   <p className="text-sm font-medium">{interpretation.problem}</p>
                 </div>
 
-                {/* Search phrases */}
-                <div className="space-y-1">
+                {/* Search phrases - editable */}
+                <div className="space-y-2">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <MessageSquare className="h-3 w-3" />
                     They might say things like:
+                    <span className="text-muted-foreground/60">(click to remove)</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {interpretation.searchPhrases.map((phrase, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-xs">
+                      <Badge
+                        key={idx}
+                        variant="secondary"
+                        className="text-xs pr-1 cursor-pointer hover:bg-secondary/80 group"
+                      >
                         &quot;{phrase}&quot;
+                        <button
+                          type="button"
+                          onClick={() => removePhraseFromInterpretation(phrase)}
+                          className="ml-1 opacity-50 group-hover:opacity-100 hover:text-destructive transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       </Badge>
                     ))}
+                    {/* Add phrase button/input */}
+                    {showAddPhrase ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          ref={addPhraseInputRef}
+                          value={confirmNewPhrase}
+                          onChange={(e) => setConfirmNewPhrase(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              addPhraseToInterpretation()
+                            } else if (e.key === 'Escape') {
+                              setShowAddPhrase(false)
+                              setConfirmNewPhrase('')
+                            }
+                          }}
+                          onBlur={() => {
+                            if (!confirmNewPhrase.trim()) {
+                              setShowAddPhrase(false)
+                            }
+                          }}
+                          placeholder="Add phrase..."
+                          className="h-6 text-xs w-40"
+                          autoFocus
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2"
+                          onClick={addPhraseToInterpretation}
+                          disabled={!confirmNewPhrase.trim()}
+                        >
+                          <Check className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddPhrase(true)
+                          setTimeout(() => addPhraseInputRef.current?.focus(), 0)
+                        }}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-dashed border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground transition-colors"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add
+                      </button>
+                    )}
                   </div>
                 </div>
 
