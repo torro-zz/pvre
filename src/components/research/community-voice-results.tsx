@@ -159,10 +159,43 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
         <CardHeader>
           <CardTitle className="text-lg">Executive Summary</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <p className="text-muted-foreground">{results.themeAnalysis.summary}</p>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          {/* Key Opportunity */}
+          {results.themeAnalysis.keyOpportunity && (
+            <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Target className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-semibold text-green-700 dark:text-green-400">Key Opportunity</span>
+              </div>
+              <p className="text-sm text-green-800 dark:text-green-300">{results.themeAnalysis.keyOpportunity}</p>
+            </div>
+          )}
+
+          {/* Strategic Recommendations */}
+          {results.themeAnalysis.strategicRecommendations && results.themeAnalysis.strategicRecommendations.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Strategic Recommendations</h4>
+              <div className="space-y-2">
+                {results.themeAnalysis.strategicRecommendations.map((rec, index) => (
+                  <div key={index} className="p-3 rounded-lg bg-muted/50 border border-border/50">
+                    <div className="flex items-start gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <p className="font-medium text-sm">{rec.action}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{rec.rationale}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 pt-2">
             <span className="text-sm text-muted-foreground">Subreddits analyzed:</span>
             {results.subreddits.analyzed.map((sub) => (
               <Badge key={sub} variant="outline">

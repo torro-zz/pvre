@@ -23,6 +23,11 @@ export interface CompetitorInsight {
   confidence: 'high' | 'medium' | 'low'
 }
 
+export interface StrategicRecommendation {
+  action: string // Action verb + specific tactic
+  rationale: string // Why this recommendation (based on evidence)
+}
+
 export interface ThemeAnalysis {
   themes: Theme[]
   customerLanguage: string[]
@@ -36,6 +41,8 @@ export interface ThemeAnalysis {
     painScore: number
   }[]
   summary: string
+  strategicRecommendations?: StrategicRecommendation[] // Actionable next steps
+  keyOpportunity?: string // High-signal opportunity based on data
 }
 
 /**
@@ -112,12 +119,19 @@ Focus on:
 - Finding mentions of existing solutions, alternatives, competitors, tools, products, or services (be thorough - these are critical for competitive analysis)
 - Identifying signals that people would pay for a solution
 - Selecting powerful quotes that illustrate key pain points
+- Providing 2-3 STRATEGIC RECOMMENDATIONS with specific, actionable tactics
+- Identifying a KEY OPPORTUNITY if there's a high-frequency, high-intensity signal
 
 When identifying alternatives/competitors:
 - Look for product names, tool names, app names, service names
 - Include both direct competitors and adjacent solutions
 - Include both positive and negative mentions (e.g., "I tried X but it didn't work", "I use Y for this")
 - Include generic category terms if no specific names are found (e.g., "spreadsheets", "manual tracking")
+
+STRATEGIC RECOMMENDATIONS should:
+- Start with an action verb (Position, Target, Address, Build, Focus on)
+- Include a specific tactic (not vague suggestions)
+- Reference evidence from the data (e.g., "based on 12 mentions of...")
 
 Be specific and actionable. Avoid generic observations.`
 
@@ -149,10 +163,17 @@ Provide a structured analysis in JSON format:
       "painScore": <pain score of this quote>
     }
   ],
-  "summary": "2-3 sentence executive summary of the key findings for this hypothesis"
+  "summary": "2-3 sentence executive summary of the key findings for this hypothesis",
+  "strategicRecommendations": [
+    {
+      "action": "Action verb + specific tactic (e.g., Position around 'hassle-free' messaging)",
+      "rationale": "Why this matters based on data (e.g., mentioned 23 times with high frustration)"
+    }
+  ],
+  "keyOpportunity": "One sentence describing the biggest product opportunity identified from the data (only if there's strong signal)"
 }
 
-Identify 3-7 themes, 5-10 customer language phrases, and 3-5 key quotes.`
+Identify 3-7 themes, 5-10 customer language phrases, 3-5 key quotes, and 2-3 strategic recommendations.`
 
   try {
     const response = await anthropic.messages.create({
@@ -188,7 +209,7 @@ Identify 3-7 themes, 5-10 customer language phrases, and 3-5 key quotes.`
     const parsed = JSON.parse(jsonMatch[0]) as ThemeAnalysis
 
     // Validate and clean up the response
-    const result = {
+    const result: ThemeAnalysis = {
       themes: parsed.themes || [],
       customerLanguage: parsed.customerLanguage || [],
       alternativesMentioned: parsed.alternativesMentioned || [],
@@ -196,6 +217,8 @@ Identify 3-7 themes, 5-10 customer language phrases, and 3-5 key quotes.`
       overallPainScore: Math.min(10, Math.max(0, parsed.overallPainScore || 0)),
       keyQuotes: parsed.keyQuotes || [],
       summary: parsed.summary || 'Analysis complete.',
+      strategicRecommendations: parsed.strategicRecommendations || [],
+      keyOpportunity: parsed.keyOpportunity || undefined,
     }
 
     // Validate theme quality - reject if themes look like word frequencies
@@ -327,7 +350,9 @@ Return JSON:
   "willingnessToPaySignals": ["quotes showing payment intent"],
   "overallPainScore": <0-10>,
   "keyQuotes": [{"quote": "...", "source": "r/sub", "painScore": <n>}],
-  "summary": "2-3 sentence summary"
+  "summary": "2-3 sentence summary",
+  "strategicRecommendations": [{"action": "Verb + tactic", "rationale": "Why based on data"}],
+  "keyOpportunity": "Biggest opportunity if strong signal exists"
 }`
 
   try {
@@ -363,6 +388,8 @@ Return JSON:
       overallPainScore: Math.min(10, Math.max(0, parsed.overallPainScore || 0)),
       keyQuotes: parsed.keyQuotes || [],
       summary: parsed.summary || 'Analysis complete.',
+      strategicRecommendations: parsed.strategicRecommendations || [],
+      keyOpportunity: parsed.keyOpportunity || undefined,
     }
   } catch (error) {
     console.error('Theme extraction retry failed:', error)
