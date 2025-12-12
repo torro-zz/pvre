@@ -14,17 +14,14 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 
 ## P1 — Important
 
-### No Hypothesis Comparison Feature
-**Status:** Open, December 3rd
-**Impact:** Users can't compare multiple ideas side-by-side
-
-**Problem:** If hypothesis A scores 6.5, how does it compare to B or C? No comparison view exists.
-
-**Solution:** Dashboard feature for side-by-side comparison of 2-4 hypotheses.
+*No important issues at this time.*
 
 ---
 
 ## Completed Issues
+
+### December 12, 2025 (afternoon)
+- ✅ **[P1] Hypothesis Comparison Feature** — Side-by-side comparison of 2-4 hypotheses. Dashboard has "Compare Hypotheses" button that enters selection mode. Comparison page shows Best Performers summary, Score Comparison grid with color-coded cells and trophy badges, and Detailed Metrics table (pain signals, WTP, TAM, trend, posts analyzed).
 
 ### December 12, 2025
 - ✅ **[P0] Audience-Aware Search Discovery** — Three-part fix: (1) Subreddit discovery now detects transition hypotheses and prioritizes transition-focused subs (r/careerguidance, r/sidehustle) over established business subs (r/Entrepreneur, r/smallbusiness). (2) Keyword extractor extracts "gap phrases" for transition hypotheses. (3) Relevance filter uses audience-aware tiering (CORE = employed seeking transition, RELATED = established entrepreneurs).

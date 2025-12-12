@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { Clock, ArrowRight, FileText, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, Play, RefreshCw } from 'lucide-react'
 import { StepStatusMap, DEFAULT_STEP_STATUS } from '@/types/database'
+import { ResearchJobList } from '@/components/dashboard/research-job-list'
 
 export const dynamic = 'force-dynamic'
 
@@ -252,72 +253,7 @@ export default async function DashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {researchJobs.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500 mb-4">
-                No research projects yet. Start your first one above!
-              </p>
-              <Link href="/research">
-                <Button variant="outline">
-                  Start Your First Research
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {researchJobs.map((job) => {
-                const jobNextStep = getNextIncompleteStep(job.step_status)
-                const isFullyCompleted = jobNextStep === null
-                const isClickable = job.status !== 'failed'
-
-                // Always go to results view (it handles incomplete research gracefully)
-                const href = isClickable
-                  ? `/research/${job.id}`
-                  : '#'
-
-                return (
-                  <Link
-                    key={job.id}
-                    href={href}
-                    className={`block ${!isClickable ? 'cursor-default' : ''}`}
-                  >
-                    <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">
-                          {truncateText(job.hypothesis, 60)}
-                        </p>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDate(job.created_at)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3 ml-4">
-                        {isFullyCompleted ? (
-                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Completed
-                          </Badge>
-                        ) : job.status === 'failed' ? (
-                          getStatusBadge(job.status)
-                        ) : jobNextStep ? (
-                          <Badge variant="outline" className="text-muted-foreground">
-                            {jobNextStep.icon}
-                            <span className="ml-1">{jobNextStep.label}</span>
-                          </Badge>
-                        ) : (
-                          getStatusBadge(job.status)
-                        )}
-                        {isClickable && (
-                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
-          )}
+          <ResearchJobList jobs={researchJobs} />
         </CardContent>
       </Card>
     </div>
