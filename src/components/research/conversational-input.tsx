@@ -21,11 +21,11 @@ interface ConversationalInputProps {
 }
 
 const EXAMPLE_INPUTS = [
-  "People who want to make friends at the gym but feel awkward approaching strangers",
-  "Busy parents who waste hours figuring out what to cook every night",
-  "Remote workers who feel isolated and miss spontaneous collaboration",
-  "Freelancers struggling to find their first clients",
-  "Employees who want to start a side business but don't know where to begin",
+  "Gym-goers who want to make friends but feel awkward approaching strangers",
+  "Parents overwhelmed by nightly meal planning decisions",
+  "Remote workers feeling isolated without office interactions",
+  "New freelancers struggling to land their first paying clients",
+  "9-to-5 employees stuck dreaming about starting a side business",
 ]
 
 export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview = true }: ConversationalInputProps) {
@@ -226,10 +226,10 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-violet-500" />
-          What do you want to validate?
+          Who&apos;s frustrated?
         </CardTitle>
         <CardDescription>
-          Describe your business idea in plain language. AI will help structure it for research.
+          Describe who&apos;s struggling and what&apos;s causing their pain. Focus on the problem, not your solution.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -238,7 +238,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
           <div className="space-y-4">
             <div className="space-y-2">
               <Textarea
-                placeholder="e.g., People who want to make friends at the gym but feel awkward approaching strangers"
+                placeholder="e.g., Gym-goers who want to make friends but feel awkward approaching strangers"
                 value={rawInput}
                 onChange={(e) => setRawInput(e.target.value)}
                 disabled={isInterpreting || isLoading}
@@ -288,7 +288,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
               {isInterpreting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Understanding your idea...
+                  Analyzing the problem...
                 </>
               ) : (
                 <>
