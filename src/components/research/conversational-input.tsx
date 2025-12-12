@@ -140,14 +140,37 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
     setShowPreview(false)
   }
 
-  // Step 3: Apply a refinement suggestion
+  // Apply a refinement suggestion and proceed to search
   const applyRefinement = (suggestion: RefinementSuggestion) => {
+    if (!interpretation) return
+
+    let newAudience = interpretation.audience
+    let newProblem = interpretation.problem
+
     if (suggestion.type === 'audience') {
-      setAdjustedAudience(suggestion.suggestion)
+      newAudience = suggestion.suggestion
     } else if (suggestion.type === 'problem') {
-      setAdjustedProblem(suggestion.suggestion)
+      newProblem = suggestion.suggestion
+    } else if (suggestion.type === 'angle') {
+      // For angle suggestions, use it as the new problem framing
+      newProblem = suggestion.suggestion
     }
-    // For 'angle' type, user can manually incorporate
+
+    // Update interpretation
+    setInterpretation({
+      ...interpretation,
+      audience: newAudience,
+      problem: newProblem,
+    })
+
+    // Update adjusted fields to stay in sync
+    setAdjustedAudience(newAudience)
+    setAdjustedProblem(newProblem)
+
+    // Automatically proceed to coverage check
+    if (showCoveragePreview) {
+      setShowPreview(true)
+    }
   }
 
   // Step 3: Add a search phrase
