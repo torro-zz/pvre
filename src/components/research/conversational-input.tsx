@@ -95,8 +95,15 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
       })
 
       if (!response.ok) {
-        const err = await response.json()
-        throw new Error(err.error || 'Failed to interpret')
+        let errorMessage = 'Failed to interpret'
+        try {
+          const err = await response.json()
+          errorMessage = err.error || errorMessage
+        } catch {
+          // Response wasn't JSON (e.g., HTML error page)
+          errorMessage = `Server error (${response.status}). Please try again.`
+        }
+        throw new Error(errorMessage)
       }
 
       const data: InterpretHypothesisResponse = await response.json()
