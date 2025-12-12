@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target } from 'lucide-react'
+import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,13 @@ export interface SubredditCoverage {
   relevanceScore: 'high' | 'medium' | 'low'
 }
 
+export interface SamplePost {
+  title: string
+  subreddit: string
+  score: number
+  permalink: string
+}
+
 export interface CoverageData {
   subreddits: SubredditCoverage[]
   totalEstimatedPosts: number
@@ -21,6 +28,7 @@ export interface CoverageData {
   refinementSuggestions?: string[]
   keywords: string[]
   problemPhrases?: string[] // New: phrases we'll search for
+  samplePosts?: SamplePost[] // Live preview of actual posts
   // 3-stage discovery results
   discoveryWarning?: string | null
   discoveryRecommendation?: 'proceed' | 'proceed_with_caution' | 'reconsider'
@@ -480,6 +488,37 @@ export function CoveragePreview({
                 Add a subreddit I know
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Sample Posts Preview - show actual posts before spending credit */}
+      {coverage.samplePosts && coverage.samplePosts.length > 0 && (
+        <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              Example posts we&apos;ll analyze
+            </p>
+          </div>
+          <div className="space-y-2">
+            {coverage.samplePosts.map((post, i) => (
+              <a
+                key={i}
+                href={`https://reddit.com${post.permalink}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start gap-2 text-sm p-2 rounded hover:bg-muted/50 transition-colors group"
+              >
+                <span className="text-xs text-muted-foreground font-mono flex-shrink-0 mt-0.5">
+                  r/{post.subreddit}
+                </span>
+                <span className="text-foreground flex-1 line-clamp-2">
+                  &ldquo;{post.title}&rdquo;
+                </span>
+                <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
+              </a>
+            ))}
           </div>
         </div>
       )}

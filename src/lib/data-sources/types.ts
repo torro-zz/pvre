@@ -64,6 +64,14 @@ export interface CoverageResult {
   dataConfidence: 'high' | 'medium' | 'low' | 'very_low'
   recommendation: 'proceed' | 'caution' | 'refine'
   refinementSuggestions?: string[]
+  samplePosts?: SamplePost[] // Live preview of actual posts
+}
+
+export interface SamplePost {
+  title: string
+  subreddit: string
+  score: number
+  permalink: string
 }
 
 export interface DataSource {
@@ -72,6 +80,7 @@ export interface DataSource {
   searchPosts(params: SearchParams): Promise<RedditPost[]>
   searchComments(params: SearchParams): Promise<RedditComment[]>
   getPostCount(subreddit: string, keywords?: string[]): Promise<number>
+  getSamplePosts(subreddit: string, limit?: number): Promise<SamplePost[]>
 }
 
 // Cache entry structure

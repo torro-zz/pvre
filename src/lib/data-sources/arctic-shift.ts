@@ -6,6 +6,7 @@ import {
   RedditPost,
   RedditComment,
   SearchParams,
+  SamplePost,
 } from './types'
 import {
   searchPosts as arcticSearchPosts,
@@ -109,6 +110,25 @@ export class ArcticShiftSource implements DataSource {
       return posts.length
     } catch {
       return 0
+    }
+  }
+
+  async getSamplePosts(subreddit: string, limit: number = 3): Promise<SamplePost[]> {
+    try {
+      const posts = await arcticSearchPosts({
+        subreddit,
+        limit: Math.min(limit, 10), // Cap at 10 for preview
+        sort: 'desc',
+      })
+
+      return posts.map(p => ({
+        title: p.title,
+        subreddit: p.subreddit,
+        score: p.score,
+        permalink: p.permalink,
+      }))
+    } catch {
+      return []
     }
   }
 

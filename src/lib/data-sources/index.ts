@@ -9,6 +9,7 @@ import {
   SubredditCoverage,
   RedditPost,
   RedditComment,
+  SamplePost,
 } from './types'
 import { ArcticShiftSource } from './arctic-shift'
 import { PullPushSource } from './pullpush'
@@ -228,12 +229,33 @@ export async function checkCoverage(
     ]
   }
 
+  // Fetch sample posts from top 3 subreddits for live preview
+  let samplePosts: SamplePost[] = []
+  const topSubreddits = coverageResults
+    .filter(s => s.estimatedPosts > 0)
+    .sort((a, b) => b.estimatedPosts - a.estimatedPosts)
+    .slice(0, 3)
+
+  if (sourceUsed && topSubreddits.length > 0) {
+    try {
+      const samplePromises = topSubreddits.map(s =>
+        sourceUsed!.getSamplePosts(s.name, 2)
+      )
+      const sampleResults = await Promise.all(samplePromises)
+      samplePosts = sampleResults.flat().slice(0, 5) // Max 5 total samples
+    } catch (error) {
+      console.warn('Failed to fetch sample posts:', error)
+      // Continue without samples - not a critical feature
+    }
+  }
+
   return {
     subreddits: coverageResults,
     totalEstimatedPosts: totalPosts,
     dataConfidence,
     recommendation,
     refinementSuggestions: refinementSuggestions.length > 0 ? refinementSuggestions : undefined,
+    samplePosts: samplePosts.length > 0 ? samplePosts : undefined,
   }
 }
 

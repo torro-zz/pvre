@@ -19,6 +19,13 @@ export interface SubredditCoverage {
   relevanceScore: 'high' | 'medium' | 'low'
 }
 
+export interface SamplePost {
+  title: string
+  subreddit: string
+  score: number
+  permalink: string
+}
+
 export interface CoverageCheckResponse {
   subreddits: SubredditCoverage[]
   totalEstimatedPosts: number
@@ -27,6 +34,7 @@ export interface CoverageCheckResponse {
   refinementSuggestions?: string[]
   keywords: string[]
   problemPhrases?: string[] // New: phrases we'll search for
+  samplePosts?: SamplePost[] // Live preview of actual posts
   // 3-stage discovery results
   discoveryWarning?: string | null
   discoveryRecommendation?: 'proceed' | 'proceed_with_caution' | 'reconsider'
@@ -169,6 +177,7 @@ export async function POST(req: Request) {
       refinementSuggestions: coverageResult.refinementSuggestions,
       keywords,
       problemPhrases, // New: phrases we'll search for
+      samplePosts: coverageResult.samplePosts, // Live preview of actual posts
       // 3-stage discovery results
       discoveryWarning: discovery.warning,
       discoveryRecommendation: discovery.recommendation,

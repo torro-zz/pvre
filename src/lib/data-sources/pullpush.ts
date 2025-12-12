@@ -6,6 +6,7 @@ import {
   RedditPost,
   RedditComment,
   SearchParams,
+  SamplePost,
 } from './types'
 
 const PULLPUSH_BASE = 'https://api.pullpush.io/reddit'
@@ -221,6 +222,32 @@ export class PullPushSource implements DataSource {
       return response.metadata?.total_results || response.data?.length || 0
     } catch {
       return 0
+    }
+  }
+
+  async getSamplePosts(subreddit: string, limit: number = 3): Promise<SamplePost[]> {
+    try {
+      const queryParams = new URLSearchParams({
+        subreddit,
+        size: String(Math.min(limit, 10)),
+        sort: 'score',
+        sort_type: 'desc',
+      })
+
+      const url = `${PULLPUSH_BASE}/search/submission?${queryParams}`
+      const response = await fetchWithRetry<PullPushResponse<PullPushPost>>(url)
+
+      if (response.data) {
+        return response.data.map(p => ({
+          title: p.title,
+          subreddit: p.subreddit,
+          score: p.score,
+          permalink: p.permalink || `/r/${p.subreddit}/comments/${p.id}`,
+        }))
+      }
+      return []
+    } catch {
+      return []
     }
   }
 
