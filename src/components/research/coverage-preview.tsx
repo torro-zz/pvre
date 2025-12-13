@@ -493,7 +493,23 @@ export function CoveragePreview({
       )}
 
       {/* Sample Posts Preview - show actual posts before spending credit */}
-      {coverage.samplePosts && coverage.samplePosts.length > 0 && (
+      {coverage.samplePosts && coverage.samplePosts.length > 0 && (() => {
+        // Filter out removed/deleted posts - they provide no value in preview
+        const validPosts = coverage.samplePosts.filter(post => {
+          const title = post.title.toLowerCase()
+          // Skip posts with removed/deleted markers
+          if (title.includes('[removed]') || title.includes('[deleted]')) return false
+          // Skip posts where title is mostly removal text
+          if (title.includes('removed by moderator')) return false
+          if (title.includes('deleted by user')) return false
+          // Skip very short titles (likely garbage)
+          if (post.title.trim().length < 20) return false
+          return true
+        })
+
+        if (validPosts.length === 0) return null
+
+        return (
         <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
           <div className="flex items-center gap-2 mb-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -502,7 +518,7 @@ export function CoveragePreview({
             </p>
           </div>
           <div className="space-y-2">
-            {coverage.samplePosts.map((post, i) => (
+            {validPosts.map((post, i) => (
               <a
                 key={i}
                 href={`https://reddit.com${post.permalink}`}
@@ -521,7 +537,8 @@ export function CoveragePreview({
             ))}
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Problem phrases - key innovation: show users what we're searching for */}
       {coverage.problemPhrases && coverage.problemPhrases.length > 0 && (

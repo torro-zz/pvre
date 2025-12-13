@@ -1,6 +1,6 @@
 # Known Issues
 
-Last updated: December 12, 2025 (afternoon)
+Last updated: December 13, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
@@ -8,17 +8,103 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 
 ## P0 — Critical
 
-*No critical issues at this time.*
+### Data Quality Not Surfaced to Users
+**Status:** Open, December 12th
+**Impact:** Users see "STRONG SIGNAL" when underlying data is weak — trust damage when discovered
+
+**Problem:** Research with 97% filter rate (15 posts analyzed from 497 found) displays:
+- Viability: "7.8/10 STRONG SIGNAL"
+- Confidence: "high"
+- No visible indicator that data quality is "low"
+
+The JSON contains `qualityLevel: "low"` but this never appears in the PDF or UI. A sophisticated user who exports JSON will discover the gap between presented confidence and actual confidence.
+
+**Evidence from Dec 12 test:**
+```
+postsFound: 497
+postsAnalyzed: 15
+postFilterRate: 96.98%
+qualityLevel: "low"  ← hidden from user
+```
+
+**Solution:**
+1. **Verdict calibration** — When `qualityLevel: "low"`:
+   - Change "STRONG SIGNAL" → "PROMISING — NEEDS MORE DATA"
+   - Add confidence range: "7.8 ±1.5/10"
+   
+2. **Prominent data quality badge** — Page 1 of PDF and results header:
+   ```
+   📊 Data Quality: LOW (15 posts analyzed)
+   ⚠️ Interpret scores with caution — limited sample size
+   ```
+
+3. **Sample size context** — Show "Based on X posts from Y communities" near every score
+
+---
+
+### Pain Score Inconsistency
+**Status:** Open, December 12th
+**Impact:** Multiple pain scores displayed — users question data integrity
+
+**Problem:** Same research shows three different pain scores:
+| Location | Score |
+|----------|-------|
+| Dimension Breakdown (PDF p.1) | 6.0/10 |
+| Theme Analysis overall (JSON) | 8.0/10 |
+| Community Voice header | 8/10 |
+
+They measure different things (weighted viability component vs raw intensity) but display without explanation.
+
+**Solution:**
+1. Use ONE pain score consistently throughout UI/PDF
+2. If showing multiple, clearly label: "Pain Intensity: 8/10" vs "Weighted Pain Score: 6/10"
+3. Tooltip or footnote explaining the difference
 
 ---
 
 ## P1 — Important
 
-*No important issues at this time.*
+### Confidence Labels Don't Scale With Sample Size
+**Status:** Open, December 12th
+**Impact:** "High confidence" on 15 posts undermines credibility
+
+**Problem:** System reports `confidence: "high"` for timing and market sizing based on 15 posts and 35 comments. This isn't statistically defensible.
+
+**Current behavior:** Confidence is set by AI judgment, not sample size.
+
+**Solution:** Implement sample-size-based confidence scaling:
+```
+<10 posts  → confidence: "very_low"
+10-25      → confidence: "low"
+25-50      → confidence: "medium"
+50-100     → confidence: "high"
+>100       → confidence: "very_high"
+```
+
+AI can still adjust within ±1 tier based on signal quality, but sample size sets the baseline.
 
 ---
 
 ## P2 — Low Priority
+
+### [removed] Posts Marked "Recoverable" But Not Recovered
+**Status:** Open, December 12th
+**Impact:** Title-only analysis loses pain signal depth
+
+**Problem:** Relevance decisions show many posts as:
+```
+"reason": "removed_recoverable"
+"body_preview": "[removed] - recoverable via title"
+```
+
+System marks them "recoverable" but only analyzes titles. Full post body would provide richer pain signals. Reddit moderation is destroying r/Entrepreneur data in real-time.
+
+**Solution options:**
+1. **Actually recover** — Use Pushshift/Reveddit archives to get full body text
+2. **Honest labeling** — If not recovering, change label from "recoverable" to "title_only"
+3. **Source diversification** — Prioritize subreddits with less aggressive moderation
+
+---
 
 ### Refinement Suggestions for Vague Input
 **Status:** Open, December 12th
@@ -35,6 +121,7 @@ Your input is quite broad. You might get better results with:
 ```
 
 ---
+
 ## P3 — Future Enhancements
 
 ### Input Quality Indicator
@@ -51,6 +138,10 @@ Your input is quite broad. You might get better results with:
 ---
 
 ## Completed Issues
+
+### December 13, 2025
+- ✅ **Removed Posts in Example Preview** — Filter added in `coverage-preview.tsx` to exclude posts with titles containing "[removed]", "[deleted]", or shorter than 20 characters. Only valid, readable posts shown in preview.
+- ✅ **Search Phrase Display** — Verified that search phrases are displayed as individual list items with checkmarks (not concatenated into a truncated sentence). Current implementation already uses solution #3 (list format).
 
 ### December 12, 2025 (afternoon)
 - ✅ **[P1] Actionable Executive Summaries** — Theme analysis now includes 2-3 strategic recommendations (action + rationale) and a key opportunity callout. Executive Summary UI displays numbered recommendation cards and green-highlighted opportunity box.
