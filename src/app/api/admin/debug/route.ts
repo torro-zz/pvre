@@ -22,13 +22,12 @@ export async function GET() {
       )
     }
 
-    // Fetch all jobs for the user
+    // Fetch ALL jobs from ALL users (admin view)
     const { data: jobs, error: jobsError } = await supabase
       .from('research_jobs')
-      .select('*')
-      .eq('user_id', user.id)
+      .select('*, profiles:user_id(email, full_name)')
       .order('created_at', { ascending: false })
-      .limit(100)
+      .limit(200)
 
     if (jobsError) {
       console.error('Failed to fetch jobs:', jobsError)

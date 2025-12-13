@@ -41,6 +41,11 @@ interface ResearchJob {
   status: string
   created_at: string
   updated_at: string
+  user_id: string
+  profiles?: {
+    email: string
+    full_name: string | null
+  }
 }
 
 interface ResearchResult {
@@ -411,8 +416,10 @@ export default function AdminDebugPage() {
                         <div>
                           <CardTitle className="text-lg">{job.hypothesis}</CardTitle>
                           <CardDescription className="mt-1">
-                            Job ID: {job.id} | Created:{' '}
-                            {new Date(job.created_at).toLocaleString()}
+                            <span className="text-primary font-medium">
+                              {job.profiles?.full_name || job.profiles?.email || 'Unknown user'}
+                            </span>
+                            {' • '}Job ID: {job.id.slice(0, 8)}... | {new Date(job.created_at).toLocaleString()}
                           </CardDescription>
                         </div>
                       </div>

@@ -125,23 +125,39 @@ export function generatePDFReport(data: ReportData): jsPDF {
   doc.text(`Generated: ${data.createdAt}`, margin, y);
   y += 15;
 
-  // Hypothesis box
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(...COLORS.primary);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(margin, y, contentWidth, 25, 3, 3, 'FD');
+  // Hypothesis box - modern card design with accent border
+  const accentWidth = 4;
+  const innerPadding = 15;
+  doc.setFontSize(10);
+  const hypothesisLines = doc.splitTextToSize(data.hypothesis, contentWidth - accentWidth - (innerPadding * 2) - 5);
+  const lineHeight = 5;
+  const hypothesisBoxHeight = 12 + (hypothesisLines.length * lineHeight) + 12;
 
-  y += 8;
-  doc.setFontSize(9);
-  doc.setTextColor(...COLORS.gray);
-  doc.text('HYPOTHESIS', margin + 5, y);
-  y += 6;
-  doc.setFontSize(11);
+  // Main box background
+  doc.setFillColor(250, 251, 252);
+  doc.setDrawColor(230, 232, 236);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(margin, y, contentWidth, hypothesisBoxHeight, 4, 4, 'FD');
+
+  // Left accent bar (primary color)
+  doc.setFillColor(...COLORS.primary);
+  doc.roundedRect(margin, y, accentWidth, hypothesisBoxHeight, 4, 0, 'F');
+  doc.rect(margin + 2, y, 2, hypothesisBoxHeight, 'F'); // Square off inner edge
+
+  // Label
+  y += 10;
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0);
-  const hypothesisLines = doc.splitTextToSize(data.hypothesis, contentWidth - 10);
-  doc.text(hypothesisLines.slice(0, 2), margin + 5, y);
-  y += hypothesisLines.slice(0, 2).length * 5 + 15;
+  doc.setTextColor(...COLORS.gray);
+  doc.text('HYPOTHESIS', margin + accentWidth + innerPadding, y);
+
+  // Hypothesis text
+  y += 6;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...COLORS.darkGray);
+  doc.text(hypothesisLines, margin + accentWidth + innerPadding, y);
+  y += hypothesisLines.length * lineHeight + 8;
 
   // Viability Verdict Box
   const verdictColor = data.viability.verdict === 'strong' ? COLORS.success :
