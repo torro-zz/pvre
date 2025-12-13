@@ -32,6 +32,9 @@ export interface ViabilityVerdict {
   verdict: VerdictLevel
   verdictLabel: string
   verdictDescription: string
+  // v4: Calibrated verdict label accounts for sample size (shows "PROMISING — LIMITED DATA" instead of "STRONG SIGNAL" when sample is small)
+  calibratedVerdictLabel: string
+  scoreRange?: { min: number; max: number } // Confidence interval when data is limited
   dimensions: DimensionScore[]
   weakestDimension: DimensionScore | null
   dealbreakers: string[] // Any dimension < 3/10
@@ -265,6 +268,83 @@ function getVerdictLabel(verdict: VerdictLevel): string {
   }
 }
 
+/**
+ * Calibrate verdict label based on sample size.
+ * When sample size is limited, soften confident labels to set appropriate expectations.
+ *
+ * "STRONG SIGNAL" on 15 posts is misleading — changes to "PROMISING — LIMITED DATA"
+ */
+function getCalibratedVerdictLabel(
+  verdict: VerdictLevel,
+  sampleSize: ViabilityVerdict['sampleSize'] | undefined
+): string {
+  const baseLabel = getVerdictLabel(verdict)
+
+  // If no sample size info, return base label
+  if (!sampleSize) return baseLabel
+
+  // If sample size is adequate or high, use base label
+  if (sampleSize.label === 'high_confidence' || sampleSize.label === 'moderate_confidence') {
+    return baseLabel
+  }
+
+  // For limited samples, calibrate confident labels
+  if (sampleSize.label === 'very_limited') {
+    switch (verdict) {
+      case 'strong':
+        return 'PROMISING — LIMITED DATA'
+      case 'mixed':
+        return 'UNCERTAIN — LIMITED DATA'
+      case 'weak':
+        return 'WEAK — LIMITED DATA'
+      case 'none':
+        return 'NO SIGNAL'
+    }
+  }
+
+  // For low confidence samples (20-49 posts), add qualifier to strong signals
+  if (sampleSize.label === 'low_confidence') {
+    switch (verdict) {
+      case 'strong':
+        return 'STRONG — NEEDS MORE DATA'
+      case 'mixed':
+        return 'MIXED SIGNAL'
+      case 'weak':
+        return 'WEAK SIGNAL'
+      case 'none':
+        return 'NO SIGNAL'
+    }
+  }
+
+  return baseLabel
+}
+
+/**
+ * Calculate score confidence range based on sample size.
+ * Smaller samples = wider confidence intervals.
+ */
+function getScoreRange(
+  score: number,
+  sampleSize: ViabilityVerdict['sampleSize'] | undefined
+): { min: number; max: number } | undefined {
+  if (!sampleSize) return undefined
+
+  // Only show range for limited data
+  if (sampleSize.label === 'high_confidence' || sampleSize.label === 'moderate_confidence') {
+    return undefined
+  }
+
+  // Calculate margin based on sample size
+  // Very limited (<20): ±2.0 points
+  // Low confidence (20-49): ±1.5 points
+  const margin = sampleSize.label === 'very_limited' ? 2.0 : 1.5
+
+  return {
+    min: Math.max(0, Math.round((score - margin) * 10) / 10),
+    max: Math.min(10, Math.round((score + margin) * 10) / 10),
+  }
+}
+
 function getVerdictDescription(verdict: VerdictLevel): string {
   switch (verdict) {
     case 'strong':
@@ -437,12 +517,18 @@ export function calculateMVPViability(
     ? calculateSampleSizeIndicator(painScore.postsAnalyzed, painScore.totalSignals)
     : undefined
 
+  // Calculate calibrated verdict label that accounts for sample size
+  const calibratedVerdictLabel = getCalibratedVerdictLabel(verdict, sampleSize)
+  const scoreRange = getScoreRange(calibratedScore, sampleSize)
+
   return {
     overallScore: calibratedScore,
     rawScore,
     verdict,
     verdictLabel,
     verdictDescription,
+    calibratedVerdictLabel,
+    scoreRange,
     dimensions,
     weakestDimension,
     dealbreakers,
@@ -658,12 +744,18 @@ export function calculateViability(
     ? calculateSampleSizeIndicator(painScore.postsAnalyzed, painScore.totalSignals)
     : undefined
 
+  // Calculate calibrated verdict label that accounts for sample size
+  const calibratedVerdictLabel = getCalibratedVerdictLabel(verdict, sampleSize)
+  const scoreRange = getScoreRange(calibratedScore, sampleSize)
+
   return {
     overallScore: calibratedScore,
     rawScore,
     verdict,
     verdictLabel,
     verdictDescription,
+    calibratedVerdictLabel,
+    scoreRange,
     dimensions,
     weakestDimension,
     dealbreakers,

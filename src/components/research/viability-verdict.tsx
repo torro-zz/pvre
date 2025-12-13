@@ -110,11 +110,20 @@ export function ViabilityVerdictDisplay({
             {/* Score Display */}
             <div className="text-right">
               <div className={`text-4xl font-bold ${colors.text}`}>
-                {verdict.overallScore.toFixed(1)}
-                <span className="text-lg text-muted-foreground">/10</span>
+                {verdict.scoreRange ? (
+                  <>
+                    {verdict.overallScore.toFixed(1)}
+                    <span className="text-lg text-muted-foreground"> ±{(verdict.scoreRange.max - verdict.overallScore).toFixed(1)}</span>
+                  </>
+                ) : (
+                  <>
+                    {verdict.overallScore.toFixed(1)}
+                    <span className="text-lg text-muted-foreground">/10</span>
+                  </>
+                )}
               </div>
               <Badge className={`${colors.bg} text-white mt-1`}>
-                {verdict.verdictLabel}
+                {verdict.calibratedVerdictLabel}
               </Badge>
             </div>
           </div>

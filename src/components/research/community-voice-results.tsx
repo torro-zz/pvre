@@ -33,6 +33,7 @@ import { useResearchTabs } from './research-tabs-context'
 import { PainScoreCard, PainScoreCardCompact } from './pain-score-card'
 import { PainScoreDisplay } from './pain-score-display'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
+import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
 
 interface CommunityVoiceResultsProps {
   results: CommunityVoiceResult
@@ -54,6 +55,32 @@ export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep
 
   // Safe access to pain summary with defaults
   const totalSignals = results.painSummary?.totalSignals ?? 0
+
+  // Calculate consistent pain score using the same formula as Viability Verdict
+  // This ensures the same score appears in Community Voice header and Verdict dimensions
+  const calculatedPainScore = results.painSummary
+    ? calculateOverallPainScore({
+        totalSignals: results.painSummary.totalSignals ?? 0,
+        averageScore: results.painSummary.averageScore ?? 0,
+        highIntensityCount: results.painSummary.highIntensityCount ?? 0,
+        mediumIntensityCount: results.painSummary.mediumIntensityCount ?? 0,
+        lowIntensityCount: results.painSummary.lowIntensityCount ?? 0,
+        solutionSeekingCount: results.painSummary.solutionSeekingCount ?? 0,
+        willingnessToPayCount: results.painSummary.willingnessToPayCount ?? 0,
+        topSubreddits: results.painSummary.topSubreddits ?? [],
+        dataConfidence: results.painSummary.dataConfidence ?? 'low',
+        strongestSignals: results.painSummary.strongestSignals ?? [],
+        wtpQuotes: results.painSummary.wtpQuotes ?? [],
+        temporalDistribution: results.painSummary.temporalDistribution ?? {
+          last30Days: 0,
+          last90Days: 0,
+          last180Days: 0,
+          older: results.painSummary.totalSignals ?? 0,
+        },
+        dateRange: results.painSummary.dateRange,
+        recencyScore: results.painSummary.recencyScore ?? 0.5,
+      })
+    : { score: 0, confidence: 'very_low' as const, reasoning: '' }
 
   const copyToClipboard = async (text: string, section: string) => {
     await navigator.clipboard.writeText(text)
@@ -94,7 +121,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
               </div>
             </div>
             <p className="text-2xl font-bold mt-1">
-              {results.themeAnalysis.overallPainScore}/10
+              {calculatedPainScore.score.toFixed(1)}/10
             </p>
           </CardContent>
         </Card>

@@ -2,24 +2,32 @@
 
 ## What Was Just Completed
 
-### UI Bug Fixes
-- **Removed Posts Filter** — Added filter in `coverage-preview.tsx` to exclude posts with "[removed]", "[deleted]", or titles <20 chars from the example preview
-- **Search Phrase Truncation** — Verified the issue doesn't exist in current code; phrases already display as individual list items with checkmarks (not concatenated)
+### Data Quality Transparency (P0 Critical Issues Resolved)
+1. **Verdict Label Calibration** — When sample size is limited (<20 posts), verdict labels now show honest qualifiers:
+   - "STRONG SIGNAL" → "PROMISING — LIMITED DATA"
+   - "MIXED SIGNAL" → "UNCERTAIN — LIMITED DATA"
+   - Score shows confidence range: "7.8 ±2.0" instead of just "7.8/10"
 
-Both issues moved from Open to Completed in `KNOWN_ISSUES.md`.
+2. **Pain Score Consistency** — Community Voice header now uses the same calculated pain score as the Verdict dimensions. Both use `calculateOverallPainScore()` formula. No more confusion with three different numbers.
+
+3. **Sample-Size-Based Confidence** — Viability calculator now factors sample size into verdict labels:
+   - <20 posts: "very_limited" → adds "— LIMITED DATA" suffix
+   - 20-49 posts: "low_confidence" → adds "— NEEDS MORE DATA" suffix
+   - 50-99 posts: "moderate_confidence" → standard labels
+   - 100+ posts: "high_confidence" → standard labels
+
+### UI Bug Fixes (Earlier This Session)
+- **Removed Posts Filter** — Coverage preview excludes "[removed]", "[deleted]", and short titles
+- **Search Phrase Display** — Verified working as individual list items
 
 ## Files Modified This Session
 | File | Status | Purpose |
 |------|--------|---------|
-| `src/components/research/coverage-preview.tsx` | Modified | Added filter for removed/deleted posts in preview |
-| `docs/KNOWN_ISSUES.md` | Modified | Moved 2 issues to Completed section, updated date |
-| `docs/RESUME_HERE.md` | Modified | Previous session state |
-
-## Uncommitted Changes
-⚠️ **WARNING: You have uncommitted changes!**
-- `docs/KNOWN_ISSUES.md`
-- `docs/RESUME_HERE.md`
-- `src/components/research/coverage-preview.tsx`
+| `src/lib/analysis/viability-calculator.ts` | Modified | Added `calibratedVerdictLabel`, `scoreRange`, calibration functions |
+| `src/components/research/viability-verdict.tsx` | Modified | Display calibrated label and score range |
+| `src/components/research/community-voice-results.tsx` | Modified | Use calculated pain score instead of themeAnalysis |
+| `src/components/research/coverage-preview.tsx` | Modified | Filter removed/deleted posts |
+| `docs/KNOWN_ISSUES.md` | Modified | Moved P0/P1 issues to Completed |
 
 ## Build & Test Status
 - **Build:** ✅ Passing
@@ -28,16 +36,14 @@ Both issues moved from Open to Completed in `KNOWN_ISSUES.md`.
 
 ## What Needs To Be Done Next
 
-### From Known Issues (P0 - Critical)
-1. **Data Quality Not Surfaced to Users** — Shows "STRONG SIGNAL" when 97% posts filtered out; need to display `qualityLevel` in UI/PDF
-2. **Pain Score Inconsistency** — Three different pain scores (6.0, 8.0, 8/10) without explanation
+### From Known Issues (P2 - Low Priority)
+1. **[removed] Posts Recovery** — Currently marking as "recoverable" but only using titles
+2. **Refinement Suggestions** — Detect vague inputs and suggest narrower alternatives
 
-### From Known Issues (P1 - Important)
-3. **Confidence Labels Don't Scale With Sample Size** — "High confidence" on 15 posts isn't credible; implement sample-size-based confidence scaling
+### From Known Issues (P3 - Future)
+3. **Input Quality Indicator** — Real-time feedback on input detail level
 
 ### From Implementation Plan
-- **Phase 1:** ~90% complete (signal tiering ✅, removed posts ✅)
-- **Phase 2:** ✅ Complete (5/5 UX features implemented)
 - **Phase 3:** Multi-Source Expansion — Not started
 - **Phase 4:** VC Features — Not started
 
@@ -53,7 +59,8 @@ None
 | Project instructions | `CLAUDE.md` |
 | Known bugs & priorities | `docs/KNOWN_ISSUES.md` |
 | 4-phase roadmap | `docs/IMPLEMENTATION_PLAN.md` |
-| Coverage preview (today's fix) | `src/components/research/coverage-preview.tsx` |
+| Viability calculator | `src/lib/analysis/viability-calculator.ts` |
+| Pain score formula | `src/lib/analysis/pain-detector.ts` |
 
 ## Quick Start Commands
 ```bash
