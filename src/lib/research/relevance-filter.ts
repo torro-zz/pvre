@@ -94,6 +94,9 @@ export interface FilterMetrics {
   titleOnlyPosts: number  // Posts recovered via title-only analysis
   coreSignals: number     // CORE tier: intersection match (problem + context)
   relatedSignals: number  // RELATED tier: single-domain match
+  // P0 FIX: Track Stage 2 filter rate separately for narrow problem detection
+  stage2FilterRate: number  // % of Stage 1 passes that failed Stage 2
+  narrowProblemWarning: boolean  // True if >50% of Stage 1 passes failed Stage 2
 }
 
 // Minimum posts before triggering title-only recovery
@@ -590,6 +593,8 @@ export async function problemMatchFilter(
 /**
  * Build tiered prompt for multi-domain hypotheses (e.g., "gym socialization")
  * Returns C (CORE), R (RELATED), or N
+ *
+ * P0 FIX: Now stricter about matching the SPECIFIC problem, not just the domain.
  */
 function buildTieredPrompt(
   problem: string,
@@ -601,35 +606,42 @@ function buildTieredPrompt(
   // Extract the setting/context from hypothesis
   const settingMatch = (audience + ' ' + problem).match(/\b(gym|fitness|workout|office|workplace|work|school|classroom|home|restaurant|bar|club|church|community|online|remote|virtual)\b/i)
   const settingContext = settingMatch ? settingMatch[1].toLowerCase() : 'the specific context'
+  const specificProblem = structured?.problem || problem
 
   return `TIERED RELEVANCE CHECK for multi-domain hypothesis.
 
+THE SPECIFIC PROBLEM TO MATCH:
+"${specificProblem}"
+
 HYPOTHESIS BREAKDOWN:
 - PRIMARY CONTEXT: ${settingContext} environment/setting
-- PROBLEM: ${problem}
 - TARGET AUDIENCE: ${audience}${structured?.problemLanguage ? `
-- PHRASES: ${structured.problemLanguage}` : ''}${structured?.excludeTopics ? `
+- PHRASES THAT INDICATE A MATCH: ${structured.problemLanguage}` : ''}${structured?.excludeTopics ? `
 - EXCLUDE: ${structured.excludeTopics}` : ''}
 
 For each post, classify as C (CORE), R (RELATED), or N:
 
-C (CORE - intersection match):
-- Post discusses the PROBLEM specifically within the ${settingContext} CONTEXT
-- Example: "How do I talk to people at the gym?" for gym+socialization → C
+C (CORE - exact problem + context match):
+- Post describes someone experiencing THE SPECIFIC PROBLEM within the ${settingContext} CONTEXT
+- Must be about THIS problem, not just any ${settingContext}-related issue
+- Example: "How do I approach people at the gym to chat?" for socialization at gym → C
 
-R (RELATED - single-domain match):
-- Post discusses the PROBLEM but NOT in ${settingContext} context, OR
-- Post is about ${settingContext} but NOT this specific problem
-- Example: "I can't make friends as an adult" (problem, no gym context) → R
-- Example: "Best gym exercises for beginners" (gym context, wrong problem) → R
+R (RELATED - partial match, still useful context):
+- Post discusses THE SPECIFIC PROBLEM but NOT in ${settingContext} context, OR
+- Post is about ${settingContext} AND mentions social aspects (related topic)
+- Example: "I can't make friends as an adult, any tips?" (problem, no gym) → R
+- Example: "Anyone else feel awkward talking to regulars at the gym?" (gym, social, but different angle) → R
 
-N (no match):
-- Post doesn't match the problem OR has conflicting demographics
-- Example: "Best restaurants in my city" → N
-- Example: "23F here..." when audience is "men in 40s" → N${structured?.excludeTopics ? `
+N (no match - DIFFERENT problem or off-topic):
+- Post is about ${settingContext} but a COMPLETELY DIFFERENT issue (equipment, exercises, nutrition, etc.)
+- Post is about the domain but NOT this specific problem
+- Example: "Best gym exercises for beginners" (gym, but NOT socialization) → N
+- Example: "Protein shake recommendations?" (gym, but NOT socialization) → N
+- Example: "How much water should I drink at the gym?" (gym, but NOT socialization) → N${structured?.excludeTopics ? `
 - Post about ${structured.excludeTopics} → N` : ''}
 
-CRITICAL: Be generous with RELATED. If the post is about the general problem space, mark R not N.
+Be STRICT about N: If the post is about the context but NOT the specific problem, it's N.
+Be generous with R only if the post is genuinely about the problem (even without context).
 
 POSTS:
 ${postSummaries}
@@ -697,6 +709,9 @@ Respond with exactly ${batchLength} letters (C, R, or N):`
 /**
  * Build standard prompt for single-domain hypotheses
  * Returns Y or N (all passes become CORE)
+ *
+ * P0 FIX: This prompt now requires the SPECIFIC PROBLEM to match, not just the domain.
+ * Example: For "forgetting to drink water", posts about "taste of water" or "water filters" should be rejected.
  */
 function buildStandardPrompt(
   problem: string,
@@ -705,35 +720,42 @@ function buildStandardPrompt(
   postSummaries: string,
   batchLength: number
 ): string {
-  return `ASYMMETRIC RELEVANCE CHECK: Problem must match. Audience is loose.
+  // Extract the core problem action/experience for clearer matching
+  const specificProblem = structured?.problem || problem
 
-PROBLEM (must match): ${problem}
+  return `SPECIFIC PROBLEM MATCH: The post must describe someone experiencing THIS EXACT problem.
+
+THE SPECIFIC PROBLEM TO MATCH:
+"${specificProblem}"
+
 TARGET AUDIENCE: ${audience}${structured?.problemLanguage ? `
-PHRASES TO LOOK FOR: ${structured.problemLanguage}` : ''}${structured?.excludeTopics ? `
+PHRASES THAT INDICATE A MATCH: ${structured.problemLanguage}` : ''}${structured?.excludeTopics ? `
 EXCLUDE POSTS ABOUT: ${structured.excludeTopics}` : ''}
 
-For each post, answer TWO questions:
+DECISION RULE - Be STRICT about problem matching:
 
-Q1: Does this post discuss "${problem}"?
-- YES if the post expresses pain/frustration about this problem
-- NO if the post is about a different topic
+Y = Post describes someone experiencing the SPECIFIC PROBLEM above
+- The person is struggling with THIS EXACT issue
+- The post expresses frustration, seeks help, or discusses THIS problem specifically
 
-Q2: Does the post explicitly state demographics that CONFLICT with "${audience}"?
-- CONFLICT only if post explicitly states age/gender/role that clearly doesn't match
-  Examples of CONFLICT: "23F here" for "men in 40s", "as a teenager" for "professionals"
-- NO CONFLICT if demographics match OR are unstated
+N = Post is about a DIFFERENT problem, even if it's in the same general domain
+- Post is about a related but DIFFERENT issue
+- Post discusses the topic generally but not THIS specific problem
 
-DECISION RULE:
-- Q1=NO → N (wrong problem, reject)
-- Q1=YES + Q2=CONFLICT → N (explicitly wrong audience, reject)
-- Q1=YES + Q2=NO CONFLICT → Y (accept)
+EXAMPLES (for "forgetting to drink water during busy workdays"):
+- "I get so absorbed in work I realize at 5pm I haven't had water all day" → Y (exact problem)
+- "How do you remember to drink water when you're in meetings all day?" → Y (exact problem)
+- "I don't like the taste of plain water" → N (taste preference, NOT forgetting)
+- "Best water bottle recommendations?" → N (product shopping, NOT the problem)
+- "Water filter vs bottled water?" → N (water quality, NOT forgetting to drink)
+- "I drink too much water, is that bad?" → N (opposite problem)
 
-CRITICAL: Most posts don't state demographics. A post about the problem with NO stated demographics IS RELEVANT.
+Also reject if demographics EXPLICITLY conflict with "${audience}".
 
 POSTS:
 ${postSummaries}
 
-Respond with exactly ${batchLength} letters (Y or N):`
+Respond with exactly ${batchLength} letters (Y or N). Be strict - only Y for posts about THE SPECIFIC PROBLEM:`
 }
 
 // ============================================================================
@@ -775,6 +797,8 @@ export async function filterRelevantPosts(
     titleOnlyPosts: 0,
     coreSignals: 0,
     relatedSignals: 0,
+    stage2FilterRate: 0,
+    narrowProblemWarning: false,
   }
 
   if (posts.length === 0) {
@@ -905,10 +929,25 @@ export async function filterRelevantPosts(
   metrics.filteredOut = metrics.before - metrics.after
   metrics.filterRate = metrics.before > 0 ? (metrics.filteredOut / metrics.before) * 100 : 0
 
-  sendProgress?.(`Filter complete: ${metrics.after}/${metrics.before} posts retained (${metrics.coreSignals} CORE, ${metrics.relatedSignals} RELATED)${metrics.titleOnlyPosts > 0 ? ` [${metrics.titleOnlyPosts} via title-only]` : ''}`, {
+  // P0 FIX: Calculate Stage 2 filter rate and narrow problem warning
+  // Stage 2 filter rate = % of Stage 1 passes that failed Stage 2
+  const stage1PassedCount = stage1.passed.length
+  if (stage1PassedCount > 0) {
+    metrics.stage2FilterRate = (metrics.stage2Filtered / stage1PassedCount) * 100
+    // If >50% of domain-relevant posts fail problem matching, flag as narrow problem
+    metrics.narrowProblemWarning = metrics.stage2FilterRate > 50
+  }
+
+  const narrowWarning = metrics.narrowProblemWarning
+    ? ` ⚠️ NARROW PROBLEM: ${Math.round(metrics.stage2FilterRate)}% of domain-relevant posts didn't match specific problem`
+    : ''
+
+  sendProgress?.(`Filter complete: ${metrics.after}/${metrics.before} posts retained (${metrics.coreSignals} CORE, ${metrics.relatedSignals} RELATED)${metrics.titleOnlyPosts > 0 ? ` [${metrics.titleOnlyPosts} via title-only]` : ''}${narrowWarning}`, {
     stage3Filtered: metrics.stage3Filtered,
     stage1Filtered: metrics.stage1Filtered,
     stage2Filtered: metrics.stage2Filtered,
+    stage2FilterRate: Math.round(metrics.stage2FilterRate),
+    narrowProblemWarning: metrics.narrowProblemWarning,
     titleOnlyPosts: metrics.titleOnlyPosts,
     coreSignals: metrics.coreSignals,
     relatedSignals: metrics.relatedSignals,
@@ -939,6 +978,8 @@ export async function filterRelevantComments(
     titleOnlyPosts: 0,  // Not applicable for comments
     coreSignals: 0,     // Comments don't use tiering yet
     relatedSignals: 0,
+    stage2FilterRate: 0,  // Not tracked for comments
+    narrowProblemWarning: false,  // Not tracked for comments
   }
 
   if (comments.length === 0) {

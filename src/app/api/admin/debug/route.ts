@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // GET - Fetch all research jobs with their results for debugging
 export async function GET() {
@@ -12,6 +13,7 @@ export async function GET() {
   }
 
   try {
+    // Use regular client for auth check
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
@@ -22,8 +24,11 @@ export async function GET() {
       )
     }
 
+    // Use admin client to bypass RLS and fetch ALL users' jobs
+    const adminClient = createAdminClient()
+
     // Fetch ALL jobs from ALL users (admin view)
-    const { data: jobs, error: jobsError } = await supabase
+    const { data: jobs, error: jobsError } = await adminClient
       .from('research_jobs')
       .select('*, profiles:user_id(email, full_name)')
       .order('created_at', { ascending: false })
@@ -43,7 +48,7 @@ export async function GET() {
     let results: { id: string; job_id: string | null; module_name: string; data: unknown; created_at: string | null }[] = []
 
     if (jobIds.length > 0) {
-      const { data: resultsData, error: resultsError } = await supabase
+      const { data: resultsData, error: resultsError } = await adminClient
         .from('research_results')
         .select('*')
         .in('job_id', jobIds)

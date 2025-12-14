@@ -335,6 +335,9 @@ export async function POST(request: NextRequest) {
               commentsFiltered: commentFilterResult.metrics.filteredOut,
               commentFilterRate: commentFilterResult.metrics.filterRate,
               qualityLevel,
+              // P0 FIX: Stage 2 filter metrics
+              stage2FilterRate: postFilterResult.metrics.stage2FilterRate,
+              narrowProblemWarning: postFilterResult.metrics.narrowProblemWarning,
             },
             tokenUsage: tokenUsage || undefined,
           },

@@ -159,22 +159,42 @@ export default async function ResearchDetailPage({
     // Calculate the overall pain score using the enhanced calculator
     const painScoreResult = calculateOverallPainScore(painSummary)
 
+    // Calculate average intensity on 0-1 scale: high=1.0, medium=0.6, low=0.3
+    let averageIntensity = 0.5 // Default middle value
+    if (painSummary.totalSignals > 0) {
+      const weightedSum =
+        (painSummary.highIntensityCount * 1.0) +
+        (painSummary.mediumIntensityCount * 0.6) +
+        (painSummary.lowIntensityCount * 0.3)
+      averageIntensity = weightedSum / painSummary.totalSignals
+    }
+
     painScoreInput = {
       overallScore: painScoreResult.score,
       confidence: painScoreResult.confidence,
       totalSignals: painSummary.totalSignals,
       willingnessToPayCount: painSummary.willingnessToPayCount,
       postsAnalyzed: communityVoiceResult.data.metadata?.postsAnalyzed,
+      averageIntensity,
     }
   }
 
   if (competitorResult?.data?.competitionScore) {
     const compScore = competitorResult.data.competitionScore
+
+    // Determine if any competitor offers free alternatives
+    const hasFreeAlternatives = competitorResult.data.competitors?.some(c => {
+      const pricing = (c.pricingModel?.toLowerCase() || '') + ' ' + (c.pricingRange?.toLowerCase() || '')
+      return pricing.includes('free') || pricing.includes('$0') || pricing.includes('freemium')
+    }) || false
+
     competitionScoreInput = {
       score: compScore.score,
       confidence: compScore.confidence,
       competitorCount: competitorResult.data.metadata.competitorsAnalyzed,
       threats: compScore.threats || [],
+      hasFreeAlternatives,
+      marketMaturity: competitorResult.data.marketOverview?.maturityLevel,
     }
   }
 
@@ -203,6 +223,33 @@ export default async function ResearchDetailPage({
   }
 
   const viabilityVerdict = calculateViability(painScoreInput, competitionScoreInput, marketScoreInput, timingScoreInput)
+
+  // P1 FIX: Add additional red flags from filteringMetrics
+  const filteringMetrics = communityVoiceResult?.data?.metadata?.filteringMetrics
+  if (filteringMetrics) {
+    // Initialize redFlags array if needed
+    if (!viabilityVerdict.redFlags) {
+      viabilityVerdict.redFlags = []
+    }
+
+    // Flag narrow problem definition (>50% Stage 2 filter rate)
+    if (filteringMetrics.narrowProblemWarning) {
+      viabilityVerdict.redFlags.push({
+        severity: 'MEDIUM',
+        title: 'Narrow Problem Definition',
+        message: `${Math.round(filteringMetrics.stage2FilterRate || 0)}% of domain-relevant posts didn't match your specific problem`,
+      })
+    }
+
+    // Flag very low data quality
+    if (filteringMetrics.qualityLevel === 'low' && filteringMetrics.postFilterRate > 90) {
+      viabilityVerdict.redFlags.push({
+        severity: 'MEDIUM',
+        title: 'Very High Filter Rate',
+        message: `${Math.round(filteringMetrics.postFilterRate)}% of posts were filtered out. Limited relevant data found.`,
+      })
+    }
+  }
 
   // For backwards compatibility
   const result = communityVoiceResult

@@ -70,6 +70,9 @@ export interface FilteringMetrics {
   commentsFiltered: number
   commentFilterRate: number
   qualityLevel: 'high' | 'medium' | 'low'
+  // P0 FIX: Stage 2 (problem-specific) filter metrics
+  stage2FilterRate?: number  // % of Stage 1 passes that failed Stage 2
+  narrowProblemWarning?: boolean  // True if >50% of Stage 1 passes failed Stage 2
 }
 
 export interface CommunityVoiceResult {
@@ -401,9 +404,15 @@ export async function POST(request: NextRequest) {
       commentsFiltered: commentFilterResult.metrics.filteredOut,
       commentFilterRate: commentFilterResult.metrics.filterRate,
       qualityLevel: calculateQualityLevel(postFilterResult.metrics.filterRate, commentFilterResult.metrics.filterRate),
+      // P0 FIX: Include Stage 2 filter metrics
+      stage2FilterRate: postFilterResult.metrics.stage2FilterRate,
+      narrowProblemWarning: postFilterResult.metrics.narrowProblemWarning,
     }
 
     console.log(`Data quality level: ${filteringMetrics.qualityLevel}`)
+    if (filteringMetrics.narrowProblemWarning) {
+      console.log(`⚠️ NARROW PROBLEM WARNING: ${filteringMetrics.stage2FilterRate?.toFixed(1)}% of domain-relevant posts failed problem-specific filter`)
+    }
     console.log(`Signal tiers: ${postFilterResult.metrics.coreSignals} CORE, ${postFilterResult.metrics.relatedSignals} RELATED`)
 
     // Step 5: Analyze posts and comments for pain signals with tier awareness

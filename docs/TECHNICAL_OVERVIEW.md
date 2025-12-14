@@ -237,8 +237,8 @@ Calculated from AI competitor analysis:
 |-------|---------|-------|----------------|
 | 7.5-10 | STRONG SIGNAL | Green | Proceed to interviews with confidence |
 | 5.0-7.4 | MIXED SIGNAL | Yellow | Refine hypothesis, investigate weak areas |
-| 2.5-4.9 | WEAK SIGNAL | Orange | Major concerns - consider pivoting |
-| 0-2.4 | NO SIGNAL | Red | Likely not viable - pivot or abandon |
+| 4.0-4.9 | WEAK SIGNAL | Orange | Significant concerns - validate assumptions first |
+| 0-3.9 | DO NOT PURSUE | Red | No viable signal - pivot to different problem/audience |
 
 ---
 

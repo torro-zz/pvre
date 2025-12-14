@@ -184,22 +184,42 @@ export async function GET(request: NextRequest) {
 
         const painScoreResult = calculateOverallPainScore(painSummary)
 
+        // Calculate average intensity on 0-1 scale: high=1.0, medium=0.6, low=0.3
+        let averageIntensity = 0.5 // Default middle value
+        if (painSummary.totalSignals > 0) {
+          const weightedSum =
+            (painSummary.highIntensityCount * 1.0) +
+            (painSummary.mediumIntensityCount * 0.6) +
+            (painSummary.lowIntensityCount * 0.3)
+          averageIntensity = weightedSum / painSummary.totalSignals
+        }
+
         painScoreInput = {
           overallScore: painScoreResult.score,
           confidence: painScoreResult.confidence,
           totalSignals: painSummary.totalSignals,
           willingnessToPayCount: painSummary.willingnessToPayCount,
           postsAnalyzed: communityVoiceResult.metadata?.postsAnalyzed,
+          averageIntensity,
         }
       }
 
       if (competitorResult?.competitionScore) {
         const compScore = competitorResult.competitionScore
+
+        // Determine if any competitor offers free alternatives
+        const hasFreeAlternatives = competitorResult.competitors?.some(c => {
+          const pricing = (c.pricingModel?.toLowerCase() || '') + ' ' + (c.pricingRange?.toLowerCase() || '')
+          return pricing.includes('free') || pricing.includes('$0') || pricing.includes('freemium')
+        }) || false
+
         competitionScoreInput = {
           score: compScore.score,
           confidence: compScore.confidence,
           competitorCount: competitorResult.metadata?.competitorsAnalyzed || 0,
           threats: compScore.threats || [],
+          hasFreeAlternatives,
+          marketMaturity: competitorResult.marketOverview?.maturityLevel,
         }
       }
 

@@ -1,6 +1,6 @@
 # Known Issues
 
-Last updated: December 13, 2025
+Last updated: December 14, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
@@ -8,27 +8,18 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 
 ## P0 — Critical
 
-*No critical issues at this time.*
+*No open P0 issues*
 
 ---
 
 ## P1 — Important
 
-*No important issues at this time.*
+*No open P1 issues*
 
 ---
 
 ## P2 — Low Priority
 
-### [removed] Posts Marked "Recoverable" But Not Recovered
-**Status:** Open, December 12th
-**Impact:** Title-only analysis loses pain signal depth
-
-**Problem:** Relevance decisions show many posts as:
-```
-"reason": "removed_recoverable"
-"body_preview": "[removed] - recoverable via title"
-```
 
 System marks them "recoverable" but only analyzes titles. Full post body would provide richer pain signals. Reddit moderation is destroying r/Entrepreneur data in real-time.
 
@@ -71,6 +62,14 @@ Your input is quite broad. You might get better results with:
 ---
 
 ## Completed Issues
+
+### December 14, 2025
+- ✅ **[P1] Red Flags Section at Top of Report** — Added prominent "Red Flags Detected" card that appears BEFORE the viability score when critical issues exist. Shows: No Purchase Intent (0 WTP), Saturated Market (free competitors), Narrow Problem Definition (high Stage 2 filter rate), and Very High Filter Rate (>90% posts filtered). Each flag has severity badge (HIGH/MEDIUM) and explanatory message.
+- ✅ **[P1] Do Not Pursue Verdict Tier** — Updated verdict thresholds: WEAK SIGNAL now 4.0-5.0 (was 2.5-5.0), below 4.0 is "DO NOT PURSUE" with clear stop message. Updated descriptions: WEAK = "Significant concerns detected. Validate core assumptions before building." DO NOT PURSUE = "No viable business signal detected. Pivot to different problem or audience."
+- ✅ **[P0] Two-Stage Relevance Filter** — Stage 2 now checks SPECIFIC PROBLEM, not just domain. Prompts updated to require exact problem matching with examples. Tracks `stage2FilterRate` (% of domain-relevant posts failing problem filter) and `narrowProblemWarning` flag (true when >50% fail). Water reminder test: 87.7% of "hydration" posts correctly filtered out because they weren't about "forgetting to drink."
+- ✅ **[P0] Viability Score Inflation from Market Sizing** — Market Score now adjusted by WTP Factor (0→×0.3, 1-3→×0.6), Severity Factor (based on averageIntensity), and Free Alternatives Factor (×0.5 if freemium exists). Water reminder app Market Score dropped from 9.0 to 1.8/10.
+- ✅ **[P0] Zero WTP Kill Switch** — Score capped at 5.0 when `wtpSignals === 0 && totalSignals < 20`. Prevents inflated scores for ideas with no purchase intent.
+- ✅ **[P1] Competition Saturation Cap** — Hard cap at 5.0 for saturated markets with dominant free competitors. Soft cap at 6.5 for saturated markets.
 
 ### December 13, 2025
 - ✅ **[P0] Data Quality Surfaced to Users** — Verdict labels now calibrated based on sample size. When data is limited (<20 posts): "STRONG SIGNAL" → "PROMISING — LIMITED DATA". Score displays confidence range (e.g., "7.8 ±2.0"). Implemented in `viability-calculator.ts` with `calibratedVerdictLabel` and `scoreRange` fields.

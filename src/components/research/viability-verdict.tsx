@@ -89,8 +89,63 @@ export function ViabilityVerdictDisplay({
     }
   }
 
+  // Get severity color for red flags
+  const getRedFlagSeverityColor = (severity: 'HIGH' | 'MEDIUM' | 'LOW') => {
+    switch (severity) {
+      case 'HIGH':
+        return 'bg-red-100 border-red-300 text-red-800'
+      case 'MEDIUM':
+        return 'bg-orange-100 border-orange-300 text-orange-800'
+      case 'LOW':
+        return 'bg-yellow-100 border-yellow-300 text-yellow-800'
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* P1 FIX: Red Flags Section - Shown BEFORE the score */}
+      {verdict.redFlags && verdict.redFlags.length > 0 && (
+        <Card className="border-2 border-red-300 bg-red-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2 text-red-700">
+              <AlertTriangle className="h-5 w-5" />
+              Red Flags Detected
+            </CardTitle>
+            <CardDescription className="text-red-600">
+              Critical warning signs that may affect viability
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-2">
+              {verdict.redFlags.map((flag, i) => (
+                <div
+                  key={i}
+                  className={`flex items-start gap-3 p-3 rounded-md border ${getRedFlagSeverityColor(flag.severity)}`}
+                >
+                  <XCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-medium">{flag.title}</div>
+                    <div className="text-sm opacity-90">{flag.message}</div>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={`ml-auto flex-shrink-0 ${
+                      flag.severity === 'HIGH'
+                        ? 'border-red-500 text-red-700'
+                        : flag.severity === 'MEDIUM'
+                        ? 'border-orange-500 text-orange-700'
+                        : 'border-yellow-500 text-yellow-700'
+                    }`}
+                  >
+                    {flag.severity}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Verdict Card */}
       <Card className={`border-2 ${colors.border}`}>
         <CardHeader>

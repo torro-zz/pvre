@@ -26,6 +26,12 @@ export interface DimensionScore {
 
 export type SampleSizeLabel = 'high_confidence' | 'moderate_confidence' | 'low_confidence' | 'very_limited'
 
+export interface RedFlag {
+  severity: 'HIGH' | 'MEDIUM' | 'LOW'
+  title: string
+  message: string
+}
+
 export interface ViabilityVerdict {
   overallScore: number // 0-10 scale (calibrated)
   rawScore: number // 0-10 scale (before calibration)
@@ -53,6 +59,8 @@ export interface ViabilityVerdict {
     label: SampleSizeLabel
     description: string
   }
+  // v5: Red flags for critical issues (shown prominently before score)
+  redFlags?: RedFlag[]
 }
 
 export interface PainScoreInput {
@@ -61,6 +69,7 @@ export interface PainScoreInput {
   totalSignals: number
   willingnessToPayCount: number
   postsAnalyzed?: number // Number of posts that passed relevance filtering
+  averageIntensity?: number // 0-1 scale: average intensity of pain signals (high=1, medium=0.6, low=0.3)
 }
 
 export interface CompetitionScoreInput {
@@ -68,6 +77,8 @@ export interface CompetitionScoreInput {
   confidence: 'low' | 'medium' | 'high'
   competitorCount: number
   threats: string[]
+  hasFreeAlternatives?: boolean // Whether free competitors exist
+  marketMaturity?: 'emerging' | 'growing' | 'mature' | 'declining'
 }
 
 export interface MarketScoreInput {
@@ -106,11 +117,12 @@ export const MVP_WEIGHTS = {
 }
 
 // Verdict thresholds
+// P1 FIX: Updated weak threshold to 4.0, below is "do not pursue"
 export const VERDICT_THRESHOLDS = {
-  strong: 7.5,
-  mixed: 5.0,
-  weak: 2.5,
-  // anything below 2.5 is 'none'
+  strong: 7.5,  // 7.5+ → STRONG SIGNAL
+  mixed: 5.0,   // 5.0-7.5 → MIXED SIGNAL
+  weak: 4.0,    // 4.0-5.0 → WEAK SIGNAL (was 2.5)
+  // anything below 4.0 is 'none' → DO NOT PURSUE
 }
 
 // Dealbreaker threshold - any dimension below this is a red flag
@@ -264,7 +276,8 @@ function getVerdictLabel(verdict: VerdictLevel): string {
     case 'weak':
       return 'WEAK SIGNAL'
     case 'none':
-      return 'NO SIGNAL'
+      // P1 FIX: Clear "stop" signal for bad ideas
+      return 'DO NOT PURSUE'
   }
 }
 
@@ -298,7 +311,8 @@ function getCalibratedVerdictLabel(
       case 'weak':
         return 'WEAK — LIMITED DATA'
       case 'none':
-        return 'NO SIGNAL'
+        // P1 FIX: Even with limited data, show clear stop signal
+        return 'DO NOT PURSUE'
     }
   }
 
@@ -312,7 +326,8 @@ function getCalibratedVerdictLabel(
       case 'weak':
         return 'WEAK SIGNAL'
       case 'none':
-        return 'NO SIGNAL'
+        // P1 FIX: Clear stop signal
+        return 'DO NOT PURSUE'
     }
   }
 
@@ -352,9 +367,11 @@ function getVerdictDescription(verdict: VerdictLevel): string {
     case 'mixed':
       return 'Conduct user interviews to validate assumptions. Mixed signals suggest talking to real users will clarify the opportunity.'
     case 'weak':
-      return 'User interviews are critical before proceeding. Weak signals may indicate a pivot is needed - talk to users to understand why.'
+      // P1 FIX: Clearer "validate first" message
+      return 'Significant concerns detected. Validate core assumptions with user interviews before building anything.'
     case 'none':
-      return 'Consider a significant pivot. If you proceed, start with discovery interviews to understand if the problem space itself is viable.'
+      // P1 FIX: Clear "stop" message
+      return 'No viable business signal detected. Pivot to a different problem or target audience.'
   }
 }
 
@@ -389,6 +406,187 @@ function combineConfidences(
   if (avg >= 2.5) return 'high'
   if (avg >= 1.5) return 'medium'
   return 'low'
+}
+
+// =============================================================================
+// SCORE ADJUSTMENT FUNCTIONS (P0 FIXES)
+// =============================================================================
+
+/**
+ * Fix 2: Adjust Market Score based on WTP evidence, problem severity, and free alternatives.
+ *
+ * Raw market score is inflated by TAM alone. This function applies reality checks:
+ * - WTP Factor: No purchase intent = 0.3x, some = 0.6x, strong = 1.0x
+ * - Severity Factor: Trivial problems can't support premium pricing
+ * - Free Alternatives Factor: Free competitors halve the addressable market
+ *
+ * Example: Water reminder app had 9.0/10 market score → adjusted to ~1.0/10
+ */
+function calculateAdjustedMarketScore(
+  rawMarketScore: number,
+  painScore: PainScoreInput | null,
+  competitionScore: CompetitionScoreInput | null
+): { adjustedScore: number; adjustmentFactors: { wtp: number; severity: number; freeAlt: number } } {
+  let adjustedScore = rawMarketScore
+
+  // Factor 1: WTP Evidence (most important)
+  const wtpCount = painScore?.willingnessToPayCount ?? 0
+  let wtpFactor = 1.0
+  if (wtpCount === 0) {
+    wtpFactor = 0.3 // Severe penalty - no evidence anyone would pay
+  } else if (wtpCount <= 3) {
+    wtpFactor = 0.6 // Moderate penalty - weak WTP evidence
+  }
+  adjustedScore *= wtpFactor
+
+  // Factor 2: Problem Severity (based on average intensity)
+  const avgIntensity = painScore?.averageIntensity ?? 0.5
+  let severityFactor = 1.0
+  if (avgIntensity < 0.4) {
+    severityFactor = 0.5 // Trivial/convenience problem
+  } else if (avgIntensity < 0.7) {
+    severityFactor = 0.8 // Moderate frustration
+  }
+  adjustedScore *= severityFactor
+
+  // Factor 3: Free Alternatives
+  const hasFreeAlternatives = competitionScore?.hasFreeAlternatives ?? false
+  let freeAltFactor = 1.0
+  if (hasFreeAlternatives) {
+    freeAltFactor = 0.5 // Half the market opportunity if free solutions exist
+  }
+  adjustedScore *= freeAltFactor
+
+  // Floor at 1.0 (can't go below)
+  adjustedScore = Math.max(adjustedScore, 1.0)
+
+  return {
+    adjustedScore: Math.round(adjustedScore * 10) / 10,
+    adjustmentFactors: { wtp: wtpFactor, severity: severityFactor, freeAlt: freeAltFactor },
+  }
+}
+
+/**
+ * Fix 1: Apply WTP Kill Switch.
+ *
+ * If zero WTP signals and small sample, cap the score and override verdict.
+ * This is a "circuit breaker" that prevents obviously bad ideas from getting passing scores.
+ *
+ * Returns the adjusted score, verdict, and any red flags to display.
+ */
+function applyWtpKillSwitch(
+  score: number,
+  verdict: VerdictLevel,
+  verdictLabel: string,
+  verdictDescription: string,
+  painScore: PainScoreInput | null,
+  existingRedFlags: RedFlag[]
+): {
+  score: number
+  verdict: VerdictLevel
+  verdictLabel: string
+  verdictDescription: string
+  redFlags: RedFlag[]
+} {
+  const redFlags = [...existingRedFlags]
+  let adjustedScore = score
+  let adjustedVerdict = verdict
+  let adjustedLabel = verdictLabel
+  let adjustedDescription = verdictDescription
+
+  const wtpCount = painScore?.willingnessToPayCount ?? 0
+  const totalSignals = painScore?.totalSignals ?? 0
+
+  // Kill switch: Zero WTP with small sample = cap at 5.0
+  if (wtpCount === 0 && totalSignals < 20 && totalSignals > 0) {
+    // Cap the score
+    if (adjustedScore > 5.0) {
+      adjustedScore = 5.0
+    }
+
+    // Override verdict to WEAK
+    adjustedVerdict = 'weak'
+    adjustedLabel = 'WEAK SIGNAL'
+    adjustedDescription = 'No purchase intent detected. Validate willingness-to-pay before proceeding.'
+
+    // Add prominent red flag
+    redFlags.push({
+      severity: 'HIGH',
+      title: 'No Purchase Intent',
+      message: 'Zero willingness-to-pay signals found in community data',
+    })
+  }
+
+  // Also flag zero WTP even with larger sample (but don't cap as hard)
+  if (wtpCount === 0 && totalSignals >= 20) {
+    redFlags.push({
+      severity: 'HIGH',
+      title: 'No Purchase Intent',
+      message: `Zero WTP signals found across ${totalSignals} pain signals. Users may not pay for this solution.`,
+    })
+
+    // Soft cap at 6.0 for larger samples with zero WTP
+    if (adjustedScore > 6.0) {
+      adjustedScore = 6.0
+    }
+  }
+
+  return {
+    score: Math.round(adjustedScore * 10) / 10,
+    verdict: adjustedVerdict,
+    verdictLabel: adjustedLabel,
+    verdictDescription: adjustedDescription,
+    redFlags,
+  }
+}
+
+/**
+ * Fix 5: Apply Competition Saturation Cap.
+ *
+ * Saturated markets with dominant free competitors should cap overall viability.
+ * Real pain + huge TAM means nothing if 10 free alternatives exist.
+ */
+function applyCompetitionCap(
+  score: number,
+  competitionScore: CompetitionScoreInput | null,
+  existingRedFlags: RedFlag[]
+): { score: number; redFlags: RedFlag[] } {
+  const redFlags = [...existingRedFlags]
+  let adjustedScore = score
+
+  if (!competitionScore) return { score, redFlags }
+
+  const hasFreeAlts = competitionScore.hasFreeAlternatives ?? false
+  const saturated = competitionScore.marketMaturity === 'mature' ||
+                   competitionScore.competitorCount >= 5
+
+  // Hard cap: dominated + saturated
+  if (hasFreeAlts && saturated) {
+    if (adjustedScore > 5.0) {
+      adjustedScore = 5.0
+    }
+    redFlags.push({
+      severity: 'HIGH',
+      title: 'Saturated Market',
+      message: 'Multiple free alternatives exist in a mature market',
+    })
+  }
+  // Soft cap: just saturated
+  else if (saturated) {
+    if (adjustedScore > 6.5) {
+      adjustedScore = 6.5
+    }
+    redFlags.push({
+      severity: 'MEDIUM',
+      title: 'Competitive Market',
+      message: `${competitionScore.competitorCount} competitors in a ${competitionScore.marketMaturity || 'competitive'} market`,
+    })
+  }
+
+  return {
+    score: Math.round(adjustedScore * 10) / 10,
+    redFlags,
+  }
 }
 
 // =============================================================================
@@ -615,21 +813,33 @@ export function calculateViability(
     }
   }
 
-  // Add Market dimension if available
+  // Add Market dimension if available (with P0 Fix 2: adjusted for WTP, severity, free alternatives)
   if (marketScore) {
-    availableWeights.push({ name: 'market', weight: FULL_WEIGHTS.market, score: marketScore.score })
-    const status = getDimensionStatus(marketScore.score)
+    // Apply market score adjustments based on WTP evidence, severity, and free alternatives
+    const { adjustedScore: adjustedMarketScore } = calculateAdjustedMarketScore(
+      marketScore.score,
+      painScore,
+      competitionScore
+    )
+
+    availableWeights.push({ name: 'market', weight: FULL_WEIGHTS.market, score: adjustedMarketScore })
+    const status = getDimensionStatus(adjustedMarketScore)
+
+    // Show both raw and adjusted in summary if they differ significantly
+    const marketSummary = adjustedMarketScore < marketScore.score - 1
+      ? `${marketScore.penetrationRequired.toFixed(1)}% penetration needed - ${marketScore.achievability.replace('_', ' ')} (adjusted from ${marketScore.score.toFixed(1)} for WTP/competition)`
+      : `${marketScore.penetrationRequired.toFixed(1)}% penetration needed - ${marketScore.achievability.replace('_', ' ')}`
 
     dimensions.push({
       name: 'Market Score',
-      score: marketScore.score,
+      score: adjustedMarketScore,
       weight: 0, // Will be normalized below
       status,
       confidence: normalizeConfidence(marketScore.confidence),
-      summary: `${marketScore.penetrationRequired.toFixed(1)}% penetration needed - ${marketScore.achievability.replace('_', ' ')}`,
+      summary: marketSummary,
     })
 
-    if (marketScore.score < DEALBREAKER_THRESHOLD) {
+    if (adjustedMarketScore < DEALBREAKER_THRESHOLD) {
       dealbreakers.push('Market Score is critically low - achieving your revenue goals may be unrealistic')
     }
 
@@ -698,7 +908,7 @@ export function calculateViability(
   rawScore = Math.round(rawScore * 10) / 10
 
   // Apply calibration to spread mid-range scores
-  const calibratedScore = applyScoreCalibration(rawScore)
+  let calibratedScore = applyScoreCalibration(rawScore)
 
   // Find weakest dimension
   const weakestDimension = dimensions.length > 0
@@ -722,10 +932,31 @@ export function calculateViability(
     recommendations.unshift('Run Timing Analysis to assess market timing')
   }
 
-  // Determine verdict (using calibrated score)
-  const verdict = getVerdict(calibratedScore)
-  const verdictLabel = getVerdictLabel(verdict)
-  const verdictDescription = getVerdictDescription(verdict)
+  // Determine initial verdict (using calibrated score)
+  let verdict = getVerdict(calibratedScore)
+  let verdictLabel = getVerdictLabel(verdict)
+  let verdictDescription = getVerdictDescription(verdict)
+
+  // P0 Fix 1: Apply WTP Kill Switch (caps score at 5.0 if 0 WTP signals with small sample)
+  let redFlags: RedFlag[] = []
+  const wtpResult = applyWtpKillSwitch(
+    calibratedScore,
+    verdict,
+    verdictLabel,
+    verdictDescription,
+    painScore,
+    redFlags
+  )
+  calibratedScore = wtpResult.score
+  verdict = wtpResult.verdict
+  verdictLabel = wtpResult.verdictLabel
+  verdictDescription = wtpResult.verdictDescription
+  redFlags = wtpResult.redFlags
+
+  // P1 Fix 5: Apply Competition Saturation Cap
+  const competitionCapResult = applyCompetitionCap(calibratedScore, competitionScore, redFlags)
+  calibratedScore = competitionCapResult.score
+  redFlags = competitionCapResult.redFlags
 
   // Always recommend user interviews as the key next step
   if (dimensions.length >= 2) {
@@ -767,6 +998,7 @@ export function calculateViability(
     dataSufficiency,
     dataSufficiencyReason,
     sampleSize,
+    redFlags: redFlags.length > 0 ? redFlags : undefined,
   }
 }
 
