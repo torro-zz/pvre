@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
-import { Loader2, AlertCircle, RefreshCw, Sparkles, TrendingUp, Search, BarChart3, Timer } from 'lucide-react'
+import { Loader2, AlertCircle, RefreshCw, Sparkles, TrendingUp, Search, BarChart3, Zap, Package } from 'lucide-react'
 
 interface ResearchTriggerProps {
   jobId: string
@@ -15,12 +15,26 @@ interface ResearchTriggerProps {
 
 type TriggerState = 'idle' | 'starting' | 'processing' | 'error'
 
-// Progress phases for visual feedback
+// Fun progress phases for visual feedback
 const PROGRESS_PHASES = [
-  { label: 'Finding relevant communities', icon: Search, duration: 15 },
-  { label: 'Fetching Reddit discussions', icon: TrendingUp, duration: 30 },
-  { label: 'Analyzing pain signals', icon: BarChart3, duration: 45 },
-  { label: 'Calculating market size & timing', icon: Timer, duration: 60 },
+  { label: 'Firing up the engines', icon: Zap, duration: 10 },
+  { label: 'Finding the right communities', icon: Search, duration: 25 },
+  { label: 'Gathering the juicy data', icon: TrendingUp, duration: 45 },
+  { label: 'Picking out the hot takes', icon: Sparkles, duration: 65 },
+  { label: 'Connecting the dots', icon: BarChart3, duration: 85 },
+  { label: 'Packaging your insights', icon: Package, duration: 100 },
+]
+
+// Inspirational quotes for founders
+const FOUNDER_QUOTES = [
+  { text: "Fall in love with the problem, not the solution.", author: "Uri Levine" },
+  { text: "Your most unhappy customers are your greatest source of learning.", author: "Bill Gates" },
+  { text: "If you're not embarrassed by the first version, you've launched too late.", author: "Reid Hoffman" },
+  { text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb" },
+  { text: "Don't find customers for your products, find products for your customers.", author: "Seth Godin" },
+  { text: "Make something people want.", author: "Paul Graham" },
+  { text: "Ideas are easy. Execution is everything.", author: "John Doerr" },
+  { text: "Get out of the building.", author: "Steve Blank" },
 ]
 
 export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
@@ -29,12 +43,23 @@ export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
   const [error, setError] = useState<string | null>(null)
   const [pollCount, setPollCount] = useState(0)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [quoteIndex, setQuoteIndex] = useState(() => Math.floor(Math.random() * FOUNDER_QUOTES.length))
   const hasTriggeredRef = useRef(false)
   const startTimeRef = useRef<number | null>(null)
 
   // Poll interval: 3 seconds for first 20 polls, then 10 seconds
   const pollInterval = pollCount < 20 ? 3000 : 10000
   const maxPolls = 60 // Stop after ~5 minutes
+
+  // Rotate quotes every 8 seconds
+  useEffect(() => {
+    if (state === 'starting' || state === 'processing') {
+      const timer = setInterval(() => {
+        setQuoteIndex(prev => (prev + 1) % FOUNDER_QUOTES.length)
+      }, 8000)
+      return () => clearInterval(timer)
+    }
+  }, [state])
 
   // Tab close warning while research is running
   useEffect(() => {
@@ -190,7 +215,7 @@ export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
           </div>
 
           {/* Phase indicators */}
-          <div className="flex justify-center gap-4 mb-6">
+          <div className="flex justify-center gap-2 sm:gap-4 mb-6">
             {PROGRESS_PHASES.map((phase, index) => {
               const Icon = phase.icon
               const isActive = index === currentPhaseIndex
@@ -202,18 +227,28 @@ export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
                     isActive ? 'opacity-100' : isComplete ? 'opacity-60' : 'opacity-30'
                   }`}
                 >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${
                     isActive ? 'bg-primary text-white' : isComplete ? 'bg-green-100 text-green-600' : 'bg-muted text-muted-foreground'
                   }`}>
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </div>
                 </div>
               )
             })}
           </div>
 
+          {/* Rotating quote */}
+          <div className="max-w-md mx-auto mb-6 p-4 bg-muted/50 rounded-lg border border-border/50">
+            <p className="text-sm italic text-center text-foreground/80 transition-opacity duration-500">
+              &ldquo;{FOUNDER_QUOTES[quoteIndex].text}&rdquo;
+            </p>
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              — {FOUNDER_QUOTES[quoteIndex].author}
+            </p>
+          </div>
+
           <p className="text-sm text-muted-foreground text-center">
-            This takes 1-2 minutes. Feel free to leave - results save automatically.
+            This takes 1-2 minutes. Feel free to leave — results save automatically.
           </p>
         </CardContent>
       </Card>

@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Sparkles, ArrowRight, ArrowLeft, Check, Edit2, Users, AlertTriangle, Lightbulb, MessageSquare, X, Plus } from 'lucide-react'
+import { Loader2, Sparkles, ArrowRight, ArrowLeft, Check, Edit2, Users, AlertTriangle, Lightbulb, MessageSquare, X, Plus, Link2, ExternalLink } from 'lucide-react'
 import { CoveragePreview, CoverageData } from './coverage-preview'
 import { StructuredHypothesis, formatHypothesis } from '@/types/research'
 import { HypothesisInterpretation, RefinementSuggestion, InterpretHypothesisResponse } from '@/app/api/research/interpret-hypothesis/route'
@@ -28,12 +28,97 @@ const EXAMPLE_INPUTS = [
   "9-to-5 employees stuck dreaming about starting a side business",
 ]
 
+// Audience indicator words
+const AUDIENCE_WORDS = [
+  'who', 'people', 'users', 'customers', 'founders', 'entrepreneurs', 'freelancers',
+  'parents', 'students', 'developers', 'designers', 'managers', 'workers', 'employees',
+  'professionals', 'beginners', 'experts', 'teams', 'companies', 'startups', 'businesses',
+  'men', 'women', 'adults', 'seniors', 'millennials', 'gen z', 'remote', 'solo'
+]
+
+// Problem indicator words
+const PROBLEM_WORDS = [
+  'struggle', 'struggling', 'frustrated', 'frustrating', 'hate', 'tired', 'overwhelmed',
+  'confused', 'stuck', 'can\'t', 'cannot', 'difficult', 'hard', 'problem', 'issue',
+  'challenge', 'pain', 'annoying', 'stress', 'stressful', 'worried', 'anxious',
+  'fail', 'failing', 'waste', 'wasting', 'losing', 'missing', 'need', 'want'
+]
+
+function InputQualityIndicator({ input }: { input: string }) {
+  const length = input.trim().length
+  const lowerInput = input.toLowerCase()
+
+  // Check for audience and problem indicators
+  const hasAudience = AUDIENCE_WORDS.some(word => lowerInput.includes(word))
+  const hasProblem = PROBLEM_WORDS.some(word => lowerInput.includes(word))
+
+  // Determine quality level
+  let message: string
+  let colorClass: string
+  let icon: React.ReactNode
+
+  if (length === 0) {
+    message = "Describe who's struggling and what problem they face"
+    colorClass = "text-muted-foreground"
+    icon = null
+  } else if (length < 20) {
+    message = "Try adding more detail"
+    colorClass = "text-muted-foreground"
+    icon = null
+  } else if (length < 50) {
+    if (!hasAudience) {
+      message = "Good start — who specifically has this problem?"
+      colorClass = "text-amber-600"
+      icon = <AlertTriangle className="h-3 w-3" />
+    } else if (!hasProblem) {
+      message = "Good — what's their frustration or struggle?"
+      colorClass = "text-amber-600"
+      icon = <AlertTriangle className="h-3 w-3" />
+    } else {
+      message = "Looking good — add more context for best results"
+      colorClass = "text-amber-600"
+      icon = <AlertTriangle className="h-3 w-3" />
+    }
+  } else {
+    // 50+ chars
+    if (hasAudience && hasProblem) {
+      message = "Great detail"
+      colorClass = "text-green-600"
+      icon = <Check className="h-3 w-3" />
+    } else if (!hasAudience) {
+      message = "Good detail — try specifying who has this problem"
+      colorClass = "text-amber-600"
+      icon = <AlertTriangle className="h-3 w-3" />
+    } else if (!hasProblem) {
+      message = "Good detail — what's their pain or frustration?"
+      colorClass = "text-amber-600"
+      icon = <AlertTriangle className="h-3 w-3" />
+    } else {
+      message = "Great detail"
+      colorClass = "text-green-600"
+      icon = <Check className="h-3 w-3" />
+    }
+  }
+
+  return (
+    <div className={`flex items-center gap-1.5 text-xs ${colorClass}`}>
+      {icon}
+      <span>{message}</span>
+    </div>
+  )
+}
+
 export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview = true }: ConversationalInputProps) {
   // Step state
   const [step, setStep] = useState<Step>('input')
 
+  // Input mode: 'text' or 'url'
+  const [inputMode, setInputMode] = useState<'text' | 'url'>('text')
+
   // Input state
   const [rawInput, setRawInput] = useState('')
+  const [urlInput, setUrlInput] = useState('')
+  const [urlError, setUrlError] = useState<string | null>(null)
 
   // Interpretation state
   const [interpretation, setInterpretation] = useState<HypothesisInterpretation | null>(null)
@@ -79,6 +164,60 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
     const structured = getStructuredHypothesis()
     return formatHypothesis(structured)
   }, [getStructuredHypothesis])
+
+  // Supported URL types with their display info
+  type UrlType = 'reddit' | 'twitter' | 'producthunt' | 'hackernews' | 'indiehackers' | 'linkedin' | 'website'
+
+  const URL_TYPE_INFO: Record<UrlType, { label: string; icon: string; description: string }> = {
+    reddit: { label: 'Reddit', icon: '🔴', description: 'Thread or search results' },
+    twitter: { label: 'Twitter/X', icon: '𝕏', description: 'Tweet or thread' },
+    producthunt: { label: 'Product Hunt', icon: '🚀', description: 'Product page or launch' },
+    hackernews: { label: 'Hacker News', icon: '🟠', description: 'Post or comments' },
+    indiehackers: { label: 'Indie Hackers', icon: '💼', description: 'Post or discussion' },
+    linkedin: { label: 'LinkedIn', icon: '🔵', description: 'Post or article' },
+    website: { label: 'Website', icon: '🌐', description: 'Competitor or review site' },
+  }
+
+  // URL validation and type detection
+  const validateUrl = useCallback((url: string): { valid: boolean; type: UrlType | null; error: string | null } => {
+    if (!url.trim()) {
+      return { valid: false, type: null, error: null }
+    }
+    try {
+      const parsed = new URL(url.trim())
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return { valid: false, type: null, error: 'Please enter a valid URL starting with http:// or https://' }
+      }
+      const hostname = parsed.hostname.toLowerCase()
+
+      // Detect specific platforms
+      if (hostname.includes('reddit.com') || hostname.includes('redd.it')) {
+        return { valid: true, type: 'reddit', error: null }
+      }
+      if (hostname.includes('twitter.com') || hostname.includes('x.com')) {
+        return { valid: true, type: 'twitter', error: null }
+      }
+      if (hostname.includes('producthunt.com')) {
+        return { valid: true, type: 'producthunt', error: null }
+      }
+      if (hostname.includes('news.ycombinator.com') || hostname.includes('hackernews')) {
+        return { valid: true, type: 'hackernews', error: null }
+      }
+      if (hostname.includes('indiehackers.com')) {
+        return { valid: true, type: 'indiehackers', error: null }
+      }
+      if (hostname.includes('linkedin.com')) {
+        return { valid: true, type: 'linkedin', error: null }
+      }
+      // Accept any other valid URL as a website
+      return { valid: true, type: 'website', error: null }
+    } catch {
+      return { valid: false, type: null, error: 'Please enter a valid URL' }
+    }
+  }, [])
+
+  const urlValidation = validateUrl(urlInput)
+  const isUrlValid = urlValidation.valid
 
   // Step 1: Interpret the raw input
   const handleInterpret = async () => {
@@ -266,67 +405,185 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
         {/* Step 1: Free-form Input */}
         {step === 'input' && (
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Textarea
-                placeholder="e.g., Gym-goers who want to make friends but feel awkward approaching strangers"
-                value={rawInput}
-                onChange={(e) => setRawInput(e.target.value)}
-                disabled={isInterpreting || isLoading}
-                rows={3}
-                className="resize-none text-base"
-                autoFocus
-              />
-              <p className="text-xs text-muted-foreground">
-                Describe who&apos;s struggling and what problem they face. The more specific, the better results.
-              </p>
+            {/* Mode toggle */}
+            <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+              <button
+                type="button"
+                onClick={() => setInputMode('text')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  inputMode === 'text'
+                    ? 'bg-background shadow-sm text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <MessageSquare className="h-4 w-4" />
+                Describe
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode('url')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  inputMode === 'url'
+                    ? 'bg-background shadow-sm text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Link2 className="h-4 w-4" />
+                Paste URL
+              </button>
             </div>
 
-            {/* Error message */}
-            {interpretError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {interpretError}
-              </div>
+            {/* Text input mode */}
+            {inputMode === 'text' && (
+              <>
+                <div className="space-y-2">
+                  <Textarea
+                    placeholder="e.g., Gym-goers who want to make friends but feel awkward approaching strangers"
+                    value={rawInput}
+                    onChange={(e) => setRawInput(e.target.value)}
+                    disabled={isInterpreting || isLoading}
+                    rows={3}
+                    className="resize-none text-base"
+                    autoFocus
+                  />
+                  {/* Input quality indicator */}
+                  <InputQualityIndicator input={rawInput} />
+                </div>
+
+                {/* Error message */}
+                {interpretError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    {interpretError}
+                  </div>
+                )}
+
+                {/* Examples */}
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Lightbulb className="h-4 w-4" />
+                    <span>Try an example:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {EXAMPLE_INPUTS.slice(0, 4).map((example, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => useExample(example)}
+                        disabled={isInterpreting || isLoading}
+                        className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50 text-left"
+                      >
+                        {example.split(' ').slice(0, 5).join(' ')}...
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Continue button */}
+                <Button
+                  onClick={handleInterpret}
+                  disabled={!isInputValid || isInterpreting || isLoading}
+                  className="w-full"
+                >
+                  {isInterpreting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing the problem...
+                    </>
+                  ) : (
+                    <>
+                      Continue
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </>
             )}
 
-            {/* Examples */}
-            <div className="space-y-2 pt-2 border-t">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Lightbulb className="h-4 w-4" />
-                <span>Try an example:</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {EXAMPLE_INPUTS.slice(0, 4).map((example, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => useExample(example)}
+            {/* URL input mode */}
+            {inputMode === 'url' && (
+              <>
+                <div className="space-y-2">
+                  <Input
+                    type="url"
+                    placeholder="Paste a URL from Reddit, Twitter, Product Hunt, or any website..."
+                    value={urlInput}
+                    onChange={(e) => {
+                      setUrlInput(e.target.value)
+                      setUrlError(null)
+                    }}
                     disabled={isInterpreting || isLoading}
-                    className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50 text-left"
-                  >
-                    {example.split(' ').slice(0, 5).join(' ')}...
-                  </button>
-                ))}
-              </div>
-            </div>
+                    className="text-base"
+                    autoFocus
+                  />
+                  {urlValidation.error && urlInput.trim() && (
+                    <p className="text-xs text-amber-600 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {urlValidation.error}
+                    </p>
+                  )}
+                  {!urlInput.trim() && (
+                    <p className="text-xs text-muted-foreground">
+                      Paste a URL to analyze pain signals from discussions or reviews
+                    </p>
+                  )}
+                  {isUrlValid && urlValidation.type && (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <Check className="h-3 w-3" />
+                      <span>{URL_TYPE_INFO[urlValidation.type].icon}</span>
+                      <span>{URL_TYPE_INFO[urlValidation.type].label} detected</span>
+                      <span className="text-muted-foreground">— {URL_TYPE_INFO[urlValidation.type].description}</span>
+                    </p>
+                  )}
+                </div>
 
-            {/* Continue button */}
-            <Button
-              onClick={handleInterpret}
-              disabled={!isInputValid || isInterpreting || isLoading}
-              className="w-full"
-            >
-              {isInterpreting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Analyzing the problem...
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
+                {/* Supported platforms */}
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <ExternalLink className="h-4 w-4" />
+                    <span>Supported sources:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(URL_TYPE_INFO).map(([key, { label, icon }]) => (
+                      <span key={key} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
+                        <span>{icon}</span>
+                        <span>{label}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Analyze URL button */}
+                <Button
+                  onClick={() => {
+                    // Convert URL to analysis input with source type
+                    if (isUrlValid && urlValidation.type) {
+                      const sourceLabel = URL_TYPE_INFO[urlValidation.type].label
+                      setRawInput(`Analyze ${sourceLabel} content: ${urlInput}`)
+                      setInputMode('text')
+                      // TODO: In future, call a dedicated URL analysis endpoint for each source type
+                    }
+                  }}
+                  disabled={!isUrlValid || isInterpreting || isLoading}
+                  className="w-full"
+                >
+                  {isInterpreting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing URL...
+                    </>
+                  ) : (
+                    <>
+                      Analyze URL
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+
+                <p className="text-xs text-center text-muted-foreground">
+                  We&apos;ll extract pain signals, complaints, and feedback from the page
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -435,39 +692,64 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                   </div>
                 </div>
 
-                {/* Confidence indicator */}
-                {interpretation.confidence !== 'high' && (
+                {/* Confidence indicator - brief note, details in refinement section below */}
+                {interpretation.confidence !== 'high' && refinements.length > 0 && (
                   <div className="pt-2 border-t">
                     <div className="flex items-center gap-2 text-xs text-amber-600">
                       <AlertTriangle className="h-3 w-3" />
                       {interpretation.confidence === 'low'
-                        ? 'This is quite broad - consider being more specific for better results'
-                        : 'Moderate confidence - results should be relevant'}
+                        ? 'See suggestions below for better results ↓'
+                        : 'Good, but see suggestions below for even better results'}
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Refinement suggestions (if any) */}
+            {/* Refinement suggestions - prominent for low confidence, helpful for medium */}
             {refinements.length > 0 && interpretation.confidence !== 'high' && (
-              <div className="space-y-2 p-3 bg-violet-50 border border-violet-200 rounded-lg">
-                <div className="flex items-center gap-2 text-sm font-medium text-violet-700">
-                  <Sparkles className="h-4 w-4" />
-                  Suggestions for better results:
+              <div className={`space-y-2 p-3 rounded-lg border ${
+                interpretation.confidence === 'low'
+                  ? 'bg-amber-50 border-amber-300'
+                  : 'bg-violet-50 border-violet-200'
+              }`}>
+                <div className={`flex items-center gap-2 text-sm font-medium ${
+                  interpretation.confidence === 'low' ? 'text-amber-800' : 'text-violet-700'
+                }`}>
+                  {interpretation.confidence === 'low' ? (
+                    <AlertTriangle className="h-4 w-4" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  {interpretation.confidence === 'low'
+                    ? 'Your input is quite broad. Try one of these more specific angles:'
+                    : 'For better results, consider:'}
                 </div>
                 <div className="space-y-2">
                   {refinements.slice(0, 3).map((ref, idx) => (
                     <button
                       key={idx}
                       onClick={() => applyRefinement(ref)}
-                      className="block w-full text-left p-2 bg-white rounded border border-violet-100 hover:border-violet-300 transition-colors"
+                      className={`block w-full text-left p-2 bg-white rounded border transition-colors ${
+                        interpretation.confidence === 'low'
+                          ? 'border-amber-200 hover:border-amber-400 hover:bg-amber-50'
+                          : 'border-violet-100 hover:border-violet-300'
+                      }`}
                     >
-                      <p className="text-sm font-medium text-violet-900">{ref.suggestion}</p>
-                      <p className="text-xs text-violet-600">{ref.rationale}</p>
+                      <p className={`text-sm font-medium ${
+                        interpretation.confidence === 'low' ? 'text-amber-900' : 'text-violet-900'
+                      }`}>{ref.suggestion}</p>
+                      <p className={`text-xs ${
+                        interpretation.confidence === 'low' ? 'text-amber-700' : 'text-violet-600'
+                      }`}>{ref.rationale}</p>
                     </button>
                   ))}
                 </div>
+                {interpretation.confidence === 'low' && (
+                  <p className="text-xs text-amber-600 pt-1">
+                    Broad searches often return irrelevant results. Clicking a suggestion above helps us find more targeted signals.
+                  </p>
+                )}
               </div>
             )}
 

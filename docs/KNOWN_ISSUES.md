@@ -20,50 +20,27 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 
 ## P2 — Low Priority
 
-
-System marks them "recoverable" but only analyzes titles. Full post body would provide richer pain signals. Reddit moderation is destroying r/Entrepreneur data in real-time.
-
-**Solution options:**
-1. **Actually recover** — Use Pushshift/Reveddit archives to get full body text
-2. **Honest labeling** — If not recovering, change label from "recoverable" to "title_only"
-3. **Source diversification** — Prioritize subreddits with less aggressive moderation
-
----
-
-### Refinement Suggestions for Vague Input
-**Status:** Open, December 12th
-**Impact:** Vague hypotheses still produce vague searches
-
-**Problem:** When user enters something broad like "gym socializing", AI interprets it but doesn't offer narrower alternatives. User might not realize a more specific angle would get better results.
-
-**Solution:** Detect vague/broad inputs and show refinement suggestions:
-```
-Your input is quite broad. You might get better results with:
-- "introverts wanting to make gym friends"
-- "fear of being creepy when approaching people at gym"
-- "gym etiquette for starting conversations"
-```
+*No open P2 issues*
 
 ---
 
 ## P3 — Future Enhancements
 
-### Input Quality Indicator
-**Status:** Open, December 12th
-**Impact:** Users don't know if their input is detailed enough
-
-**Problem:** No feedback on whether the free-form input has enough detail for a good search. Users might submit one-word inputs and get poor results.
-
-**Solution:** Show real-time hint below input:
-- < 20 chars: "Try adding more detail"
-- 20-50 chars: "Good start — who's the audience?"
-- 50+ chars with audience + problem: "Great detail ✓"
+*No open P3 issues*
 
 ---
 
 ## Completed Issues
 
 ### December 14, 2025
+- ✅ **[Phase 2] Dark Mode with User Settings** — Full dark mode support with automatic system preference detection. Uses `next-themes` for theme management. Theme toggle button in header (sun/moon icon) allows quick switching. New "Appearance" section in Settings page with System/Light/Dark options. Cookie banner, dashboard badges, and notifications page all updated for dark mode. Users can choose to follow system settings or force light/dark mode.
+- ✅ **[Phase 2] Multi-Source URL Support** — Expanded URL analysis mode to support 7 sources: Reddit, Twitter/X, Product Hunt, Hacker News, Indie Hackers, LinkedIn, and any website. Each source has its own icon and detection. URLs are validated and source type is auto-detected. Helpful for analyzing competitor pages, discussions, and reviews from various platforms.
+- ✅ **[Phase 2] Emotions Breakdown** — Added emotional tone analysis to pain signals. Detects 6 emotions: Frustration, Anxiety, Disappointment, Confusion, Hope, Neutral. Each signal is classified and displayed with emoji badges and percentages in Community Voice results. Keywords-based detection using common emotional expressions.
+- ✅ **[Phase 2] URL Analysis Mode** — Added "Paste URL" tab to input with mode toggle (Describe/Paste URL). Validates Reddit URLs with visual feedback. Currently Reddit-only with "Coming soon" note for other sources. UI ready for future backend expansion.
+- ✅ **[Phase 2] Better Loading Experience** — Fun progress phases: "Firing up the engines", "Gathering the juicy data", "Picking out the hot takes", etc. Added rotating founder quotes (Paul Graham, Reid Hoffman, Steve Blank, etc.) that cycle every 8 seconds during loading.
+- ✅ **[P3] Input Quality Indicator** — Real-time hint below input showing detail level. Detects audience words (who, parents, freelancers, etc.) and problem words (struggle, frustrated, hate, etc.). Shows "Try adding more detail" (< 20 chars), contextual suggestions (20-50 chars), or "Great detail ✓" (50+ with both audience and problem detected).
+- ✅ **[P2] Honest Labeling for Removed Posts** — Changed "recoverable" to "title_only" throughout the codebase. Progress messages now say "Including X posts (title only)" instead of "Recovering X posts". Body preview shows "[removed] - title only" instead of "[removed] - recoverable via title". More honest about what we're actually doing with moderated posts.
+- ✅ **[P2] Refinement Suggestions for Vague Input** — Enhanced refinement suggestions UI: Low confidence inputs get amber warning styling with AlertTriangle icon and explanatory text "Broad searches often return irrelevant results." Medium confidence gets violet styling with Sparkles icon. Suggestions are clickable buttons that apply the refinement and proceed to search.
 - ✅ **[P1] Red Flags Section at Top of Report** — Added prominent "Red Flags Detected" card that appears BEFORE the viability score when critical issues exist. Shows: No Purchase Intent (0 WTP), Saturated Market (free competitors), Narrow Problem Definition (high Stage 2 filter rate), and Very High Filter Rate (>90% posts filtered). Each flag has severity badge (HIGH/MEDIUM) and explanatory message.
 - ✅ **[P1] Do Not Pursue Verdict Tier** — Updated verdict thresholds: WEAK SIGNAL now 4.0-5.0 (was 2.5-5.0), below 4.0 is "DO NOT PURSUE" with clear stop message. Updated descriptions: WEAK = "Significant concerns detected. Validate core assumptions before building." DO NOT PURSUE = "No viable business signal detected. Pivot to different problem or audience."
 - ✅ **[P0] Two-Stage Relevance Filter** — Stage 2 now checks SPECIFIC PROBLEM, not just domain. Prompts updated to require exact problem matching with examples. Tracks `stage2FilterRate` (% of domain-relevant posts failing problem filter) and `narrowProblemWarning` flag (true when >50% fail). Water reminder test: 87.7% of "hydration" posts correctly filtered out because they weren't about "forgetting to drink."

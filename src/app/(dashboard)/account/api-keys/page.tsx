@@ -87,8 +87,8 @@ export default function ApiKeysPage() {
   if (loading) {
     return (
       <div className="animate-pulse space-y-6">
-        <div className="h-8 w-48 bg-gray-200 rounded" />
-        <div className="h-64 bg-gray-200 rounded-lg" />
+        <div className="h-8 w-48 bg-muted rounded" />
+        <div className="h-64 bg-muted rounded-lg" />
       </div>
     )
   }
@@ -96,22 +96,22 @@ export default function ApiKeysPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">API Keys</h1>
-        <p className="text-gray-500 mt-1">Manage API keys for programmatic access.</p>
+        <h1 className="text-2xl font-bold text-foreground">API Keys</h1>
+        <p className="text-muted-foreground mt-1">Manage API keys for programmatic access.</p>
       </div>
 
       {/* Newly Created Key Warning */}
       {newlyCreatedKey && (
-        <Card className="bg-yellow-50 border-yellow-200">
+        <Card className="bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800">
           <CardContent className="py-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="font-medium text-yellow-800">
+                <p className="font-medium text-yellow-800 dark:text-yellow-200">
                   Copy your API key now - it won't be shown again!
                 </p>
                 <div className="flex items-center gap-2 mt-2">
-                  <code className="bg-white px-3 py-2 rounded border border-yellow-300 text-sm font-mono flex-1 overflow-x-auto">
+                  <code className="bg-card px-3 py-2 rounded border border-yellow-300 dark:border-yellow-700 text-sm font-mono flex-1 overflow-x-auto">
                     {newlyCreatedKey}
                   </code>
                   <Button
@@ -125,7 +125,7 @@ export default function ApiKeysPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="mt-2 text-yellow-700"
+                  className="mt-2 text-yellow-700 dark:text-yellow-300"
                   onClick={() => setNewlyCreatedKey(null)}
                 >
                   I've copied my key
@@ -157,7 +157,7 @@ export default function ApiKeysPage() {
         </CardHeader>
         <CardContent>
           {showCreateForm && (
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <div className="mb-6 p-4 bg-muted rounded-lg">
               <h3 className="font-medium mb-3">Create New API Key</h3>
               <div className="flex gap-3">
                 <div className="flex-1">
@@ -180,8 +180,8 @@ export default function ApiKeysPage() {
           )}
 
           {keys.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Key className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <div className="text-center py-8 text-muted-foreground">
+              <Key className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
               <p>No API keys yet.</p>
               <p className="text-sm mt-1">Create a key to get started with the API.</p>
             </div>
@@ -190,14 +190,14 @@ export default function ApiKeysPage() {
               {keys.map((key) => (
                 <div
                   key={key.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                  className="flex items-center justify-between p-4 bg-muted rounded-lg"
                 >
                   <div>
                     <p className="font-medium">{key.name}</p>
-                    <p className="text-sm text-gray-500 font-mono">
+                    <p className="text-sm text-muted-foreground font-mono">
                       {key.key_prefix}...
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Created {new Date(key.created_at).toLocaleDateString()}
                       {key.last_used_at && ` • Last used ${new Date(key.last_used_at).toLocaleDateString()}`}
                     </p>
@@ -205,7 +205,7 @@ export default function ApiKeysPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950"
                     onClick={() => handleDelete(key.id)}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -223,10 +223,10 @@ export default function ApiKeysPage() {
           <CardTitle>API Usage</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-gray-600 mb-4">
+          <p className="text-muted-foreground mb-4">
             Include your API key in the Authorization header:
           </p>
-          <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
+          <pre className="bg-zinc-900 text-zinc-100 p-4 rounded-lg text-sm overflow-x-auto">
 {`curl -X POST https://pvre.app/api/v1/research \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\

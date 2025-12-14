@@ -62,10 +62,10 @@ export default function UsagePage() {
 
   const getStatusBadge = (status: string | null) => {
     const styles: Record<string, string> = {
-      completed: 'bg-green-100 text-green-700',
-      processing: 'bg-blue-100 text-blue-700',
-      pending: 'bg-yellow-100 text-yellow-700',
-      failed: 'bg-red-100 text-red-700',
+      completed: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
+      processing: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400',
+      pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400',
+      failed: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
     }
     const statusKey = status || 'pending'
     return (
@@ -78,10 +78,10 @@ export default function UsagePage() {
   if (loading) {
     return (
       <div className="animate-pulse space-y-6">
-        <div className="h-8 w-48 bg-gray-200 rounded" />
+        <div className="h-8 w-48 bg-muted rounded" />
         <div className="grid gap-6 md:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 bg-gray-200 rounded-lg" />
+            <div key={i} className="h-24 bg-muted rounded-lg" />
           ))}
         </div>
       </div>
@@ -91,18 +91,18 @@ export default function UsagePage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Usage Statistics</h1>
-        <p className="text-gray-500 mt-1">Track your research activity and credit usage.</p>
+        <h1 className="text-2xl font-bold text-foreground">Usage Statistics</h1>
+        <p className="text-muted-foreground mt-1">Track your research activity and credit usage.</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid gap-6 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Total Research Runs
             </CardTitle>
-            <BarChart3 className="h-4 w-4 text-gray-400" />
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{stats?.totalRuns || 0}</div>
@@ -111,10 +111,10 @@ export default function UsagePage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               This Month
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-gray-400" />
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{stats?.thisMonthRuns || 0}</div>
@@ -123,10 +123,10 @@ export default function UsagePage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Credits Used
             </CardTitle>
-            <Clock className="h-4 w-4 text-gray-400" />
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{stats?.creditsUsed || 0}</div>
@@ -136,11 +136,11 @@ export default function UsagePage() {
 
       {/* Research History */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Research History</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Research History</h2>
         {jobs.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center">
-              <p className="text-gray-500 mb-4">No research runs yet.</p>
+              <p className="text-muted-foreground mb-4">No research runs yet.</p>
               <Link href="/research">
                 <Button>Start Your First Research</Button>
               </Link>
@@ -150,21 +150,21 @@ export default function UsagePage() {
           <Card>
             <CardContent className="p-0">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b">
+                <thead className="bg-muted border-b">
                   <tr>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Date</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Hypothesis</th>
-                    <th className="text-center px-4 py-3 text-sm font-medium text-gray-500">Status</th>
-                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Actions</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Date</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Hypothesis</th>
+                    <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground">Status</th>
+                    <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-border">
                   {jobs.map((job) => (
                     <tr key={job.id}>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
                         {job.created_at ? new Date(job.created_at).toLocaleDateString() : '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 max-w-md truncate">
+                      <td className="px-4 py-3 text-sm text-foreground max-w-md truncate">
                         {job.hypothesis}
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -174,7 +174,7 @@ export default function UsagePage() {
                         {job.status === 'completed' && (
                           <Link
                             href={`/research/${job.id}`}
-                            className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1 text-sm"
+                            className="text-primary hover:underline inline-flex items-center gap-1 text-sm"
                           >
                             View <ExternalLink className="w-3 h-3" />
                           </Link>

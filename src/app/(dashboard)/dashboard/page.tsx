@@ -52,21 +52,21 @@ function getStatusBadge(status: ResearchJob['status']) {
   switch (status) {
     case 'completed':
       return (
-        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-950 dark:text-green-400 dark:hover:bg-green-950">
           <CheckCircle2 className="h-3 w-3 mr-1" />
           Completed
         </Badge>
       )
     case 'processing':
       return (
-        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-400 dark:hover:bg-blue-950">
           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
           Processing
         </Badge>
       )
     case 'failed':
       return (
-        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+        <Badge className="bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-950 dark:text-red-400 dark:hover:bg-red-950">
           <XCircle className="h-3 w-3 mr-1" />
           Failed
         </Badge>
@@ -137,7 +137,7 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold">Welcome back{user?.user_metadata?.full_name ? `, ${user.user_metadata.full_name}` : ''}!</h1>
-        <p className="text-gray-600 mt-2">
+        <p className="text-muted-foreground mt-2">
           Get automated market research for your business hypothesis
         </p>
       </div>

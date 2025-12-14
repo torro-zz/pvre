@@ -44,8 +44,8 @@ export default function AccountLayout({
                 className={cn(
                   'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
                 )}
               >
                 <Icon className="w-5 h-5" />

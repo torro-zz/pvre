@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, JetBrains_Mono, Fraunces } from "next/font/google";
+import { ThemeProvider } from "@/components/theme-provider";
 import { CookieBanner } from "@/components/layout/cookie-banner";
 import { CrispChat } from "@/components/layout/crisp-chat";
 import "./globals.css";
@@ -33,13 +34,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${dmSans.variable} ${jetbrainsMono.variable} ${fraunces.variable} antialiased`}
       >
-        {children}
-        <CookieBanner />
-        <CrispChat />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <CookieBanner />
+          <CrispChat />
+        </ThemeProvider>
       </body>
     </html>
   );

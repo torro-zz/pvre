@@ -58,6 +58,9 @@ export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep
 
   // Calculate consistent pain score using the same formula as Viability Verdict
   // This ensures the same score appears in Community Voice header and Verdict dimensions
+  const defaultEmotions = { frustration: 0, anxiety: 0, disappointment: 0, confusion: 0, hope: 0, neutral: 0 }
+  const emotionsBreakdown = results.painSummary?.emotionsBreakdown ?? defaultEmotions
+
   const calculatedPainScore = results.painSummary
     ? calculateOverallPainScore({
         totalSignals: results.painSummary.totalSignals ?? 0,
@@ -79,6 +82,7 @@ export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep
         },
         dateRange: results.painSummary.dateRange,
         recencyScore: results.painSummary.recencyScore ?? 0.5,
+        emotionsBreakdown: emotionsBreakdown,
       })
     : { score: 0, confidence: 'very_low' as const, reasoning: '' }
 
@@ -423,6 +427,37 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                   </span>
                 </div>
               </div>
+
+              {/* Emotions Breakdown */}
+              {totalSignals > 0 && (
+                <div className="pt-4 border-t">
+                  <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Emotional Tone
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { key: 'frustration', label: 'Frustration', emoji: '😤', color: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' },
+                      { key: 'anxiety', label: 'Anxiety', emoji: '😰', color: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400' },
+                      { key: 'disappointment', label: 'Disappointment', emoji: '😞', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
+                      { key: 'confusion', label: 'Confusion', emoji: '😕', color: 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400' },
+                      { key: 'hope', label: 'Hope', emoji: '🤞', color: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400' },
+                      { key: 'neutral', label: 'Neutral', emoji: '😐', color: 'bg-muted text-muted-foreground' },
+                    ].map(({ key, label, emoji, color }) => {
+                      const count = emotionsBreakdown[key as keyof typeof emotionsBreakdown] ?? 0
+                      const percent = totalSignals > 0 ? Math.round((count / totalSignals) * 100) : 0
+                      if (count === 0) return null
+                      return (
+                        <div key={key} className={`flex items-center gap-2 px-2 py-1.5 rounded-md ${color}`}>
+                          <span>{emoji}</span>
+                          <span className="text-xs font-medium">{label}</span>
+                          <span className="text-xs ml-auto">{percent}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

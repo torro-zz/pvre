@@ -67,8 +67,8 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="animate-pulse space-y-6">
-        <div className="h-8 w-48 bg-gray-200 rounded" />
-        <div className="h-64 bg-gray-200 rounded-lg" />
+        <div className="h-8 w-48 bg-muted rounded" />
+        <div className="h-64 bg-muted rounded-lg" />
       </div>
     )
   }
@@ -76,8 +76,8 @@ export default function ProfilePage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Profile Settings</h1>
-        <p className="text-gray-500 mt-1">Manage your personal information.</p>
+        <h1 className="text-2xl font-bold text-foreground">Profile Settings</h1>
+        <p className="text-muted-foreground mt-1">Manage your personal information.</p>
       </div>
 
       <Card>
@@ -93,7 +93,7 @@ export default function ProfilePage() {
         <CardContent className="space-y-6">
           {/* Avatar */}
           <div className="flex items-center gap-6">
-            <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center text-gray-400">
+            <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center text-muted-foreground">
               {profile?.avatar_url ? (
                 <img
                   src={profile.avatar_url}
@@ -105,7 +105,7 @@ export default function ProfilePage() {
               )}
             </div>
             <div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Profile photo synced from your Google account.
               </p>
             </div>
@@ -127,10 +127,10 @@ export default function ProfilePage() {
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <div className="flex items-center gap-2 max-w-md">
-              <Mail className="w-4 h-4 text-gray-400" />
-              <span className="text-gray-600">{profile?.email || 'No email'}</span>
+              <Mail className="w-4 h-4 text-muted-foreground" />
+              <span className="text-muted-foreground">{profile?.email || 'No email'}</span>
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-muted-foreground">
               Email is managed through your Google account.
             </p>
           </div>

@@ -287,11 +287,11 @@ export default function AdminPage() {
   if (error) {
     return (
       <div className="max-w-6xl mx-auto">
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950">
           <CardContent className="py-12 text-center">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-red-700">Access Denied</h2>
-            <p className="text-red-600 mt-2">{error}</p>
+            <AlertCircle className="h-12 w-12 text-red-500 dark:text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-red-700 dark:text-red-300">Access Denied</h2>
+            <p className="text-red-600 dark:text-red-400 mt-2">{error}</p>
           </CardContent>
         </Card>
       </div>
@@ -304,7 +304,7 @@ export default function AdminPage() {
       <div className="max-w-6xl mx-auto">
         <Card>
           <CardContent className="py-12 text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
             <p>Loading admin panel...</p>
           </CardContent>
         </Card>
@@ -316,7 +316,7 @@ export default function AdminPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-        <p className="text-gray-500 mt-1">Manage users, credits, and view waitlist</p>
+        <p className="text-muted-foreground mt-1">Manage users, credits, and view waitlist</p>
       </div>
 
       {/* Stats Overview */}
@@ -324,7 +324,7 @@ export default function AdminPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{users.length}</div>
-            <div className="text-sm text-gray-500">Total Users</div>
+            <div className="text-sm text-muted-foreground">Total Users</div>
           </CardContent>
         </Card>
         <Card>
@@ -332,7 +332,7 @@ export default function AdminPage() {
             <div className="text-2xl font-bold">
               {users.reduce((sum, u) => sum + u.credits_balance, 0)}
             </div>
-            <div className="text-sm text-gray-500">Total Credits</div>
+            <div className="text-sm text-muted-foreground">Total Credits</div>
           </CardContent>
         </Card>
         <Card>
@@ -340,13 +340,13 @@ export default function AdminPage() {
             <div className="text-2xl font-bold">
               {users.reduce((sum, u) => sum + u.total_research_runs, 0)}
             </div>
-            <div className="text-sm text-gray-500">Research Runs</div>
+            <div className="text-sm text-muted-foreground">Research Runs</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{waitlist.length}</div>
-            <div className="text-sm text-gray-500">Waitlist Signups</div>
+            <div className="text-sm text-muted-foreground">Waitlist Signups</div>
           </CardContent>
         </Card>
       </div>
@@ -425,7 +425,7 @@ export default function AdminPage() {
               <CardDescription>View detailed research data and results</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 mb-4">
+              <p className="text-muted-foreground mb-4">
                 The research debug page shows detailed information about all research jobs,
                 including pain signals, scores, and raw data.
               </p>

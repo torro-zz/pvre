@@ -7,6 +7,7 @@ import {
   calculatePainScore,
   PainSignal,
   getRecencyMultiplier,
+  detectEmotion,
 } from './pain-detector'
 
 export interface CommentAnalysis {
@@ -177,6 +178,7 @@ export function commentAnalysisToPainSignals(
     solutionSeeking: false, // Would need to detect separately
     willingnessToPaySignal: ca.wtpSignals.length > 0,
     wtpConfidence: ca.wtpSignals.length > 2 ? 'high' : ca.wtpSignals.length > 0 ? 'medium' : 'none',
+    emotion: detectEmotion(ca.comment.body),
     source: {
       type: 'comment' as const,
       id: ca.comment.id,

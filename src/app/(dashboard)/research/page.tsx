@@ -241,11 +241,11 @@ export default function ResearchPage() {
 
         {/* Zero Credits State - show when user has no credits */}
         {!creditsLoading && credits === 0 ? (
-          <Card className="mb-8 border-amber-200 bg-amber-50">
+          <Card className="mb-8 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950">
             <CardContent className="py-8">
               <div className="text-center max-w-md mx-auto">
-                <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
-                  <CreditCard className="h-8 w-8 text-amber-600" />
+                <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mx-auto mb-4">
+                  <CreditCard className="h-8 w-8 text-amber-600 dark:text-amber-400" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">You&apos;re Out of Credits</h3>
                 <p className="text-muted-foreground mb-6">
@@ -330,7 +330,7 @@ export default function ResearchPage() {
                             <Filter className="h-3 w-3" />
                             Relevant
                           </div>
-                          <p className="text-lg font-semibold text-green-600">{streamProgress.relevantPosts}</p>
+                          <p className="text-lg font-semibold text-green-600 dark:text-green-400">{streamProgress.relevantPosts}</p>
                         </div>
                       )}
 
@@ -350,7 +350,7 @@ export default function ResearchPage() {
                             <Sparkles className="h-3 w-3" />
                             Pain Signals
                           </div>
-                          <p className="text-lg font-semibold text-amber-600">{streamProgress.painSignalCount}</p>
+                          <p className="text-lg font-semibold text-amber-600 dark:text-amber-400">{streamProgress.painSignalCount}</p>
                         </div>
                       )}
 
@@ -360,7 +360,7 @@ export default function ResearchPage() {
                             <MessageSquare className="h-3 w-3" />
                             Themes
                           </div>
-                          <p className="text-lg font-semibold text-blue-600">{streamProgress.themeCount}</p>
+                          <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">{streamProgress.themeCount}</p>
                         </div>
                       )}
                     </div>
@@ -390,7 +390,7 @@ export default function ResearchPage() {
                           ? 'text-muted-foreground'
                           : step.status === 'active'
                           ? 'text-primary font-medium'
-                          : 'text-green-600'
+                          : 'text-green-600 dark:text-green-400'
                       }`}
                     >
                       {step.status === 'complete' ? (

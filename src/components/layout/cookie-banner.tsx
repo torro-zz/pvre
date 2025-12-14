@@ -47,19 +47,19 @@ export function CookieBanner() {
   if (!mounted || !show) return null
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t shadow-lg">
+    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-background border-t shadow-lg">
       <div className="container mx-auto max-w-4xl">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="flex items-start gap-3 flex-1">
             <Cookie className="w-6 h-6 text-amber-500 flex-shrink-0 mt-1" />
             <div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 We use cookies to enhance your experience and analyze site usage.
                 By continuing to use this site, you agree to our use of cookies.
               </p>
               <a
                 href="/privacy"
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-primary hover:underline"
               >
                 Learn more
               </a>
@@ -81,7 +81,7 @@ export function CookieBanner() {
             </Button>
             <button
               onClick={handleDismiss}
-              className="p-1.5 text-gray-400 hover:text-gray-600"
+              className="p-1.5 text-muted-foreground hover:text-foreground"
               aria-label="Dismiss"
             >
               <X className="w-4 h-4" />

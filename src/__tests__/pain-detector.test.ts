@@ -4,7 +4,27 @@ import {
   getPainSummary,
   calculateOverallPainScore,
   type PainSignal,
+  type EmotionsBreakdown,
 } from '@/lib/analysis/pain-detector'
+
+// Default values for PainSummary fields added in v3.0 and v4.0
+const defaultSummaryFields = {
+  temporalDistribution: {
+    last30Days: 0,
+    last90Days: 0,
+    last180Days: 0,
+    older: 0,
+  },
+  recencyScore: 0.5,
+  emotionsBreakdown: {
+    frustration: 0,
+    anxiety: 0,
+    disappointment: 0,
+    confusion: 0,
+    hope: 0,
+    neutral: 0,
+  } as EmotionsBreakdown,
+}
 
 describe('Pain Detector', () => {
   describe('calculatePainScore', () => {
@@ -323,6 +343,7 @@ describe('Pain Detector', () => {
         dataConfidence: 'medium' as const,
         strongestSignals: ['frustrated'],
         wtpQuotes: [],
+        ...defaultSummaryFields,
       }
 
       const result = calculateOverallPainScore(highWTPSummary)
@@ -344,6 +365,7 @@ describe('Pain Detector', () => {
         dataConfidence: 'low' as const,
         strongestSignals: ['wondering'],
         wtpQuotes: [],
+        ...defaultSummaryFields,
       }
 
       const result = calculateOverallPainScore(lowQualitySummary)
@@ -365,6 +387,7 @@ describe('Pain Detector', () => {
         dataConfidence: 'low' as const,
         strongestSignals: ['wondering'],
         wtpQuotes: [],
+        ...defaultSummaryFields,
       }
 
       const result = calculateOverallPainScore(noQualitySummary)
@@ -386,6 +409,7 @@ describe('Pain Detector', () => {
         dataConfidence: 'high' as const,
         strongestSignals: ['frustrated', 'struggling', 'nightmare'],
         wtpQuotes: [],
+        ...defaultSummaryFields,
       }
 
       const result = calculateOverallPainScore(goodSummary)

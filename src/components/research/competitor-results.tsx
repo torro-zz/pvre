@@ -55,49 +55,49 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
   const getIntensityColor = (intensity: string) => {
     switch (intensity) {
       case 'high':
-        return 'bg-red-100 text-red-800 border-red-200'
+        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800'
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-400 dark:border-yellow-800'
       case 'low':
-        return 'bg-green-100 text-green-800 border-green-200'
+        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800'
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return 'bg-muted text-muted-foreground border-border'
     }
   }
 
   const getMaturityColor = (maturity: string) => {
     switch (maturity) {
       case 'emerging':
-        return 'bg-purple-100 text-purple-800'
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-400'
       case 'growing':
-        return 'bg-green-100 text-green-800'
+        return 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400'
       case 'mature':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400'
       case 'declining':
-        return 'bg-orange-100 text-orange-800'
+        return 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-400'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-muted text-muted-foreground'
     }
   }
 
   const getDifficultyBadge = (difficulty: string) => {
     switch (difficulty) {
       case 'low':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Low Effort</Badge>
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800">Low Effort</Badge>
       case 'medium':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Medium Effort</Badge>
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-400 dark:border-yellow-800">Medium Effort</Badge>
       case 'high':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">High Effort</Badge>
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800">High Effort</Badge>
       default:
         return <Badge variant="outline">Unknown</Badge>
     }
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 7.5) return 'text-green-600'
-    if (score >= 5) return 'text-yellow-600'
-    if (score >= 2.5) return 'text-orange-600'
-    return 'text-red-600'
+    if (score >= 7.5) return 'text-green-600 dark:text-green-400'
+    if (score >= 5) return 'text-yellow-600 dark:text-yellow-400'
+    if (score >= 2.5) return 'text-orange-600 dark:text-orange-400'
+    return 'text-red-600 dark:text-red-400'
   }
 
   const getScoreBgColor = (score: number) => {
@@ -108,9 +108,9 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
   }
 
   const getImpactColor = (impact: number) => {
-    if (impact > 0) return 'text-green-600'
-    if (impact < 0) return 'text-red-600'
-    return 'text-gray-500'
+    if (impact > 0) return 'text-green-600 dark:text-green-400'
+    if (impact < 0) return 'text-red-600 dark:text-red-400'
+    return 'text-muted-foreground'
   }
 
   const getImpactIcon = (impact: number) => {
@@ -189,7 +189,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
 
       {/* Competitor Pricing Intelligence */}
       {pricingSuggestion.competitorsWithPricing > 0 && (
-        <Card className="border-green-200 bg-green-50/30">
+        <Card className="border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-950/30">
           <CardHeader className="pb-2">
             <div className="flex items-start justify-between">
               <div>
@@ -205,10 +205,10 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                 variant="outline"
                 className={
                   pricingSuggestion.confidence === 'high'
-                    ? 'border-green-500 text-green-700 bg-green-50'
+                    ? 'border-green-500 text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-950'
                     : pricingSuggestion.confidence === 'medium'
-                    ? 'border-yellow-500 text-yellow-700 bg-yellow-50'
-                    : 'border-gray-400 text-gray-600'
+                    ? 'border-yellow-500 text-yellow-700 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950'
+                    : 'border-muted-foreground text-muted-foreground'
                 }
               >
                 {pricingSuggestion.confidence} confidence
@@ -218,12 +218,12 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
           <CardContent>
             <div className="grid md:grid-cols-3 gap-4">
               {/* Suggested Price */}
-              <div className="p-4 rounded-lg bg-white border border-green-200">
+              <div className="p-4 rounded-lg bg-card border border-green-200 dark:border-green-800">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <DollarSign className="h-4 w-4 text-green-600" />
+                  <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
                   Suggested Price
                 </div>
-                <p className="text-3xl font-bold text-green-700">
+                <p className="text-3xl font-bold text-green-700 dark:text-green-400">
                   ${pricingSuggestion.suggestedPrice}
                   <span className="text-sm font-normal text-muted-foreground">/mo</span>
                 </p>
@@ -234,7 +234,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
 
               {/* Price Range */}
               {pricingSuggestion.priceRange && (
-                <div className="p-4 rounded-lg bg-white border">
+                <div className="p-4 rounded-lg bg-card border">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                     <BarChart3 className="h-4 w-4" />
                     Market Price Range
@@ -249,7 +249,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
               )}
 
               {/* Pricing Models */}
-              <div className="p-4 rounded-lg bg-white border">
+              <div className="p-4 rounded-lg bg-card border">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                   <Sparkles className="h-4 w-4" />
                   Common Models
@@ -268,9 +268,9 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
             </div>
 
             {/* Pricing Insight */}
-            <div className="mt-3 p-2 rounded bg-blue-50 border border-blue-100 flex items-start gap-2">
-              <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-blue-700">
+            <div className="mt-3 p-2 rounded bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-800 flex items-start gap-2">
+              <Info className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700 dark:text-blue-300">
                 Use this pricing as a starting point for your market sizing calculations.
                 {pricingSuggestion.priceRange && pricingSuggestion.priceRange.max > pricingSuggestion.priceRange.min * 3 && (
                   <span className="block mt-1">
@@ -427,7 +427,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
             {/* Threats */}
             {competitionScore.threats.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-sm font-medium flex items-center gap-2 text-orange-600">
+                <h4 className="text-sm font-medium flex items-center gap-2 text-orange-600 dark:text-orange-400">
                   <AlertTriangle className="h-4 w-4" />
                   Threats to Watch
                 </h4>
@@ -443,8 +443,8 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
             )}
 
             {/* Info */}
-            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-blue-50 rounded p-2">
-              <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 rounded p-2">
+              <Info className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <span>
                 Higher scores indicate easier market entry. This score factors into your overall Viability Verdict
                 (25% weight). Positive impacts improve your score, negative impacts indicate challenges.
@@ -747,9 +747,9 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                     {getDifficultyBadge(gap.difficulty)}
                   </div>
                   <p className="text-sm text-muted-foreground mb-3">{gap.description}</p>
-                  <div className="bg-green-50 border border-green-200 rounded-md p-3">
-                    <div className="text-sm font-medium text-green-800 mb-1">Opportunity</div>
-                    <p className="text-sm text-green-700">{gap.opportunity}</p>
+                  <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md p-3">
+                    <div className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">Opportunity</div>
+                    <p className="text-sm text-green-700 dark:text-green-300">{gap.opportunity}</p>
                   </div>
                 </CardContent>
               </Card>

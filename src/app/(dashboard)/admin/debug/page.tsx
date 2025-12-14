@@ -218,24 +218,24 @@ export default function AdminDebugPage() {
   const getIntensityColor = (intensity: string) => {
     switch (intensity) {
       case 'high':
-        return 'bg-red-100 text-red-700 border-red-200'
+        return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800'
       case 'medium':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-400 dark:border-yellow-800'
       case 'low':
-        return 'bg-green-100 text-green-700 border-green-200'
+        return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800'
       default:
-        return 'bg-gray-100 text-gray-700 border-gray-200'
+        return 'bg-muted text-muted-foreground border-border'
     }
   }
 
   const getWtpColor = (confidence: string) => {
     switch (confidence) {
       case 'high':
-        return 'bg-emerald-100 text-emerald-700'
+        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
       case 'medium':
-        return 'bg-blue-100 text-blue-700'
+        return 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400'
       case 'low':
-        return 'bg-gray-100 text-gray-700'
+        return 'bg-muted text-muted-foreground'
       default:
         return ''
     }
@@ -255,11 +255,11 @@ export default function AdminDebugPage() {
   if (!isDev) {
     return (
       <div className="max-w-6xl mx-auto">
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950">
           <CardContent className="py-12 text-center">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-red-700">Access Denied</h2>
-            <p className="text-red-600 mt-2">
+            <AlertCircle className="h-12 w-12 text-red-500 dark:text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-red-700 dark:text-red-300">Access Denied</h2>
+            <p className="text-red-600 dark:text-red-400 mt-2">
               This page is only available in development mode.
             </p>
           </CardContent>
@@ -275,7 +275,7 @@ export default function AdminDebugPage() {
           <p className="text-muted-foreground">
             Inspect raw research data, validate scoring accuracy, and identify issues.
           </p>
-          <Badge variant="outline" className="mt-2 bg-yellow-50 border-yellow-300 text-yellow-700">
+          <Badge variant="outline" className="mt-2 bg-yellow-50 dark:bg-yellow-950 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400">
             Development Mode Only
           </Badge>
         </div>
@@ -365,9 +365,9 @@ export default function AdminDebugPage() {
         )}
 
         {error && (
-          <Card className="border-red-200 bg-red-50">
+          <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950">
             <CardContent className="py-6">
-              <div className="flex items-center gap-2 text-red-700">
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
                 <AlertCircle className="h-5 w-5" />
                 <span>{error}</span>
               </div>
@@ -495,7 +495,7 @@ export default function AdminDebugPage() {
                               return (
                                 <div
                                   key={signalId}
-                                  className="border rounded-lg bg-white p-4"
+                                  className="border rounded-lg bg-card p-4"
                                 >
                                   <div
                                     className="flex items-start justify-between cursor-pointer"
@@ -547,7 +547,7 @@ export default function AdminDebugPage() {
                                           FULL TEXT (with keyword highlights)
                                         </div>
                                         <div
-                                          className="text-sm bg-gray-50 p-3 rounded border max-h-48 overflow-y-auto"
+                                          className="text-sm bg-muted p-3 rounded border max-h-48 overflow-y-auto"
                                           dangerouslySetInnerHTML={{
                                             __html: highlightKeywords(
                                               signal.text || '',
@@ -691,10 +691,10 @@ export default function AdminDebugPage() {
                                         <div className="text-right">
                                           <div className="text-xl font-bold">{dim.score.toFixed(1)}/10</div>
                                           <Badge variant="outline" className={
-                                            dim.status === 'strong' ? 'bg-green-50 text-green-700' :
-                                            dim.status === 'adequate' ? 'bg-yellow-50 text-yellow-700' :
-                                            dim.status === 'needs_work' ? 'bg-orange-50 text-orange-700' :
-                                            'bg-red-50 text-red-700'
+                                            dim.status === 'strong' ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400' :
+                                            dim.status === 'adequate' ? 'bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400' :
+                                            dim.status === 'needs_work' ? 'bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-400' :
+                                            'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400'
                                           }>
                                             {dim.status.replace('_', ' ')}
                                           </Badge>
@@ -806,9 +806,9 @@ export default function AdminDebugPage() {
 
                         <TabsContent value="raw" className="mt-4">
                           {/* Clarify the difference between raw scores and calculated verdict */}
-                          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                            <p className="font-medium text-blue-800 mb-1">Note: Raw JSON vs Calculated Verdict</p>
-                            <p className="text-blue-700">
+                          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+                            <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">Note: Raw JSON vs Calculated Verdict</p>
+                            <p className="text-blue-700 dark:text-blue-300">
                               The raw JSON contains individual dimension scores (Pain, Market, Timing).
                               The <strong>Viability Verdict</strong> shown in Summary tab is dynamically calculated
                               using weighted averages of all available dimensions including Competition (if run).
@@ -819,7 +819,7 @@ export default function AdminDebugPage() {
                               )}
                             </p>
                           </div>
-                          <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto max-h-[500px] text-xs">
+                          <pre className="bg-zinc-900 text-zinc-100 p-4 rounded-lg overflow-auto max-h-[500px] text-xs">
                             {JSON.stringify(cvResult?.data, null, 2)}
                           </pre>
                         </TabsContent>

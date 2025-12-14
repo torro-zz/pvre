@@ -11,11 +11,11 @@ import { ComparisonResponse, ComparisonHypothesis } from '@/app/api/research/com
 
 // Score cell colors
 function getScoreColor(score: number | null): string {
-  if (score === null) return 'bg-gray-100 text-gray-400'
-  if (score >= 7.5) return 'bg-green-100 text-green-800'
-  if (score >= 5.0) return 'bg-yellow-100 text-yellow-800'
-  if (score >= 3.0) return 'bg-orange-100 text-orange-800'
-  return 'bg-red-100 text-red-800'
+  if (score === null) return 'bg-muted text-muted-foreground'
+  if (score >= 7.5) return 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400'
+  if (score >= 5.0) return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-400'
+  if (score >= 3.0) return 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-400'
+  return 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400'
 }
 
 function getScoreLabel(score: number | null): string {
@@ -301,8 +301,8 @@ function ComparisonContent() {
                     </td>
                     <td className="text-center py-3 px-2">
                       <span className={
-                        h.trend === 'rising' ? 'text-green-600 font-medium' :
-                        h.trend === 'falling' ? 'text-red-600 font-medium' :
+                        h.trend === 'rising' ? 'text-green-600 dark:text-green-400 font-medium' :
+                        h.trend === 'falling' ? 'text-red-600 dark:text-red-400 font-medium' :
                         'text-muted-foreground'
                       }>
                         {getTrendIcon(h.trend)} {h.trend || '-'}
@@ -331,7 +331,7 @@ function ComparisonContent() {
                   </Link>
                 </CardTitle>
                 {bestByCategory.viability === h.id && (
-                  <Badge className="bg-yellow-100 text-yellow-800 shrink-0">
+                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-400 shrink-0">
                     <Trophy className="h-3 w-3 mr-1" />
                     Best
                   </Badge>

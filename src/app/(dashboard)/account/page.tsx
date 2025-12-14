@@ -51,10 +51,10 @@ export default function AccountPage() {
   if (loading) {
     return (
       <div className="animate-pulse space-y-6">
-        <div className="h-8 w-48 bg-gray-200 rounded" />
+        <div className="h-8 w-48 bg-muted rounded" />
         <div className="grid gap-6 md:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-gray-200 rounded-lg" />
+            <div key={i} className="h-32 bg-muted rounded-lg" />
           ))}
         </div>
       </div>
@@ -64,24 +64,24 @@ export default function AccountPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Account Overview</h1>
-        <p className="text-gray-500 mt-1">Manage your account settings and view your usage.</p>
+        <h1 className="text-2xl font-bold text-foreground">Account Overview</h1>
+        <p className="text-muted-foreground mt-1">Manage your account settings and view your usage.</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid gap-6 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Credits Balance
             </CardTitle>
-            <CreditCard className="h-4 w-4 text-gray-400" />
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{stats?.creditsBalance || 0}</div>
             <Link
               href="/account/billing"
-              className="text-sm text-blue-600 hover:underline mt-2 inline-flex items-center gap-1"
+              className="text-sm text-primary hover:underline mt-2 inline-flex items-center gap-1"
             >
               Buy more credits <ArrowRight className="w-3 h-3" />
             </Link>
@@ -90,14 +90,14 @@ export default function AccountPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Research Runs
             </CardTitle>
-            <BarChart3 className="h-4 w-4 text-gray-400" />
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{stats?.totalRuns || 0}</div>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-muted-foreground mt-2">
               Total runs completed
             </p>
           </CardContent>
@@ -105,14 +105,14 @@ export default function AccountPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Member Since
             </CardTitle>
-            <Clock className="h-4 w-4 text-gray-400" />
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold">{stats?.memberSince || '-'}</div>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-muted-foreground mt-2">
               {stats?.totalPurchased || 0} credits purchased
             </p>
           </CardContent>
@@ -122,8 +122,8 @@ export default function AccountPage() {
       {/* Quick Actions */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="p-6">
-          <h3 className="font-semibold text-gray-900">Need more credits?</h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <h3 className="font-semibold text-foreground">Need more credits?</h3>
+          <p className="text-sm text-muted-foreground mt-1">
             Purchase credit packs to continue running research.
           </p>
           <Link href="/account/billing">
@@ -132,8 +132,8 @@ export default function AccountPage() {
         </Card>
 
         <Card className="p-6">
-          <h3 className="font-semibold text-gray-900">Start New Research</h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <h3 className="font-semibold text-foreground">Start New Research</h3>
+          <p className="text-sm text-muted-foreground mt-1">
             Validate your next business hypothesis with AI-powered research.
           </p>
           <Link href="/research">
@@ -145,12 +145,12 @@ export default function AccountPage() {
       {/* Support Section */}
       <Card className="p-6">
         <div className="flex items-start gap-4">
-          <div className="p-3 bg-blue-100 rounded-lg">
-            <MessageCircle className="h-6 w-6 text-blue-600" />
+          <div className="p-3 bg-blue-100 dark:bg-blue-950 rounded-lg">
+            <MessageCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-gray-900">Need Help?</h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <h3 className="font-semibold text-foreground">Need Help?</h3>
+            <p className="text-sm text-muted-foreground mt-1">
               Have questions or feedback? Click the chat bubble in the corner to reach us.
             </p>
           </div>

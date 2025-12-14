@@ -177,15 +177,15 @@ function hasSubstantiveTitle(title: string): boolean {
 /**
  * Stage 3: Quality Gate - Fast code-only filtering
  * Removes garbage posts before any AI processing
- * Also tracks removed posts with substantive titles for potential recovery
+ * Also tracks removed posts with substantive titles for title-only analysis
  */
 export function qualityGateFilter<T extends RedditPost | RedditComment>(
   items: T[],
   minContentLength: number = 50
-): { passed: T[]; filtered: T[]; recoverable: T[]; decisions: RelevanceDecision[] } {
+): { passed: T[]; filtered: T[]; titleOnly: T[]; decisions: RelevanceDecision[] } {
   const passed: T[] = []
   const filtered: T[] = []
-  const recoverable: T[] = [] // Posts with [removed] body but substantive title
+  const titleOnly: T[] = [] // Posts with [removed] body - analyzed by title only
   const decisions: RelevanceDecision[] = []
 
   for (const item of items) {
@@ -200,17 +200,17 @@ export function qualityGateFilter<T extends RedditPost | RedditComment>(
 
     // Check 1: Removed/deleted content
     if (isRemovedOrDeleted(body)) {
-      // For posts with substantive titles, mark as recoverable instead of filtered
+      // For posts with substantive titles, analyze by title only
       if (isPost && hasSubstantiveTitle(title)) {
-        recoverable.push(item)
+        titleOnly.push(item)
         decisions.push({
           reddit_id: item.id,
           title: title,
-          body_preview: '[removed] - recoverable via title',
+          body_preview: '[removed] - title only',
           subreddit: item.subreddit,
           decision: 'N',
           stage: 'quality',
-          reason: 'removed_recoverable',
+          reason: 'title_only',
         })
         continue // Don't add to filtered
       }
@@ -245,7 +245,7 @@ export function qualityGateFilter<T extends RedditPost | RedditComment>(
     }
   }
 
-  return { passed, filtered, recoverable, decisions }
+  return { passed, filtered, titleOnly, decisions }
 }
 
 // ============================================================================
@@ -812,10 +812,10 @@ export async function filterRelevantPosts(
   metrics.stage3Filtered = stage3.filtered.length
   allDecisions.push(...stage3.decisions)
 
-  const recoverableCount = stage3.recoverable.length
-  sendProgress?.(`Stage 3 (Quality): ${stage3.filtered.length} posts filtered, ${recoverableCount} recoverable via title`)
+  const titleOnlyCount = stage3.titleOnly.length
+  sendProgress?.(`Stage 3 (Quality): ${stage3.filtered.length} posts filtered, ${titleOnlyCount} title only`)
 
-  if (stage3.passed.length === 0 && stage3.recoverable.length === 0) {
+  if (stage3.passed.length === 0 && stage3.titleOnly.length === 0) {
     metrics.after = 0
     metrics.filteredOut = metrics.before
     metrics.filterRate = 100
@@ -852,74 +852,74 @@ export async function filterRelevantPosts(
   }
 
   // P0 FIX: ALWAYS include removed posts (not just when sparse)
-  // This recovers ~50% more signals that were previously lost
-  let recoveredCore: RedditPost[] = []
-  let recoveredRelated: RedditPost[] = []
-  if (stage3.recoverable.length > 0) {
-    sendProgress?.(`Recovering ${stage3.recoverable.length} posts with [removed] bodies via title analysis...`)
+  // These are analyzed by title only and weighted at 0.7x
+  let titleOnlyCore: RedditPost[] = []
+  let titleOnlyRelated: RedditPost[] = []
+  if (stage3.titleOnly.length > 0) {
+    sendProgress?.(`Including ${stage3.titleOnly.length} posts with [removed] bodies (title only)...`)
 
-    // Run domain gate on recoverable posts (using title only)
-    const recoverableDomain = await domainGateFilter(
-      stage3.recoverable as RedditPost[],
+    // Run domain gate on title-only posts
+    const titleOnlyDomain = await domainGateFilter(
+      stage3.titleOnly as RedditPost[],
       domain,
       antiDomains,
       (msg) => sendProgress?.(`[Title-only] ${msg}`)
     )
 
-    if (recoverableDomain.passed.length > 0) {
-      // Run problem match on domain-passed recoverable posts
-      const recoverableProblem = await problemMatchFilter(
-        recoverableDomain.passed,
+    if (titleOnlyDomain.passed.length > 0) {
+      // Run problem match on domain-passed title-only posts
+      const titleOnlyProblem = await problemMatchFilter(
+        titleOnlyDomain.passed,
         hypothesis,
         structured,
         (msg) => sendProgress?.(`[Title-only] ${msg}`)
       )
 
-      // Mark recovered posts - they'll be weighted at 0.7x in pain detection
-      const markAsRecovered = (post: RedditPost): RedditPost => ({
+      // Mark title-only posts - they'll be weighted at 0.7x in pain detection
+      const markAsTitleOnly = (post: RedditPost): RedditPost => ({
         ...post,
         body: `[Title-only analysis] ${post.title}`,
         _titleOnly: true,
       } as RedditPost)
 
-      recoveredCore = recoverableProblem.core.map(markAsRecovered)
-      recoveredRelated = recoverableProblem.related.map(markAsRecovered)
+      titleOnlyCore = titleOnlyProblem.core.map(markAsTitleOnly)
+      titleOnlyRelated = titleOnlyProblem.related.map(markAsTitleOnly)
 
-      metrics.titleOnlyPosts = recoveredCore.length + recoveredRelated.length
+      metrics.titleOnlyPosts = titleOnlyCore.length + titleOnlyRelated.length
 
-      // Update decisions for recovered posts with tier info
-      for (const post of recoveredCore) {
+      // Update decisions for title-only posts with tier info
+      for (const post of titleOnlyCore) {
         allDecisions.push({
           reddit_id: post.id,
           title: post.title,
-          body_preview: '[recovered via title-only analysis]',
+          body_preview: '[title-only analysis]',
           subreddit: post.subreddit,
           decision: 'Y',
           tier: 'CORE',
           stage: 'problem',
-          reason: 'title_only_recovery',
+          reason: 'title_only',
         })
       }
-      for (const post of recoveredRelated) {
+      for (const post of titleOnlyRelated) {
         allDecisions.push({
           reddit_id: post.id,
           title: post.title,
-          body_preview: '[recovered via title-only analysis]',
+          body_preview: '[title-only analysis]',
           subreddit: post.subreddit,
           decision: 'Y',
           tier: 'RELATED',
           stage: 'problem',
-          reason: 'title_only_recovery',
+          reason: 'title_only',
         })
       }
 
-      sendProgress?.(`Title-only recovery: ${recoveredCore.length} CORE + ${recoveredRelated.length} RELATED posts recovered`)
+      sendProgress?.(`Title-only: ${titleOnlyCore.length} CORE + ${titleOnlyRelated.length} RELATED posts included`)
     }
   }
 
-  // Combine full posts and recovered title-only posts by tier
-  const allCore = [...stage2Core, ...recoveredCore]
-  const allRelated = [...stage2Related, ...recoveredRelated]
+  // Combine full posts and title-only posts by tier
+  const allCore = [...stage2Core, ...titleOnlyCore]
+  const allRelated = [...stage2Related, ...titleOnlyRelated]
   const finalPosts = [...allCore, ...allRelated]
 
   // Update metrics
@@ -987,7 +987,7 @@ export async function filterRelevantComments(
   }
 
   // Stage 3: Quality Gate (shorter min length for comments)
-  // Note: recoverable is not used for comments since they don't have titles
+  // Note: titleOnly is not used for comments since they don't have titles
   const stage3 = qualityGateFilter(comments, 30)
   metrics.stage3Filtered = stage3.filtered.length
   allDecisions.push(...stage3.decisions)

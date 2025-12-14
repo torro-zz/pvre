@@ -296,12 +296,12 @@ export default async function ResearchDetailPage({
               <Badge
                 className={
                   researchJob.status === 'completed'
-                    ? 'bg-green-100 text-green-700'
+                    ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400'
                     : researchJob.status === 'processing'
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400'
                     : researchJob.status === 'failed'
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-gray-100 text-gray-700'
+                    ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400'
+                    : 'bg-muted text-muted-foreground'
                 }
               >
                 {researchJob.status.charAt(0).toUpperCase() + researchJob.status.slice(1)}
@@ -657,37 +657,37 @@ export default async function ResearchDetailPage({
 
                       {/* TAM/SAM/SOM Breakdown */}
                       <div className="space-y-4">
-                        <div className="p-4 bg-blue-50 rounded-lg">
+                        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-blue-900">TAM (Total Addressable Market)</span>
-                            <span className="text-blue-700 font-bold">
+                            <span className="font-medium text-blue-900 dark:text-blue-100">TAM (Total Addressable Market)</span>
+                            <span className="text-blue-700 dark:text-blue-300 font-bold">
                               {marketData.tam.value.toLocaleString()} users
                             </span>
                           </div>
-                          <p className="text-sm text-blue-700">{marketData.tam.description}</p>
-                          <p className="text-xs text-blue-600 mt-1">{marketData.tam.reasoning}</p>
+                          <p className="text-sm text-blue-700 dark:text-blue-300">{marketData.tam.description}</p>
+                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">{marketData.tam.reasoning}</p>
                         </div>
 
-                        <div className="p-4 bg-green-50 rounded-lg">
+                        <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-green-900">SAM (Serviceable Available Market)</span>
-                            <span className="text-green-700 font-bold">
+                            <span className="font-medium text-green-900 dark:text-green-100">SAM (Serviceable Available Market)</span>
+                            <span className="text-green-700 dark:text-green-300 font-bold">
                               {marketData.sam.value.toLocaleString()} users
                             </span>
                           </div>
-                          <p className="text-sm text-green-700">{marketData.sam.description}</p>
-                          <p className="text-xs text-green-600 mt-1">{marketData.sam.reasoning}</p>
+                          <p className="text-sm text-green-700 dark:text-green-300">{marketData.sam.description}</p>
+                          <p className="text-xs text-green-600 dark:text-green-400 mt-1">{marketData.sam.reasoning}</p>
                         </div>
 
-                        <div className="p-4 bg-purple-50 rounded-lg">
+                        <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-purple-900">SOM (Serviceable Obtainable Market)</span>
-                            <span className="text-purple-700 font-bold">
+                            <span className="font-medium text-purple-900 dark:text-purple-100">SOM (Serviceable Obtainable Market)</span>
+                            <span className="text-purple-700 dark:text-purple-300 font-bold">
                               {marketData.som.value.toLocaleString()} users
                             </span>
                           </div>
-                          <p className="text-sm text-purple-700">{marketData.som.description}</p>
-                          <p className="text-xs text-purple-600 mt-1">{marketData.som.reasoning}</p>
+                          <p className="text-sm text-purple-700 dark:text-purple-300">{marketData.som.description}</p>
+                          <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">{marketData.som.reasoning}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -869,23 +869,23 @@ export default async function ResearchDetailPage({
                       {/* Tailwinds */}
                       {timingData.tailwinds && timingData.tailwinds.length > 0 && (
                         <div className="mb-6">
-                          <h4 className="font-medium text-green-700 mb-3 flex items-center gap-2">
+                          <h4 className="font-medium text-green-700 dark:text-green-400 mb-3 flex items-center gap-2">
                             <span className="text-lg">↑</span> Tailwinds ({timingData.tailwinds.length})
                           </h4>
                           <div className="space-y-3">
                             {timingData.tailwinds.map((tw, i) => (
-                              <div key={i} className="p-3 bg-green-50 rounded-lg border border-green-200">
+                              <div key={i} className="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="font-medium text-green-900">{tw.signal}</span>
+                                  <span className="font-medium text-green-900 dark:text-green-100">{tw.signal}</span>
                                   <Badge variant="outline" className={
-                                    tw.impact === 'high' ? 'bg-green-100 text-green-800 border-green-300' :
-                                    tw.impact === 'medium' ? 'bg-green-50 text-green-700 border-green-200' :
-                                    'bg-gray-50 text-gray-600 border-gray-200'
+                                    tw.impact === 'high' ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-300 dark:border-green-700' :
+                                    tw.impact === 'medium' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800' :
+                                    'bg-muted text-muted-foreground border-border'
                                   }>
                                     {tw.impact} impact
                                   </Badge>
                                 </div>
-                                <p className="text-sm text-green-700">{tw.description}</p>
+                                <p className="text-sm text-green-700 dark:text-green-300">{tw.description}</p>
                               </div>
                             ))}
                           </div>
@@ -895,23 +895,23 @@ export default async function ResearchDetailPage({
                       {/* Headwinds */}
                       {timingData.headwinds && timingData.headwinds.length > 0 && (
                         <div>
-                          <h4 className="font-medium text-red-700 mb-3 flex items-center gap-2">
+                          <h4 className="font-medium text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
                             <span className="text-lg">↓</span> Headwinds ({timingData.headwinds.length})
                           </h4>
                           <div className="space-y-3">
                             {timingData.headwinds.map((hw, i) => (
-                              <div key={i} className="p-3 bg-red-50 rounded-lg border border-red-200">
+                              <div key={i} className="p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="font-medium text-red-900">{hw.signal}</span>
+                                  <span className="font-medium text-red-900 dark:text-red-100">{hw.signal}</span>
                                   <Badge variant="outline" className={
-                                    hw.impact === 'high' ? 'bg-red-100 text-red-800 border-red-300' :
-                                    hw.impact === 'medium' ? 'bg-red-50 text-red-700 border-red-200' :
-                                    'bg-gray-50 text-gray-600 border-gray-200'
+                                    hw.impact === 'high' ? 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-700' :
+                                    hw.impact === 'medium' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800' :
+                                    'bg-muted text-muted-foreground border-border'
                                   }>
                                     {hw.impact} impact
                                   </Badge>
                                 </div>
-                                <p className="text-sm text-red-700">{hw.description}</p>
+                                <p className="text-sm text-red-700 dark:text-red-300">{hw.description}</p>
                               </div>
                             ))}
                           </div>

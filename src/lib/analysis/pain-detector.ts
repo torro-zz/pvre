@@ -72,6 +72,82 @@ const WTP_EXCLUSION_PATTERNS = [
 ]
 
 // =============================================================================
+// EMOTION DETECTION KEYWORDS
+// =============================================================================
+// Keywords that indicate the primary emotion in a pain signal
+
+const EMOTION_KEYWORDS: Record<EmotionType, string[]> = {
+  frustration: [
+    'frustrated', 'frustrating', 'frustration', 'annoying', 'annoyed',
+    'hate', 'hated', 'hating', 'infuriating', 'maddening', 'aggravating',
+    'fed up', 'sick of', 'tired of', 'done with', 'furious', 'angry',
+    'pissed', 'irritated', 'irritating', "can't stand", 'ugh', 'argh'
+  ],
+  anxiety: [
+    'worried', 'worrying', 'anxious', 'anxiety', 'stressed', 'stressing',
+    'nervous', 'panicking', 'panic', 'scared', 'afraid', 'terrified',
+    'overwhelming', 'overwhelmed', 'dread', 'dreading', 'fear', 'fearful',
+    'uncertain', 'unsure', 'paranoid', 'freaking out'
+  ],
+  disappointment: [
+    'disappointed', 'disappointing', 'disappointment', 'letdown', 'let down',
+    'underwhelming', 'underwhelmed', 'expected more', 'not what i hoped',
+    'sad', 'sadly', 'unfortunate', 'unfortunately', 'regret', 'regretted',
+    'wish', 'wished', 'if only', 'should have been', 'could have been'
+  ],
+  confusion: [
+    'confused', 'confusing', 'confusion', "don't understand", "can't figure",
+    'lost', 'no idea', 'unclear', 'makes no sense', 'baffling', 'baffled',
+    'puzzled', 'puzzling', 'perplexed', 'what am i doing wrong', 'help',
+    'how do i', 'why does', 'why is', 'stuck', 'clueless'
+  ],
+  hope: [
+    'hope', 'hoping', 'hopefully', 'looking for', 'searching for',
+    'need a solution', 'any recommendations', 'any suggestions', 'advice',
+    'wish there was', 'would love', 'would be great', 'dream', 'ideal',
+    'perfect would be', 'if only there was', 'someone should make'
+  ],
+  neutral: [] // Default when no emotion keywords match
+}
+
+/**
+ * Detect the primary emotion in a text based on keyword matching
+ */
+export function detectEmotion(text: string): EmotionType {
+  const lowerText = text.toLowerCase()
+  const emotionScores: Record<EmotionType, number> = {
+    frustration: 0,
+    anxiety: 0,
+    disappointment: 0,
+    confusion: 0,
+    hope: 0,
+    neutral: 0
+  }
+
+  // Score each emotion based on keyword matches
+  for (const [emotion, keywords] of Object.entries(EMOTION_KEYWORDS)) {
+    if (emotion === 'neutral') continue
+    for (const keyword of keywords) {
+      if (lowerText.includes(keyword)) {
+        emotionScores[emotion as EmotionType]++
+      }
+    }
+  }
+
+  // Find the emotion with the highest score
+  let maxEmotion: EmotionType = 'neutral'
+  let maxScore = 0
+  for (const [emotion, score] of Object.entries(emotionScores)) {
+    if (score > maxScore) {
+      maxScore = score
+      maxEmotion = emotion as EmotionType
+    }
+  }
+
+  return maxEmotion
+}
+
+// =============================================================================
 // KEYWORD TIERS - Comprehensive pain signal detection
 // =============================================================================
 
@@ -216,6 +292,7 @@ const WILLINGNESS_TO_PAY_KEYWORDS = {
 // =============================================================================
 
 export type RelevanceTier = 'CORE' | 'RELATED' | 'N'
+export type EmotionType = 'frustration' | 'anxiety' | 'disappointment' | 'confusion' | 'hope' | 'neutral'
 
 export interface PainSignal {
   text: string
@@ -227,6 +304,7 @@ export interface PainSignal {
   willingnessToPaySignal: boolean
   wtpConfidence: 'none' | 'low' | 'medium' | 'high'
   tier?: RelevanceTier  // CORE = intersection match, RELATED = single-domain match
+  emotion: EmotionType  // Primary emotion detected in the signal
   source: {
     type: 'post' | 'comment'
     id: string
@@ -251,6 +329,15 @@ export interface ScoreResult {
   // v2.0: Context flags for debugging
   hasNegativeContext: boolean
   hasWTPExclusion: boolean
+}
+
+export interface EmotionsBreakdown {
+  frustration: number
+  anxiety: number
+  disappointment: number
+  confusion: number
+  hope: number
+  neutral: number
 }
 
 export interface PainSummary {
@@ -280,6 +367,8 @@ export interface PainSummary {
   }
   // Average recency score (0-1, higher = more recent)
   recencyScore: number
+  // v4.0: Emotions breakdown (optional for backward compatibility)
+  emotionsBreakdown?: EmotionsBreakdown
 }
 
 // =============================================================================
@@ -706,8 +795,9 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
 
     // Only include posts with some pain signals
     if (finalScore > 0 || scoreResult.signals.length > 0) {
+      const textForAnalysis = titleOnly ? post.title : (post.body || post.title)
       painSignals.push({
-        text: titleOnly ? post.title : (post.body || post.title),
+        text: textForAnalysis,
         title: post.title,
         score: finalScore,
         intensity: getIntensity(finalScore),
@@ -717,6 +807,7 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
         solutionSeeking: scoreResult.solutionSeekingCount > 0,
         willingnessToPaySignal: scoreResult.willingnessToPayCount > 0,
         wtpConfidence: scoreResult.wtpConfidence,
+        emotion: detectEmotion(textForAnalysis),
         source: {
           type: 'post',
           id: post.id,
@@ -758,6 +849,7 @@ export function analyzeComments(comments: RedditComment[]): PainSignal[] {
         solutionSeeking: scoreResult.solutionSeekingCount > 0,
         willingnessToPaySignal: scoreResult.willingnessToPayCount > 0,
         wtpConfidence: scoreResult.wtpConfidence,
+        emotion: detectEmotion(comment.body),
         source: {
           type: 'comment',
           id: comment.id,
@@ -805,6 +897,15 @@ export function combinePainSignals(
  * Provides the data needed for the PVRE transparency display
  */
 export function getPainSummary(signals: PainSignal[]): PainSummary {
+  const emptyEmotions: EmotionsBreakdown = {
+    frustration: 0,
+    anxiety: 0,
+    disappointment: 0,
+    confusion: 0,
+    hope: 0,
+    neutral: 0,
+  }
+
   if (signals.length === 0) {
     return {
       totalSignals: 0,
@@ -825,12 +926,14 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
         older: 0,
       },
       recencyScore: 0,
+      emotionsBreakdown: emptyEmotions,
     }
   }
 
   const subredditCounts: Record<string, number> = {}
   const signalCounts: Record<string, number> = {}
   const wtpQuotes: { text: string; subreddit: string }[] = []
+  const emotionCounts: EmotionsBreakdown = { ...emptyEmotions }
 
   let totalScore = 0
   let highCount = 0
@@ -867,6 +970,9 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
         })
       }
     }
+
+    // v4.0: Count emotions
+    emotionCounts[signal.emotion]++
 
     subredditCounts[signal.source.subreddit] =
       (subredditCounts[signal.source.subreddit] || 0) + 1
@@ -930,6 +1036,7 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
     temporalDistribution,
     dateRange,
     recencyScore: Math.max(0, Math.min(1, recencyScore)),
+    emotionsBreakdown: emotionCounts,
   }
 }
 

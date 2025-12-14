@@ -120,12 +120,15 @@ export interface ResearchJob {
   updated_at: string
 }
 
+export type EmotionType = 'frustration' | 'anxiety' | 'disappointment' | 'confusion' | 'hope' | 'neutral'
+
 export interface PainSignal {
   text: string
   source_url: string
   subreddit: string
   intensity: 'low' | 'medium' | 'high'
   category: string
+  emotion?: EmotionType  // Primary emotion detected in the signal
 }
 
 export interface Competitor {

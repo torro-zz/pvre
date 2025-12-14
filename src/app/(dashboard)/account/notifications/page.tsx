@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Bell, Check, Mail } from 'lucide-react'
+import { Bell, Check, Mail, Monitor, Moon, Sun, Palette } from 'lucide-react'
 
 interface NotificationPreferences {
   email_research_complete: boolean
@@ -44,6 +45,8 @@ const notificationOptions = [
 ]
 
 export default function NotificationsPage() {
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     email_research_complete: true,
     email_low_credits: true,
@@ -53,6 +56,10 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     const fetchPreferences = async () => {
@@ -93,11 +100,17 @@ export default function NotificationsPage() {
   if (loading) {
     return (
       <div className="animate-pulse space-y-6">
-        <div className="h-8 w-48 bg-gray-200 rounded" />
-        <div className="h-64 bg-gray-200 rounded-lg" />
+        <div className="h-8 w-48 bg-secondary rounded" />
+        <div className="h-64 bg-secondary rounded-lg" />
       </div>
     )
   }
+
+  const themeOptions = [
+    { value: 'system', label: 'System', icon: Monitor, description: 'Follow system settings' },
+    { value: 'light', label: 'Light', icon: Sun, description: 'Always use light mode' },
+    { value: 'dark', label: 'Dark', icon: Moon, description: 'Always use dark mode' },
+  ]
 
   const essentialOptions = notificationOptions.filter((o) => o.category === 'essential')
   const marketingOptions = notificationOptions.filter((o) => o.category === 'marketing')
@@ -105,9 +118,51 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Notification Preferences</h1>
-        <p className="text-gray-500 mt-1">Choose what emails you'd like to receive.</p>
+        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <p className="text-muted-foreground mt-1">Manage your preferences.</p>
       </div>
+
+      {/* Appearance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="w-5 h-5" />
+            Appearance
+          </CardTitle>
+          <CardDescription>
+            Choose how PVRE looks to you.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {mounted && (
+            <div className="grid grid-cols-3 gap-3">
+              {themeOptions.map((option) => {
+                const Icon = option.icon
+                const isSelected = theme === option.value
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => setTheme(option.value)}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                      isSelected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50 hover:bg-secondary/50'
+                    }`}
+                  >
+                    <Icon className={`w-6 h-6 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <span className={`text-sm font-medium ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+                      {option.label}
+                    </span>
+                    <span className="text-xs text-muted-foreground text-center">
+                      {option.description}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Essential Notifications */}
       <Card>
@@ -124,13 +179,13 @@ export default function NotificationsPage() {
           {essentialOptions.map((option) => (
             <label
               key={option.key}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+              className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg cursor-pointer hover:bg-secondary"
             >
               <div className="flex items-start gap-3">
-                <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
+                <Mail className="w-5 h-5 text-muted-foreground mt-0.5" />
                 <div>
-                  <p className="font-medium text-gray-900">{option.label}</p>
-                  <p className="text-sm text-gray-500">{option.description}</p>
+                  <p className="font-medium text-foreground">{option.label}</p>
+                  <p className="text-sm text-muted-foreground">{option.description}</p>
                 </div>
               </div>
               <div className="relative">
@@ -140,7 +195,7 @@ export default function NotificationsPage() {
                   checked={preferences[option.key]}
                   onChange={() => handleToggle(option.key)}
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </div>
             </label>
           ))}
@@ -159,13 +214,13 @@ export default function NotificationsPage() {
           {marketingOptions.map((option) => (
             <label
               key={option.key}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+              className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg cursor-pointer hover:bg-secondary"
             >
               <div className="flex items-start gap-3">
-                <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
+                <Mail className="w-5 h-5 text-muted-foreground mt-0.5" />
                 <div>
-                  <p className="font-medium text-gray-900">{option.label}</p>
-                  <p className="text-sm text-gray-500">{option.description}</p>
+                  <p className="font-medium text-foreground">{option.label}</p>
+                  <p className="text-sm text-muted-foreground">{option.description}</p>
                 </div>
               </div>
               <div className="relative">
@@ -175,7 +230,7 @@ export default function NotificationsPage() {
                   checked={preferences[option.key]}
                   onChange={() => handleToggle(option.key)}
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </div>
             </label>
           ))}

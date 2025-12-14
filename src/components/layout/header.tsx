@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState, useMemo } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { CreditCard, User as UserIcon, Settings, LogOut, ChevronDown, Shield } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 // Check if user is admin (client-side)
 function isAdminEmail(email: string | null | undefined): boolean {
@@ -92,12 +93,13 @@ export function Header() {
   }
 
   return (
-    <header className="border-b bg-white">
+    <header className="border-b bg-background">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="text-xl font-bold">
           PVRE
         </Link>
         <nav className="flex items-center gap-4">
+          <ThemeToggle />
           {mounted && user ? (
             <>
               <Link href="/dashboard">
@@ -109,18 +111,18 @@ export function Header() {
                 href="/account/billing"
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                   credits !== null && credits <= 1
-                    ? 'bg-red-100 hover:bg-red-200 text-red-700'
+                    ? 'bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-950 dark:hover:bg-red-900 dark:text-red-400'
                     : credits !== null && credits <= 3
-                    ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-700'
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-700 dark:bg-yellow-950 dark:hover:bg-yellow-900 dark:text-yellow-400'
+                    : 'bg-secondary hover:bg-secondary/80 text-secondary-foreground'
                 }`}
               >
                 <CreditCard className={`w-4 h-4 ${
                   credits !== null && credits <= 1
-                    ? 'text-red-500'
+                    ? 'text-red-500 dark:text-red-400'
                     : credits !== null && credits <= 3
-                    ? 'text-yellow-500'
-                    : 'text-gray-500'
+                    ? 'text-yellow-500 dark:text-yellow-400'
+                    : 'text-muted-foreground'
                 }`} />
                 <span>{credits ?? '...'} credits</span>
                 {credits !== null && credits <= 3 && (
@@ -132,12 +134,12 @@ export function Header() {
               <div className="relative">
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-secondary transition-colors"
                 >
-                  <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                    <UserIcon className="w-4 h-4 text-gray-600" />
+                  <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center">
+                    <UserIcon className="w-4 h-4 text-muted-foreground" />
                   </div>
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
                 </button>
 
                 {menuOpen && (
@@ -146,11 +148,11 @@ export function Header() {
                       className="fixed inset-0 z-10"
                       onClick={() => setMenuOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-20">
+                    <div className="absolute right-0 mt-2 w-48 bg-popover rounded-lg shadow-lg border py-1 z-20">
                       <Link
                         href="/account"
                         onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-popover-foreground hover:bg-secondary"
                       >
                         <UserIcon className="w-4 h-4" />
                         Account
@@ -158,7 +160,7 @@ export function Header() {
                       <Link
                         href="/account/billing"
                         onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-popover-foreground hover:bg-secondary"
                       >
                         <CreditCard className="w-4 h-4" />
                         Billing
@@ -166,7 +168,7 @@ export function Header() {
                       <Link
                         href="/account/notifications"
                         onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-popover-foreground hover:bg-secondary"
                       >
                         <Settings className="w-4 h-4" />
                         Settings
@@ -175,19 +177,19 @@ export function Header() {
                         <Link
                           href="/admin"
                           onClick={() => setMenuOpen(false)}
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-purple-700 hover:bg-purple-50"
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950"
                         >
                           <Shield className="w-4 h-4" />
                           Admin
                         </Link>
                       )}
-                      <hr className="my-1" />
+                      <hr className="my-1 border-border" />
                       <button
                         onClick={() => {
                           setMenuOpen(false)
                           handleSignOut()
                         }}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-gray-50 w-full"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-secondary w-full"
                       >
                         <LogOut className="w-4 h-4" />
                         Sign Out

@@ -40,8 +40,8 @@ export function APIHealthTab({
     return (
       <Card>
         <CardContent className="py-12 text-center">
-          <RefreshCw className="h-8 w-8 mx-auto mb-4 animate-spin text-gray-400" />
-          <p className="text-gray-500">Loading API health data...</p>
+          <RefreshCw className="h-8 w-8 mx-auto mb-4 animate-spin text-muted-foreground" />
+          <p className="text-muted-foreground">Loading API health data...</p>
         </CardContent>
       </Card>
     )
@@ -49,11 +49,11 @@ export function APIHealthTab({
 
   if (error) {
     return (
-      <Card className="border-red-200 bg-red-50">
+      <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950">
         <CardContent className="py-12 text-center">
-          <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
-          <p className="text-red-700 font-medium mb-2">Failed to Load API Health</p>
-          <p className="text-red-600 text-sm mb-4">{error}</p>
+          <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500 dark:text-red-400" />
+          <p className="text-red-700 dark:text-red-300 font-medium mb-2">Failed to Load API Health</p>
+          <p className="text-red-600 dark:text-red-400 text-sm mb-4">{error}</p>
           <Button onClick={onFetch} variant="outline">
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
@@ -67,8 +67,8 @@ export function APIHealthTab({
     return (
       <Card>
         <CardContent className="py-12 text-center">
-          <HeartPulse className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500 mb-4">Click to check API health status</p>
+          <HeartPulse className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground mb-4">Click to check API health status</p>
           <Button onClick={onFetch}>
             <HeartPulse className="h-4 w-4 mr-2" />
             Check API Health
@@ -82,52 +82,52 @@ export function APIHealthTab({
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className={apiHealth.pendingRefunds > 0 ? 'border-red-200 bg-red-50' : ''}>
+        <Card className={apiHealth.pendingRefunds > 0 ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950' : ''}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
-              <CreditCard className={`h-5 w-5 ${apiHealth.pendingRefunds > 0 ? 'text-red-500' : 'text-gray-400'}`} />
-              <span className="text-sm font-medium text-gray-500">Pending Refunds</span>
+              <CreditCard className={`h-5 w-5 ${apiHealth.pendingRefunds > 0 ? 'text-red-500 dark:text-red-400' : 'text-muted-foreground'}`} />
+              <span className="text-sm font-medium text-muted-foreground">Pending Refunds</span>
             </div>
-            <div className={`text-2xl font-bold ${apiHealth.pendingRefunds > 0 ? 'text-red-600' : 'text-green-600'}`}>
+            <div className={`text-2xl font-bold ${apiHealth.pendingRefunds > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
               {apiHealth.pendingRefunds}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Failed jobs with known cause</p>
+            <p className="text-xs text-muted-foreground mt-1">Failed jobs with known cause</p>
           </CardContent>
         </Card>
-        <Card className={apiHealth.stuckProcessing > 0 ? 'border-yellow-200 bg-yellow-50' : ''}>
+        <Card className={apiHealth.stuckProcessing > 0 ? 'border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950' : ''}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
-              <RefreshCw className={`h-5 w-5 ${apiHealth.stuckProcessing > 0 ? 'text-yellow-500' : 'text-gray-400'}`} />
-              <span className="text-sm font-medium text-gray-500">Stuck Processing</span>
+              <RefreshCw className={`h-5 w-5 ${apiHealth.stuckProcessing > 0 ? 'text-yellow-500 dark:text-yellow-400' : 'text-muted-foreground'}`} />
+              <span className="text-sm font-medium text-muted-foreground">Stuck Processing</span>
             </div>
-            <div className={`text-2xl font-bold ${apiHealth.stuckProcessing > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+            <div className={`text-2xl font-bold ${apiHealth.stuckProcessing > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}`}>
               {apiHealth.stuckProcessing}
             </div>
-            <p className="text-xs text-gray-500 mt-1">&gt;{apiHealth.staleThresholdMinutes} min in processing</p>
+            <p className="text-xs text-muted-foreground mt-1">&gt;{apiHealth.staleThresholdMinutes} min in processing</p>
           </CardContent>
         </Card>
-        <Card className={apiHealth.failedWithoutSource > 0 ? 'border-orange-200 bg-orange-50' : ''}>
+        <Card className={apiHealth.failedWithoutSource > 0 ? 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950' : ''}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className={`h-5 w-5 ${apiHealth.failedWithoutSource > 0 ? 'text-orange-500' : 'text-gray-400'}`} />
-              <span className="text-sm font-medium text-gray-500">Unknown Failures</span>
+              <AlertCircle className={`h-5 w-5 ${apiHealth.failedWithoutSource > 0 ? 'text-orange-500 dark:text-orange-400' : 'text-muted-foreground'}`} />
+              <span className="text-sm font-medium text-muted-foreground">Unknown Failures</span>
             </div>
-            <div className={`text-2xl font-bold ${apiHealth.failedWithoutSource > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+            <div className={`text-2xl font-bold ${apiHealth.failedWithoutSource > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>
               {apiHealth.failedWithoutSource}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Failed without error source</p>
+            <p className="text-xs text-muted-foreground mt-1">Failed without error source</p>
           </CardContent>
         </Card>
-        <Card className={Object.keys(apiHealth.errorSourceBreakdown).length === 0 ? 'border-green-200 bg-green-50' : ''}>
+        <Card className={Object.keys(apiHealth.errorSourceBreakdown).length === 0 ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950' : ''}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
-              <HeartPulse className={`h-5 w-5 ${Object.keys(apiHealth.errorSourceBreakdown).length === 0 ? 'text-green-500' : 'text-gray-400'}`} />
-              <span className="text-sm font-medium text-gray-500">System Health</span>
+              <HeartPulse className={`h-5 w-5 ${Object.keys(apiHealth.errorSourceBreakdown).length === 0 ? 'text-green-500 dark:text-green-400' : 'text-muted-foreground'}`} />
+              <span className="text-sm font-medium text-muted-foreground">System Health</span>
             </div>
-            <div className={`text-2xl font-bold ${Object.keys(apiHealth.errorSourceBreakdown).length === 0 ? 'text-green-600' : 'text-gray-600'}`}>
+            <div className={`text-2xl font-bold ${Object.keys(apiHealth.errorSourceBreakdown).length === 0 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
               {Object.keys(apiHealth.errorSourceBreakdown).length === 0 ? 'Healthy' : 'Issues'}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {Object.values(apiHealth.errorSourceBreakdown).reduce((a, b) => a + b, 0)} errors (24h)
             </p>
           </CardContent>
@@ -146,7 +146,7 @@ export function APIHealthTab({
               variant="outline"
               size="sm"
               onClick={onResetStats}
-              className="text-yellow-600 border-yellow-300 hover:bg-yellow-50"
+              className="text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700 hover:bg-yellow-50 dark:hover:bg-yellow-950"
             >
               <RotateCcw className="h-3 w-3 mr-1" />
               Reset Stats
@@ -155,35 +155,35 @@ export function APIHealthTab({
           <CardDescription>
             Which APIs or components caused failures
             {apiHealthResetAt ? (
-              <span className="text-xs text-blue-600 block mt-1">
+              <span className="text-xs text-blue-600 dark:text-blue-400 block mt-1">
                 Tracking since: {new Date(apiHealthResetAt).toLocaleDateString()} {new Date(apiHealthResetAt).toLocaleTimeString()}
                 {onClearReset && (
                   <button
                     onClick={onClearReset}
-                    className="ml-2 underline hover:text-blue-800"
+                    className="ml-2 underline hover:text-blue-800 dark:hover:text-blue-300"
                   >
                     (Show last 24h)
                   </button>
                 )}
               </span>
             ) : (
-              <span className="text-xs text-gray-500 block mt-1">Showing last 24 hours</span>
+              <span className="text-xs text-muted-foreground block mt-1">Showing last 24 hours</span>
             )}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {Object.keys(apiHealth.errorSourceBreakdown).length === 0 ? (
             <div className="text-center py-8">
-              <HeartPulse className="h-12 w-12 mx-auto mb-4 text-green-500" />
-              <p className="text-lg font-medium text-green-600">No API Failures</p>
-              <p className="text-gray-500 mt-1">All systems operating normally in the last 24 hours</p>
+              <HeartPulse className="h-12 w-12 mx-auto mb-4 text-green-500 dark:text-green-400" />
+              <p className="text-lg font-medium text-green-600 dark:text-green-400">No API Failures</p>
+              <p className="text-muted-foreground mt-1">All systems operating normally in the last 24 hours</p>
             </div>
           ) : (
             <div className="space-y-4">
               {Object.entries(apiHealth.errorSourceBreakdown)
                 .sort(([, a], [, b]) => b - a)
                 .map(([source, count]) => (
-                  <div key={source} className="flex items-center justify-between p-3 rounded-lg border bg-gray-50">
+                  <div key={source} className="flex items-center justify-between p-3 rounded-lg border bg-muted">
                     <div className="flex items-center gap-3">
                       <Badge variant={
                         source === 'anthropic' ? 'default' :
@@ -193,7 +193,7 @@ export function APIHealthTab({
                       }>
                         {source}
                       </Badge>
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-muted-foreground">
                         {source === 'anthropic' && 'Claude API errors'}
                         {source === 'arctic_shift' && 'Reddit data source errors'}
                         {source === 'database' && 'Database/Supabase errors'}
@@ -202,10 +202,10 @@ export function APIHealthTab({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-lg font-bold ${count >= 5 ? 'text-red-600' : count >= 3 ? 'text-yellow-600' : 'text-gray-600'}`}>
+                      <span className={`text-lg font-bold ${count >= 5 ? 'text-red-600 dark:text-red-400' : count >= 3 ? 'text-yellow-600 dark:text-yellow-400' : 'text-muted-foreground'}`}>
                         {count}
                       </span>
-                      <span className="text-sm text-gray-400">failures</span>
+                      <span className="text-sm text-muted-foreground">failures</span>
                     </div>
                   </div>
                 ))}
@@ -224,7 +224,7 @@ export function APIHealthTab({
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div>
               <h4 className="font-medium">Run Auto-Cleanup</h4>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Auto-refund {apiHealth.pendingRefunds} failed jobs with known error sources
               </p>
             </div>
