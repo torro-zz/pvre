@@ -18,6 +18,7 @@ import {
 import {
   extractThemes,
   generateInterviewQuestions,
+  calculateThemeResonance,
 } from '@/lib/analysis/theme-extractor'
 import {
   startTokenTracking,
@@ -303,6 +304,9 @@ export async function POST(request: NextRequest) {
         // Step 7: Extract themes
         send('themes', 'Extracting key themes with AI...')
         const themeAnalysis = await extractThemes(allPainSignals, hypothesis)
+
+        // Step 7b: Calculate resonance for each theme
+        themeAnalysis.themes = calculateThemeResonance(themeAnalysis.themes, allPainSignals)
         send('themes', `Identified ${themeAnalysis.themes.length} themes`, { themeCount: themeAnalysis.themes.length })
 
         // Step 8: Generate interview questions

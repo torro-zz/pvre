@@ -20,6 +20,7 @@ import {
 import {
   extractThemes,
   generateInterviewQuestions,
+  calculateThemeResonance,
   ThemeAnalysis,
 } from '@/lib/analysis/theme-extractor'
 import {
@@ -435,6 +436,9 @@ export async function POST(request: NextRequest) {
     // Step 7: Extract themes using Claude
     console.log('Step 7: Extracting themes with Claude')
     const themeAnalysis = await extractThemes(allPainSignals, hypothesis)
+
+    // Step 7b: Calculate resonance for each theme
+    themeAnalysis.themes = calculateThemeResonance(themeAnalysis.themes, allPainSignals)
 
     // Step 8: Generate interview questions
     console.log('Step 8: Generating interview questions')

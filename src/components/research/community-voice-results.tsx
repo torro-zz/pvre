@@ -27,6 +27,7 @@ import {
   ArrowRight,
   Building2,
   HelpCircle,
+  Zap,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useResearchTabs } from './research-tabs-context'
@@ -255,6 +256,23 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                   <div className="flex items-start justify-between mb-2">
                     <h4 className="font-semibold">{theme.name}</h4>
                     <div className="flex items-center gap-2">
+                      {/* Resonance Badge */}
+                      {theme.resonance && (
+                        <Badge
+                          variant="outline"
+                          className={
+                            theme.resonance === 'high'
+                              ? 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                              : theme.resonance === 'medium'
+                              ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400'
+                              : 'border-muted-foreground/30 bg-muted/30 text-muted-foreground'
+                          }
+                        >
+                          <Zap className="h-3 w-3 mr-1" />
+                          {theme.resonance === 'high' ? 'High' : theme.resonance === 'medium' ? 'Med' : 'Low'} resonance
+                        </Badge>
+                      )}
+                      {/* Intensity Badge */}
                       <Badge
                         variant={
                           theme.intensity === 'high'
