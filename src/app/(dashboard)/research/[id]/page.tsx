@@ -16,6 +16,7 @@ import Link from 'next/link'
 import { ArrowLeft, Calendar, Clock, AlertCircle, TrendingUp, Shield, Target, PieChart, Timer } from 'lucide-react'
 import { PDFDownloadButton } from '@/components/research/pdf-download-button'
 import { ReportProblem } from '@/components/research/report-problem'
+import { AskAnythingSidebar } from '@/components/research/ask-anything-sidebar'
 import { ResearchMetadata } from '@/components/research/research-metadata'
 import { StatusPoller } from '@/components/research/status-poller'
 import { ResearchTrigger } from '@/components/research/research-trigger'
@@ -254,8 +255,13 @@ export default async function ResearchDetailPage({
   // For backwards compatibility
   const result = communityVoiceResult
 
+  // Determine if we should show the sidebar (only when we have completed results)
+  const showSidebar = researchJob.status === 'completed' && (communityVoiceResult?.data || competitorResult?.data)
+
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="flex gap-6 max-w-7xl mx-auto">
+      {/* Main Content */}
+      <div className={showSidebar ? "flex-1 min-w-0" : "max-w-4xl mx-auto w-full"}>
       {/* Back button and header */}
       <div className="mb-6">
           <Link href="/dashboard">
@@ -996,6 +1002,16 @@ export default async function ResearchDetailPage({
             <ReportProblem jobId={researchJob.id} />
           </div>
         )}
+      </div>
+
+      {/* Chat Sidebar */}
+      {showSidebar && (
+        <div className="hidden lg:block w-80 flex-shrink-0">
+          <div className="sticky top-4 h-[calc(100vh-6rem)] rounded-lg border shadow-sm overflow-hidden">
+            <AskAnythingSidebar jobId={id} hypothesis={researchJob.hypothesis} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
