@@ -167,15 +167,23 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
               <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
                 Total posts and comments that passed relevance filtering and were analyzed for pain signals.
+                {results.metadata.filteringMetrics?.titleOnlyPosts ? ' Includes recovered posts where body was removed but title was substantive.' : ''}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
               </div>
             </div>
             <p className="text-2xl font-bold mt-1">
               {results.metadata.postsAnalyzed + (results.metadata.commentsAnalyzed || 0)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {results.metadata.postsAnalyzed} posts + {results.metadata.commentsAnalyzed || 0} comments
-            </p>
+            {/* Show breakdown with recovered posts if any */}
+            {results.metadata.filteringMetrics?.titleOnlyPosts ? (
+              <p className="text-xs text-muted-foreground mt-1">
+                {results.metadata.postsAnalyzed - results.metadata.filteringMetrics.titleOnlyPosts} full + {results.metadata.filteringMetrics.titleOnlyPosts} recovered + {results.metadata.commentsAnalyzed || 0} comments
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-1">
+                {results.metadata.postsAnalyzed} posts + {results.metadata.commentsAnalyzed || 0} comments
+              </p>
+            )}
           </CardContent>
         </Card>
 

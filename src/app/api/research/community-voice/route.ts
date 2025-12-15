@@ -75,6 +75,8 @@ export interface FilteringMetrics {
   // Signal tiering for multi-domain hypotheses
   coreSignals: number       // CORE: intersection match (problem + context)
   relatedSignals: number    // RELATED: single-domain match (broader context)
+  // Title-only posts (recovered from [removed] content)
+  titleOnlyPosts: number    // Posts analyzed by title only (body was removed)
   // P0 FIX: Stage 2 (problem-specific) filter metrics
   stage2FilterRate?: number  // % of Stage 1 passes that failed Stage 2
   narrowProblemWarning?: boolean  // True if >50% of Stage 1 passes failed Stage 2
@@ -425,6 +427,8 @@ export async function POST(request: NextRequest) {
       // Signal tiering for multi-domain hypotheses
       coreSignals: postFilterResult.metrics.coreSignals,
       relatedSignals: postFilterResult.metrics.relatedSignals,
+      // Title-only posts (recovered from [removed] content)
+      titleOnlyPosts: postFilterResult.metrics.titleOnlyPosts,
       // P0 FIX: Include Stage 2 filter metrics
       stage2FilterRate: postFilterResult.metrics.stage2FilterRate,
       narrowProblemWarning: postFilterResult.metrics.narrowProblemWarning,
