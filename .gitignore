@@ -46,4 +46,7 @@ yarn-error.log*
 next-env.d.ts
 
 # internal docs (not for public/GitHub)
-docs/INTERNAL_*
+docs/
+
+# stray build artifacts
+.next */
