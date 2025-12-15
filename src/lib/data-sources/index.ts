@@ -1,6 +1,11 @@
-// Data Source Orchestrator
-// Manages multiple data sources with automatic failover and caching
-// Supports: Reddit (Arctic Shift, PullPush) and Hacker News (Algolia)
+/**
+ * Data Source Orchestration Layer
+ *
+ * Main entry point for data fetching across multiple sources.
+ * Uses the Phase 3 adapter architecture while maintaining backward compatibility.
+ *
+ * Supports: Reddit (Arctic Shift, PullPush) and Hacker News (Algolia)
+ */
 
 import {
   DataSource,
@@ -12,46 +17,37 @@ import {
   RedditComment,
   SamplePost,
 } from './types'
-import { ArcticShiftSource } from './arctic-shift'
+import { RedditAdapter, redditAdapter } from './adapters/reddit-adapter'
+import { HackerNewsAdapter, hackerNewsAdapter } from './adapters/hacker-news-adapter'
 import { PullPushSource } from './pullpush'
 import { getCachedData, setCachedData, generateCacheKey } from './cache'
-import {
-  searchHNStories,
-  searchAskHN,
-  searchHNComments,
-  getHNSamplePosts,
-  getHNPostCount,
-  isHNAvailable,
-} from './hacker-news'
 
-// Keywords that indicate HN should be included as a data source
-const TECH_KEYWORDS = [
-  'startup', 'saas', 'developer', 'engineer', 'programmer', 'coding',
-  'software', 'app', 'api', 'tech', 'technology', 'ai', 'ml', 'machine learning',
-  'bootstrap', 'indie', 'maker', 'founder', 'entrepreneur', 'vc', 'funding',
-  'devtools', 'developer tools', 'open source', 'cloud', 'infra', 'infrastructure',
-  'b2b', 'enterprise', 'automation', 'workflow', 'productivity tool',
+// Re-export the orchestrator and adapters
+export { orchestrator, shouldIncludeHN } from './orchestrator'
+export { RedditAdapter, redditAdapter } from './adapters/reddit-adapter'
+export { HackerNewsAdapter, hackerNewsAdapter } from './adapters/hacker-news-adapter'
+
+// Initialize legacy data sources for Reddit failover
+// The new RedditAdapter wraps Arctic Shift; we keep PullPush as fallback
+const legacySources: DataSource[] = [
+  // Wrap the new adapter in the legacy DataSource interface
+  {
+    name: redditAdapter.name,
+    isAvailable: () => redditAdapter.healthCheck(),
+    searchPosts: (params) => redditAdapter.searchPostsLegacy(params),
+    searchComments: (params) => redditAdapter.searchCommentsLegacy(params),
+    getPostCount: (subreddit, keywords) => redditAdapter.getPostCount(subreddit),
+    getSamplePosts: (subreddit, limit, keywords) =>
+      redditAdapter.getSamplePostsWithKeywords(subreddit, limit, keywords),
+  },
+  new PullPushSource(), // Fallback
 ]
 
 /**
- * Check if hypothesis should include Hacker News as a source
- */
-export function shouldIncludeHN(hypothesis: string): boolean {
-  const lowerHypothesis = hypothesis.toLowerCase()
-  return TECH_KEYWORDS.some(keyword => lowerHypothesis.includes(keyword))
-}
-
-// Initialize data sources in priority order
-const sources: DataSource[] = [
-  new ArcticShiftSource(),
-  new PullPushSource(),
-]
-
-/**
- * Get the first available data source
+ * Get the first available data source (for Reddit)
  */
 export async function getAvailableSource(): Promise<DataSource | null> {
-  for (const source of sources) {
+  for (const source of legacySources) {
     try {
       if (await source.isAvailable()) {
         return source
@@ -70,8 +66,9 @@ export async function getAvailableSource(): Promise<DataSource | null> {
 export async function checkSourcesStatus(): Promise<Record<string, boolean>> {
   const status: Record<string, boolean> = {}
 
+  // Check Reddit sources
   await Promise.all(
-    sources.map(async (source) => {
+    legacySources.map(async (source) => {
       try {
         status[source.name] = await source.isAvailable()
       } catch {
@@ -79,6 +76,13 @@ export async function checkSourcesStatus(): Promise<Record<string, boolean>> {
       }
     })
   )
+
+  // Check HN
+  try {
+    status['Hacker News'] = await hackerNewsAdapter.healthCheck()
+  } catch {
+    status['Hacker News'] = false
+  }
 
   return status
 }
@@ -109,7 +113,7 @@ export async function fetchRedditData(params: SearchParams): Promise<SearchResul
   }
 
   // 2. Try each data source in order
-  for (const source of sources) {
+  for (const source of legacySources) {
     try {
       const isUp = await source.isAvailable()
       if (!isUp) {
@@ -256,7 +260,6 @@ export async function checkCoverage(
   }
 
   // Fetch sample posts from top 3 subreddits for live preview
-  // Pass keywords to filter for relevant posts (not just random recent posts)
   let samplePosts: SamplePost[] = []
   const topSubreddits = coverageResults
     .filter(s => s.estimatedPosts > 0)
@@ -266,13 +269,12 @@ export async function checkCoverage(
   if (sourceUsed && topSubreddits.length > 0) {
     try {
       const samplePromises = topSubreddits.map(s =>
-        sourceUsed!.getSamplePosts(s.name, 2, keywords) // Pass keywords for relevance filtering
+        sourceUsed!.getSamplePosts(s.name, 2, keywords)
       )
       const sampleResults = await Promise.all(samplePromises)
-      samplePosts = sampleResults.flat().slice(0, 5) // Max 5 total samples
+      samplePosts = sampleResults.flat().slice(0, 5)
     } catch (error) {
       console.warn('Failed to fetch sample posts:', error)
-      // Continue without samples - not a critical feature
     }
   }
 
@@ -290,7 +292,6 @@ export async function checkCoverage(
  * Extract keywords from hypothesis text
  */
 export function extractKeywords(hypothesis: string): string[] {
-  // Remove common words and extract meaningful keywords
   const stopWords = new Set([
     'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
     'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
@@ -317,6 +318,7 @@ export function extractKeywords(hypothesis: string): string[] {
 
 /**
  * Fetch Hacker News data for tech-related hypotheses
+ * Uses the new HackerNewsAdapter
  */
 export async function fetchHNData(
   keywords: string[],
@@ -327,9 +329,9 @@ export async function fetchHNData(
   try {
     // Fetch stories (regular + Ask HN for more pain signals)
     const [stories, askHN, comments] = await Promise.all([
-      searchHNStories(keywords, { limit: 50, tags: ['story'] }),
-      searchAskHN(keywords, 30), // Ask HN posts are great for pain signals
-      includeComments ? searchHNComments(keywords, 50) : Promise.resolve([]),
+      hackerNewsAdapter.searchStoriesLegacy(keywords, { limit: 50, tags: ['story'] }),
+      hackerNewsAdapter.searchAskHNLegacy(keywords, 30),
+      includeComments ? hackerNewsAdapter.searchCommentsLegacy(keywords, 50) : Promise.resolve([]),
     ])
 
     // Combine and dedupe posts
@@ -352,13 +354,14 @@ export async function fetchHNData(
 
 /**
  * Fetch data from all relevant sources based on hypothesis
- * @param includeHN - Optional explicit control for HN inclusion. If undefined, auto-detects based on hypothesis.
+ * @param includeHN - Optional explicit control for HN inclusion
  */
 export async function fetchMultiSourceData(
   params: SearchParams,
   hypothesis: string,
   includeHN?: boolean
 ): Promise<SearchResult & { sources: string[] }> {
+  const { shouldIncludeHN } = await import('./orchestrator')
   const sourcesUsed: string[] = []
 
   // Always fetch Reddit data
@@ -375,7 +378,7 @@ export async function fetchMultiSourceData(
   if (shouldFetchHN) {
     const keywords = extractKeywords(hypothesis)
 
-    if (await isHNAvailable()) {
+    if (await hackerNewsAdapter.healthCheck()) {
       const hnData = await fetchHNData(keywords)
 
       if (hnData.posts.length > 0) {
@@ -400,20 +403,20 @@ export async function fetchMultiSourceData(
 
 /**
  * Check HN coverage for a hypothesis
- * @param hypothesis - Natural language hypothesis for better search results
+ * Uses the new HackerNewsAdapter
  */
 export async function checkHNCoverage(hypothesis: string): Promise<{
   available: boolean
   estimatedPosts: number
   samplePosts: SamplePost[]
 }> {
-  if (!(await isHNAvailable())) {
+  if (!(await hackerNewsAdapter.healthCheck())) {
     return { available: false, estimatedPosts: 0, samplePosts: [] }
   }
 
   const [count, samples] = await Promise.all([
-    getHNPostCount(hypothesis),
-    getHNSamplePosts(hypothesis, 3),
+    hackerNewsAdapter.getPostCount(hypothesis),
+    hackerNewsAdapter.getSamplePosts(hypothesis, 3),
   ])
 
   return {
@@ -423,14 +426,42 @@ export async function checkHNCoverage(hypothesis: string): Promise<{
   }
 }
 
+// ===========================================================================
+// LEGACY EXPORTS (for backward compatibility)
+// These functions are used by existing code and should continue to work
+// ===========================================================================
+
+/**
+ * @deprecated Use hackerNewsAdapter.searchStoriesLegacy instead
+ */
+export async function searchHNStories(
+  keywords: string[],
+  options?: { limit?: number; tags?: string[] }
+): Promise<RedditPost[]> {
+  return hackerNewsAdapter.searchStoriesLegacy(keywords, options)
+}
+
+/**
+ * @deprecated Use hackerNewsAdapter.searchAskHNLegacy instead
+ */
+export async function searchAskHN(keywords: string[], limit?: number): Promise<RedditPost[]> {
+  return hackerNewsAdapter.searchAskHNLegacy(keywords, limit)
+}
+
+/**
+ * @deprecated Use hackerNewsAdapter.searchCommentsLegacy instead
+ */
+export async function searchHNComments(keywords: string[], limit?: number): Promise<RedditComment[]> {
+  return hackerNewsAdapter.searchCommentsLegacy(keywords, limit)
+}
+
+/**
+ * @deprecated Use hackerNewsAdapter.healthCheck instead
+ */
+export async function isHNAvailable(): Promise<boolean> {
+  return hackerNewsAdapter.healthCheck()
+}
+
 // Re-export types for convenience
 export * from './types'
 export { generateCacheKey } from './cache'
-
-// Re-export HN functions for direct access
-export {
-  searchHNStories,
-  searchAskHN,
-  searchHNComments,
-  isHNAvailable,
-} from './hacker-news'

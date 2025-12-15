@@ -1,5 +1,77 @@
 // Data Source Abstraction Layer - Shared Types
-// Enables multiple Reddit data sources with automatic failover
+// Enables multiple data sources (Reddit, HN, App Stores, etc.) with automatic failover
+
+// =============================================================================
+// UNIFIED SIGNAL SCHEMA (Phase 3 Architecture)
+// All adapters normalize their data to this format
+// =============================================================================
+
+export type SourceType = 'reddit' | 'hacker_news' | 'youtube' | 'google_play' | 'app_store' | 'tiktok'
+export type SignalType = 'discussion' | 'review' | 'video' | 'comment'
+
+export interface UnifiedSignal {
+  id: string
+  source: SourceType
+  sourceType: SignalType
+
+  // Content
+  title: string
+  body: string
+  url: string
+
+  // Metadata
+  author: string
+  community: string        // subreddit, "hackernews", channel name, app name
+  createdAt: Date
+
+  // Engagement (normalized 0-100)
+  engagementScore: number
+  rawEngagement: {         // Original metrics for transparency
+    upvotes?: number
+    comments?: number
+    views?: number
+    points?: number
+    rating?: number        // For reviews: 1-5 stars
+  }
+}
+
+export interface SearchOptions {
+  maxResults?: number
+  dateRange?: { start: Date; end: Date }
+  sortBy?: 'relevance' | 'date' | 'engagement'
+}
+
+/**
+ * Interface for all data source adapters (Phase 3 Architecture)
+ * Each source (Reddit, HN, App Store, etc.) implements this interface
+ */
+export interface DataSourceAdapter {
+  /** Unique identifier for this source */
+  source: SourceType
+
+  /** Human-readable name */
+  name: string
+
+  /** Search for content matching the query */
+  search(query: string, options?: SearchOptions): Promise<UnifiedSignal[]>
+
+  /** Get comments for a specific item (optional) */
+  getComments?(itemId: string): Promise<UnifiedSignal[]>
+
+  /** Check if the data source API is available */
+  healthCheck(): Promise<boolean>
+
+  /** Get estimated post count for coverage check */
+  getPostCount(query: string): Promise<number>
+
+  /** Get sample posts for preview */
+  getSamplePosts(query: string, limit?: number): Promise<SamplePost[]>
+}
+
+// =============================================================================
+// LEGACY REDDIT-SPECIFIC TYPES (kept for backward compatibility)
+// These are used by the existing relevance filter and analysis pipeline
+// =============================================================================
 
 export interface RedditPost {
   id: string
