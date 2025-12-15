@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
-import { checkCoverage, shouldIncludeHN, checkHNCoverage, extractKeywords } from '@/lib/data-sources'
+import { checkCoverage, shouldIncludeHN, checkHNCoverage } from '@/lib/data-sources'
 import { extractSearchKeywords } from '@/lib/reddit/keyword-extractor'
 import { StructuredHypothesis } from '@/types/research'
 
@@ -187,8 +187,8 @@ export async function POST(req: Request) {
     const dataSources: string[] = ['Reddit']
 
     if (includeHN) {
-      const hnKeywords = extractKeywords(hypothesis)
-      const hnData = await checkHNCoverage(hnKeywords)
+      // Pass hypothesis directly for natural language search (much better results than individual keywords)
+      const hnData = await checkHNCoverage(hypothesis)
       if (hnData.available) {
         hnCoverage = {
           included: true,

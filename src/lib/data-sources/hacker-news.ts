@@ -11,6 +11,68 @@ import { RedditPost, RedditComment, SamplePost } from './types'
 
 const HN_API_BASE = 'https://hn.algolia.com/api/v1'
 
+// Stop words to filter out for keyword extraction
+const STOP_WORDS = new Set([
+  'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+  'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'to', 'of',
+  'in', 'for', 'on', 'with', 'at', 'by', 'from', 'up', 'about', 'into',
+  'over', 'after', 'that', 'this', 'what', 'which', 'who', 'how', 'when',
+  'where', 'why', 'and', 'or', 'but', 'if', 'because', 'as', 'until',
+  'while', 'so', 'than', 'too', 'very', 'just', 'also', 'now', 'here',
+  'there', 'then', 'only', 'own', 'same', 'both', 'each', 'few', 'more',
+  'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'any', 'all',
+  'their', 'they', 'them', 'these', 'those', 'i', 'me', 'my', 'we', 'our',
+  'you', 'your', 'he', 'him', 'his', 'she', 'her', 'it', 'its', 'people',
+  'want', 'help', 'app', 'tool', 'platform', 'using', 'use', 'make',
+])
+
+// Pain-signal words that indicate real problems (prioritize these in search)
+const PAIN_WORDS = new Set([
+  'burnout', 'struggle', 'problem', 'issue', 'frustrated', 'frustrating',
+  'difficult', 'challenging', 'overwhelmed', 'stressed', 'anxiety', 'stuck',
+  'failing', 'failed', 'broken', 'pain', 'hate', 'terrible', 'awful',
+  'confused', 'lost', 'tired', 'exhausted', 'overworked', 'chaos', 'mess',
+])
+
+/**
+ * Extract key search terms from hypothesis for HN search
+ * HN's Algolia uses AND for multi-word queries, so we need short, focused queries
+ * Prioritizes pain-signal words over generic terms
+ */
+function extractHNSearchTerms(hypothesis: string): string {
+  const words = hypothesis
+    .toLowerCase()
+    .replace(/[^\w\s'-]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 3 && !STOP_WORDS.has(w))
+
+  // Separate pain words from regular words
+  const painWords = words.filter(w => PAIN_WORDS.has(w))
+  const regularWords = words.filter(w => !PAIN_WORDS.has(w))
+
+  // Prioritize: audience/domain word + pain word
+  // e.g., "freelancer burnout" is better than "productivity freelancers"
+  const result: string[] = []
+
+  // Add first audience/domain word
+  if (regularWords.length > 0) {
+    result.push(regularWords[0])
+  }
+
+  // Add pain word if we have one
+  if (painWords.length > 0) {
+    result.push(painWords[0])
+  }
+
+  // Fill remaining slot with another regular word
+  if (result.length < 2 && regularWords.length > 1) {
+    result.push(regularWords[1])
+  }
+
+  return result.join(' ')
+}
+
 // HN Algolia API response types
 interface HNHit {
   objectID: string
@@ -127,12 +189,19 @@ export async function searchHNComments(
 
 /**
  * Get sample posts for preview
+ * @param hypothesis - Natural language hypothesis to search for
  */
 export async function getHNSamplePosts(
-  keywords: string[],
+  hypothesis: string,
   limit: number = 5
 ): Promise<SamplePost[]> {
-  const posts = await searchHNStories(keywords, { limit, tags: ['story', 'ask_hn'] })
+  // Extract key terms - HN search uses AND, so fewer words = more results
+  const searchTerms = extractHNSearchTerms(hypothesis)
+
+  if (!searchTerms) return []
+
+  // Use 'story' tag only - it includes all post types (Ask HN, Show HN, etc.)
+  const posts = await searchHNStories([searchTerms], { limit, tags: ['story'] })
 
   return posts.slice(0, limit).map((post) => ({
     title: post.title,
@@ -201,14 +270,19 @@ export async function isHNAvailable(): Promise<boolean> {
 }
 
 /**
- * Get estimated post count for keywords
+ * Get estimated post count for a hypothesis
+ * @param hypothesis - Natural language hypothesis to search for
  */
-export async function getHNPostCount(keywords: string[]): Promise<number> {
-  const query = keywords.join(' ')
+export async function getHNPostCount(hypothesis: string): Promise<number> {
+  // Extract key terms - HN search uses AND, so fewer words = more results
+  const searchTerms = extractHNSearchTerms(hypothesis)
+
+  if (!searchTerms) return 0
 
   try {
+    // Use 'story' tag only - it includes all post types (Ask HN, Show HN, etc.)
     const response = await fetch(
-      `${HN_API_BASE}/search?query=${encodeURIComponent(query)}&tags=story,ask_hn&hitsPerPage=0`
+      `${HN_API_BASE}/search?query=${encodeURIComponent(searchTerms)}&tags=story&hitsPerPage=0`
     )
 
     if (!response.ok) return 0

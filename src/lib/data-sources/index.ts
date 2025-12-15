@@ -400,8 +400,9 @@ export async function fetchMultiSourceData(
 
 /**
  * Check HN coverage for a hypothesis
+ * @param hypothesis - Natural language hypothesis for better search results
  */
-export async function checkHNCoverage(keywords: string[]): Promise<{
+export async function checkHNCoverage(hypothesis: string): Promise<{
   available: boolean
   estimatedPosts: number
   samplePosts: SamplePost[]
@@ -411,8 +412,8 @@ export async function checkHNCoverage(keywords: string[]): Promise<{
   }
 
   const [count, samples] = await Promise.all([
-    getHNPostCount(keywords),
-    getHNSamplePosts(keywords, 3),
+    getHNPostCount(hypothesis),
+    getHNSamplePosts(hypothesis, 3),
   ])
 
   return {
