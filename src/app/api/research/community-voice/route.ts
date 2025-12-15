@@ -231,12 +231,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fetch structured hypothesis, user-selected subreddits, and geography from job's coverage_data if available
+    // Fetch structured hypothesis, user-selected subreddits, geography, and data sources from job's coverage_data if available
     let structuredHypothesis: StructuredHypothesis | undefined
     let userSelectedSubreddits: string[] | undefined
     let targetGeography: TargetGeography | undefined
     let mscTarget: number | undefined
     let targetPrice: number | undefined
+    let selectedDataSources: string[] | undefined
     if (jobId) {
       const adminClient = createAdminClient()
       // Update status and fetch job data in one query
@@ -276,6 +277,12 @@ export async function POST(request: NextRequest) {
       targetPrice = coverageData?.targetPrice as number | undefined
       if (mscTarget || targetPrice) {
         console.log('Using market sizing inputs:', { mscTarget, targetPrice })
+      }
+
+      // Check for selected data sources from coverage preview
+      selectedDataSources = coverageData?.selectedDataSources as string[] | undefined
+      if (selectedDataSources && selectedDataSources.length > 0) {
+        console.log('Using selected data sources:', selectedDataSources)
       }
     }
 
@@ -349,9 +356,11 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Fetch posts and comments from discovered subreddits
     // Uses data-sources layer with automatic caching and fallback to backup sources
-    // Also fetches from Hacker News for tech-related hypotheses
+    // Hacker News inclusion is controlled by user selection (if available) or auto-detection
     // Use extracted primary keywords for better search precision
-    const includesHN = shouldIncludeHN(hypothesis)
+    const includesHN = selectedDataSources
+      ? selectedDataSources.includes('Hacker News')
+      : shouldIncludeHN(hypothesis) // Fallback to auto-detection if no explicit selection
     console.log(`Step 3: Fetching data (with caching + fallback)${includesHN ? ' + Hacker News' : ''}`)
     lastErrorSource = 'arctic_shift' // Reddit data API (primary source)
     const searchKeywords = extractedKeywords.primary.length > 0
@@ -364,7 +373,7 @@ export async function POST(request: NextRequest) {
       timeRange: {
         after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
       },
-    }, hypothesis)
+    }, hypothesis, includesHN)
 
     let rawPosts = multiSourceData.posts
     let rawComments = multiSourceData.comments

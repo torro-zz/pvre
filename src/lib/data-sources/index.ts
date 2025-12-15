@@ -352,10 +352,12 @@ export async function fetchHNData(
 
 /**
  * Fetch data from all relevant sources based on hypothesis
+ * @param includeHN - Optional explicit control for HN inclusion. If undefined, auto-detects based on hypothesis.
  */
 export async function fetchMultiSourceData(
   params: SearchParams,
-  hypothesis: string
+  hypothesis: string,
+  includeHN?: boolean
 ): Promise<SearchResult & { sources: string[] }> {
   const sourcesUsed: string[] = []
 
@@ -368,8 +370,9 @@ export async function fetchMultiSourceData(
   let allPosts = [...redditResult.posts]
   let allComments = [...redditResult.comments]
 
-  // Add HN data if hypothesis is tech-related
-  if (shouldIncludeHN(hypothesis)) {
+  // Add HN data if explicitly requested OR if auto-detected as tech-related
+  const shouldFetchHN = includeHN !== undefined ? includeHN : shouldIncludeHN(hypothesis)
+  if (shouldFetchHN) {
     const keywords = extractKeywords(hypothesis)
 
     if (await isHNAvailable()) {

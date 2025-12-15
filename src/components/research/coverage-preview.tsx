@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink } from 'lucide-react'
+import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink, Sparkles, Database } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -45,6 +45,14 @@ export interface CoverageData {
   // Revenue goal and pricing for market sizing
   mscTarget?: number // Minimum Success Criteria (revenue goal in $)
   targetPrice?: number // Monthly price per customer in $
+  // Data sources
+  dataSources?: string[] // Available data sources
+  hackerNews?: {
+    included: boolean
+    estimatedPosts: number
+    samplePosts: SamplePost[]
+  }
+  selectedDataSources?: string[] // User-selected sources to use
 }
 
 interface CoveragePreviewProps {
@@ -119,6 +127,9 @@ export function CoveragePreview({
   const [mscTarget, setMscTarget] = useState<number>(1000000) // Default $1M ARR
   const [targetPrice, setTargetPrice] = useState<number>(29) // Default $29/month
   const [showPricingEditor, setShowPricingEditor] = useState(false)
+
+  // Data sources state
+  const [selectedDataSources, setSelectedDataSources] = useState<Set<string>>(new Set(['Reddit']))
 
   // MSC presets
   const mscPresets = [
@@ -253,7 +264,23 @@ export function CoveragePreview({
       targetGeography: targetGeography,
       mscTarget: mscTarget,
       targetPrice: targetPrice,
+      selectedDataSources: Array.from(selectedDataSources),
     }
+  }
+
+  // Toggle a data source
+  const toggleDataSource = (source: string) => {
+    // Reddit is always required
+    if (source === 'Reddit') return
+    setSelectedDataSources(prev => {
+      const next = new Set(prev)
+      if (next.has(source)) {
+        next.delete(source)
+      } else {
+        next.add(source)
+      }
+      return next
+    })
   }
 
   // Geography scope display helpers
@@ -491,6 +518,103 @@ export function CoveragePreview({
           </div>
         </div>
       )}
+
+      {/* Data Sources Selection */}
+      <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
+        <div className="flex items-center gap-2 mb-3">
+          <Database className="h-4 w-4 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">
+            Data Sources
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          {/* Reddit - always selected */}
+          <div className="flex items-center justify-between p-2 rounded bg-muted/30">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={true}
+                disabled={true}
+                className="h-4 w-4 rounded"
+              />
+              <span className="text-sm font-medium">Reddit</span>
+              <span className="text-xs text-muted-foreground">
+                ({coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0)} posts)
+              </span>
+            </div>
+            <span className="text-xs text-muted-foreground">Required</span>
+          </div>
+
+          {/* Hacker News - optional, shown with recommendation if available */}
+          {coverage.hackerNews?.included && (
+            <div
+              className={cn(
+                'flex items-center justify-between p-2 rounded cursor-pointer transition-colors',
+                selectedDataSources.has('Hacker News')
+                  ? 'bg-orange-500/10 border border-orange-500/30'
+                  : 'bg-muted/30 hover:bg-muted/50'
+              )}
+              onClick={() => toggleDataSource('Hacker News')}
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedDataSources.has('Hacker News')}
+                  onChange={() => toggleDataSource('Hacker News')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-4 w-4 rounded"
+                />
+                <span className="text-sm font-medium">Hacker News</span>
+                <span className="text-xs text-muted-foreground">
+                  ({coverage.hackerNews.estimatedPosts} posts)
+                </span>
+              </div>
+              <span className="text-xs text-orange-600 dark:text-orange-400">Tech/Startup</span>
+            </div>
+          )}
+
+          {/* Recommendation banner if HN is available but not selected */}
+          {coverage.hackerNews?.included && !selectedDataSources.has('Hacker News') && (
+            <div className="flex items-start gap-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+              <Sparkles className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs text-orange-700 dark:text-orange-300">
+                  <strong>Recommended:</strong> Your hypothesis mentions tech/startup keywords.
+                  Adding Hacker News can provide valuable insights from the developer community.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDataSources(prev => new Set([...prev, 'Hacker News']))}
+                  className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-1 hover:underline"
+                >
+                  + Add Hacker News
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* HN Sample Posts when selected */}
+          {coverage.hackerNews?.included && selectedDataSources.has('Hacker News') && coverage.hackerNews.samplePosts.length > 0 && (
+            <div className="ml-6 mt-2 space-y-1">
+              <p className="text-xs text-muted-foreground">Sample HN posts:</p>
+              {coverage.hackerNews.samplePosts.slice(0, 2).map((post, i) => (
+                <a
+                  key={i}
+                  href={post.permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-muted/50 transition-colors group"
+                >
+                  <span className="text-muted-foreground flex-shrink-0">•</span>
+                  <span className="text-foreground line-clamp-1">{post.title}</span>
+                  <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0" />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Sample Posts Preview - show actual posts before spending credit */}
       {coverage.samplePosts && coverage.samplePosts.length > 0 && (() => {

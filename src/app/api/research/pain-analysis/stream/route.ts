@@ -189,11 +189,14 @@ export async function POST(request: NextRequest) {
           .eq('id', jobId)
           .single()
 
-        // coverage_data is a JSON column that may contain structuredHypothesis
+        // coverage_data is a JSON column that may contain structuredHypothesis and selectedDataSources
         const coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
         if (coverageData?.structuredHypothesis) {
           structuredHypothesis = coverageData.structuredHypothesis as StructuredHypothesis
         }
+
+        // Extract selected data sources
+        const selectedDataSources = coverageData?.selectedDataSources as string[] | undefined
 
         // Update step status to in_progress
         await updateStepStatus(jobId, 'pain_analysis', 'in_progress')
@@ -229,8 +232,10 @@ export async function POST(request: NextRequest) {
         const subredditWeights = await getSubredditWeights(hypothesis, subredditsToSearch)
         send('weights', 'Subreddit weights calculated', { weights: Object.fromEntries(subredditWeights) })
 
-        // Step 3: Fetch data from multiple sources (Reddit + HN for tech hypotheses)
-        const includesHN = shouldIncludeHN(hypothesis)
+        // Step 3: Fetch data from multiple sources (Reddit + HN if user selected)
+        const includesHN = selectedDataSources
+          ? selectedDataSources.includes('Hacker News')
+          : shouldIncludeHN(hypothesis) // Fallback to auto-detection
         send('fetching', `Searching ${subredditsToSearch.length} subreddits${includesHN ? ' + Hacker News' : ''} for discussions...`)
         const multiSourceData = await fetchMultiSourceData({
           subreddits: subredditsToSearch,
@@ -239,7 +244,7 @@ export async function POST(request: NextRequest) {
           timeRange: {
             after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
           },
-        }, hypothesis)
+        }, hypothesis, includesHN)
         const rawPosts = multiSourceData.posts
         const rawComments = multiSourceData.comments
         send('fetching', `Found ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || 'Reddit'}`, {

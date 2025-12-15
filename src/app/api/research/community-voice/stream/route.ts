@@ -167,6 +167,9 @@ export async function POST(request: NextRequest) {
         const mscTarget = coverageData?.mscTarget as number | undefined
         const targetPrice = coverageData?.targetPrice as number | undefined
 
+        // Extract selected data sources
+        const selectedDataSources = coverageData?.selectedDataSources as string[] | undefined
+
         const creditDeducted = await deductCredit(user.id, jobId)
         if (!creditDeducted) {
           sendEvent(controller, { type: 'error', step: 'credits', message: 'Insufficient credits' })
@@ -196,8 +199,10 @@ export async function POST(request: NextRequest) {
         const subredditWeights = await getSubredditWeights(hypothesis, subredditsToSearch)
         send('weights', 'Subreddit weights calculated', { weights: Object.fromEntries(subredditWeights) })
 
-        // Step 3: Fetch data from multiple sources (Reddit + HN for tech hypotheses)
-        const includesHN = shouldIncludeHN(hypothesis)
+        // Step 3: Fetch data from multiple sources (Reddit + HN if user selected)
+        const includesHN = selectedDataSources
+          ? selectedDataSources.includes('Hacker News')
+          : shouldIncludeHN(hypothesis) // Fallback to auto-detection
         send('fetching', `Searching ${subredditsToSearch.length} subreddits${includesHN ? ' + Hacker News' : ''} for discussions...`)
         const multiSourceData = await fetchMultiSourceData({
           subreddits: subredditsToSearch,
@@ -206,7 +211,7 @@ export async function POST(request: NextRequest) {
           timeRange: {
             after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
           },
-        }, hypothesis)
+        }, hypothesis, includesHN)
         const rawPosts = multiSourceData.posts
         const rawComments = multiSourceData.comments
         send('fetching', `Found ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || 'Reddit'}`, {
