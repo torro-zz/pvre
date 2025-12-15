@@ -8,7 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { deductCredit } from '@/lib/credits'
 import { StructuredHypothesis } from '@/types/research'
 import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
-import { fetchRedditData, RedditPost, RedditComment } from '@/lib/data-sources'
+import { fetchMultiSourceData, shouldIncludeHN, RedditPost, RedditComment } from '@/lib/data-sources'
 import {
   analyzePosts,
   analyzeComments,
@@ -229,21 +229,23 @@ export async function POST(request: NextRequest) {
         const subredditWeights = await getSubredditWeights(hypothesis, subredditsToSearch)
         send('weights', 'Subreddit weights calculated', { weights: Object.fromEntries(subredditWeights) })
 
-        // Step 3: Fetch Reddit data
-        send('fetching', `Searching ${subredditsToSearch.length} subreddits for discussions...`)
-        const redditData = await fetchRedditData({
+        // Step 3: Fetch data from multiple sources (Reddit + HN for tech hypotheses)
+        const includesHN = shouldIncludeHN(hypothesis)
+        send('fetching', `Searching ${subredditsToSearch.length} subreddits${includesHN ? ' + Hacker News' : ''} for discussions...`)
+        const multiSourceData = await fetchMultiSourceData({
           subreddits: subredditsToSearch,
           keywords: keywords.primary,
           limit: 100,
           timeRange: {
             after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
           },
-        })
-        const rawPosts = redditData.posts
-        const rawComments = redditData.comments
-        send('fetching', `Found ${rawPosts.length} posts and ${rawComments.length} comments`, {
+        }, hypothesis)
+        const rawPosts = multiSourceData.posts
+        const rawComments = multiSourceData.comments
+        send('fetching', `Found ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || 'Reddit'}`, {
           postsFound: rawPosts.length,
           commentsFound: rawComments.length,
+          sources: multiSourceData.sources,
         })
 
         // Step 3.5: Pre-filter with exclude keywords

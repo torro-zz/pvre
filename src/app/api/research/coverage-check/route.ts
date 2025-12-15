@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
-import { checkCoverage } from '@/lib/data-sources'
+import { checkCoverage, shouldIncludeHN, checkHNCoverage, extractKeywords } from '@/lib/data-sources'
 import { extractSearchKeywords } from '@/lib/reddit/keyword-extractor'
 import { StructuredHypothesis } from '@/types/research'
 
@@ -43,6 +43,14 @@ export interface CoverageCheckResponse {
     secondaryDomains: string[]
     audienceDescriptor: string
   }
+  // Hacker News data (for tech/startup hypotheses)
+  hackerNews?: {
+    included: boolean
+    estimatedPosts: number
+    samplePosts: SamplePost[]
+  }
+  // Data sources that will be used
+  dataSources?: string[]
 }
 
 /**
@@ -173,9 +181,27 @@ export async function POST(req: Request) {
     // Sort by estimated posts (highest first)
     subredditCoverage.sort((a, b) => b.estimatedPosts - a.estimatedPosts)
 
+    // Check if HN should be included (tech/startup hypotheses)
+    const includeHN = shouldIncludeHN(hypothesis)
+    let hnCoverage = null
+    const dataSources: string[] = ['Reddit']
+
+    if (includeHN) {
+      const hnKeywords = extractKeywords(hypothesis)
+      const hnData = await checkHNCoverage(hnKeywords)
+      if (hnData.available) {
+        hnCoverage = {
+          included: true,
+          estimatedPosts: hnData.estimatedPosts,
+          samplePosts: hnData.samplePosts,
+        }
+        dataSources.push('Hacker News')
+      }
+    }
+
     return NextResponse.json({
       subreddits: subredditCoverage,
-      totalEstimatedPosts: coverageResult.totalEstimatedPosts,
+      totalEstimatedPosts: coverageResult.totalEstimatedPosts + (hnCoverage?.estimatedPosts || 0),
       dataConfidence: coverageResult.dataConfidence,
       recommendation: coverageResult.recommendation,
       refinementSuggestions: coverageResult.refinementSuggestions,
@@ -186,6 +212,9 @@ export async function POST(req: Request) {
       discoveryWarning: discovery.warning,
       discoveryRecommendation: discovery.recommendation,
       domain: discovery.domain,
+      // HN coverage (if applicable)
+      hackerNews: hnCoverage || undefined,
+      dataSources,
     } as CoverageCheckResponse)
   } catch (error) {
     console.error('Coverage check failed:', error)

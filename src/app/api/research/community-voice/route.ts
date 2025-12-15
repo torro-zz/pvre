@@ -4,8 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { checkUserCredits, deductCredit } from '@/lib/credits'
 import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
 import {
-  fetchRedditData,
+  fetchMultiSourceData,
   extractKeywords,
+  shouldIncludeHN,
   RedditPost,
   RedditComment,
 } from '@/lib/data-sources'
@@ -97,6 +98,8 @@ export interface CommunityVoiceResult {
     commentsAnalyzed: number
     processingTimeMs: number
     timestamp: string
+    // Data sources used (e.g., ['Reddit', 'Hacker News'])
+    dataSources?: string[]
     // Filtering metrics for data quality transparency
     filteringMetrics?: FilteringMetrics
     // Token usage tracking for cost analysis
@@ -346,29 +349,31 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Fetch posts and comments from discovered subreddits
     // Uses data-sources layer with automatic caching and fallback to backup sources
+    // Also fetches from Hacker News for tech-related hypotheses
     // Use extracted primary keywords for better search precision
-    console.log('Step 3: Fetching Reddit data (with caching + fallback)')
-    lastErrorSource = 'arctic_shift' // Reddit data API
+    const includesHN = shouldIncludeHN(hypothesis)
+    console.log(`Step 3: Fetching data (with caching + fallback)${includesHN ? ' + Hacker News' : ''}`)
+    lastErrorSource = 'arctic_shift' // Reddit data API (primary source)
     const searchKeywords = extractedKeywords.primary.length > 0
       ? extractedKeywords.primary
       : extractKeywords(hypothesis) // Fallback to basic extraction
-    const redditData = await fetchRedditData({
+    const multiSourceData = await fetchMultiSourceData({
       subreddits: subredditsToSearch,
       keywords: searchKeywords,
       limit: 100, // 100/subreddit × 10-12 subreddits = 1000-1200 posts max (API caps at 100/request)
       timeRange: {
         after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
       },
-    })
+    }, hypothesis)
 
-    let rawPosts = redditData.posts
-    let rawComments = redditData.comments
+    let rawPosts = multiSourceData.posts
+    let rawComments = multiSourceData.comments
 
-    console.log(`Fetched ${rawPosts.length} posts and ${rawComments.length} comments from ${redditData.metadata.source}`)
+    console.log(`Fetched ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || multiSourceData.metadata.source}`)
 
     // Check for data source warnings
-    if (redditData.metadata.warning) {
-      console.warn('Data source warning:', redditData.metadata.warning)
+    if (multiSourceData.metadata.warning) {
+      console.warn('Data source warning:', multiSourceData.metadata.warning)
     }
 
     // Step 3.5: Pre-filter posts using exclude keywords (cheap local operation)
@@ -497,6 +502,7 @@ export async function POST(request: NextRequest) {
         commentsAnalyzed: comments.length,
         processingTimeMs,
         timestamp: new Date().toISOString(),
+        dataSources: multiSourceData.sources.length > 0 ? multiSourceData.sources : ['Reddit'],
         filteringMetrics,
         tokenUsage: tokenUsage || undefined,
         // Include all Y/N decisions for quality audit

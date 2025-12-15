@@ -28,6 +28,7 @@ import {
   Building2,
   HelpCircle,
   Zap,
+  Globe,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useResearchTabs } from './research-tabs-context'
@@ -184,6 +185,30 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
             </p>
           </CardContent>
         </Card>
+
+        {/* Data Sources Card */}
+        {results.metadata.dataSources && results.metadata.dataSources.length > 0 && (
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-2 relative group">
+                <Globe className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Data Sources</span>
+                <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
+                  Community platforms analyzed. Hacker News is included for tech/startup hypotheses.
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1 mt-2">
+                {results.metadata.dataSources.map((source, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs">
+                    {source}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Executive Summary */}

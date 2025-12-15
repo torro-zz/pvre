@@ -1,5 +1,6 @@
 // Data Source Orchestrator
-// Manages multiple Reddit data sources with automatic failover and caching
+// Manages multiple data sources with automatic failover and caching
+// Supports: Reddit (Arctic Shift, PullPush) and Hacker News (Algolia)
 
 import {
   DataSource,
@@ -14,6 +15,31 @@ import {
 import { ArcticShiftSource } from './arctic-shift'
 import { PullPushSource } from './pullpush'
 import { getCachedData, setCachedData, generateCacheKey } from './cache'
+import {
+  searchHNStories,
+  searchAskHN,
+  searchHNComments,
+  getHNSamplePosts,
+  getHNPostCount,
+  isHNAvailable,
+} from './hacker-news'
+
+// Keywords that indicate HN should be included as a data source
+const TECH_KEYWORDS = [
+  'startup', 'saas', 'developer', 'engineer', 'programmer', 'coding',
+  'software', 'app', 'api', 'tech', 'technology', 'ai', 'ml', 'machine learning',
+  'bootstrap', 'indie', 'maker', 'founder', 'entrepreneur', 'vc', 'funding',
+  'devtools', 'developer tools', 'open source', 'cloud', 'infra', 'infrastructure',
+  'b2b', 'enterprise', 'automation', 'workflow', 'productivity tool',
+]
+
+/**
+ * Check if hypothesis should include Hacker News as a source
+ */
+export function shouldIncludeHN(hypothesis: string): boolean {
+  const lowerHypothesis = hypothesis.toLowerCase()
+  return TECH_KEYWORDS.some(keyword => lowerHypothesis.includes(keyword))
+}
 
 // Initialize data sources in priority order
 const sources: DataSource[] = [
@@ -289,6 +315,118 @@ export function extractKeywords(hypothesis: string): string[] {
     .slice(0, 8)
 }
 
+/**
+ * Fetch Hacker News data for tech-related hypotheses
+ */
+export async function fetchHNData(
+  keywords: string[],
+  options: { includeComments?: boolean } = {}
+): Promise<{ posts: RedditPost[]; comments: RedditComment[] }> {
+  const { includeComments = true } = options
+
+  try {
+    // Fetch stories (regular + Ask HN for more pain signals)
+    const [stories, askHN, comments] = await Promise.all([
+      searchHNStories(keywords, { limit: 50, tags: ['story'] }),
+      searchAskHN(keywords, 30), // Ask HN posts are great for pain signals
+      includeComments ? searchHNComments(keywords, 50) : Promise.resolve([]),
+    ])
+
+    // Combine and dedupe posts
+    const allPosts = [...stories, ...askHN]
+    const uniquePosts = allPosts.filter(
+      (post, index, self) => index === self.findIndex(p => p.id === post.id)
+    )
+
+    console.log(`HN: Found ${uniquePosts.length} posts, ${comments.length} comments`)
+
+    return {
+      posts: uniquePosts,
+      comments,
+    }
+  } catch (error) {
+    console.error('Failed to fetch HN data:', error)
+    return { posts: [], comments: [] }
+  }
+}
+
+/**
+ * Fetch data from all relevant sources based on hypothesis
+ */
+export async function fetchMultiSourceData(
+  params: SearchParams,
+  hypothesis: string
+): Promise<SearchResult & { sources: string[] }> {
+  const sourcesUsed: string[] = []
+
+  // Always fetch Reddit data
+  const redditResult = await fetchRedditData(params)
+  if (redditResult.posts.length > 0 || redditResult.comments.length > 0) {
+    sourcesUsed.push(redditResult.metadata.source === 'cache' ? 'Reddit (cached)' : 'Reddit')
+  }
+
+  let allPosts = [...redditResult.posts]
+  let allComments = [...redditResult.comments]
+
+  // Add HN data if hypothesis is tech-related
+  if (shouldIncludeHN(hypothesis)) {
+    const keywords = extractKeywords(hypothesis)
+
+    if (await isHNAvailable()) {
+      const hnData = await fetchHNData(keywords)
+
+      if (hnData.posts.length > 0) {
+        allPosts = [...allPosts, ...hnData.posts]
+        allComments = [...allComments, ...hnData.comments]
+        sourcesUsed.push('Hacker News')
+        console.log(`Added ${hnData.posts.length} HN posts to analysis`)
+      }
+    }
+  }
+
+  return {
+    posts: allPosts,
+    comments: allComments,
+    metadata: {
+      ...redditResult.metadata,
+      source: sourcesUsed.join(' + ') || 'none',
+    },
+    sources: sourcesUsed,
+  }
+}
+
+/**
+ * Check HN coverage for a hypothesis
+ */
+export async function checkHNCoverage(keywords: string[]): Promise<{
+  available: boolean
+  estimatedPosts: number
+  samplePosts: SamplePost[]
+}> {
+  if (!(await isHNAvailable())) {
+    return { available: false, estimatedPosts: 0, samplePosts: [] }
+  }
+
+  const [count, samples] = await Promise.all([
+    getHNPostCount(keywords),
+    getHNSamplePosts(keywords, 3),
+  ])
+
+  return {
+    available: true,
+    estimatedPosts: count,
+    samplePosts: samples,
+  }
+}
+
 // Re-export types for convenience
 export * from './types'
 export { generateCacheKey } from './cache'
+
+// Re-export HN functions for direct access
+export {
+  searchHNStories,
+  searchAskHN,
+  searchHNComments,
+  isHNAvailable,
+} from './hacker-news'
