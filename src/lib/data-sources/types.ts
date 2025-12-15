@@ -80,7 +80,7 @@ export interface DataSource {
   searchPosts(params: SearchParams): Promise<RedditPost[]>
   searchComments(params: SearchParams): Promise<RedditComment[]>
   getPostCount(subreddit: string, keywords?: string[]): Promise<number>
-  getSamplePosts(subreddit: string, limit?: number): Promise<SamplePost[]>
+  getSamplePosts(subreddit: string, limit?: number, keywords?: string[]): Promise<SamplePost[]>
 }
 
 // Cache entry structure

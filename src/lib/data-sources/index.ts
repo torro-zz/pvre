@@ -230,6 +230,7 @@ export async function checkCoverage(
   }
 
   // Fetch sample posts from top 3 subreddits for live preview
+  // Pass keywords to filter for relevant posts (not just random recent posts)
   let samplePosts: SamplePost[] = []
   const topSubreddits = coverageResults
     .filter(s => s.estimatedPosts > 0)
@@ -239,7 +240,7 @@ export async function checkCoverage(
   if (sourceUsed && topSubreddits.length > 0) {
     try {
       const samplePromises = topSubreddits.map(s =>
-        sourceUsed!.getSamplePosts(s.name, 2)
+        sourceUsed!.getSamplePosts(s.name, 2, keywords) // Pass keywords for relevance filtering
       )
       const sampleResults = await Promise.all(samplePromises)
       samplePosts = sampleResults.flat().slice(0, 5) // Max 5 total samples

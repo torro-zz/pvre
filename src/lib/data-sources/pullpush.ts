@@ -225,11 +225,14 @@ export class PullPushSource implements DataSource {
     }
   }
 
-  async getSamplePosts(subreddit: string, limit: number = 3): Promise<SamplePost[]> {
+  async getSamplePosts(subreddit: string, limit: number = 3, keywords?: string[]): Promise<SamplePost[]> {
     try {
+      // Fetch more posts if filtering by keywords
+      const fetchSize = keywords && keywords.length > 0 ? 50 : Math.min(limit, 10)
+
       const queryParams = new URLSearchParams({
         subreddit,
-        size: String(Math.min(limit, 10)),
+        size: String(fetchSize),
         sort: 'score',
         sort_type: 'desc',
       })
@@ -238,7 +241,36 @@ export class PullPushSource implements DataSource {
       const response = await fetchWithRetry<PullPushResponse<PullPushPost>>(url)
 
       if (response.data) {
-        return response.data.map(p => ({
+        let posts = response.data
+
+        // Filter by keywords if provided
+        if (keywords && keywords.length > 0) {
+          const keywordLower = keywords.map(k => k.toLowerCase())
+
+          posts = posts.filter(post => {
+            const titleLower = post.title.toLowerCase()
+            const bodyLower = (post.selftext || '').toLowerCase()
+            const combined = titleLower + ' ' + bodyLower
+
+            return keywordLower.some(keyword => {
+              const words = keyword.split(/\s+/)
+              return words.every(word => combined.includes(word))
+            })
+          })
+
+          // Fallback to looser matching
+          if (posts.length === 0) {
+            posts = response.data.filter(post => {
+              const titleLower = post.title.toLowerCase()
+              return keywordLower.some(keyword => {
+                const words = keyword.split(/\s+/)
+                return words.some(word => word.length > 3 && titleLower.includes(word))
+              })
+            })
+          }
+        }
+
+        return posts.slice(0, limit).map(p => ({
           title: p.title,
           subreddit: p.subreddit,
           score: p.score,

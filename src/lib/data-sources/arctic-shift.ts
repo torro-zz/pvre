@@ -113,15 +113,80 @@ export class ArcticShiftSource implements DataSource {
     }
   }
 
-  async getSamplePosts(subreddit: string, limit: number = 3): Promise<SamplePost[]> {
+  async getSamplePosts(subreddit: string, limit: number = 3, keywords?: string[]): Promise<SamplePost[]> {
     try {
+      // Fetch more posts if we have keywords to filter by
+      const fetchLimit = keywords && keywords.length > 0 ? 100 : Math.min(limit, 10)
+
       const posts = await arcticSearchPosts({
         subreddit,
-        limit: Math.min(limit, 10), // Cap at 10 for preview
+        limit: fetchLimit,
         sort: 'desc',
       })
 
-      return posts.map(p => ({
+      let filteredPosts = posts
+
+      // If keywords provided, filter for posts that match
+      if (keywords && keywords.length > 0) {
+        const keywordLower = keywords.map(k => k.toLowerCase())
+
+        // Extract core topic words from keywords (important nouns/verbs that define the topic)
+        const allKeywordWords = keywordLower.flatMap(k => k.split(/\s+/))
+        const topicWords = allKeywordWords.filter(w =>
+          w.length > 3 &&
+          !['getting', 'without', 'about', 'from', 'with', 'that', 'this', 'keep', 'keeps', 'best', 'product'].includes(w)
+        )
+        const uniqueTopicWords = [...new Set(topicWords)]
+
+        // Score each post by relevance
+        const scoredPosts = posts.map(post => {
+          const titleLower = post.title.toLowerCase()
+          const bodyLower = (post.selftext || '').toLowerCase()
+          const combined = titleLower + ' ' + bodyLower
+
+          let score = 0
+
+          // Exact phrase match (highest value)
+          for (const keyword of keywordLower) {
+            if (combined.includes(keyword)) {
+              score += 10
+            }
+          }
+
+          // Count topic word matches (medium value)
+          for (const word of uniqueTopicWords) {
+            if (titleLower.includes(word)) {
+              score += 3 // Title match is more valuable
+            } else if (bodyLower.includes(word)) {
+              score += 1
+            }
+          }
+
+          // Boost posts that match multiple different topic words
+          const matchedWords = uniqueTopicWords.filter(w => combined.includes(w))
+          if (matchedWords.length >= 3) {
+            score += 5 // Bonus for matching multiple topic words
+          }
+
+          return { post, score, matchedWords: matchedWords.length }
+        })
+
+        // Filter to posts with at least some relevance, then sort by score
+        filteredPosts = scoredPosts
+          .filter(sp => sp.score > 0 && sp.matchedWords >= 2) // Require at least 2 topic words
+          .sort((a, b) => b.score - a.score)
+          .map(sp => sp.post)
+
+        // If strict filtering yields no results, fall back to posts matching at least 1 important word
+        if (filteredPosts.length === 0) {
+          filteredPosts = scoredPosts
+            .filter(sp => sp.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .map(sp => sp.post)
+        }
+      }
+
+      return filteredPosts.slice(0, limit).map(p => ({
         title: p.title,
         subreddit: p.subreddit,
         score: p.score,

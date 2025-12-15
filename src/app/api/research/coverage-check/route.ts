@@ -152,7 +152,11 @@ export async function POST(req: Request) {
     const keywords = extractedKeywords.primary
 
     // Step 3: Check coverage for each subreddit
-    const coverageResult = await checkCoverage(subreddits, keywords)
+    // For sample posts, prefer problemPhrases (user's search terms) over generic keywords
+    const sampleKeywords = problemPhrases && problemPhrases.length > 0
+      ? problemPhrases
+      : keywords
+    const coverageResult = await checkCoverage(subreddits, sampleKeywords)
 
     // Merge discovery relevance with coverage data
     const subredditCoverage: SubredditCoverage[] = coverageResult.subreddits.map(cov => {

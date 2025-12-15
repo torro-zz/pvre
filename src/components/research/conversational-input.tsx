@@ -536,6 +536,13 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                   )}
                 </div>
 
+                {/* Error message */}
+                {interpretError && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+                    {interpretError}
+                  </div>
+                )}
+
                 {/* Supported platforms */}
                 <div className="space-y-2 pt-2 border-t">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -554,13 +561,52 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
                 {/* Analyze URL button */}
                 <Button
-                  onClick={() => {
-                    // Convert URL to analysis input with source type
-                    if (isUrlValid && urlValidation.type) {
-                      const sourceLabel = URL_TYPE_INFO[urlValidation.type].label
-                      setRawInput(`Analyze ${sourceLabel} content: ${urlInput}`)
-                      setInputMode('text')
-                      // TODO: In future, call a dedicated URL analysis endpoint for each source type
+                  onClick={async () => {
+                    if (!isUrlValid || !urlValidation.type) return
+
+                    setIsInterpreting(true)
+                    setInterpretError(null)
+
+                    try {
+                      const response = await fetch('/api/research/analyze-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          url: urlInput.trim(),
+                          urlType: urlValidation.type,
+                        }),
+                      })
+
+                      if (!response.ok) {
+                        let errorMessage = 'Failed to analyze URL'
+                        try {
+                          const err = await response.json()
+                          errorMessage = err.error || errorMessage
+                        } catch {
+                          errorMessage = `Server error (${response.status}). Please try again.`
+                        }
+                        throw new Error(errorMessage)
+                      }
+
+                      const data = await response.json()
+
+                      setInterpretation(data.interpretation)
+                      setRefinements(data.refinementSuggestions || [])
+                      setFormattedHypothesis(data.formattedHypothesis)
+
+                      // Pre-populate adjust fields
+                      setAdjustedAudience(data.interpretation.audience)
+                      setAdjustedProblem(data.interpretation.problem)
+                      setAdjustedPhrases([...data.interpretation.searchPhrases])
+
+                      // Store the original URL for reference
+                      setRawInput(`Analyzing: ${urlInput}`)
+
+                      setStep('confirm')
+                    } catch (err) {
+                      setInterpretError(err instanceof Error ? err.message : 'Something went wrong')
+                    } finally {
+                      setIsInterpreting(false)
                     }
                   }}
                   disabled={!isUrlValid || isInterpreting || isLoading}
