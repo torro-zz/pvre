@@ -146,6 +146,16 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
             <p className="text-2xl font-bold mt-1">
               {totalSignals}
             </p>
+            {/* Show tier breakdown if available */}
+            {results.metadata.filteringMetrics &&
+             (results.metadata.filteringMetrics.coreSignals > 0 || results.metadata.filteringMetrics.relatedSignals > 0) && (
+              <p className="text-xs text-muted-foreground mt-1">
+                <span className="text-emerald-600 dark:text-emerald-400">{results.metadata.filteringMetrics.coreSignals} core</span>
+                {results.metadata.filteringMetrics.relatedSignals > 0 && (
+                  <span> + <span className="text-blue-600 dark:text-blue-400">{results.metadata.filteringMetrics.relatedSignals} contextual</span></span>
+                )}
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -279,7 +289,18 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
               <Card key={index}>
                 <CardContent className="pt-4">
                   <div className="flex items-start justify-between mb-2">
-                    <h4 className="font-semibold">{theme.name}</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-semibold">{theme.name}</h4>
+                      {/* Tier Badge - shows if theme is from core or contextual signals */}
+                      {theme.tier === 'contextual' && (
+                        <Badge
+                          variant="outline"
+                          className="border-blue-500/50 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs"
+                        >
+                          contextual
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
                       {/* Resonance Badge */}
                       {theme.resonance && (

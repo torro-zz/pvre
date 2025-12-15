@@ -15,6 +15,27 @@ export interface Theme {
   intensity: 'low' | 'medium' | 'high'
   examples: string[]
   resonance?: 'low' | 'medium' | 'high'  // Engagement quality - how much people care about this topic
+  tier?: 'core' | 'contextual'  // core = from intersection signals, contextual = from related/broader signals
+}
+
+/**
+ * Parse tier from theme name and clean the name
+ * Claude may prefix themes with "[CONTEXTUAL]" for themes derived from RELATED signals
+ */
+function parseThemeTier(theme: Theme): Theme {
+  const contextualPrefix = /^\[CONTEXTUAL\]\s*/i
+  if (contextualPrefix.test(theme.name)) {
+    return {
+      ...theme,
+      name: theme.name.replace(contextualPrefix, '').trim(),
+      tier: 'contextual',
+    }
+  }
+  // Default to core if no contextual prefix
+  return {
+    ...theme,
+    tier: 'core',
+  }
 }
 
 export interface CompetitorInsight {
@@ -213,8 +234,9 @@ Identify 3-7 themes, 5-10 customer language phrases, 3-5 key quotes, and 2-3 str
     const parsed = JSON.parse(jsonMatch[0]) as ThemeAnalysis
 
     // Validate and clean up the response
+    // Parse tier from theme names (Claude prefixes contextual themes with "[CONTEXTUAL]")
     const result: ThemeAnalysis = {
-      themes: parsed.themes || [],
+      themes: (parsed.themes || []).map(parseThemeTier),
       customerLanguage: parsed.customerLanguage || [],
       alternativesMentioned: parsed.alternativesMentioned || [],
       willingnessToPaySignals: parsed.willingnessToPaySignals || [],
@@ -385,7 +407,7 @@ Return JSON:
     const parsed = JSON.parse(jsonMatch[0]) as ThemeAnalysis
 
     return {
-      themes: parsed.themes || [],
+      themes: (parsed.themes || []).map(parseThemeTier),
       customerLanguage: parsed.customerLanguage || [],
       alternativesMentioned: parsed.alternativesMentioned || [],
       willingnessToPaySignals: parsed.willingnessToPaySignals || [],

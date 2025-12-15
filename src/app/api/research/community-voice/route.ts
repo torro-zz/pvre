@@ -72,6 +72,9 @@ export interface FilteringMetrics {
   commentsFiltered: number
   commentFilterRate: number
   qualityLevel: 'high' | 'medium' | 'low'
+  // Signal tiering for multi-domain hypotheses
+  coreSignals: number       // CORE: intersection match (problem + context)
+  relatedSignals: number    // RELATED: single-domain match (broader context)
   // P0 FIX: Stage 2 (problem-specific) filter metrics
   stage2FilterRate?: number  // % of Stage 1 passes that failed Stage 2
   narrowProblemWarning?: boolean  // True if >50% of Stage 1 passes failed Stage 2
@@ -419,6 +422,9 @@ export async function POST(request: NextRequest) {
       commentsFiltered: commentFilterResult.metrics.filteredOut,
       commentFilterRate: commentFilterResult.metrics.filterRate,
       qualityLevel: calculateQualityLevel(postFilterResult.metrics.filterRate, commentFilterResult.metrics.filterRate),
+      // Signal tiering for multi-domain hypotheses
+      coreSignals: postFilterResult.metrics.coreSignals,
+      relatedSignals: postFilterResult.metrics.relatedSignals,
       // P0 FIX: Include Stage 2 filter metrics
       stage2FilterRate: postFilterResult.metrics.stage2FilterRate,
       narrowProblemWarning: postFilterResult.metrics.narrowProblemWarning,
