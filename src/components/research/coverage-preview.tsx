@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink, Sparkles, Database } from 'lucide-react'
+import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink, Sparkles, Database, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { StructuredHypothesis, TargetGeography, GeographyScope, detectGeographyFromAudience } from '@/types/research'
+import type { AppDetails } from '@/lib/data-sources/types'
 
 export interface SubredditCoverage {
   name: string
@@ -71,6 +72,9 @@ interface CoveragePreviewProps {
   onProceed: (coverageData: CoverageData) => void
   onRefine: () => void
   disabled?: boolean
+  // App-centric analysis mode
+  mode?: 'hypothesis' | 'app-analysis'
+  appData?: AppDetails | null
 }
 
 const confidenceConfig = {
@@ -116,6 +120,8 @@ export function CoveragePreview({
   onProceed,
   onRefine,
   disabled = false,
+  mode = 'hypothesis',
+  appData,
 }: CoveragePreviewProps) {
   const [coverage, setCoverage] = useState<CoverageData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -361,8 +367,36 @@ export function CoveragePreview({
 
   return (
     <div className={cn('p-4 rounded-lg border', config.bg, config.border)}>
-      {/* Hypothesis being tested - prominent display */}
-      {structuredHypothesis && (
+      {/* Context header - different for hypothesis vs app-analysis mode */}
+      {mode === 'app-analysis' && appData ? (
+        <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+          <div className="flex items-center gap-3">
+            {appData.iconUrl ? (
+              <img
+                src={appData.iconUrl}
+                alt={appData.name}
+                className="w-10 h-10 rounded-lg"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <Smartphone className="h-5 w-5 text-blue-500" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <Smartphone className="h-3.5 w-3.5 text-blue-500" />
+                <p className="text-xs text-blue-600 dark:text-blue-400 uppercase tracking-wide font-medium">
+                  Market Opportunity
+                </p>
+              </div>
+              <h3 className="font-semibold text-foreground truncate">{appData.name}</h3>
+              <p className="text-sm text-muted-foreground">
+                Finding white space around this competitor
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : structuredHypothesis ? (
         <div className="mb-4 p-3 rounded-lg bg-violet-500/10 border border-violet-500/20">
           <div className="flex items-center gap-2 mb-2">
             <Target className="h-4 w-4 text-violet-500" />
@@ -377,7 +411,7 @@ export function CoveragePreview({
             <span className="text-muted-foreground">Problem:</span> {structuredHypothesis.problem}
           </p>
         </div>
-      )}
+      ) : null}
 
       {/* Header */}
       <div className="flex items-start gap-3 mb-4">

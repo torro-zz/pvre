@@ -921,6 +921,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                 setStep('adjust')
               }}
               disabled={isLoading}
+              mode="hypothesis"
             />
             <Button variant="outline" onClick={() => setShowPreview(false)} className="w-full">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -1234,6 +1235,8 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                 setShowPreview(false)
               }}
               disabled={isLoading}
+              mode="app-analysis"
+              appData={appData}
             />
             <Button variant="outline" onClick={() => setShowPreview(false)} className="w-full">
               <ArrowLeft className="mr-2 h-4 w-4" />
