@@ -1,6 +1,6 @@
 # PVRE Implementation Plan
 
-Last updated: December 16, 2025 (App-Centric Analysis added)
+Last updated: December 16, 2025 (App-Centric UX polish + Analysis Depth)
 
 Master roadmap for PVRE development. For active bugs, see `KNOWN_ISSUES.md`.
 
@@ -1956,11 +1956,15 @@ New revenue stream:
 - [x] Source attribution in reports ✅ (Dec 16) — Pain signals show source (`google_play`, `app_store`, etc.)
 
 ### Q1 2026 — Platform Expansion
-**Week 1-3: App-Centric Analysis Mode (NEW)**
-- [ ] URL detection in interpret-hypothesis endpoint
-- [ ] `getAppDetails()` methods for both adapters
-- [ ] AI problem interpretation prompt for apps
-- [ ] App confirmation UI component
+**Week 1-3: App-Centric Analysis Mode**
+- [x] URL detection in interpret-hypothesis endpoint ✅ (Dec 16)
+- [x] `getAppDetails()` methods for both adapters ✅ (Dec 16)
+- [x] AI problem interpretation prompt for apps ✅ (Dec 16)
+- [x] App confirmation UI component ✅ (Dec 16)
+- [x] "Market Opportunity" header for app-centric mode ✅ (Dec 16)
+- [x] Smart pricing defaults based on app category ✅ (Dec 16)
+- [x] Analysis Depth selector (100/200/300 per source) ✅ (Dec 16)
+- [x] Honest data counts ("100 of 86,351" format) ✅ (Dec 16)
 - [ ] New results tabs: App Overview, User Feedback, Market Context, Opportunities
 - [ ] Multi-geography review fetching (smart default + opt-in expansion)
 - [ ] End-to-end testing with various app types

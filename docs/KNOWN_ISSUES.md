@@ -52,6 +52,13 @@ The current credit model (1 credit = 1 research) may need rethinking:
 
 ## Completed Issues
 
+### December 16, 2025 (Evening)
+- ✅ **[UX] Analysis Depth Selector** — Users can now choose sample size per source: Quick (100), Standard (200), Deep (300). Shows "per source, prioritizing 2-3★ reviews" and total data points estimate. Passed through to research pipeline via `sampleSizePerSource` in coverage data.
+- ✅ **[UX] Honest Data Source Counts** — Changed misleading totals to "X of Y" format. E.g., `Google Play (100 of 86,351)` instead of `(86,351)`. Users now see what we'll actually analyze vs what's available.
+- ✅ **[UX] Accurate Coverage Header** — Changed "Found ~402,576 relevant discussions" to "Analyzing ~800 of 402,576 available" based on selected sample size and data sources.
+- ✅ **[UX] Smart Pricing Defaults** — Auto-set pricing based on app category (Health & Fitness: $10, Medical: $15, etc.) for app-centric mode. User can still override via "Change" button.
+- ✅ **[UX] Market Opportunity Header** — Changed confusing "Hypothesis Being Tested" header to "Market Opportunity" with "Finding white space around this competitor" for app-centric mode.
+
 ### December 16, 2025
 - ✅ **[Phase 3] App Store Pipeline Integration** — Google Play and App Store adapters now fully integrated into research pipeline. When users select these sources in coverage preview, reviews are fetched and flow through the same relevance filter and pain detection as Reddit posts. Source attribution via `subreddit` field (`google_play`, `app_store`) enables proper tracking in pain signals and reports.
 - ✅ **[Phase 3] HN Search Relevance Fix** — Hacker News search now uses single-keyword strategy to avoid returning irrelevant results. Multi-word queries caused the Algolia API to return poor matches; single primary keyword provides much better relevance.
