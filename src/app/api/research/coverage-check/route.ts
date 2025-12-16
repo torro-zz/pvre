@@ -218,35 +218,33 @@ export async function POST(req: Request) {
       }
     }
 
-    // Check if Google Play / App Store should be included (mobile app hypotheses)
-    const includeMobileStores = shouldIncludeGooglePlay(hypothesis)
+    // Always check app stores - users can toggle them on/off in the UI
+    // (Previously we only checked when mobile keywords were detected)
     let googlePlayCoverage = null
     let appStoreCoverage = null
 
-    if (includeMobileStores) {
-      // Fetch both app stores in parallel
-      const [gplayData, appStoreData] = await Promise.all([
-        checkGooglePlayCoverage(hypothesis),
-        checkAppStoreCoverage(hypothesis),
-      ])
+    // Fetch both app stores in parallel - always include if data is available
+    const [gplayData, appStoreData] = await Promise.all([
+      checkGooglePlayCoverage(hypothesis),
+      checkAppStoreCoverage(hypothesis),
+    ])
 
-      if (gplayData.available) {
-        googlePlayCoverage = {
-          included: true,
-          estimatedPosts: gplayData.estimatedPosts,
-          samplePosts: gplayData.samplePosts,
-        }
-        dataSources.push('Google Play')
+    if (gplayData.available && gplayData.estimatedPosts > 0) {
+      googlePlayCoverage = {
+        included: true,
+        estimatedPosts: gplayData.estimatedPosts,
+        samplePosts: gplayData.samplePosts,
       }
+      dataSources.push('Google Play')
+    }
 
-      if (appStoreData.available) {
-        appStoreCoverage = {
-          included: true,
-          estimatedPosts: appStoreData.estimatedPosts,
-          samplePosts: appStoreData.samplePosts,
-        }
-        dataSources.push('App Store')
+    if (appStoreData.available && appStoreData.estimatedPosts > 0) {
+      appStoreCoverage = {
+        included: true,
+        estimatedPosts: appStoreData.estimatedPosts,
+        samplePosts: appStoreData.samplePosts,
       }
+      dataSources.push('App Store')
     }
 
     // Calculate total estimated posts from all sources

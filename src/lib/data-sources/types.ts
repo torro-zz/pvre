@@ -66,6 +66,31 @@ export interface DataSourceAdapter {
 
   /** Get sample posts for preview */
   getSamplePosts(query: string, limit?: number): Promise<SamplePost[]>
+
+  /** Get app details from app ID or URL (app stores only) */
+  getAppDetails?(appIdOrUrl: string): Promise<AppDetails | null>
+}
+
+// =============================================================================
+// APP DETAILS (for App-Centric Analysis Mode)
+// Used when user pastes an app store URL instead of a hypothesis
+// =============================================================================
+
+export interface AppDetails {
+  appId: string
+  store: 'google_play' | 'app_store'  // Which store this came from
+  name: string
+  developer: string
+  category: string
+  description: string          // Full description text
+  rating: number               // 1-5 stars
+  reviewCount: number
+  price: string                // "Free", "$4.99", etc.
+  hasIAP: boolean
+  installs?: string            // Google Play only: "10M+"
+  lastUpdated: string
+  iconUrl?: string
+  url: string
 }
 
 // =============================================================================

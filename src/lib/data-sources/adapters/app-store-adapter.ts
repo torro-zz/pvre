@@ -14,7 +14,9 @@ import {
   SearchOptions,
   SamplePost,
   RedditPost,
+  AppDetails,
 } from '../types'
+import { extractAppId } from '../app-url-utils'
 
 // Sort options (string values for App Store)
 const SORT = {
@@ -160,6 +162,52 @@ export class AppStoreAdapter implements DataSourceAdapter {
       return apps.reduce((sum, app) => sum + (app.reviews || 0), 0)
     } catch {
       return 0
+    }
+  }
+
+  /**
+   * Get full app details from app ID or URL
+   * Used for App-Centric Analysis Mode
+   */
+  async getAppDetails(appIdOrUrl: string): Promise<AppDetails | null> {
+    try {
+      // Extract app ID if URL is provided
+      let appId = appIdOrUrl
+      let market = 'us'
+
+      if (appIdOrUrl.includes('apps.apple.com') || appIdOrUrl.includes('itunes.apple.com')) {
+        const parsed = extractAppId(appIdOrUrl)
+        if (!parsed || parsed.store !== 'app_store') {
+          console.error('[AppStoreAdapter] Invalid App Store URL:', appIdOrUrl)
+          return null
+        }
+        appId = parsed.appId
+        market = parsed.market || 'us'
+      }
+
+      const details = await store.app({ id: appId, country: market })
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const appDetails = details as any
+
+      return {
+        appId: String(appDetails.id),
+        store: 'app_store' as const,
+        name: appDetails.title,
+        developer: appDetails.developer,
+        category: appDetails.primaryGenre || appDetails.genres?.[0] || 'Unknown',
+        description: appDetails.description || '',
+        rating: appDetails.score || 0,
+        reviewCount: appDetails.reviews || 0,
+        price: appDetails.free ? 'Free' : (appDetails.price ? `$${appDetails.price}` : 'Paid'),
+        hasIAP: appDetails.offersIAP || false,
+        lastUpdated: appDetails.updated || appDetails.currentVersionReleaseDate || '',
+        iconUrl: appDetails.icon || undefined,
+        url: appDetails.url || `https://apps.apple.com/${market}/app/app/id${appId}`,
+      }
+    } catch (error) {
+      console.error('[AppStoreAdapter] getAppDetails failed:', error)
+      return null
     }
   }
 

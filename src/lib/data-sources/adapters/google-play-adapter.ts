@@ -14,7 +14,9 @@ import {
   SearchOptions,
   SamplePost,
   RedditPost,
+  AppDetails,
 } from '../types'
+import { extractAppId } from '../app-url-utils'
 
 // Sort options (not typed in the package)
 const SORT = {
@@ -175,6 +177,47 @@ export class GooglePlayAdapter implements DataSourceAdapter {
       return reviewCounts.reduce((sum, count) => sum + count, 0)
     } catch {
       return 0
+    }
+  }
+
+  /**
+   * Get full app details from app ID or URL
+   * Used for App-Centric Analysis Mode
+   */
+  async getAppDetails(appIdOrUrl: string): Promise<AppDetails | null> {
+    try {
+      // Extract app ID if URL is provided
+      let appId = appIdOrUrl
+      if (appIdOrUrl.includes('play.google.com')) {
+        const parsed = extractAppId(appIdOrUrl)
+        if (!parsed || parsed.store !== 'google_play') {
+          console.error('[GooglePlayAdapter] Invalid Google Play URL:', appIdOrUrl)
+          return null
+        }
+        appId = parsed.appId
+      }
+
+      const details = await gplay.app({ appId })
+
+      return {
+        appId: details.appId,
+        store: 'google_play' as const,
+        name: details.title,
+        developer: details.developer,
+        category: details.genre || details.genreId || 'Unknown',
+        description: details.description || '',
+        rating: details.score || 0,
+        reviewCount: details.reviews || 0,
+        price: details.free ? 'Free' : (details.priceText || 'Paid'),
+        hasIAP: details.offersIAP || false,
+        installs: details.installs || undefined,
+        lastUpdated: String(details.updated || ''),
+        iconUrl: details.icon || undefined,
+        url: details.url || `https://play.google.com/store/apps/details?id=${appId}`,
+      }
+    } catch (error) {
+      console.error('[GooglePlayAdapter] getAppDetails failed:', error)
+      return null
     }
   }
 

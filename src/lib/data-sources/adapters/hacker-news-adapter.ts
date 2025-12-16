@@ -240,10 +240,12 @@ export class HackerNewsAdapter implements DataSourceAdapter {
    * Extract key search terms from hypothesis for HN search
    *
    * IMPORTANT: HN's Algolia uses AND logic for multi-word queries.
-   * "fitness professionals" requires BOTH words, returning few/irrelevant results.
+   * We need to balance specificity (relevant results) with breadth (enough results).
    *
-   * Strategy: Use SINGLE primary domain keyword for broader, more relevant results.
-   * HN's relevance ranking will surface the best matches organically.
+   * Strategy:
+   * 1. For domain-specific hypotheses (tech, startup), use the main topic keyword
+   * 2. For general hypotheses, use 2-3 core words to get relevant results
+   * 3. Avoid stop words but keep meaningful context words
    */
   private extractSearchTerms(hypothesis: string): string {
     const words = hypothesis
@@ -253,36 +255,48 @@ export class HackerNewsAdapter implements DataSourceAdapter {
       .filter(w => w.length > 3 && !STOP_WORDS.has(w))
 
     // Domain-specific words that work well on HN (tech-savvy audience)
-    const domainWords = words.filter(w =>
-      // Product/industry terms that HN discusses
-      [
-        // Work & productivity
-        'freelance', 'freelancer', 'startup', 'saas', 'developer', 'designer',
-        'remote', 'productivity', 'automation', 'workflow', 'invoice', 'invoicing',
-        'calendar', 'scheduling', 'email', 'hiring', 'recruiting', 'management',
-        'analytics', 'dashboard', 'reporting', 'integration', 'api',
-        // Health & wellness
-        'fitness', 'health', 'meditation', 'sleep', 'tracking', 'tracker',
-        // Habits & self-improvement (common HN topics)
-        'habits', 'habit', 'procrastination', 'motivation', 'discipline', 'focus',
-        'learning', 'reading', 'writing', 'journaling', 'goals', 'routine',
-        // Finance & business
-        'budget', 'investing', 'savings', 'finance', 'taxes', 'accounting',
-        'pricing', 'subscription', 'revenue', 'customers', 'marketing',
-        // Technical
-        'database', 'security', 'privacy', 'encryption', 'performance',
-        'testing', 'deployment', 'infrastructure', 'monitoring',
-      ].includes(w) ||
-      // Pain words that surface real discussions
-      PAIN_WORDS.has(w)
-    )
+    const domainKeywords = new Set([
+      // Work & productivity
+      'freelance', 'freelancer', 'startup', 'saas', 'developer', 'designer',
+      'remote', 'productivity', 'automation', 'workflow', 'invoice', 'invoicing',
+      'calendar', 'scheduling', 'email', 'hiring', 'recruiting', 'management',
+      'analytics', 'dashboard', 'reporting', 'integration', 'api',
+      // Health & wellness
+      'fitness', 'health', 'meditation', 'sleep', 'tracking', 'tracker',
+      // Habits & self-improvement (common HN topics)
+      'habits', 'habit', 'procrastination', 'motivation', 'discipline', 'focus',
+      'learning', 'reading', 'writing', 'journaling', 'goals', 'routine',
+      // Finance & business
+      'budget', 'investing', 'savings', 'finance', 'taxes', 'accounting',
+      'pricing', 'subscription', 'revenue', 'customers', 'marketing',
+      // Technical
+      'database', 'security', 'privacy', 'encryption', 'performance',
+      'testing', 'deployment', 'infrastructure', 'monitoring',
+      // Real estate / housing (HN discusses these)
+      'housing', 'rent', 'rental', 'apartment', 'student', 'university', 'college',
+      'landlord', 'tenant', 'roommate', 'real-estate', 'mortgage',
+    ])
 
-    // Use single domain word if found, otherwise first meaningful word
-    if (domainWords.length > 0) {
+    const domainWords = words.filter(w => domainKeywords.has(w) || PAIN_WORDS.has(w))
+
+    // If we found domain words, use up to 2 most relevant ones
+    if (domainWords.length >= 2) {
+      return domainWords.slice(0, 2).join(' ')
+    }
+    if (domainWords.length === 1) {
+      // Add one more context word if available
+      const contextWord = words.find(w => !domainKeywords.has(w) && !PAIN_WORDS.has(w))
+      if (contextWord) {
+        return `${domainWords[0]} ${contextWord}`
+      }
       return domainWords[0]
     }
 
-    // Fallback to first filtered word (single word = broader HN results)
+    // Fallback: use first 2 meaningful words to maintain relevance
+    // This is better than using 1 random word which gives irrelevant results
+    if (words.length >= 2) {
+      return words.slice(0, 2).join(' ')
+    }
     return words[0] || ''
   }
 

@@ -1,8 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { isAppStoreUrl, extractAppId } from '@/lib/data-sources/app-url-utils'
+import { googlePlayAdapter } from '@/lib/data-sources/adapters/google-play-adapter'
+import { appStoreAdapter } from '@/lib/data-sources/adapters/app-store-adapter'
+import type { AppDetails } from '@/lib/data-sources/types'
 
 const anthropic = new Anthropic()
+
+// =============================================================================
+// HYPOTHESIS MODE TYPES (existing)
+// =============================================================================
 
 export interface HypothesisInterpretation {
   audience: string
@@ -19,6 +27,38 @@ export interface RefinementSuggestion {
   rationale: string
 }
 
+export interface HypothesisResponse {
+  mode: 'hypothesis'
+  interpretation: HypothesisInterpretation
+  refinementSuggestions: RefinementSuggestion[]
+  formattedHypothesis: string
+}
+
+// =============================================================================
+// APP ANALYSIS MODE TYPES (new)
+// =============================================================================
+
+export interface AppAnalysisInterpretation {
+  primaryDomain: string
+  secondaryDomains: string[]
+  targetAudience: string
+  searchPhrases: string[]
+  competitorTerms: string[]
+}
+
+export interface AppAnalysisResponse {
+  mode: 'app-analysis'
+  appData: AppDetails
+  interpretation: AppAnalysisInterpretation
+}
+
+// =============================================================================
+// DISCRIMINATED UNION RESPONSE
+// =============================================================================
+
+export type InterpretResponse = HypothesisResponse | AppAnalysisResponse
+
+// Legacy type for backward compatibility
 export interface InterpretHypothesisResponse {
   interpretation: HypothesisInterpretation
   refinementSuggestions: RefinementSuggestion[]
@@ -45,6 +85,17 @@ export async function POST(request: NextRequest) {
     if (trimmedInput.length < 10) {
       return NextResponse.json({ error: 'Input too short. Please describe your idea in more detail.' }, { status: 400 })
     }
+
+    // ==========================================================================
+    // APP-CENTRIC MODE: Detect app store URLs and route to app analysis
+    // ==========================================================================
+    if (isAppStoreUrl(trimmedInput)) {
+      return handleAppAnalysis(trimmedInput)
+    }
+
+    // ==========================================================================
+    // HYPOTHESIS MODE: Standard hypothesis interpretation
+    // ==========================================================================
 
     // Use Claude to interpret the hypothesis
     const prompt = `You are an expert at understanding business hypotheses and market research queries.
@@ -129,12 +180,148 @@ Important guidelines:
     parsed.interpretation.ambiguities = parsed.interpretation.ambiguities || []
     parsed.refinementSuggestions = parsed.refinementSuggestions || []
 
-    return NextResponse.json(parsed)
+    // Return with mode field for discriminated union
+    const response: HypothesisResponse = {
+      mode: 'hypothesis',
+      interpretation: parsed.interpretation,
+      refinementSuggestions: parsed.refinementSuggestions,
+      formattedHypothesis: parsed.formattedHypothesis,
+    }
+
+    return NextResponse.json(response)
 
   } catch (error) {
     console.error('Interpret hypothesis error:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to interpret hypothesis' },
+      { status: 500 }
+    )
+  }
+}
+
+// =============================================================================
+// APP ANALYSIS HANDLER
+// =============================================================================
+
+async function handleAppAnalysis(url: string): Promise<NextResponse> {
+  try {
+    // 1. Parse the URL to determine which store
+    const parsed = extractAppId(url)
+    if (!parsed) {
+      return NextResponse.json(
+        { error: 'Could not parse app store URL. Please check the format.' },
+        { status: 400 }
+      )
+    }
+
+    // 2. Fetch app details from the appropriate store
+    let appData: AppDetails | null = null
+
+    if (parsed.store === 'google_play') {
+      appData = await googlePlayAdapter.getAppDetails(url)
+    } else if (parsed.store === 'app_store') {
+      appData = await appStoreAdapter.getAppDetails(url)
+    }
+
+    if (!appData) {
+      return NextResponse.json(
+        { error: 'Could not fetch app details. The app may not exist or be unavailable.' },
+        { status: 404 }
+      )
+    }
+
+    // 3. Use Claude to interpret the app's problem domain
+    const prompt = `You are analyzing an app to understand what problem it solves and who it serves.
+
+APP DETAILS:
+- Name: ${appData.name}
+- Developer: ${appData.developer}
+- Category: ${appData.category}
+- Rating: ${appData.rating.toFixed(1)} stars (${appData.reviewCount.toLocaleString()} reviews)
+- Price: ${appData.price}${appData.hasIAP ? ' + In-App Purchases' : ''}
+${appData.installs ? `- Installs: ${appData.installs}` : ''}
+
+DESCRIPTION:
+${appData.description.slice(0, 2000)}${appData.description.length > 2000 ? '...' : ''}
+
+Extract the following information:
+
+1. PRIMARY PROBLEM DOMAIN
+   What core problem does this app solve? Be specific and concise.
+   Example: "Stress and anxiety management through guided meditation"
+
+2. SECONDARY PROBLEM DOMAINS
+   What related problems does it also address? List 2-4.
+   Example: ["Sleep improvement", "Focus and concentration", "Relaxation"]
+
+3. TARGET AUDIENCE CHARACTERISTICS
+   Who uses this app? Be specific about demographics, situations, or roles.
+   Example: "Busy professionals and stressed adults seeking accessible mental wellness tools"
+
+4. SEARCH PHRASES
+   What phrases would people use when discussing this type of problem on Reddit/forums?
+   Include:
+   - 3-5 problem-focused phrases (how people describe the pain)
+   - 2-3 "alternatives to [app name]" style phrases
+   - 2-3 solution-seeking phrases
+
+5. COMPETITOR TERMS
+   What other apps or solutions might users compare this to?
+
+Respond in this exact JSON format:
+{
+  "primaryDomain": "string",
+  "secondaryDomains": ["string", "string"],
+  "targetAudience": "string",
+  "searchPhrases": ["phrase 1", "phrase 2", ...],
+  "competitorTerms": ["competitor 1", "competitor 2", ...]
+}`
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [
+        { role: 'user', content: prompt }
+      ],
+    })
+
+    const content = message.content[0]
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type from Claude')
+    }
+
+    // Parse the JSON response
+    let interpretation: AppAnalysisInterpretation
+    try {
+      let jsonStr = content.text
+      const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
+      if (jsonMatch) {
+        jsonStr = jsonMatch[1]
+      }
+      interpretation = JSON.parse(jsonStr.trim())
+    } catch {
+      console.error('Failed to parse Claude response for app analysis:', content.text)
+      throw new Error('Failed to interpret app')
+    }
+
+    // Validate and ensure arrays exist
+    interpretation.secondaryDomains = interpretation.secondaryDomains || []
+    interpretation.searchPhrases = interpretation.searchPhrases || []
+    interpretation.competitorTerms = interpretation.competitorTerms || []
+
+    // 4. Return the app analysis response
+    const response: AppAnalysisResponse = {
+      mode: 'app-analysis',
+      appData,
+      interpretation,
+    }
+
+    return NextResponse.json(response)
+
+  } catch (error) {
+    console.error('App analysis error:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to analyze app' },
       { status: 500 }
     )
   }

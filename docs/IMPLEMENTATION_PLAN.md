@@ -1,6 +1,6 @@
 # PVRE Implementation Plan
 
-Last updated: December 16, 2025
+Last updated: December 16, 2025 (App-Centric Analysis added)
 
 Master roadmap for PVRE development. For active bugs, see `KNOWN_ISSUES.md`.
 
@@ -1272,6 +1272,511 @@ Total Signals: 84
 
 ---
 
+### 3.8 App-Centric Analysis Mode (NEW)
+**Priority:** P0 — Next Major Feature
+**Effort:** High (2-3 weeks)
+**Impact:** New use case, competitor intelligence, serves VCs and PMs
+
+**The Insight:** App store reviews represent fundamentally different data than Reddit/HN discussions:
+- **Reddit/HN answers:** "What problems exist? What do people wish existed?"
+- **App Store answers:** "How well do existing solutions solve those problems?"
+
+These aren't competing sources—they're complementary stages in the validation journey.
+
+---
+
+#### 3.8.1 Two Research Entry Points
+
+**Entry A: Problem-First (existing)**
+```
+"People struggle with meditation consistency" 
+→ Reddit/HN pain signals 
+→ THEN pull Calm, Headspace reviews to see competitor gaps
+```
+
+**Entry B: App-First (new)**
+```
+User pastes: https://apps.apple.com/app/calm/id571800810
+→ Extract app metadata + reviews
+→ AI interprets problem domain
+→ Auto-generate Reddit/HN searches
+→ Gap analysis + pain synthesis
+```
+
+Same analytical engine, different starting inputs. Both arrive at actionable intelligence.
+
+---
+
+#### 3.8.2 URL Detection & Routing
+
+**Decision:** Extend existing `interpret-hypothesis` endpoint with URL detection (not a new endpoint).
+
+**Rationale:**
+- The endpoint already does "understand this input and tell me what to search for"
+- Adding URL detection is a small addition (~20 lines)
+- Keeps one entry point for the frontend - less UI complexity
+- If it grows too complex later, can extract to `/api/research/analyze-app`
+
+**Implementation:**
+
+```typescript
+// In /api/research/interpret-hypothesis/route.ts
+
+const trimmedInput = rawInput.trim();
+
+if (isAppStoreUrl(trimmedInput)) {
+  // NEW: App-centric flow
+  const appDetails = await getAppDetails(trimmedInput);
+  const prompt = buildAppAnalysisPrompt(appDetails);
+  // ... call Claude with app-specific prompt
+  return { mode: 'app-analysis', appData, problemDomains, searchPhrases };
+} else {
+  // EXISTING: Hypothesis interpretation flow
+  return { mode: 'hypothesis', interpretation, refinementSuggestions };
+}
+```
+
+**Discriminated Union Response Type:**
+
+```typescript
+type InterpretResult =
+  | { 
+      mode: 'hypothesis'; 
+      interpretation: HypothesisInterpretation;
+      refinementSuggestions: Suggestion[];
+    }
+  | { 
+      mode: 'app-analysis'; 
+      appData: AppMetadata;
+      problemDomains: string[];
+      searchPhrases: string[];
+      targetAudience: string;
+    }
+```
+
+**URL Pattern Detection:**
+
+```typescript
+function isAppStoreUrl(input: string): boolean {
+  return (
+    input.includes('play.google.com/store/apps') ||
+    input.includes('apps.apple.com/app')
+  );
+}
+
+function extractAppId(url: string): { store: 'google_play' | 'app_store'; appId: string } | null {
+  // play.google.com/store/apps/details?id=com.calm.android → com.calm.android
+  // apps.apple.com/app/calm/id571800810 → 571800810
+  // ...
+}
+```
+
+---
+
+#### 3.8.3 App Metadata Extraction
+
+**Decision:** Add `getAppDetails(urlOrAppId)` method to each adapter.
+
+The `google-play-scraper` and `app-store-scraper` packages both support `app({ appId })` for full metadata.
+
+**Interface:**
+
+```typescript
+interface AppDetails {
+  appId: string;
+  name: string;
+  developer: string;
+  category: string;
+  description: string;      // Full description text
+  rating: number;           // 1-5 stars
+  reviewCount: number;
+  price: string;            // "Free", "$4.99", etc.
+  hasIAP: boolean;
+  installs?: string;        // Google Play only: "10M+"
+  lastUpdated: string;
+  iconUrl?: string;
+  url: string;
+}
+```
+
+**Add to each adapter:**
+
+```typescript
+// google-play-adapter.ts
+async getAppDetails(urlOrAppId: string): Promise<AppDetails | null> {
+  const appId = extractAppIdFromUrl(urlOrAppId) || urlOrAppId;
+  const details = await gplay.app({ appId });
+  return {
+    appId: details.appId,
+    name: details.title,
+    developer: details.developer,
+    category: details.genre,
+    description: details.description,
+    rating: details.score,
+    reviewCount: details.reviews,
+    price: details.free ? 'Free' : details.priceText,
+    hasIAP: details.offersIAP,
+    installs: details.installs,
+    lastUpdated: details.updated,
+    iconUrl: details.icon,
+    url: details.url,
+  };
+}
+
+// app-store-adapter.ts  
+async getAppDetails(urlOrAppId: string): Promise<AppDetails | null> {
+  const appId = extractAppIdFromUrl(urlOrAppId) || urlOrAppId;
+  const details = await store.app({ id: appId });
+  return {
+    appId: String(details.id),
+    name: details.title,
+    developer: details.developer,
+    category: details.primaryGenre,
+    description: details.description,
+    rating: details.score,
+    reviewCount: details.reviews,
+    price: details.free ? 'Free' : details.price,
+    hasIAP: details.hasIAP,
+    lastUpdated: details.updated,
+    iconUrl: details.icon,
+    url: details.url,
+  };
+}
+```
+
+---
+
+#### 3.8.4 AI Problem Interpretation
+
+**Decision:** Same module (`interpret-hypothesis`), separate prompt branch for apps.
+
+**Rationale:**
+- Same conceptual task: "understand what this is about and tell me what to search"
+- Reuses auth, error handling, response parsing
+- Avoids module proliferation
+
+**App-Specific Prompt:**
+
+```
+You are analyzing an app to understand what problem it solves and who it serves.
+
+APP DETAILS:
+- Name: {{name}}
+- Category: {{category}}
+- Description: {{description}}
+- Rating: {{rating}} ({{reviewCount}} reviews)
+- Price: {{price}}
+
+SAMPLE REVIEWS (if available):
+{{top3Positive}}
+{{top3Negative}}
+
+Extract:
+
+1. PRIMARY PROBLEM DOMAIN
+   What core problem does this app solve? (e.g., "stress and anxiety management through meditation")
+
+2. SECONDARY PROBLEM DOMAINS  
+   What related problems does it address? (e.g., "sleep improvement", "focus/productivity")
+
+3. TARGET AUDIENCE CHARACTERISTICS
+   Who uses this app? Be specific. (e.g., "Busy professionals and stressed adults seeking accessible mental health tools")
+
+4. SEARCH PHRASES
+   What phrases would people use when discussing this type of problem on Reddit/forums?
+   - At least 5 problem-focused phrases
+   - At least 3 "alternatives to [app]" style phrases
+
+5. COMPETITOR TERMS
+   What other apps/solutions might users compare this to?
+
+Respond in JSON format.
+```
+
+**Output:**
+
+```json
+{
+  "primaryDomain": "meditation and mindfulness for stress reduction",
+  "secondaryDomains": ["sleep improvement", "anxiety management", "focus and productivity"],
+  "targetAudience": "Busy professionals and stressed adults seeking accessible mental wellness tools",
+  "searchPhrases": [
+    "can't sleep racing thoughts",
+    "meditation app recommendations",
+    "is calm worth the subscription",
+    "alternatives to headspace",
+    "free meditation apps"
+  ],
+  "competitorTerms": ["Headspace", "Insight Timer", "Ten Percent Happier"]
+}
+```
+
+---
+
+#### 3.8.5 Confirmation Step
+
+**Decision:** Keep confirmation step, but streamlined.
+
+**Rationale:**
+- User pasted a URL, but they still need to see: "I'll search Reddit for 'meditation apps', 'sleep problems', 'alternatives to Calm'"
+- They might want to adjust (e.g., focus on "sleep" not "meditation")
+- Matches the existing UX pattern - consistency matters
+
+**Streamlined Flow:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 📱 Analyzing: Calm - Sleep & Meditation                          │
+│                                                                  │
+│ ⭐ 4.8 rating · 1.2M reviews · Free + $69.99/year                │
+│                                                                  │
+│ 🎯 Problem domain detected:                                      │
+│    Meditation and mindfulness for stress reduction               │
+│                                                                  │
+│ 🔍 I'll search for:                                              │
+│    ☑ "meditation app recommendations"                           │
+│    ☑ "can't sleep racing thoughts"                              │
+│    ☑ "alternatives to calm"                                     │
+│    ☑ "is calm worth the subscription"                           │
+│    [+ Add phrase]                                                │
+│                                                                  │
+│ 📍 Sources:                                                      │
+│    ☑ Reddit  ☑ Hacker News  ☑ Google Play  ☑ App Store          │
+│                                                                  │
+│ [← Change app]              [Run Analysis (1 credit) →]          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**What's streamlined:**
+- Auto-select the most relevant subreddits
+- Pre-check HN if it's a productivity/tech app
+- Skip the "do you want to refine?" step - go straight to coverage preview
+
+---
+
+#### 3.8.6 Multi-Geography Reviews
+
+**Decision:** Smart default (primary market), opt-in expansion.
+
+**Implementation:**
+
+1. **Default:** Fetch from the app's primary market (detect from URL or app data)
+2. **Show:** "Reviews from: US" with "Add more markets" button
+3. **Expansion:** Clicking expands to US + UK + AU + CA (major English markets)
+
+**Rationale:**
+- Fastest default experience (1 API call, not 4)
+- User control without upfront friction
+- English markets only to keep relevance high (non-English reviews need translation)
+
+**Code:**
+
+```typescript
+// Default behavior
+const primaryMarket = detectMarketFromUrl(url) || 'us';
+let reviews = await getReviews(appId, { country: primaryMarket });
+
+// If user clicks "Add more markets"
+const additionalMarkets = ['us', 'gb', 'au', 'ca'].filter(m => m !== primaryMarket);
+const moreReviews = await Promise.all(
+  additionalMarkets.map(market => getReviews(appId, { country: market }))
+);
+reviews = deduplicateAndMerge(reviews, ...moreReviews);
+```
+
+**Market Detection:**
+
+```typescript
+function detectMarketFromUrl(url: string): string {
+  // apps.apple.com/gb/app/calm/id571800810 → 'gb'
+  // apps.apple.com/us/app/calm/id571800810 → 'us'
+  // play.google.com/store/apps/... (no region in URL) → 'us' default
+  const match = url.match(/apps\.apple\.com\/([a-z]{2})\//i);
+  return match?.[1]?.toLowerCase() || 'us';
+}
+```
+
+---
+
+#### 3.8.7 Output Format: New Tab Structure
+
+**Decision:** New tab structure, reuse existing components where possible.
+
+**Proposed Tabs:**
+
+| Tab | Content | Component Strategy |
+|-----|---------|--------------------|
+| **App Overview** | Name, rating, downloads, price, description summary | New component |
+| **User Feedback** | What users love + pain points + feature requests (from reviews) | Similar to existing pain signals UI |
+| **Market Context** | Reddit/HN discussions about this app AND the problem domain | Existing community voice UI |
+| **Opportunities** | Unmet needs, opportunity score, "if building a competitor..." | New component |
+
+**Key insight:** The "Market Context" tab is basically existing Community Voice research, just auto-configured with AI-generated search terms instead of user-entered ones.
+
+**Tab 1: App Overview**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 📱 APP OVERVIEW                                                  │
+│                                                                  │
+│ [Icon] Calm - Sleep & Meditation                                │
+│         Calm.com, Inc. · Health & Fitness                       │
+│                                                                  │
+│ ⭐ 4.8 rating  ·  📊 1.2M reviews  ·  📥 50M+ installs           │
+│ 💰 Free + $69.99/year                                           │
+│                                                                  │
+│ ─────────────────────────────────────────────────────────────── │
+│                                                                  │
+│ What This App Does:                                             │
+│ Calm is a meditation and sleep app offering guided sessions,    │
+│ sleep stories, breathing exercises, and relaxing music to help  │
+│ users manage stress and improve sleep quality.                  │
+│                                                                  │
+│ Primary Problem Solved: Stress and anxiety management           │
+│ Secondary: Sleep improvement, focus, relaxation                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Tab 2: User Feedback** (from reviews)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 💬 USER FEEDBACK                                                 │
+│                                                                  │
+│ Analyzed: 500 reviews from US, UK, AU App Stores                │
+│                                                                  │
+│ ▸ WHAT USERS LOVE                                               │
+│   ✓ Sleep stories quality (127 mentions)                        │
+│   ✓ Tamara's voice narration (89 mentions)                      │
+│   ✓ Daily calm feature (67 mentions)                            │
+│                                                                  │
+│ ▸ PAIN POINTS                                                   │
+│   ✗ Too expensive / subscription fatigue (203 mentions)         │
+│     "I love the app but $70/year is too much"                   │
+│   ✗ Limited free content (156 mentions)                         │
+│     "You can barely use it without paying"                      │
+│   ✗ App crashes / technical issues (78 mentions)                │
+│                                                                  │
+│ ▸ FEATURE REQUESTS                                              │
+│   💡 Offline mode improvements (45 mentions)                    │
+│   💡 More variety in sleep stories (34 mentions)                │
+│   💡 Family/couple plans (28 mentions)                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Tab 3: Market Context** (Reddit/HN - existing UI)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 🌐 MARKET CONTEXT                                                │
+│                                                                  │
+│ What people say about Calm AND the problem it solves:           │
+│                                                                  │
+│ [Existing Community Voice UI]                                   │
+│ - Pain themes from Reddit/HN discussions                        │
+│ - Mentions of "alternatives to Calm"                            │
+│ - Competitor comparisons in discussions                         │
+│ - Broader problem discussions (sleep, anxiety, meditation)      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Tab 4: Opportunities** (NEW)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 🎯 OPPORTUNITIES                                                 │
+│                                                                  │
+│ OPPORTUNITY SCORE: 7.2/10                                       │
+│ "Moderate opportunity - clear gaps but strong incumbent"        │
+│                                                                  │
+│ ─────────────────────────────────────────────────────────────── │
+│                                                                  │
+│ UNMET NEEDS (gaps between user pain and current solution):      │
+│                                                                  │
+│ 🔴 HIGH OPPORTUNITY                                             │
+│    • Affordable pricing tier (mentioned 203x in reviews,        │
+│      56x on Reddit) — users want value but churn on price       │
+│    • Family/couple features (mentioned 28x in reviews,          │
+│      23x on Reddit) — no major player offers this well          │
+│                                                                  │
+│ 🟡 MEDIUM OPPORTUNITY                                           │
+│    • Offline reliability (45x) — technical debt in incumbents   │
+│    • Content variety (34x) — room for niche differentiation     │
+│                                                                  │
+│ ─────────────────────────────────────────────────────────────── │
+│                                                                  │
+│ IF YOU'RE BUILDING A COMPETITOR:                                │
+│                                                                  │
+│ 1. DIFFERENTIATE ON PRICE                                       │
+│    Position as "Calm quality at half the price" — the #1        │
+│    complaint is subscription fatigue at $70/year                │
+│                                                                  │
+│ 2. TARGET UNDERSERVED SEGMENT                                   │
+│    Couples/families wanting shared meditation — no major        │
+│    player has cracked this niche                                │
+│                                                                  │
+│ 3. AVOID                                                        │
+│    Competing on content quality alone — Calm has 10+ years      │
+│    of library and celebrity narrators                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### 3.8.8 Credit Cost
+
+**Decision:** Same cost (1 credit) initially, monitor and adjust.
+
+**Rationale:**
+- The extra work is marginal: 1 app metadata fetch + ~100 reviews
+- The Reddit/HN search is the same cost as existing research
+- Users expect "1 research = 1 credit"
+- If it proves to be 2x the value, charge 2x LATER once proven
+
+**Future consideration:** If multi-geo is enabled (4 markets), that's 4x the review API calls → could justify 2 credits. But start simple.
+
+---
+
+#### 3.8.9 Implementation Checklist
+
+**Phase 1: URL Detection & App Metadata (Week 1)**
+- [ ] Add `isAppStoreUrl()` detection to `interpret-hypothesis`
+- [ ] Add `extractAppId()` utility function
+- [ ] Add `getAppDetails()` to `google-play-adapter.ts`
+- [ ] Add `getAppDetails()` to `app-store-adapter.ts`
+- [ ] Update `InterpretResult` type with discriminated union
+
+**Phase 2: AI Interpretation & Confirmation UI (Week 1-2)**
+- [ ] Create app-specific Claude prompt
+- [ ] Build app confirmation UI component
+- [ ] Wire up search phrase editing for app mode
+- [ ] Add market selector (primary + "add more markets")
+
+**Phase 3: Results Tabs (Week 2-3)**
+- [ ] Create `AppOverview` component
+- [ ] Create `UserFeedback` component (reviews analysis)
+- [ ] Adapt existing Community Voice for "Market Context" tab
+- [ ] Create `Opportunities` component
+- [ ] Wire up tab navigation for app-centric reports
+
+**Phase 4: Polish & Testing (Week 3)**
+- [ ] End-to-end test with various apps (Calm, Notion, Strava, etc.)
+- [ ] Error handling for invalid/removed apps
+- [ ] Loading states for multi-source fetching
+- [ ] Mobile responsiveness
+
+---
+
+#### 3.8.10 Why This Matters for VCs
+
+When a VC is evaluating a pitch from a meditation app startup, they want to know:
+- Are users actually dissatisfied with Calm/Headspace? (app reviews) ✅
+- Is the pain the startup claims to solve *real*? (Reddit/HN validation) ✅
+- What are the specific gaps no one is filling? (cross-source synthesis) ✅
+- Is this founder's insight genuine or are they solving a non-problem? ✅
+
+**PVRE answers all of these with one app URL paste.**
+
+This positions App-Centric Analysis as **due diligence automation** — a £500-2000/month value proposition because it replaces hours of manual research their analysts currently do.
+
+---
+
 ## Phase 4: VC Features
 
 ### 4.1 VC Use Case
@@ -1451,17 +1956,26 @@ New revenue stream:
 - [x] Source attribution in reports ✅ (Dec 16) — Pain signals show source (`google_play`, `app_store`, etc.)
 
 ### Q1 2026 — Platform Expansion
-**Week 1-2: Video Platform Adapters**
+**Week 1-3: App-Centric Analysis Mode (NEW)**
+- [ ] URL detection in interpret-hypothesis endpoint
+- [ ] `getAppDetails()` methods for both adapters
+- [ ] AI problem interpretation prompt for apps
+- [ ] App confirmation UI component
+- [ ] New results tabs: App Overview, User Feedback, Market Context, Opportunities
+- [ ] Multi-geography review fetching (smart default + opt-in expansion)
+- [ ] End-to-end testing with various app types
+
+**Week 4-5: Video Platform Adapters**
 - [ ] YouTube Data API integration
 - [ ] TikTok adapter (`davidteather/TikTok-Api`)
 - [ ] Trend/timing scores grounded in real data
 
-**Week 3-4: Integration & Testing**
+**Week 6-7: Integration & Testing**
 - [ ] Source orchestration logic (advanced routing)
 - [ ] Cross-source signal weighting
 - [ ] End-to-end testing with various hypothesis types
 
-**Week 5-6: Polish**
+**Week 8: Polish**
 - [ ] Competition score grounded in real app data
 - [ ] Activity timeline with spike detection
 - [ ] Pre-built "Skills" for chat

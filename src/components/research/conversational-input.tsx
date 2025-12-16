@@ -10,9 +10,18 @@ import { Badge } from '@/components/ui/badge'
 import { Loader2, Sparkles, ArrowRight, ArrowLeft, Check, Edit2, Users, AlertTriangle, Lightbulb, MessageSquare, X, Plus, Link2, ExternalLink } from 'lucide-react'
 import { CoveragePreview, CoverageData } from './coverage-preview'
 import { StructuredHypothesis, formatHypothesis } from '@/types/research'
-import { HypothesisInterpretation, RefinementSuggestion, InterpretHypothesisResponse } from '@/app/api/research/interpret-hypothesis/route'
+import {
+  HypothesisInterpretation,
+  RefinementSuggestion,
+  InterpretHypothesisResponse,
+  InterpretResponse,
+  AppAnalysisResponse,
+  AppAnalysisInterpretation,
+} from '@/app/api/research/interpret-hypothesis/route'
+import type { AppDetails } from '@/lib/data-sources/types'
 
-type Step = 'input' | 'confirm' | 'adjust'
+type Step = 'input' | 'confirm' | 'adjust' | 'app-confirm'
+type InputMode = 'hypothesis' | 'app-analysis'
 
 interface ConversationalInputProps {
   onSubmit: (hypothesis: string, coverageData?: CoverageData, structuredHypothesis?: StructuredHypothesis) => Promise<void>
@@ -141,8 +150,26 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   // Coverage preview state
   const [showPreview, setShowPreview] = useState(false)
 
+  // App analysis mode state
+  const [researchMode, setResearchMode] = useState<InputMode>('hypothesis')
+  const [appData, setAppData] = useState<AppDetails | null>(null)
+  const [appInterpretation, setAppInterpretation] = useState<AppAnalysisInterpretation | null>(null)
+  const [appSearchPhrases, setAppSearchPhrases] = useState<string[]>([])
+  const [appNewPhrase, setAppNewPhrase] = useState('')
+  const [showAppAddPhrase, setShowAppAddPhrase] = useState(false)
+  const appAddPhraseInputRef = useRef<HTMLInputElement>(null)
+
   // Build structured hypothesis from current state
   const getStructuredHypothesis = useCallback((): StructuredHypothesis => {
+    // App analysis mode
+    if (researchMode === 'app-analysis' && appData && appInterpretation) {
+      return {
+        audience: appInterpretation.targetAudience,
+        problem: appInterpretation.primaryDomain,
+        problemLanguage: appSearchPhrases.join(', '),
+      }
+    }
+    // Hypothesis mode - adjust step
     if (step === 'adjust') {
       return {
         audience: adjustedAudience.trim(),
@@ -150,6 +177,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
         problemLanguage: adjustedPhrases.join(', '),
       }
     }
+    // Hypothesis mode - confirm step
     if (interpretation) {
       return {
         audience: interpretation.audience,
@@ -158,7 +186,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
       }
     }
     return { audience: '', problem: '' }
-  }, [step, interpretation, adjustedAudience, adjustedProblem, adjustedPhrases])
+  }, [step, interpretation, adjustedAudience, adjustedProblem, adjustedPhrases, researchMode, appData, appInterpretation, appSearchPhrases])
 
   const getHypothesisString = useCallback((): string => {
     const structured = getStructuredHypothesis()
@@ -166,9 +194,11 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   }, [getStructuredHypothesis])
 
   // Supported URL types with their display info
-  type UrlType = 'reddit' | 'twitter' | 'producthunt' | 'hackernews' | 'indiehackers' | 'linkedin' | 'website'
+  type UrlType = 'reddit' | 'twitter' | 'producthunt' | 'hackernews' | 'indiehackers' | 'linkedin' | 'website' | 'googleplay' | 'appstore'
 
   const URL_TYPE_INFO: Record<UrlType, { label: string; icon: string; description: string }> = {
+    googleplay: { label: 'Google Play', icon: '🤖', description: 'App analysis mode' },
+    appstore: { label: 'App Store', icon: '🍎', description: 'App analysis mode' },
     reddit: { label: 'Reddit', icon: '🔴', description: 'Thread or search results' },
     twitter: { label: 'Twitter/X', icon: '𝕏', description: 'Tweet or thread' },
     producthunt: { label: 'Product Hunt', icon: '🚀', description: 'Product page or launch' },
@@ -190,7 +220,15 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
       }
       const hostname = parsed.hostname.toLowerCase()
 
-      // Detect specific platforms
+      // Detect app stores FIRST (highest priority)
+      if (hostname.includes('play.google.com')) {
+        return { valid: true, type: 'googleplay', error: null }
+      }
+      if (hostname.includes('apps.apple.com') || hostname.includes('itunes.apple.com')) {
+        return { valid: true, type: 'appstore', error: null }
+      }
+
+      // Detect other platforms
       if (hostname.includes('reddit.com') || hostname.includes('redd.it')) {
         return { valid: true, type: 'reddit', error: null }
       }
@@ -219,7 +257,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   const urlValidation = validateUrl(urlInput)
   const isUrlValid = urlValidation.valid
 
-  // Step 1: Interpret the raw input
+  // Step 1: Interpret the raw input (handles both hypothesis and app URL)
   const handleInterpret = async () => {
     if (!rawInput.trim() || rawInput.trim().length < 10) return
 
@@ -245,16 +283,30 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
         throw new Error(errorMessage)
       }
 
-      const data: InterpretHypothesisResponse = await response.json()
+      const data: InterpretResponse = await response.json()
 
-      setInterpretation(data.interpretation)
-      setRefinements(data.refinementSuggestions || [])
-      setFormattedHypothesis(data.formattedHypothesis)
+      // Check if this is app-analysis mode
+      if (data.mode === 'app-analysis') {
+        setResearchMode('app-analysis')
+        setAppData(data.appData)
+        setAppInterpretation(data.interpretation)
+        setAppSearchPhrases([...data.interpretation.searchPhrases])
+        setStep('app-confirm')
+        return
+      }
+
+      // Hypothesis mode (default)
+      setResearchMode('hypothesis')
+      const hypothesisData = data as InterpretHypothesisResponse & { mode: 'hypothesis' }
+
+      setInterpretation(hypothesisData.interpretation)
+      setRefinements(hypothesisData.refinementSuggestions || [])
+      setFormattedHypothesis(hypothesisData.formattedHypothesis)
 
       // Pre-populate adjust fields
-      setAdjustedAudience(data.interpretation.audience)
-      setAdjustedProblem(data.interpretation.problem)
-      setAdjustedPhrases([...data.interpretation.searchPhrases])
+      setAdjustedAudience(hypothesisData.interpretation.audience)
+      setAdjustedProblem(hypothesisData.interpretation.problem)
+      setAdjustedPhrases([...hypothesisData.interpretation.searchPhrases])
 
       setStep('confirm')
     } catch (err) {
@@ -568,6 +620,40 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                     setInterpretError(null)
 
                     try {
+                      // Route app store URLs to app-centric analysis
+                      if (urlValidation.type === 'googleplay' || urlValidation.type === 'appstore') {
+                        const response = await fetch('/api/research/interpret-hypothesis', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ rawInput: urlInput.trim() }),
+                        })
+
+                        if (!response.ok) {
+                          let errorMessage = 'Failed to analyze app'
+                          try {
+                            const err = await response.json()
+                            errorMessage = err.error || errorMessage
+                          } catch {
+                            errorMessage = `Server error (${response.status}). Please try again.`
+                          }
+                          throw new Error(errorMessage)
+                        }
+
+                        const data: InterpretResponse = await response.json()
+
+                        if (data.mode === 'app-analysis') {
+                          setResearchMode('app-analysis')
+                          setAppData(data.appData)
+                          setAppInterpretation(data.interpretation)
+                          setAppSearchPhrases([...data.interpretation.searchPhrases])
+                          setStep('app-confirm')
+                          return
+                        }
+                        // Fallback if somehow it's not app-analysis
+                        throw new Error('Failed to analyze app - unexpected response')
+                      }
+
+                      // For all other URLs, use the analyze-url endpoint
                       const response = await fetch('/api/research/analyze-url', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -920,6 +1006,239 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                 Continue with Changes
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Step: App Confirmation (App-Centric Mode) */}
+        {step === 'app-confirm' && appData && appInterpretation && !showPreview && (
+          <div className="space-y-4">
+            {/* App Card */}
+            <div className="p-4 bg-gradient-to-r from-violet-500/10 to-blue-500/10 rounded-lg border border-violet-500/20">
+              <div className="flex gap-4">
+                {/* App Icon */}
+                {appData.iconUrl && (
+                  <img
+                    src={appData.iconUrl}
+                    alt={appData.name}
+                    className="w-16 h-16 rounded-xl shadow-sm flex-shrink-0"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-lg truncate">{appData.name}</h3>
+                    {/* Store indicator */}
+                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                      appData.store === 'google_play'
+                        ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                        : 'bg-gray-500/20 text-gray-600 dark:text-gray-400'
+                    }`}>
+                      {appData.store === 'google_play' ? '🤖 Google Play' : '🍎 App Store'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{appData.developer}</p>
+                  <div className="flex items-center gap-3 mt-1.5 text-sm">
+                    <span className="flex items-center gap-1">
+                      <span className="text-yellow-500">★</span>
+                      {appData.rating.toFixed(1)}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {appData.reviewCount.toLocaleString()} reviews
+                    </span>
+                    {appData.installs && (
+                      <span className="text-muted-foreground">
+                        {appData.installs} installs
+                      </span>
+                    )}
+                    <Badge variant="secondary" className="text-xs">
+                      {appData.category}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Problem Domain Interpretation */}
+            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Sparkles className="h-4 w-4 text-violet-500" />
+                Here&apos;s what this app solves:
+              </div>
+
+              <div className="space-y-3">
+                {/* Primary Domain */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <AlertTriangle className="h-3 w-3" />
+                    Primary Problem
+                  </div>
+                  <p className="text-sm font-medium">{appInterpretation.primaryDomain}</p>
+                </div>
+
+                {/* Secondary Domains */}
+                {appInterpretation.secondaryDomains.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">Also addresses:</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {appInterpretation.secondaryDomains.map((domain, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs">
+                          {domain}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Target Audience */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Users className="h-3 w-3" />
+                    Target Users
+                  </div>
+                  <p className="text-sm">{appInterpretation.targetAudience}</p>
+                </div>
+
+                {/* Search Phrases - editable */}
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <MessageSquare className="h-3 w-3" />
+                    Search phrases for Reddit/HN:
+                    <span className="text-muted-foreground/60">(click to remove)</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {appSearchPhrases.map((phrase, idx) => (
+                      <Badge
+                        key={idx}
+                        variant="secondary"
+                        className="text-xs pr-1 cursor-pointer hover:bg-secondary/80 group"
+                      >
+                        &quot;{phrase}&quot;
+                        <button
+                          type="button"
+                          onClick={() => setAppSearchPhrases(prev => prev.filter(p => p !== phrase))}
+                          className="ml-1 opacity-50 group-hover:opacity-100 hover:text-destructive transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    {/* Add phrase button/input */}
+                    {showAppAddPhrase ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          ref={appAddPhraseInputRef}
+                          value={appNewPhrase}
+                          onChange={(e) => setAppNewPhrase(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              if (appNewPhrase.trim() && !appSearchPhrases.includes(appNewPhrase.trim())) {
+                                setAppSearchPhrases(prev => [...prev, appNewPhrase.trim()])
+                              }
+                              setAppNewPhrase('')
+                              setShowAppAddPhrase(false)
+                            } else if (e.key === 'Escape') {
+                              setShowAppAddPhrase(false)
+                              setAppNewPhrase('')
+                            }
+                          }}
+                          onBlur={() => {
+                            if (!appNewPhrase.trim()) {
+                              setShowAppAddPhrase(false)
+                            }
+                          }}
+                          placeholder="Add phrase..."
+                          className="h-6 text-xs w-40"
+                          autoFocus
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2"
+                          onClick={() => {
+                            if (appNewPhrase.trim() && !appSearchPhrases.includes(appNewPhrase.trim())) {
+                              setAppSearchPhrases(prev => [...prev, appNewPhrase.trim()])
+                            }
+                            setAppNewPhrase('')
+                            setShowAppAddPhrase(false)
+                          }}
+                          disabled={!appNewPhrase.trim()}
+                        >
+                          <Check className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAppAddPhrase(true)
+                          setTimeout(() => appAddPhraseInputRef.current?.focus(), 0)
+                        }}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-dashed border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground transition-colors"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Competitor Terms */}
+                {appInterpretation.competitorTerms.length > 0 && (
+                  <div className="space-y-1 pt-2 border-t">
+                    <div className="text-xs text-muted-foreground">Competitors to compare:</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {appInterpretation.competitorTerms.slice(0, 5).map((comp, idx) => (
+                        <span key={idx} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                          {comp}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleBack} className="flex-1">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button
+                onClick={() => setShowPreview(true)}
+                disabled={isLoading || appSearchPhrases.length === 0}
+                className="flex-1"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Search These Phrases
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* App Confirmation: Coverage Preview */}
+        {step === 'app-confirm' && showPreview && (
+          <div className="space-y-4">
+            <CoveragePreview
+              hypothesis={getHypothesisString()}
+              structuredHypothesis={getStructuredHypothesis()}
+              onProceed={handleFinalSubmit}
+              onRefine={() => {
+                setShowPreview(false)
+              }}
+              disabled={isLoading}
+            />
+            <Button variant="outline" onClick={() => setShowPreview(false)} className="w-full">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to App Details
+            </Button>
           </div>
         )}
       </CardContent>
