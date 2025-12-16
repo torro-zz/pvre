@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink, Sparkles, Database, Smartphone } from 'lucide-react'
+import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink, Sparkles, Database, Smartphone, SlidersHorizontal, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -64,6 +64,8 @@ export interface CoverageData {
     samplePosts: SamplePost[]
   }
   selectedDataSources?: string[] // User-selected sources to use
+  // Sample size per source (how many reviews/posts to analyze)
+  sampleSizePerSource?: number
 }
 
 interface CoveragePreviewProps {
@@ -147,6 +149,9 @@ export function CoveragePreview({
   // Data sources state
   const [selectedDataSources, setSelectedDataSources] = useState<Set<string>>(new Set(['Reddit']))
 
+  // Sample size state (reviews/posts per source)
+  const [sampleSize, setSampleSize] = useState<number>(100) // Default 100, max 300 for now
+
   // MSC presets
   const mscPresets = [
     { value: 100000, label: '$100k', description: 'Lifestyle business' },
@@ -155,12 +160,19 @@ export function CoveragePreview({
     { value: 10000000, label: '$10M+', description: 'Venture-scale' },
   ]
 
-  // Fetch limits per source (what we actually analyze vs total available)
+  // Sample size presets
+  const sampleSizePresets = [
+    { value: 100, label: 'Quick', description: '~400 data points' },
+    { value: 200, label: 'Standard', description: '~800 data points' },
+    { value: 300, label: 'Deep', description: '~1,200 data points' },
+  ]
+
+  // Fetch limits per source (based on selected sample size)
   const FETCH_LIMITS = {
-    redditPerSub: 100,
-    hackerNews: 100,
-    googlePlay: 100,
-    appStore: 100,
+    redditPerSub: sampleSize,
+    hackerNews: sampleSize,
+    googlePlay: sampleSize,
+    appStore: sampleSize,
   }
 
   // Format data source count: show "X of Y" if Y > limit, otherwise just Y
@@ -329,6 +341,7 @@ export function CoveragePreview({
       mscTarget: mscTarget,
       targetPrice: targetPrice,
       selectedDataSources: Array.from(selectedDataSources),
+      sampleSizePerSource: sampleSize,
     }
   }
 
@@ -699,6 +712,43 @@ export function CoveragePreview({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Analysis Depth Selector */}
+      <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              Analysis Depth
+            </p>
+          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Info className="h-3 w-3" />
+            <span>per source, prioritizing 2-3★ reviews</span>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {sampleSizePresets.map((preset) => (
+            <button
+              key={preset.value}
+              type="button"
+              onClick={() => setSampleSize(preset.value)}
+              className={cn(
+                'flex-1 flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg border transition-colors',
+                sampleSize === preset.value
+                  ? 'bg-primary/10 border-primary/50 text-primary'
+                  : 'bg-muted/30 border-border hover:bg-muted/50'
+              )}
+            >
+              <span className="text-sm font-medium">{preset.label}</span>
+              <span className="text-xs opacity-70">{preset.value}/source</span>
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground text-center">
+          {sampleSizePresets.find(p => p.value === sampleSize)?.description} • Last 12 months • Constructive reviews prioritized
+        </p>
       </div>
 
       {/* Sample Posts Preview - 2-Column Grid Layout */}

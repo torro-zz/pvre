@@ -151,11 +151,17 @@ export async function POST(request: NextRequest) {
           .eq('id', jobId)
           .single()
 
-        // coverage_data is a JSON column that may contain structuredHypothesis and targetGeography
+        // coverage_data is a JSON column that may contain structuredHypothesis, targetGeography, and sampleSizePerSource
         const coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
         if (coverageData?.structuredHypothesis) {
           structuredHypothesis = coverageData.structuredHypothesis as StructuredHypothesis
         }
+
+        // Get sample size from coverage data (default 100, max 300 for now)
+        const sampleSizePerSource = Math.min(
+          (coverageData?.sampleSizePerSource as number) || 100,
+          300 // Hard cap for now - will be configurable later
+        )
 
         // Extract target geography for market sizing scoping
         let targetGeography: TargetGeography | undefined
@@ -217,9 +223,9 @@ export async function POST(request: NextRequest) {
         const multiSourceData = await fetchMultiSourceData({
           subreddits: subredditsToSearch,
           keywords: keywords.primary,
-          limit: 100, // 100/subreddit × 10 subreddits = 1000 posts max (API caps at 100/request)
+          limit: sampleSizePerSource, // User-configurable: 100-300 per source
           timeRange: {
-            after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
+            after: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), // Last 12 months (prioritize recent)
           },
         }, hypothesis, includesHN, includesGooglePlay, includesAppStore)
         const rawPosts = multiSourceData.posts
