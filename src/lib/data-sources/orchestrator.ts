@@ -21,6 +21,7 @@ import {
 import { RedditAdapter, redditAdapter } from './adapters/reddit-adapter'
 import { HackerNewsAdapter, hackerNewsAdapter } from './adapters/hacker-news-adapter'
 import { GooglePlayAdapter, googlePlayAdapter } from './adapters/google-play-adapter'
+import { AppStoreAdapter, appStoreAdapter } from './adapters/app-store-adapter'
 
 // Keywords that indicate HN should be included as a data source
 const TECH_KEYWORDS = [
@@ -82,6 +83,7 @@ export class DataSourceOrchestrator {
     this.registerAdapter(redditAdapter)
     this.registerAdapter(hackerNewsAdapter)
     this.registerAdapter(googlePlayAdapter)
+    this.registerAdapter(appStoreAdapter)
   }
 
   /**
@@ -209,6 +211,7 @@ export class DataSourceOrchestrator {
 
     if (shouldIncludeGooglePlay(hypothesis)) {
       sources.push('google_play')
+      sources.push('app_store')
     }
 
     // Future: Add more source recommendations based on domain
@@ -222,7 +225,8 @@ export class DataSourceOrchestrator {
 export const orchestrator = new DataSourceOrchestrator()
 
 // Re-export adapters for direct access when needed
-export { redditAdapter, hackerNewsAdapter, googlePlayAdapter }
+export { redditAdapter, hackerNewsAdapter, googlePlayAdapter, appStoreAdapter }
 export { RedditAdapter } from './adapters/reddit-adapter'
 export { HackerNewsAdapter } from './adapters/hacker-news-adapter'
 export { GooglePlayAdapter } from './adapters/google-play-adapter'
+export { AppStoreAdapter } from './adapters/app-store-adapter'
