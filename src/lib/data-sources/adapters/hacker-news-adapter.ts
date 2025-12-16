@@ -238,8 +238,12 @@ export class HackerNewsAdapter implements DataSourceAdapter {
 
   /**
    * Extract key search terms from hypothesis for HN search
-   * HN's Algolia uses AND for multi-word queries, so we need short, focused queries
-   * Prioritizes pain-signal words over generic terms
+   *
+   * IMPORTANT: HN's Algolia uses AND logic for multi-word queries.
+   * "fitness professionals" requires BOTH words, returning few/irrelevant results.
+   *
+   * Strategy: Use SINGLE primary domain keyword for broader, more relevant results.
+   * HN's relevance ranking will surface the best matches organically.
    */
   private extractSearchTerms(hypothesis: string): string {
     const words = hypothesis
@@ -248,24 +252,25 @@ export class HackerNewsAdapter implements DataSourceAdapter {
       .split(/\s+/)
       .filter(w => w.length > 3 && !STOP_WORDS.has(w))
 
-    // Separate pain words from regular words
-    const painWords = words.filter(w => PAIN_WORDS.has(w))
-    const regularWords = words.filter(w => !PAIN_WORDS.has(w))
+    // Domain-specific words that work well on HN (tech-savvy audience)
+    const domainWords = words.filter(w =>
+      // Product/industry terms that HN discusses
+      ['freelance', 'freelancer', 'startup', 'saas', 'developer', 'designer',
+       'remote', 'productivity', 'automation', 'workflow', 'invoice', 'invoicing',
+       'fitness', 'health', 'meditation', 'sleep', 'tracking', 'tracker',
+       'calendar', 'scheduling', 'email', 'hiring', 'recruiting', 'management',
+       'analytics', 'dashboard', 'reporting', 'integration', 'api'].includes(w) ||
+      // Pain words that surface real discussions
+      PAIN_WORDS.has(w)
+    )
 
-    // Prioritize: audience/domain word + pain word
-    const result: string[] = []
-
-    if (regularWords.length > 0) {
-      result.push(regularWords[0])
-    }
-    if (painWords.length > 0) {
-      result.push(painWords[0])
-    }
-    if (result.length < 2 && regularWords.length > 1) {
-      result.push(regularWords[1])
+    // Use single domain word if found, otherwise first meaningful word
+    if (domainWords.length > 0) {
+      return domainWords[0]
     }
 
-    return result.join(' ')
+    // Fallback to first filtered word (single word = broader HN results)
+    return words[0] || ''
   }
 
   private toUnifiedSignal(hit: HNHit): UnifiedSignal {

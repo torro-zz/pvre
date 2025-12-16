@@ -4,7 +4,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
-import { checkCoverage, shouldIncludeHN, checkHNCoverage } from '@/lib/data-sources'
+import {
+  checkCoverage,
+  shouldIncludeHN,
+  checkHNCoverage,
+  shouldIncludeGooglePlay,
+  checkGooglePlayCoverage,
+  checkAppStoreCoverage,
+} from '@/lib/data-sources'
 import { extractSearchKeywords } from '@/lib/reddit/keyword-extractor'
 import { StructuredHypothesis } from '@/types/research'
 
@@ -45,6 +52,18 @@ export interface CoverageCheckResponse {
   }
   // Hacker News data (for tech/startup hypotheses)
   hackerNews?: {
+    included: boolean
+    estimatedPosts: number
+    samplePosts: SamplePost[]
+  }
+  // Google Play data (for mobile app hypotheses)
+  googlePlay?: {
+    included: boolean
+    estimatedPosts: number
+    samplePosts: SamplePost[]
+  }
+  // App Store data (for mobile app hypotheses)
+  appStore?: {
     included: boolean
     estimatedPosts: number
     samplePosts: SamplePost[]
@@ -199,9 +218,46 @@ export async function POST(req: Request) {
       }
     }
 
+    // Check if Google Play / App Store should be included (mobile app hypotheses)
+    const includeMobileStores = shouldIncludeGooglePlay(hypothesis)
+    let googlePlayCoverage = null
+    let appStoreCoverage = null
+
+    if (includeMobileStores) {
+      // Fetch both app stores in parallel
+      const [gplayData, appStoreData] = await Promise.all([
+        checkGooglePlayCoverage(hypothesis),
+        checkAppStoreCoverage(hypothesis),
+      ])
+
+      if (gplayData.available) {
+        googlePlayCoverage = {
+          included: true,
+          estimatedPosts: gplayData.estimatedPosts,
+          samplePosts: gplayData.samplePosts,
+        }
+        dataSources.push('Google Play')
+      }
+
+      if (appStoreData.available) {
+        appStoreCoverage = {
+          included: true,
+          estimatedPosts: appStoreData.estimatedPosts,
+          samplePosts: appStoreData.samplePosts,
+        }
+        dataSources.push('App Store')
+      }
+    }
+
+    // Calculate total estimated posts from all sources
+    const totalEstimatedPosts = coverageResult.totalEstimatedPosts +
+      (hnCoverage?.estimatedPosts || 0) +
+      (googlePlayCoverage?.estimatedPosts || 0) +
+      (appStoreCoverage?.estimatedPosts || 0)
+
     return NextResponse.json({
       subreddits: subredditCoverage,
-      totalEstimatedPosts: coverageResult.totalEstimatedPosts + (hnCoverage?.estimatedPosts || 0),
+      totalEstimatedPosts,
       dataConfidence: coverageResult.dataConfidence,
       recommendation: coverageResult.recommendation,
       refinementSuggestions: coverageResult.refinementSuggestions,
@@ -214,6 +270,9 @@ export async function POST(req: Request) {
       domain: discovery.domain,
       // HN coverage (if applicable)
       hackerNews: hnCoverage || undefined,
+      // App store coverage (if applicable)
+      googlePlay: googlePlayCoverage || undefined,
+      appStore: appStoreCoverage || undefined,
       dataSources,
     } as CoverageCheckResponse)
   } catch (error) {

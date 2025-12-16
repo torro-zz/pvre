@@ -19,13 +19,17 @@ import {
 } from './types'
 import { RedditAdapter, redditAdapter } from './adapters/reddit-adapter'
 import { HackerNewsAdapter, hackerNewsAdapter } from './adapters/hacker-news-adapter'
+import { googlePlayAdapter } from './adapters/google-play-adapter'
+import { appStoreAdapter } from './adapters/app-store-adapter'
 import { PullPushSource } from './pullpush'
 import { getCachedData, setCachedData, generateCacheKey } from './cache'
 
 // Re-export the orchestrator and adapters
-export { orchestrator, shouldIncludeHN } from './orchestrator'
+export { orchestrator, shouldIncludeHN, shouldIncludeGooglePlay } from './orchestrator'
 export { RedditAdapter, redditAdapter } from './adapters/reddit-adapter'
 export { HackerNewsAdapter, hackerNewsAdapter } from './adapters/hacker-news-adapter'
+export { googlePlayAdapter } from './adapters/google-play-adapter'
+export { appStoreAdapter } from './adapters/app-store-adapter'
 
 // Initialize legacy data sources for Reddit failover
 // The new RedditAdapter wraps Arctic Shift; we keep PullPush as fallback
@@ -417,6 +421,56 @@ export async function checkHNCoverage(hypothesis: string): Promise<{
   const [count, samples] = await Promise.all([
     hackerNewsAdapter.getPostCount(hypothesis),
     hackerNewsAdapter.getSamplePosts(hypothesis, 3),
+  ])
+
+  return {
+    available: true,
+    estimatedPosts: count,
+    samplePosts: samples,
+  }
+}
+
+/**
+ * Check Google Play coverage for a hypothesis
+ * Returns app review data for mobile app validation
+ */
+export async function checkGooglePlayCoverage(hypothesis: string): Promise<{
+  available: boolean
+  estimatedPosts: number
+  samplePosts: SamplePost[]
+}> {
+  if (!(await googlePlayAdapter.healthCheck())) {
+    return { available: false, estimatedPosts: 0, samplePosts: [] }
+  }
+
+  const [count, samples] = await Promise.all([
+    googlePlayAdapter.getPostCount(hypothesis),
+    googlePlayAdapter.getSamplePosts(hypothesis, 3),
+  ])
+
+  return {
+    available: true,
+    estimatedPosts: count,
+    samplePosts: samples,
+  }
+}
+
+/**
+ * Check App Store coverage for a hypothesis
+ * Returns iOS app review data for mobile app validation
+ */
+export async function checkAppStoreCoverage(hypothesis: string): Promise<{
+  available: boolean
+  estimatedPosts: number
+  samplePosts: SamplePost[]
+}> {
+  if (!(await appStoreAdapter.healthCheck())) {
+    return { available: false, estimatedPosts: 0, samplePosts: [] }
+  }
+
+  const [count, samples] = await Promise.all([
+    appStoreAdapter.getPostCount(hypothesis),
+    appStoreAdapter.getSamplePosts(hypothesis, 3),
   ])
 
   return {

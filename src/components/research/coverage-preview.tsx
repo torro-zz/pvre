@@ -52,6 +52,16 @@ export interface CoverageData {
     estimatedPosts: number
     samplePosts: SamplePost[]
   }
+  googlePlay?: {
+    included: boolean
+    estimatedPosts: number
+    samplePosts: SamplePost[]
+  }
+  appStore?: {
+    included: boolean
+    estimatedPosts: number
+    samplePosts: SamplePost[]
+  }
   selectedDataSources?: string[] // User-selected sources to use
 }
 
@@ -540,7 +550,7 @@ export function CoveragePreview({
               />
               <span className="text-sm font-medium">Reddit</span>
               <span className="text-xs text-muted-foreground">
-                ({coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0)} posts)
+                ({(coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0) - (coverage.googlePlay?.estimatedPosts || 0) - (coverage.appStore?.estimatedPosts || 0)).toLocaleString()} posts)
               </span>
             </div>
             <span className="text-xs text-muted-foreground">Required</span>
@@ -611,6 +621,128 @@ export function CoveragePreview({
                   <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0" />
                 </a>
               ))}
+            </div>
+          )}
+
+          {/* Google Play - optional, shown for mobile app hypotheses */}
+          {coverage.googlePlay?.included && (
+            <div
+              className={cn(
+                'flex items-center justify-between p-2 rounded cursor-pointer transition-colors',
+                selectedDataSources.has('Google Play')
+                  ? 'bg-green-500/10 border border-green-500/30'
+                  : 'bg-muted/30 hover:bg-muted/50'
+              )}
+              onClick={() => toggleDataSource('Google Play')}
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedDataSources.has('Google Play')}
+                  onChange={() => toggleDataSource('Google Play')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-4 w-4 rounded"
+                />
+                <span className="text-sm font-medium">Google Play</span>
+                <span className="text-xs text-muted-foreground">
+                  ({coverage.googlePlay.estimatedPosts.toLocaleString()} reviews)
+                </span>
+              </div>
+              <span className="text-xs text-green-600 dark:text-green-400">Android</span>
+            </div>
+          )}
+
+          {/* Google Play Sample Reviews when selected */}
+          {coverage.googlePlay?.included && selectedDataSources.has('Google Play') && coverage.googlePlay.samplePosts.length > 0 && (
+            <div className="ml-6 mt-2 space-y-1">
+              <p className="text-xs text-muted-foreground">Sample reviews:</p>
+              {coverage.googlePlay.samplePosts.slice(0, 2).map((post, i) => (
+                <a
+                  key={i}
+                  href={post.permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-muted/50 transition-colors group"
+                >
+                  <span className="text-muted-foreground flex-shrink-0">•</span>
+                  <span className="text-foreground line-clamp-1">{post.title}</span>
+                  <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0" />
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* App Store - optional, shown for mobile app hypotheses */}
+          {coverage.appStore?.included && (
+            <div
+              className={cn(
+                'flex items-center justify-between p-2 rounded cursor-pointer transition-colors',
+                selectedDataSources.has('App Store')
+                  ? 'bg-blue-500/10 border border-blue-500/30'
+                  : 'bg-muted/30 hover:bg-muted/50'
+              )}
+              onClick={() => toggleDataSource('App Store')}
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedDataSources.has('App Store')}
+                  onChange={() => toggleDataSource('App Store')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-4 w-4 rounded"
+                />
+                <span className="text-sm font-medium">App Store</span>
+                <span className="text-xs text-muted-foreground">
+                  ({coverage.appStore.estimatedPosts.toLocaleString()} reviews)
+                </span>
+              </div>
+              <span className="text-xs text-blue-600 dark:text-blue-400">iOS</span>
+            </div>
+          )}
+
+          {/* App Store Sample Reviews when selected */}
+          {coverage.appStore?.included && selectedDataSources.has('App Store') && coverage.appStore.samplePosts.length > 0 && (
+            <div className="ml-6 mt-2 space-y-1">
+              <p className="text-xs text-muted-foreground">Sample reviews:</p>
+              {coverage.appStore.samplePosts.slice(0, 2).map((post, i) => (
+                <a
+                  key={i}
+                  href={post.permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-muted/50 transition-colors group"
+                >
+                  <span className="text-muted-foreground flex-shrink-0">•</span>
+                  <span className="text-foreground line-clamp-1">{post.title}</span>
+                  <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0" />
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* Recommendation banner if app stores are available but not selected */}
+          {(coverage.googlePlay?.included || coverage.appStore?.included) &&
+           !selectedDataSources.has('Google Play') && !selectedDataSources.has('App Store') && (
+            <div className="flex items-start gap-2 p-2 rounded-lg bg-green-500/10 border border-green-500/20">
+              <Sparkles className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs text-green-700 dark:text-green-300">
+                  <strong>Recommended:</strong> Your hypothesis mentions mobile app keywords.
+                  Adding app store reviews can reveal real user pain points.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDataSources(prev => {
+                    const next = new Set(prev)
+                    if (coverage.googlePlay?.included) next.add('Google Play')
+                    if (coverage.appStore?.included) next.add('App Store')
+                    return next
+                  })}
+                  className="text-xs text-green-600 dark:text-green-400 font-medium mt-1 hover:underline"
+                >
+                  + Add App Store Reviews
+                </button>
+              </div>
             </div>
           )}
         </div>
