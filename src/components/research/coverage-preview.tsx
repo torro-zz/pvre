@@ -155,6 +155,38 @@ export function CoveragePreview({
     { value: 10000000, label: '$10M+', description: 'Venture-scale' },
   ]
 
+  // Set pricing defaults based on app data for app-centric mode
+  useEffect(() => {
+    if (mode === 'app-analysis' && appData) {
+      // Try to parse actual price if it's a paid app
+      if (appData.price && appData.price !== 'Free') {
+        const priceMatch = appData.price.match(/[\d.]+/)
+        if (priceMatch) {
+          const parsedPrice = parseFloat(priceMatch[0])
+          if (!isNaN(parsedPrice) && parsedPrice > 0) {
+            setTargetPrice(Math.round(parsedPrice))
+          }
+        }
+      } else if (appData.hasIAP) {
+        // Freemium app - use category-based subscription defaults
+        const categoryDefaults: Record<string, number> = {
+          'health & fitness': 10,
+          'medical': 15,
+          'productivity': 10,
+          'business': 15,
+          'finance': 12,
+          'education': 12,
+          'entertainment': 10,
+          'music': 10,
+          'lifestyle': 10,
+        }
+        const category = appData.category.toLowerCase()
+        const defaultPrice = categoryDefaults[category] || 10
+        setTargetPrice(defaultPrice)
+      }
+    }
+  }, [mode, appData])
+
   // Detect geography from audience on mount
   useEffect(() => {
     if (structuredHypothesis?.audience && !targetGeography) {
