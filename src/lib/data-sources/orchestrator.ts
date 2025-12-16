@@ -20,6 +20,7 @@ import {
 } from './types'
 import { RedditAdapter, redditAdapter } from './adapters/reddit-adapter'
 import { HackerNewsAdapter, hackerNewsAdapter } from './adapters/hacker-news-adapter'
+import { GooglePlayAdapter, googlePlayAdapter } from './adapters/google-play-adapter'
 
 // Keywords that indicate HN should be included as a data source
 const TECH_KEYWORDS = [
@@ -30,12 +31,33 @@ const TECH_KEYWORDS = [
   'b2b', 'enterprise', 'automation', 'workflow', 'productivity tool',
 ]
 
+// Keywords that indicate Google Play should be included as a data source
+const MOBILE_APP_KEYWORDS = [
+  'mobile app', 'android', 'ios', 'iphone', 'smartphone', 'phone app',
+  'mobile game', 'fitness app', 'health app', 'tracking app', 'meditation',
+  'habit tracker', 'sleep tracker', 'calorie', 'workout', 'exercise app',
+  'dating app', 'social app', 'messaging app', 'photo app', 'video app',
+  'music app', 'podcast', 'audiobook', 'e-reader', 'news app',
+  'banking app', 'finance app', 'budget app', 'expense tracker',
+  'task manager', 'to-do', 'reminder app', 'calendar app', 'note-taking',
+  'learning app', 'language learning', 'education app', 'kids app',
+  'shopping app', 'delivery app', 'food ordering', 'ride-sharing',
+]
+
 /**
  * Check if hypothesis should include Hacker News as a source
  */
 export function shouldIncludeHN(hypothesis: string): boolean {
   const lowerHypothesis = hypothesis.toLowerCase()
   return TECH_KEYWORDS.some(keyword => lowerHypothesis.includes(keyword))
+}
+
+/**
+ * Check if hypothesis should include Google Play as a source
+ */
+export function shouldIncludeGooglePlay(hypothesis: string): boolean {
+  const lowerHypothesis = hypothesis.toLowerCase()
+  return MOBILE_APP_KEYWORDS.some(keyword => lowerHypothesis.includes(keyword))
 }
 
 /**
@@ -59,6 +81,7 @@ export class DataSourceOrchestrator {
     // Register default adapters
     this.registerAdapter(redditAdapter)
     this.registerAdapter(hackerNewsAdapter)
+    this.registerAdapter(googlePlayAdapter)
   }
 
   /**
@@ -184,8 +207,11 @@ export class DataSourceOrchestrator {
       sources.push('hacker_news')
     }
 
+    if (shouldIncludeGooglePlay(hypothesis)) {
+      sources.push('google_play')
+    }
+
     // Future: Add more source recommendations based on domain
-    // if (isMobileAppHypothesis(hypothesis)) sources.push('google_play', 'app_store')
     // if (isConsumerProduct(hypothesis)) sources.push('tiktok', 'youtube')
 
     return sources
@@ -196,6 +222,7 @@ export class DataSourceOrchestrator {
 export const orchestrator = new DataSourceOrchestrator()
 
 // Re-export adapters for direct access when needed
-export { redditAdapter, hackerNewsAdapter }
+export { redditAdapter, hackerNewsAdapter, googlePlayAdapter }
 export { RedditAdapter } from './adapters/reddit-adapter'
 export { HackerNewsAdapter } from './adapters/hacker-news-adapter'
+export { GooglePlayAdapter } from './adapters/google-play-adapter'
