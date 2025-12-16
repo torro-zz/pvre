@@ -480,7 +480,15 @@ export function CoveragePreview({
         <div className="flex-1">
           <h3 className="font-semibold">{config.label}</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Found ~{coverage.totalEstimatedPosts.toLocaleString()} relevant discussions on Reddit
+            {(() => {
+              // Calculate what we'll actually analyze
+              const redditCount = Math.min(selectedSubreddits.size * sampleSize, coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0) - (coverage.googlePlay?.estimatedPosts || 0) - (coverage.appStore?.estimatedPosts || 0))
+              const hnCount = selectedDataSources.has('Hacker News') && coverage.hackerNews?.included ? Math.min(sampleSize, coverage.hackerNews.estimatedPosts) : 0
+              const gpCount = selectedDataSources.has('Google Play') && coverage.googlePlay?.included ? Math.min(sampleSize, coverage.googlePlay.estimatedPosts) : 0
+              const asCount = selectedDataSources.has('App Store') && coverage.appStore?.included ? Math.min(sampleSize, coverage.appStore.estimatedPosts) : 0
+              const totalToAnalyze = redditCount + hnCount + gpCount + asCount
+              return `Analyzing ~${totalToAnalyze.toLocaleString()} of ${coverage.totalEstimatedPosts.toLocaleString()} available`
+            })()}
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={resetCheck} className="text-xs">
