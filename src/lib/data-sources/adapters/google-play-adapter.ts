@@ -146,6 +146,7 @@ export class GooglePlayAdapter implements DataSourceAdapter {
 
   /**
    * Get estimated review count for apps matching the query
+   * Note: Search results don't include review counts, so we fetch full app details
    */
   async getPostCount(query: string): Promise<number> {
     const searchTerms = this.extractSearchTerms(query)
@@ -159,8 +160,18 @@ export class GooglePlayAdapter implements DataSourceAdapter {
 
       if (!apps || apps.length === 0) return 0
 
-      // Sum up review counts from top apps
-      return apps.reduce((sum, app) => sum + (app.reviews || 0), 0)
+      // Fetch full details for top 3 apps to get review counts
+      const detailPromises = apps.slice(0, 3).map(async (app) => {
+        try {
+          const details = await gplay.app({ appId: app.appId })
+          return details.reviews || 0
+        } catch {
+          return 0
+        }
+      })
+
+      const reviewCounts = await Promise.all(detailPromises)
+      return reviewCounts.reduce((sum, count) => sum + count, 0)
     } catch {
       return 0
     }
