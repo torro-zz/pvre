@@ -155,6 +155,22 @@ export function CoveragePreview({
     { value: 10000000, label: '$10M+', description: 'Venture-scale' },
   ]
 
+  // Fetch limits per source (what we actually analyze vs total available)
+  const FETCH_LIMITS = {
+    redditPerSub: 100,
+    hackerNews: 100,
+    googlePlay: 100,
+    appStore: 100,
+  }
+
+  // Format data source count: show "X of Y" if Y > limit, otherwise just Y
+  const formatSourceCount = (available: number, limit: number) => {
+    if (available <= limit) {
+      return available.toLocaleString()
+    }
+    return `${limit} of ${available.toLocaleString()}`
+  }
+
   // Set pricing defaults based on app data for app-centric mode
   useEffect(() => {
     if (mode === 'app-analysis' && appData) {
@@ -615,7 +631,10 @@ export function CoveragePreview({
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border">
             <span className="text-sm font-medium">Reddit</span>
             <span className="text-xs text-muted-foreground">
-              ({(coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0) - (coverage.googlePlay?.estimatedPosts || 0) - (coverage.appStore?.estimatedPosts || 0)).toLocaleString()})
+              ({formatSourceCount(
+                coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0) - (coverage.googlePlay?.estimatedPosts || 0) - (coverage.appStore?.estimatedPosts || 0),
+                selectedSubreddits.size * FETCH_LIMITS.redditPerSub
+              )})
             </span>
             <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">Required</span>
           </div>
@@ -633,7 +652,7 @@ export function CoveragePreview({
               )}
             >
               <span className="text-sm font-medium">Hacker News</span>
-              <span className="text-xs opacity-70">({coverage.hackerNews.estimatedPosts.toLocaleString()})</span>
+              <span className="text-xs opacity-70">({formatSourceCount(coverage.hackerNews.estimatedPosts, FETCH_LIMITS.hackerNews)})</span>
               {selectedDataSources.has('Hacker News') && (
                 <CheckCircle className="h-3.5 w-3.5" />
               )}
@@ -653,7 +672,7 @@ export function CoveragePreview({
               )}
             >
               <span className="text-sm font-medium">Google Play</span>
-              <span className="text-xs opacity-70">({coverage.googlePlay.estimatedPosts.toLocaleString()})</span>
+              <span className="text-xs opacity-70">({formatSourceCount(coverage.googlePlay.estimatedPosts, FETCH_LIMITS.googlePlay)})</span>
               {selectedDataSources.has('Google Play') && (
                 <CheckCircle className="h-3.5 w-3.5" />
               )}
@@ -673,7 +692,7 @@ export function CoveragePreview({
               )}
             >
               <span className="text-sm font-medium">App Store</span>
-              <span className="text-xs opacity-70">({coverage.appStore.estimatedPosts.toLocaleString()})</span>
+              <span className="text-xs opacity-70">({formatSourceCount(coverage.appStore.estimatedPosts, FETCH_LIMITS.appStore)})</span>
               {selectedDataSources.has('App Store') && (
                 <CheckCircle className="h-3.5 w-3.5" />
               )}
