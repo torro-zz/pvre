@@ -255,11 +255,24 @@ export class HackerNewsAdapter implements DataSourceAdapter {
     // Domain-specific words that work well on HN (tech-savvy audience)
     const domainWords = words.filter(w =>
       // Product/industry terms that HN discusses
-      ['freelance', 'freelancer', 'startup', 'saas', 'developer', 'designer',
-       'remote', 'productivity', 'automation', 'workflow', 'invoice', 'invoicing',
-       'fitness', 'health', 'meditation', 'sleep', 'tracking', 'tracker',
-       'calendar', 'scheduling', 'email', 'hiring', 'recruiting', 'management',
-       'analytics', 'dashboard', 'reporting', 'integration', 'api'].includes(w) ||
+      [
+        // Work & productivity
+        'freelance', 'freelancer', 'startup', 'saas', 'developer', 'designer',
+        'remote', 'productivity', 'automation', 'workflow', 'invoice', 'invoicing',
+        'calendar', 'scheduling', 'email', 'hiring', 'recruiting', 'management',
+        'analytics', 'dashboard', 'reporting', 'integration', 'api',
+        // Health & wellness
+        'fitness', 'health', 'meditation', 'sleep', 'tracking', 'tracker',
+        // Habits & self-improvement (common HN topics)
+        'habits', 'habit', 'procrastination', 'motivation', 'discipline', 'focus',
+        'learning', 'reading', 'writing', 'journaling', 'goals', 'routine',
+        // Finance & business
+        'budget', 'investing', 'savings', 'finance', 'taxes', 'accounting',
+        'pricing', 'subscription', 'revenue', 'customers', 'marketing',
+        // Technical
+        'database', 'security', 'privacy', 'encryption', 'performance',
+        'testing', 'deployment', 'infrastructure', 'monitoring',
+      ].includes(w) ||
       // Pain words that surface real discussions
       PAIN_WORDS.has(w)
     )
