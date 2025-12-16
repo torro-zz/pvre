@@ -232,11 +232,21 @@ export async function POST(request: NextRequest) {
         const subredditWeights = await getSubredditWeights(hypothesis, subredditsToSearch)
         send('weights', 'Subreddit weights calculated', { weights: Object.fromEntries(subredditWeights) })
 
-        // Step 3: Fetch data from multiple sources (Reddit + HN if user selected)
+        // Step 3: Fetch data from multiple sources (Reddit + HN/AppStores if user selected)
         const includesHN = selectedDataSources
           ? selectedDataSources.includes('Hacker News')
           : shouldIncludeHN(hypothesis) // Fallback to auto-detection
-        send('fetching', `Searching ${subredditsToSearch.length} subreddits${includesHN ? ' + Hacker News' : ''} for discussions...`)
+        const includesGooglePlay = selectedDataSources?.includes('Google Play') ?? false
+        const includesAppStore = selectedDataSources?.includes('App Store') ?? false
+
+        const sourceDescription = [
+          `${subredditsToSearch.length} subreddits`,
+          includesHN ? 'Hacker News' : null,
+          includesGooglePlay ? 'Google Play' : null,
+          includesAppStore ? 'App Store' : null,
+        ].filter(Boolean).join(' + ')
+        send('fetching', `Searching ${sourceDescription} for discussions...`)
+
         const multiSourceData = await fetchMultiSourceData({
           subreddits: subredditsToSearch,
           keywords: keywords.primary,
@@ -244,7 +254,7 @@ export async function POST(request: NextRequest) {
           timeRange: {
             after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
           },
-        }, hypothesis, includesHN)
+        }, hypothesis, includesHN, includesGooglePlay, includesAppStore)
         const rawPosts = multiSourceData.posts
         const rawComments = multiSourceData.comments
         send('fetching', `Found ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || 'Reddit'}`, {

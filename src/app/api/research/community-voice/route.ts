@@ -361,12 +361,16 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Fetch posts and comments from discovered subreddits
     // Uses data-sources layer with automatic caching and fallback to backup sources
-    // Hacker News inclusion is controlled by user selection (if available) or auto-detection
+    // Data source inclusion is controlled by user selection (if available) or auto-detection
     // Use extracted primary keywords for better search precision
     const includesHN = selectedDataSources
       ? selectedDataSources.includes('Hacker News')
       : shouldIncludeHN(hypothesis) // Fallback to auto-detection if no explicit selection
-    console.log(`Step 3: Fetching data (with caching + fallback)${includesHN ? ' + Hacker News' : ''}`)
+    const includesGooglePlay = selectedDataSources?.includes('Google Play') ?? false
+    const includesAppStore = selectedDataSources?.includes('App Store') ?? false
+
+    const sourcesList = ['Reddit', includesHN && 'Hacker News', includesGooglePlay && 'Google Play', includesAppStore && 'App Store'].filter(Boolean).join(' + ')
+    console.log(`Step 3: Fetching data from ${sourcesList}`)
     lastErrorSource = 'arctic_shift' // Reddit data API (primary source)
     const searchKeywords = extractedKeywords.primary.length > 0
       ? extractedKeywords.primary
@@ -378,7 +382,7 @@ export async function POST(request: NextRequest) {
       timeRange: {
         after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
       },
-    }, hypothesis, includesHN)
+    }, hypothesis, includesHN, includesGooglePlay, includesAppStore)
 
     let rawPosts = multiSourceData.posts
     let rawComments = multiSourceData.comments

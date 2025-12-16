@@ -357,13 +357,61 @@ export async function fetchHNData(
 }
 
 /**
+ * Fetch Google Play reviews for mobile app validation
+ * Uses the GooglePlayAdapter's legacy method for pipeline compatibility
+ */
+export async function fetchGooglePlayData(
+  keywords: string[]
+): Promise<{ posts: RedditPost[] }> {
+  try {
+    if (!(await googlePlayAdapter.healthCheck())) {
+      console.log('Google Play adapter unavailable')
+      return { posts: [] }
+    }
+
+    const posts = await googlePlayAdapter.searchReviewsLegacy(keywords, { limit: 50 })
+    console.log(`Google Play: Found ${posts.length} reviews`)
+    return { posts }
+  } catch (error) {
+    console.error('Failed to fetch Google Play data:', error)
+    return { posts: [] }
+  }
+}
+
+/**
+ * Fetch App Store reviews for mobile app validation
+ * Uses the AppStoreAdapter's legacy method for pipeline compatibility
+ */
+export async function fetchAppStoreData(
+  keywords: string[]
+): Promise<{ posts: RedditPost[] }> {
+  try {
+    if (!(await appStoreAdapter.healthCheck())) {
+      console.log('App Store adapter unavailable')
+      return { posts: [] }
+    }
+
+    const posts = await appStoreAdapter.searchReviewsLegacy(keywords, { limit: 50 })
+    console.log(`App Store: Found ${posts.length} reviews`)
+    return { posts }
+  } catch (error) {
+    console.error('Failed to fetch App Store data:', error)
+    return { posts: [] }
+  }
+}
+
+/**
  * Fetch data from all relevant sources based on hypothesis
  * @param includeHN - Optional explicit control for HN inclusion
+ * @param includeGooglePlay - Optional explicit control for Google Play inclusion
+ * @param includeAppStore - Optional explicit control for App Store inclusion
  */
 export async function fetchMultiSourceData(
   params: SearchParams,
   hypothesis: string,
-  includeHN?: boolean
+  includeHN?: boolean,
+  includeGooglePlay?: boolean,
+  includeAppStore?: boolean
 ): Promise<SearchResult & { sources: string[] }> {
   const { shouldIncludeHN } = await import('./orchestrator')
   const sourcesUsed: string[] = []
@@ -377,11 +425,11 @@ export async function fetchMultiSourceData(
   let allPosts = [...redditResult.posts]
   let allComments = [...redditResult.comments]
 
+  const keywords = extractKeywords(hypothesis)
+
   // Add HN data if explicitly requested OR if auto-detected as tech-related
   const shouldFetchHN = includeHN !== undefined ? includeHN : shouldIncludeHN(hypothesis)
   if (shouldFetchHN) {
-    const keywords = extractKeywords(hypothesis)
-
     if (await hackerNewsAdapter.healthCheck()) {
       const hnData = await fetchHNData(keywords)
 
@@ -391,6 +439,28 @@ export async function fetchMultiSourceData(
         sourcesUsed.push('Hacker News')
         console.log(`Added ${hnData.posts.length} HN posts to analysis`)
       }
+    }
+  }
+
+  // Add Google Play data if explicitly requested (no auto-include - too noisy)
+  if (includeGooglePlay) {
+    const googlePlayData = await fetchGooglePlayData(keywords)
+
+    if (googlePlayData.posts.length > 0) {
+      allPosts = [...allPosts, ...googlePlayData.posts]
+      sourcesUsed.push('Google Play')
+      console.log(`Added ${googlePlayData.posts.length} Google Play reviews to analysis`)
+    }
+  }
+
+  // Add App Store data if explicitly requested (no auto-include - too noisy)
+  if (includeAppStore) {
+    const appStoreData = await fetchAppStoreData(keywords)
+
+    if (appStoreData.posts.length > 0) {
+      allPosts = [...allPosts, ...appStoreData.posts]
+      sourcesUsed.push('App Store')
+      console.log(`Added ${appStoreData.posts.length} App Store reviews to analysis`)
     }
   }
 

@@ -13,6 +13,7 @@ import {
   UnifiedSignal,
   SearchOptions,
   SamplePost,
+  RedditPost,
 } from '../types'
 
 // Sort options (string values for App Store)
@@ -245,6 +246,49 @@ export class AppStoreAdapter implements DataSourceAdapter {
   private calculateEngagement(review: AppStoreReview): number {
     // Lower ratings = more pain signal value for validation
     return (5 - review.score) * 20 // 1-star = 80, 5-star = 0
+  }
+
+  // ===========================================================================
+  // LEGACY METHODS (for backward compatibility with existing pipeline)
+  // Returns RedditPost format for the existing relevance filter and analyzers
+  // ===========================================================================
+
+  /**
+   * Legacy: Search App Store reviews returning RedditPost format
+   * Note: App reviews don't have comments - only posts (reviews)
+   */
+  async searchReviewsLegacy(
+    keywords: string[],
+    options: { limit?: number } = {}
+  ): Promise<RedditPost[]> {
+    const { limit = 100 } = options
+    const query = keywords.join(' ')
+
+    try {
+      const signals = await this.search(query, { maxResults: limit })
+      return signals.map(signal => this.signalToRedditPost(signal))
+    } catch (error) {
+      console.error('[AppStoreAdapter] searchReviewsLegacy failed:', error)
+      return []
+    }
+  }
+
+  /**
+   * Convert UnifiedSignal to RedditPost format for legacy pipeline
+   */
+  private signalToRedditPost(signal: UnifiedSignal): RedditPost {
+    return {
+      id: signal.id,
+      title: signal.title || signal.body.slice(0, 100) + (signal.body.length > 100 ? '...' : ''),
+      body: signal.body,
+      author: signal.author,
+      subreddit: 'app_store', // Source attribution for pain signals
+      score: 0, // App Store reviews don't have upvotes
+      numComments: 0, // Reviews don't have comments
+      createdUtc: Math.floor(signal.createdAt.getTime() / 1000),
+      permalink: signal.url,
+      url: signal.url,
+    }
   }
 }
 
