@@ -541,8 +541,21 @@ export async function POST(request: NextRequest) {
       const adminClient = createAdminClient()
       lastErrorSource = 'database' // Supabase save
       try {
-        // Save results using shared utility
-        await saveResearchResult(jobId, 'community_voice', result)
+        // Create a trimmed version for database save - limit relevanceDecisions to avoid JSON size issues
+        // Full decisions are still available in the immediate response
+        const resultForDb = {
+          ...result,
+          metadata: {
+            ...result.metadata,
+            relevanceDecisions: {
+              posts: result.metadata.relevanceDecisions?.posts?.slice(0, 100) || [],
+              comments: result.metadata.relevanceDecisions?.comments?.slice(0, 100) || [],
+              _note: 'Limited to 100 per type for DB storage. Full data available in immediate response.',
+            },
+          },
+        }
+        // Save trimmed results using shared utility
+        await saveResearchResult(jobId, 'community_voice', resultForDb)
 
         // Mark job as completed and update step_status for all completed modules
         // This allows competitor-intelligence to see that timing_analysis is complete
