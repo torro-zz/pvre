@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, ReactNode, useCallback } from 'react'
 
-type TabValue = 'community' | 'market' | 'timing' | 'competitors' | 'verdict'
+type TabValue = 'community' | 'market' | 'timing' | 'competitors' | 'verdict' | 'app-overview' | 'user-feedback' | 'opportunities'
 type CommunitySubTab = 'themes' | 'signals' | 'quotes' | 'interview'
 
 interface ResearchTabsContextType {

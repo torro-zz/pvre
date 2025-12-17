@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Sparkles, ArrowRight, ArrowLeft, Check, Edit2, Users, AlertTriangle, Lightbulb, MessageSquare, X, Plus, Link2, ExternalLink } from 'lucide-react'
+import { Loader2, Sparkles, ArrowRight, ArrowLeft, Check, Edit2, Users, AlertTriangle, Lightbulb, MessageSquare, X, Plus, Link2, ExternalLink, Smartphone, Apple, Globe, Twitter, Rocket, Newspaper, Briefcase, Linkedin } from 'lucide-react'
 import { CoveragePreview, CoverageData } from './coverage-preview'
 import { StructuredHypothesis, formatHypothesis } from '@/types/research'
 import {
@@ -196,16 +196,16 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   // Supported URL types with their display info
   type UrlType = 'reddit' | 'twitter' | 'producthunt' | 'hackernews' | 'indiehackers' | 'linkedin' | 'website' | 'googleplay' | 'appstore'
 
-  const URL_TYPE_INFO: Record<UrlType, { label: string; icon: string; description: string }> = {
-    googleplay: { label: 'Google Play', icon: '🤖', description: 'App analysis mode' },
-    appstore: { label: 'App Store', icon: '🍎', description: 'App analysis mode' },
-    reddit: { label: 'Reddit', icon: '🔴', description: 'Thread or search results' },
-    twitter: { label: 'Twitter/X', icon: '𝕏', description: 'Tweet or thread' },
-    producthunt: { label: 'Product Hunt', icon: '🚀', description: 'Product page or launch' },
-    hackernews: { label: 'Hacker News', icon: '🟠', description: 'Post or comments' },
-    indiehackers: { label: 'Indie Hackers', icon: '💼', description: 'Post or discussion' },
-    linkedin: { label: 'LinkedIn', icon: '🔵', description: 'Post or article' },
-    website: { label: 'Website', icon: '🌐', description: 'Competitor or review site' },
+  const URL_TYPE_INFO: Record<UrlType, { label: string; icon: React.ComponentType<{ className?: string }>; description: string }> = {
+    googleplay: { label: 'Google Play', icon: Smartphone, description: 'App analysis mode' },
+    appstore: { label: 'App Store', icon: Apple, description: 'App analysis mode' },
+    reddit: { label: 'Reddit', icon: MessageSquare, description: 'Thread or search results' },
+    twitter: { label: 'Twitter/X', icon: Twitter, description: 'Tweet or thread' },
+    producthunt: { label: 'Product Hunt', icon: Rocket, description: 'Product page or launch' },
+    hackernews: { label: 'Hacker News', icon: Newspaper, description: 'Post or comments' },
+    indiehackers: { label: 'Indie Hackers', icon: Briefcase, description: 'Post or discussion' },
+    linkedin: { label: 'LinkedIn', icon: Linkedin, description: 'Post or article' },
+    website: { label: 'Website', icon: Globe, description: 'Competitor or review site' },
   }
 
   // URL validation and type detection
@@ -443,177 +443,192 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   const isAdjustValid = adjustedAudience.trim() && adjustedProblem.trim()
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-violet-500" />
-          Who&apos;s frustrated?
-        </CardTitle>
-        <CardDescription>
-          Describe who&apos;s struggling and what&apos;s causing their pain. Focus on the problem, not your solution.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {/* Step 1: Free-form Input */}
-        {step === 'input' && (
-          <div className="space-y-4">
-            {/* Mode toggle */}
-            <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+    <div className="space-y-6">
+      {/* Step 1: Free-form Input */}
+      {step === 'input' && (
+        <div className="space-y-6">
+          {/* Modern Mode Toggle */}
+          <div className="flex justify-center">
+            <div className="inline-flex p-1 bg-muted/80 rounded-xl border shadow-sm">
               <button
                 type="button"
                 onClick={() => setInputMode('text')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   inputMode === 'text'
-                    ? 'bg-background shadow-sm text-foreground'
+                    ? 'bg-background shadow-md text-foreground'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <MessageSquare className="h-4 w-4" />
-                Describe
+                Describe a Problem
               </button>
               <button
                 type="button"
                 onClick={() => setInputMode('url')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   inputMode === 'url'
-                    ? 'bg-background shadow-sm text-foreground'
+                    ? 'bg-background shadow-md text-foreground'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Link2 className="h-4 w-4" />
-                Paste URL
+                Analyze a URL
               </button>
             </div>
+          </div>
 
-            {/* Text input mode */}
-            {inputMode === 'text' && (
-              <>
-                <div className="space-y-2">
+          {/* Text input mode */}
+          {inputMode === 'text' && (
+            <div className="space-y-5">
+              {/* Hero Input Area */}
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-violet-500/20 via-primary/20 to-blue-500/20 rounded-2xl blur-lg opacity-0 group-focus-within:opacity-100 transition-opacity duration-300" />
+                <div className="relative">
                   <Textarea
-                    placeholder="e.g., Gym-goers who want to make friends but feel awkward approaching strangers"
+                    placeholder="Describe who's struggling and what problem they face..."
                     value={rawInput}
                     onChange={(e) => setRawInput(e.target.value)}
                     disabled={isInterpreting || isLoading}
-                    rows={3}
-                    className="resize-none text-base"
+                    rows={4}
+                    className="resize-none text-lg leading-relaxed bg-background border-2 border-muted hover:border-muted-foreground/20 focus:border-primary/50 rounded-xl px-5 py-4 transition-colors placeholder:text-muted-foreground/50"
                     autoFocus
                   />
-                  {/* Input quality indicator */}
-                  <InputQualityIndicator input={rawInput} />
                 </div>
+              </div>
 
-                {/* Error message */}
-                {interpretError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                    {interpretError}
-                  </div>
+              {/* Input quality indicator */}
+              <div className="flex items-center justify-between">
+                <InputQualityIndicator input={rawInput} />
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {rawInput.length} characters
+                </span>
+              </div>
+
+              {/* Error message */}
+              {interpretError && (
+                <div className="p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300">
+                  {interpretError}
+                </div>
+              )}
+
+              {/* Examples Section - Modern Cards */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Lightbulb className="h-4 w-4" />
+                  <span>Need inspiration? Try one of these:</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {EXAMPLE_INPUTS.slice(0, 4).map((example, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => useExample(example)}
+                      disabled={isInterpreting || isLoading}
+                      className="text-left p-4 rounded-xl border-2 border-transparent bg-muted/50 hover:bg-muted hover:border-muted-foreground/10 transition-all disabled:opacity-50 group"
+                    >
+                      <p className="text-sm text-foreground group-hover:text-foreground leading-relaxed">
+                        {example}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Continue button */}
+              <Button
+                onClick={handleInterpret}
+                disabled={!isInputValid || isInterpreting || isLoading}
+                size="lg"
+                className="w-full rounded-xl h-12 text-base"
+              >
+                {isInterpreting ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </>
                 )}
+              </Button>
+            </div>
+          )}
 
-                {/* Examples */}
-                <div className="space-y-2 pt-2 border-t">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Lightbulb className="h-4 w-4" />
-                    <span>Try an example:</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {EXAMPLE_INPUTS.slice(0, 4).map((example, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => useExample(example)}
-                        disabled={isInterpreting || isLoading}
-                        className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50 text-left"
-                      >
-                        {example.split(' ').slice(0, 5).join(' ')}...
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Continue button */}
-                <Button
-                  onClick={handleInterpret}
-                  disabled={!isInputValid || isInterpreting || isLoading}
-                  className="w-full"
-                >
-                  {isInterpreting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Analyzing the problem...
-                    </>
-                  ) : (
-                    <>
-                      Continue
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-              </>
-            )}
-
-            {/* URL input mode */}
-            {inputMode === 'url' && (
-              <>
-                <div className="space-y-2">
+          {/* URL input mode */}
+          {inputMode === 'url' && (
+            <div className="space-y-5">
+              {/* Hero URL Input */}
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 via-primary/20 to-violet-500/20 rounded-2xl blur-lg opacity-0 group-focus-within:opacity-100 transition-opacity duration-300" />
+                <div className="relative">
                   <Input
                     type="url"
-                    placeholder="Paste a URL from Reddit, Twitter, Product Hunt, or any website..."
+                    placeholder="Paste a URL to analyze..."
                     value={urlInput}
                     onChange={(e) => {
                       setUrlInput(e.target.value)
                       setUrlError(null)
                     }}
                     disabled={isInterpreting || isLoading}
-                    className="text-base"
+                    className="text-lg h-14 bg-background border-2 border-muted hover:border-muted-foreground/20 focus:border-primary/50 rounded-xl px-5 transition-colors placeholder:text-muted-foreground/50"
                     autoFocus
                   />
-                  {urlValidation.error && urlInput.trim() && (
-                    <p className="text-xs text-amber-600 flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      {urlValidation.error}
-                    </p>
-                  )}
-                  {!urlInput.trim() && (
-                    <p className="text-xs text-muted-foreground">
-                      Paste a URL to analyze pain signals from discussions or reviews
-                    </p>
-                  )}
-                  {isUrlValid && urlValidation.type && (
-                    <p className="text-xs text-green-600 flex items-center gap-1">
-                      <Check className="h-3 w-3" />
-                      <span>{URL_TYPE_INFO[urlValidation.type].icon}</span>
-                      <span>{URL_TYPE_INFO[urlValidation.type].label} detected</span>
-                      <span className="text-muted-foreground">— {URL_TYPE_INFO[urlValidation.type].description}</span>
-                    </p>
-                  )}
                 </div>
+              </div>
 
-                {/* Error message */}
-                {interpretError && (
-                  <div className="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
-                    {interpretError}
-                  </div>
+              {/* URL validation feedback */}
+              <div className="min-h-[20px]">
+                {urlValidation.error && urlInput.trim() && (
+                  <p className="text-sm text-amber-600 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    {urlValidation.error}
+                  </p>
                 )}
+                {!urlInput.trim() && (
+                  <p className="text-sm text-muted-foreground">
+                    Paste a URL from Reddit, app stores, or any discussion forum
+                  </p>
+                )}
+                {isUrlValid && urlValidation.type && (
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                    <Check className="h-4 w-4" />
+                    {(() => { const Icon = URL_TYPE_INFO[urlValidation.type].icon; return <Icon className="h-4 w-4" />; })()}
+                    <span className="font-medium">{URL_TYPE_INFO[urlValidation.type].label}</span>
+                    <span className="text-muted-foreground">— {URL_TYPE_INFO[urlValidation.type].description}</span>
+                  </p>
+                )}
+              </div>
 
-                {/* Supported platforms */}
-                <div className="space-y-2 pt-2 border-t">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <ExternalLink className="h-4 w-4" />
-                    <span>Supported sources:</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(URL_TYPE_INFO).map(([key, { label, icon }]) => (
-                      <span key={key} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
-                        <span>{icon}</span>
-                        <span>{label}</span>
-                      </span>
-                    ))}
-                  </div>
+              {/* Error message */}
+              {interpretError && (
+                <div className="p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300">
+                  {interpretError}
                 </div>
+              )}
 
-                {/* Analyze URL button */}
-                <Button
-                  onClick={async () => {
+              {/* Supported platforms - Modern Grid */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ExternalLink className="h-4 w-4" />
+                  <span>Supported sources</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(URL_TYPE_INFO).map(([key, { label, icon: Icon }]) => (
+                    <span key={key} className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-muted/50 border text-muted-foreground">
+                      <Icon className="h-3.5 w-3.5" />
+                      <span>{label}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Analyze URL button */}
+              <Button
+                size="lg"
+                className="w-full rounded-xl h-12 text-base"
+                onClick={async () => {
                     if (!isUrlValid || !urlValidation.type) return
 
                     setIsInterpreting(true)
@@ -696,7 +711,6 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                     }
                   }}
                   disabled={!isUrlValid || isInterpreting || isLoading}
-                  className="w-full"
                 >
                   {isInterpreting ? (
                     <>
@@ -704,26 +718,28 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                       Analyzing URL...
                     </>
                   ) : (
-                    <>
-                      Analyze URL
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
+                  <>
+                    Analyze URL
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </>
+                )}
+              </Button>
 
-                <p className="text-xs text-center text-muted-foreground">
-                  We&apos;ll extract pain signals, complaints, and feedback from the page
-                </p>
-              </>
-            )}
-          </div>
-        )}
+              <p className="text-sm text-center text-muted-foreground">
+                We&apos;ll extract pain signals, complaints, and feedback from the page
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* Step 2: Confirmation */}
-        {step === 'confirm' && interpretation && !showPreview && (
-          <div className="space-y-4">
-            {/* Interpretation display */}
-            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+      {/* Step 2: Confirmation */}
+      {step === 'confirm' && interpretation && !showPreview && (
+        <Card className="rounded-xl">
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              {/* Interpretation display */}
+              <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Check className="h-4 w-4 text-green-600" />
                 Here&apos;s what I understood:
@@ -906,10 +922,12 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                 )}
               </Button>
             </div>
-          </div>
-        )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Step 2b: Coverage Preview */}
+      {/* Step 2b: Coverage Preview */}
         {step === 'confirm' && showPreview && (
           <div className="space-y-4">
             <CoveragePreview
@@ -1033,7 +1051,11 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                         ? 'bg-green-500/20 text-green-600 dark:text-green-400'
                         : 'bg-gray-500/20 text-gray-600 dark:text-gray-400'
                     }`}>
-                      {appData.store === 'google_play' ? '🤖 Google Play' : '🍎 App Store'}
+                      {appData.store === 'google_play' ? (
+                        <><Smartphone className="h-3 w-3 mr-1" />Google Play</>
+                      ) : (
+                        <><Apple className="h-3 w-3 mr-1" />App Store</>
+                      )}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">{appData.developer}</p>
@@ -1244,7 +1266,6 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
             </Button>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   )
 }

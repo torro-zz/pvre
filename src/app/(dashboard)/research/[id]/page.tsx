@@ -30,6 +30,11 @@ import {
   TimingScoreInput,
 } from '@/lib/analysis/viability-calculator'
 import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
+import { AppOverview } from '@/components/research/app-overview'
+import { UserFeedback } from '@/components/research/user-feedback'
+import { Opportunities } from '@/components/research/opportunities'
+import { Smartphone, MessageSquare, Sparkles } from 'lucide-react'
+import type { AppDetails } from '@/lib/data-sources/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +46,11 @@ interface ResearchJob {
   updated_at: string
   user_id: string
   error_message?: string | null
+  coverage_data?: {
+    mode?: 'hypothesis' | 'app-analysis'
+    appData?: AppDetails | null
+    [key: string]: unknown
+  } | null
 }
 
 interface ResearchResult<T = CommunityVoiceResult | CompetitorIntelligenceResult> {
@@ -92,6 +102,10 @@ export default async function ResearchDetailPage({
   if (researchJob.user_id !== user.id) {
     notFound()
   }
+
+  // Extract app-centric mode data from coverage_data
+  const isAppAnalysis = researchJob.coverage_data?.mode === 'app-analysis'
+  const appData = researchJob.coverage_data?.appData || null
 
   // Fetch all research results for this job
   const { data: allResults, error: resultsError } = await supabase
@@ -521,9 +535,9 @@ export default async function ResearchDetailPage({
           </Card>
         ) : communityVoiceResult?.data || competitorResult?.data ? (
           /* Tabbed Results Interface */
-          <ResearchTabsProvider>
+          <ResearchTabsProvider defaultTab={isAppAnalysis ? 'app-overview' : 'community'}>
             {/* Competitor Prompt Modal - shows when Community Voice is done but no competitors */}
-            {communityVoiceResult?.data && !competitorResult?.data && (
+            {communityVoiceResult?.data && !competitorResult?.data && !isAppAnalysis && (
               <CompetitorPromptModal
                 jobId={id}
                 hypothesis={researchJob.hypothesis}
@@ -531,45 +545,159 @@ export default async function ResearchDetailPage({
             )}
 
             <ControlledTabs className="space-y-6">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="community" className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                <span className="hidden sm:inline">Community</span>
-                {communityVoiceResult?.data && (
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="market" className="flex items-center gap-2">
-                <PieChart className="h-4 w-4" />
-                <span className="hidden sm:inline">Market</span>
-                {(communityVoiceResult?.data?.marketSizing || marketSizingResult) && (
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="timing" className="flex items-center gap-2">
-                <Timer className="h-4 w-4" />
-                <span className="hidden sm:inline">Timing</span>
-                {(communityVoiceResult?.data?.timing || timingResult) && (
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="competitors" className="flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                <span className="hidden sm:inline">Competitors</span>
-                {competitorResult?.data && (
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="verdict" className="flex items-center gap-2">
-                <Target className="h-4 w-4" />
-                <span className="hidden sm:inline">Verdict</span>
-                {viabilityVerdict.availableDimensions > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {viabilityVerdict.overallScore.toFixed(1)}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
+            {/* App-Centric Tabs */}
+            {isAppAnalysis ? (
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="app-overview" className="flex items-center gap-2">
+                  <Smartphone className="h-4 w-4" />
+                  <span className="hidden sm:inline">App</span>
+                  {appData && (
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="user-feedback" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  <span className="hidden sm:inline">Feedback</span>
+                  {communityVoiceResult?.data && (
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="community" className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="hidden sm:inline">Market</span>
+                  {communityVoiceResult?.data && (
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="opportunities" className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  <span className="hidden sm:inline">Gaps</span>
+                  {communityVoiceResult?.data && (
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="verdict" className="flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  <span className="hidden sm:inline">Verdict</span>
+                  {viabilityVerdict.availableDimensions > 0 && (
+                    <Badge variant="secondary" className="ml-1">
+                      {viabilityVerdict.overallScore.toFixed(1)}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            ) : (
+              /* Regular Hypothesis Tabs */
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="community" className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="hidden sm:inline">Community</span>
+                  {communityVoiceResult?.data && (
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="market" className="flex items-center gap-2">
+                  <PieChart className="h-4 w-4" />
+                  <span className="hidden sm:inline">Market</span>
+                  {(communityVoiceResult?.data?.marketSizing || marketSizingResult) && (
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="timing" className="flex items-center gap-2">
+                  <Timer className="h-4 w-4" />
+                  <span className="hidden sm:inline">Timing</span>
+                  {(communityVoiceResult?.data?.timing || timingResult) && (
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="competitors" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  <span className="hidden sm:inline">Competitors</span>
+                  {competitorResult?.data && (
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="verdict" className="flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  <span className="hidden sm:inline">Verdict</span>
+                  {viabilityVerdict.availableDimensions > 0 && (
+                    <Badge variant="secondary" className="ml-1">
+                      {viabilityVerdict.overallScore.toFixed(1)}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            )}
+
+            {/* App-Centric Tab Content */}
+            {isAppAnalysis && (
+              <>
+                {/* App Overview Tab */}
+                <TabsContent value="app-overview">
+                  {appData ? (
+                    <AppOverview appData={appData} />
+                  ) : (
+                    <Card>
+                      <CardContent className="py-12">
+                        <div className="text-center">
+                          <Smartphone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">App Data Not Available</h3>
+                          <p className="text-muted-foreground">
+                            App details could not be loaded for this research.
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </TabsContent>
+
+                {/* User Feedback Tab */}
+                <TabsContent value="user-feedback">
+                  {communityVoiceResult?.data ? (
+                    <UserFeedback
+                      painSignals={communityVoiceResult.data.painSignals || []}
+                      appName={appData?.name}
+                    />
+                  ) : (
+                    <Card>
+                      <CardContent className="py-12">
+                        <div className="text-center">
+                          <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">Feedback Analysis Pending</h3>
+                          <p className="text-muted-foreground">
+                            User feedback will appear here once analysis is complete.
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </TabsContent>
+
+                {/* Opportunities Tab */}
+                <TabsContent value="opportunities">
+                  {communityVoiceResult?.data ? (
+                    <Opportunities
+                      appData={appData}
+                      painSignals={communityVoiceResult.data.painSignals || []}
+                      painSummary={communityVoiceResult.data.painSummary}
+                      wtpQuotes={communityVoiceResult.data.painSummary?.wtpQuotes}
+                    />
+                  ) : (
+                    <Card>
+                      <CardContent className="py-12">
+                        <div className="text-center">
+                          <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">Opportunities Analysis Pending</h3>
+                          <p className="text-muted-foreground">
+                            Market opportunities will appear here once analysis is complete.
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </TabsContent>
+              </>
+            )}
 
             {/* Community Voice Tab */}
             <TabsContent value="community">

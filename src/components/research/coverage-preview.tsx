@@ -66,6 +66,9 @@ export interface CoverageData {
   selectedDataSources?: string[] // User-selected sources to use
   // Sample size per source (how many reviews/posts to analyze)
   sampleSizePerSource?: number
+  // App-centric analysis mode
+  mode?: 'hypothesis' | 'app-analysis'
+  appData?: AppDetails | null
 }
 
 interface CoveragePreviewProps {
@@ -342,6 +345,9 @@ export function CoveragePreview({
       targetPrice: targetPrice,
       selectedDataSources: Array.from(selectedDataSources),
       sampleSizePerSource: sampleSize,
+      // App-centric analysis mode
+      mode: mode,
+      appData: appData,
     }
   }
 

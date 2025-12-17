@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { Clock, ArrowRight, FileText, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, Play, RefreshCw, CreditCard, Sparkles, BarChart3 } from 'lucide-react'
+import { Clock, ArrowRight, FileText, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, Play, RefreshCw, Sparkles } from 'lucide-react'
 import { StepStatusMap, DEFAULT_STEP_STATUS } from '@/types/database'
 import { ResearchJobList } from '@/components/dashboard/research-job-list'
 
@@ -57,12 +57,6 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Fetch user profile for credits
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('credits_balance')
-    .single()
-
   // Fetch user's research jobs
   const { data: jobs } = await supabase
     .from('research_jobs')
@@ -71,12 +65,6 @@ export default async function DashboardPage() {
     .limit(10)
 
   const researchJobs = (jobs || []) as ResearchJob[]
-  const credits = profile?.credits_balance ?? 0
-
-  // Calculate stats
-  const totalResearch = researchJobs.length
-  const completedResearch = researchJobs.filter(j => j.status === 'completed').length
-  const successRate = totalResearch > 0 ? Math.round((completedResearch / totalResearch) * 100) : 0
 
   // Find any currently processing jobs (for the "In Progress" banner)
   const STALE_THRESHOLD_MS = 15 * 60 * 1000 // 15 minutes
@@ -107,54 +95,6 @@ export default async function DashboardPage() {
         <p className="text-muted-foreground mt-1">
           Get automated market research for your business hypothesis
         </p>
-      </div>
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card className={credits > 0 ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-500/5' : ''}>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 mb-1">
-              <CreditCard className="w-4 h-4 text-muted-foreground" />
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                Credits
-              </span>
-            </div>
-            <span className={`text-2xl font-bold tabular-nums ${credits > 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-foreground'}`}>
-              {credits}
-            </span>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 mb-1">
-              <BarChart3 className="w-4 h-4 text-muted-foreground" />
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                Research Runs
-              </span>
-            </div>
-            <span className="text-2xl font-bold tabular-nums">{totalResearch}</span>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                Success Rate
-              </span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold tabular-nums">{successRate}%</span>
-              {totalResearch > 0 && (
-                <span className={`text-xs ${successRate >= 80 ? 'text-emerald-600' : successRate >= 50 ? 'text-muted-foreground' : 'text-red-500'}`}>
-                  {successRate >= 80 ? '↑' : successRate >= 50 ? '→' : '↓'} {completedResearch} completed
-                </span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* In Progress Research Banner */}
