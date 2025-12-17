@@ -13,11 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import {
-  TrendingUp,
-  MessageSquare,
-  Users,
   Target,
-  Clock,
   ChevronDown,
   ChevronUp,
   Quote,
@@ -28,7 +24,7 @@ import {
   Building2,
   HelpCircle,
   Zap,
-  Globe,
+  MessageSquare,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useResearchTabs } from './research-tabs-context'
@@ -113,122 +109,6 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 
   return (
     <div className="space-y-6">
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 relative group">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Pain Score</span>
-              <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
-                Aggregated measure of how intensely your audience feels this problem (1-10). Based on language intensity, urgency, and emotional signals.
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold mt-1">
-              {calculatedPainScore.score.toFixed(1)}/10
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 relative group">
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Signals Found</span>
-              <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
-                Specific mentions of the problem extracted from posts and comments. Each signal is a distinct expression of the pain point.
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold mt-1">
-              {totalSignals}
-            </p>
-            {/* Show tier breakdown if available */}
-            {results.metadata.filteringMetrics &&
-             (results.metadata.filteringMetrics.coreSignals > 0 || results.metadata.filteringMetrics.relatedSignals > 0) && (
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="text-emerald-600 dark:text-emerald-400">{results.metadata.filteringMetrics.coreSignals} core</span>
-                {results.metadata.filteringMetrics.relatedSignals > 0 && (
-                  <span> + <span className="text-blue-600 dark:text-blue-400">{results.metadata.filteringMetrics.relatedSignals} contextual</span></span>
-                )}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 relative group">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Content Analyzed</span>
-              <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
-                Total posts and comments that passed relevance filtering and were analyzed for pain signals.
-                {results.metadata.filteringMetrics?.titleOnlyPosts ? ' Includes recovered posts where body was removed but title was substantive.' : ''}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold mt-1">
-              {results.metadata.postsAnalyzed + (results.metadata.commentsAnalyzed || 0)}
-            </p>
-            {/* Show breakdown with recovered posts if any */}
-            {results.metadata.filteringMetrics?.titleOnlyPosts ? (
-              <p className="text-xs text-muted-foreground mt-1">
-                {results.metadata.postsAnalyzed - results.metadata.filteringMetrics.titleOnlyPosts} full + {results.metadata.filteringMetrics.titleOnlyPosts} recovered + {results.metadata.commentsAnalyzed || 0} comments
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground mt-1">
-                {results.metadata.postsAnalyzed} posts + {results.metadata.commentsAnalyzed || 0} comments
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 relative group">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Processing Time</span>
-              <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
-                Total time to fetch data, filter for relevance, and analyze for pain signals.
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold mt-1">
-              {(results.metadata.processingTimeMs / 1000).toFixed(1)}s
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Data Sources Card */}
-        {results.metadata.dataSources && results.metadata.dataSources.length > 0 && (
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-2 relative group">
-                <Globe className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Data Sources</span>
-                <HelpCircle className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground cursor-help" />
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal z-50 w-48 text-center">
-                  Community platforms analyzed. Hacker News is included for tech/startup hypotheses.
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1 mt-2">
-                {results.metadata.dataSources.map((source, idx) => (
-                  <Badge key={idx} variant="secondary" className="text-xs">
-                    {source}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
       {/* Executive Summary */}
       <Card>
         <CardHeader>

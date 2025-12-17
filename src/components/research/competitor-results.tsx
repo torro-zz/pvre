@@ -652,9 +652,9 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                       return (
                         <tr
                           key={comp.competitorName}
-                          className={`${rowIndex % 2 === 0 ? 'bg-white' : 'bg-muted/20'} hover:bg-muted/40 transition-colors`}
+                          className={`${rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'} hover:bg-muted/40 transition-colors`}
                         >
-                          <td className={`py-3 px-4 font-medium border-b sticky left-0 ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-muted/20'}`}>
+                          <td className={`py-3 px-4 font-medium border-b sticky left-0 text-foreground ${rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
                             {comp.competitorName}
                           </td>
                           {results.competitorMatrix.categories.map((category) => {
@@ -688,9 +688,9 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                             <div className="flex justify-center">
                               <div
                                 className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm border-2 ${
-                                  avgScore >= 7 ? 'border-green-500 text-green-700 bg-green-50' :
-                                  avgScore >= 5 ? 'border-yellow-500 text-yellow-700 bg-yellow-50' :
-                                  'border-red-500 text-red-700 bg-red-50'
+                                  avgScore >= 7 ? 'border-green-500 text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-950' :
+                                  avgScore >= 5 ? 'border-yellow-500 text-yellow-700 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950' :
+                                  'border-red-500 text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-950'
                                 }`}
                                 title={`Average score: ${avgScore}/10`}
                               >

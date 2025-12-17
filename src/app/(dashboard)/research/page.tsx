@@ -8,7 +8,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Filter, Search, MessageSquare, Sparkles, X, HelpCircle, TrendingUp, Shield, Target, CreditCard, Zap, Info } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { AlertCircle, CheckCircle2, Loader2, Filter, Search, MessageSquare, Sparkles, X, HelpCircle, TrendingUp, Shield, Target, CreditCard, Zap, Info, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
@@ -168,212 +169,224 @@ export default function ResearchPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Community Voice Research</h1>
-          <p className="text-muted-foreground">
-            Discover what your target customers are saying on Reddit. Enter your
-            business hypothesis to analyze pain points, themes, and generate
-            interview questions.
-          </p>
-        </div>
-
-        {/* How It Works Guide - dismissible */}
-        {showGuide && (
-          <Card className="mb-6 border-primary/20 bg-primary/5">
-            <CardContent className="py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <HelpCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h3 className="font-semibold text-sm mb-3">How It Works</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div className="flex items-start gap-2">
-                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-xs font-bold text-primary">1</div>
-                        <div>
-                          <p className="font-medium">Describe the Problem</p>
-                          <p className="text-muted-foreground text-xs">Tell us who&apos;s struggling and what problem they face. Use their language for best results.</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-xs font-bold text-primary">2</div>
-                        <div>
-                          <p className="font-medium">We Mine Reddit</p>
-                          <p className="text-muted-foreground text-xs">AI finds relevant communities and analyzes discussions for pain signals, market data, and timing.</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-xs font-bold text-primary">3</div>
-                        <div>
-                          <p className="font-medium">Get Your Verdict</p>
-                          <p className="text-muted-foreground text-xs">Receive a viability score, interview questions, and competitor analysis to validate your idea.</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 mt-3 pt-3 border-t text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <TrendingUp className="h-3 w-3" />
-                        Pain Signals
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Shield className="h-3 w-3" />
-                        Competitor Intel
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Target className="h-3 w-3" />
-                        Viability Score
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 flex-shrink-0"
-                  onClick={dismissGuide}
-                >
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Dismiss guide</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Zero Credits State - show when user has no credits */}
-        {!creditsLoading && credits === 0 ? (
-          <Card className="mb-8 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950">
-            <CardContent className="py-8">
-              <div className="text-center max-w-md mx-auto">
-                <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mx-auto mb-4">
-                  <CreditCard className="h-8 w-8 text-amber-600 dark:text-amber-400" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">You&apos;re Out of Credits</h3>
-                <p className="text-muted-foreground mb-6">
-                  Get more credits to continue validating your business ideas with real community data.
-                </p>
-                <div className="space-y-3">
-                  <Link href="/dashboard">
-                    <Button className="w-full sm:w-auto">
-                      <Zap className="h-4 w-4 mr-2" />
-                      Get More Credits
-                    </Button>
-                  </Link>
-                  <p className="text-xs text-muted-foreground">
-                    Each credit includes full research: Pain Analysis + Market Sizing + Timing + Competitor Intel
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          /* Conversational Input */
-          <div className="mb-8">
-            <ConversationalInput onSubmit={runResearch} isLoading={status === 'loading'} />
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="p-2.5 rounded-xl bg-primary/10">
+            <Sparkles className="h-6 w-6 text-primary" />
           </div>
-        )}
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">New Research</h1>
+            <p className="text-muted-foreground">
+              Validate your business idea with real community data
+            </p>
+          </div>
+        </div>
+      </div>
 
-        {/* Loading State */}
-        {status === 'loading' && (
-          <>
-            {/* Warning Banner */}
-            <Alert className="mb-4 border-blue-500/50 bg-blue-500/10">
-              <Info className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-700 dark:text-blue-400">
-                Research takes 1-2 minutes. <strong>Feel free to leave</strong> - your results
-                will be saved automatically. Check your <Link href="/dashboard" className="underline hover:no-underline">Dashboard</Link> anytime.
-              </AlertDescription>
-            </Alert>
-
-            <Card>
-              <CardContent className="py-8">
-                <div className="space-y-6">
-                  {/* Header with current message */}
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    <span className="font-medium">{currentMessage || 'Starting research...'}</span>
+      {/* How It Works Guide - dismissible */}
+      {showGuide && (
+        <Card className="mb-6 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+          <CardContent className="py-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-primary/10 mt-0.5">
+                  <HelpCircle className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-sm mb-4">How It Works</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-sm font-bold">1</div>
+                      <div>
+                        <p className="font-medium text-sm">Describe the Problem</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">Tell us who&apos;s struggling and what problem they face</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-sm font-bold">2</div>
+                      <div>
+                        <p className="font-medium text-sm">We Mine Reddit</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">AI analyzes discussions for pain signals and market data</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-sm font-bold">3</div>
+                      <div>
+                        <p className="font-medium text-sm">Get Your Verdict</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">Receive a viability score and competitor analysis</p>
+                      </div>
+                    </div>
                   </div>
+                  <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground">
+                    <Badge variant="secondary" className="gap-1">
+                      <TrendingUp className="h-3 w-3" />
+                      Pain Signals
+                    </Badge>
+                    <Badge variant="secondary" className="gap-1">
+                      <Shield className="h-3 w-3" />
+                      Competitor Intel
+                    </Badge>
+                    <Badge variant="secondary" className="gap-1">
+                      <Target className="h-3 w-3" />
+                      Viability Score
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 flex-shrink-0 -mt-1 -mr-1"
+                onClick={dismissGuide}
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Dismiss guide</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Zero Credits State - show when user has no credits */}
+      {!creditsLoading && credits === 0 ? (
+        <Card className="mb-8 border-amber-200 dark:border-amber-500/30 bg-gradient-to-br from-amber-50 to-amber-50/50 dark:from-amber-500/10 dark:to-transparent">
+          <CardContent className="py-10">
+            <div className="text-center max-w-md mx-auto">
+              <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+                <CreditCard className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">You&apos;re Out of Credits</h3>
+              <p className="text-muted-foreground mb-6">
+                Get more credits to continue validating your business ideas with real community data.
+              </p>
+              <div className="space-y-4">
+                <Link href="/account/billing">
+                  <Button size="lg" className="w-full sm:w-auto">
+                    <Zap className="h-4 w-4 mr-2" />
+                    Get More Credits
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </Link>
+                <p className="text-xs text-muted-foreground">
+                  Each credit includes: Pain Analysis + Market Sizing + Timing + Competitor Intel
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        /* Conversational Input */
+        <div className="mb-8">
+          <ConversationalInput onSubmit={runResearch} isLoading={status === 'loading'} />
+        </div>
+      )}
+
+      {/* Loading State */}
+      {status === 'loading' && (
+        <>
+          {/* Warning Banner */}
+          <Alert className="mb-4 border-blue-500/30 bg-blue-50 dark:bg-blue-500/10">
+            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <AlertDescription className="text-blue-700 dark:text-blue-300">
+              Research takes 1-2 minutes. <strong>Feel free to leave</strong> - your results
+              will be saved automatically. Check your <Link href="/dashboard" className="underline hover:no-underline font-medium">Dashboard</Link> anytime.
+            </AlertDescription>
+          </Alert>
+
+          <Card className="overflow-hidden">
+            <CardContent className="py-8">
+              <div className="space-y-6">
+                {/* Header with current message */}
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  </div>
+                  <span className="font-semibold text-lg">{currentMessage || 'Starting research...'}</span>
+                </div>
 
                 <Progress value={getProgressPercentage()} className="h-2" />
 
                 {/* Real-time Stats Display */}
                 {(streamProgress.postsFound !== undefined || streamProgress.subreddits) && (
-                  <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
-                    <div className="flex items-center gap-2 text-sm font-medium">
+                  <div className="p-4 bg-muted/50 rounded-xl border space-y-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
                       <Sparkles className="h-4 w-4 text-primary" />
                       <span>Live Research Stats</span>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {streamProgress.subreddits && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="p-3 bg-background rounded-lg">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                             <MessageSquare className="h-3 w-3" />
                             Communities
                           </div>
-                          <p className="text-lg font-semibold">{streamProgress.subreddits.length}</p>
+                          <p className="text-2xl font-bold">{streamProgress.subreddits.length}</p>
                         </div>
                       )}
 
                       {streamProgress.postsFound !== undefined && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="p-3 bg-background rounded-lg">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                             <Search className="h-3 w-3" />
                             Posts Found
                           </div>
-                          <p className="text-lg font-semibold">{streamProgress.postsFound}</p>
+                          <p className="text-2xl font-bold">{streamProgress.postsFound}</p>
                         </div>
                       )}
 
                       {streamProgress.relevantPosts !== undefined && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="p-3 bg-background rounded-lg">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                             <Filter className="h-3 w-3" />
                             Relevant
                           </div>
-                          <p className="text-lg font-semibold text-green-600 dark:text-green-400">{streamProgress.relevantPosts}</p>
+                          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{streamProgress.relevantPosts}</p>
                         </div>
                       )}
 
                       {streamProgress.filterRate !== undefined && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="p-3 bg-background rounded-lg">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                             <CheckCircle2 className="h-3 w-3" />
                             Quality Filter
                           </div>
-                          <p className="text-lg font-semibold">{streamProgress.filterRate.toFixed(0)}%</p>
+                          <p className="text-2xl font-bold">{streamProgress.filterRate.toFixed(0)}%</p>
                         </div>
                       )}
 
                       {streamProgress.painSignalCount !== undefined && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="p-3 bg-background rounded-lg">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                             <Sparkles className="h-3 w-3" />
                             Pain Signals
                           </div>
-                          <p className="text-lg font-semibold text-amber-600 dark:text-amber-400">{streamProgress.painSignalCount}</p>
+                          <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{streamProgress.painSignalCount}</p>
                         </div>
                       )}
 
                       {streamProgress.themeCount !== undefined && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="p-3 bg-background rounded-lg">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                             <MessageSquare className="h-3 w-3" />
                             Themes
                           </div>
-                          <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">{streamProgress.themeCount}</p>
+                          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{streamProgress.themeCount}</p>
                         </div>
                       )}
                     </div>
 
                     {streamProgress.subreddits && streamProgress.subreddits.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-2 border-t">
+                      <div className="flex flex-wrap gap-1.5 pt-3 border-t">
                         {streamProgress.subreddits.map((sub) => (
-                          <span
+                          <Badge
                             key={sub}
-                            className="px-2 py-0.5 bg-background text-xs rounded-full border"
+                            variant="secondary"
+                            className="text-xs"
                           >
                             r/{sub}
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     )}
@@ -385,12 +398,12 @@ export default function ResearchPage() {
                   {progressSteps.map((step) => (
                     <div
                       key={step.id}
-                      className={`flex items-center gap-3 text-sm ${
+                      className={`flex items-center gap-3 text-sm py-1 ${
                         step.status === 'pending'
                           ? 'text-muted-foreground'
                           : step.status === 'active'
                           ? 'text-primary font-medium'
-                          : 'text-green-600 dark:text-green-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
                       }`}
                     >
                       {step.status === 'complete' ? (
@@ -409,38 +422,38 @@ export default function ResearchPage() {
                 <div className="pt-4 border-t space-y-4">
                   <div className="grid grid-cols-4 gap-4">
                     {[...Array(4)].map((_, i) => (
-                      <Skeleton key={i} className="h-20" />
+                      <Skeleton key={i} className="h-20 rounded-lg" />
                     ))}
                   </div>
-                  <Skeleton className="h-32" />
+                  <Skeleton className="h-32 rounded-lg" />
                   <div className="space-y-2">
-                    <Skeleton className="h-24" />
-                    <Skeleton className="h-24" />
+                    <Skeleton className="h-24 rounded-lg" />
+                    <Skeleton className="h-24 rounded-lg" />
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
-          </>
-        )}
+        </>
+      )}
 
-        {/* Error State */}
-        {status === 'error' && error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Research Failed</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+      {/* Error State */}
+      {status === 'error' && error && (
+        <Alert variant="destructive" className="rounded-xl">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Research Failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        {/* Results */}
-        {status === 'success' && results && (
-          <CommunityVoiceResults
-            results={results}
-            jobId={currentJobId || undefined}
-            hypothesis={currentHypothesis || undefined}
-          />
-        )}
+      {/* Results */}
+      {status === 'success' && results && (
+        <CommunityVoiceResults
+          results={results}
+          jobId={currentJobId || undefined}
+          hypothesis={currentHypothesis || undefined}
+        />
+      )}
     </div>
   )
 }

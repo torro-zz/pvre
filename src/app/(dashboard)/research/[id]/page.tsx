@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import { CommunityVoiceResults } from '@/components/research/community-voice-results'
-import { DataQualityCard } from '@/components/research/data-quality-card'
+import { ResearchHeroStats } from '@/components/research/research-hero-stats'
 import { CompetitorResults } from '@/components/research/competitor-results'
 import { CompetitorRunner } from '@/components/research/competitor-runner'
 import { ViabilityVerdictDisplay } from '@/components/research/viability-verdict'
@@ -17,7 +17,6 @@ import { ArrowLeft, Calendar, Clock, AlertCircle, TrendingUp, Shield, Target, Pi
 import { PDFDownloadButton } from '@/components/research/pdf-download-button'
 import { ReportProblem } from '@/components/research/report-problem'
 import { AskAnythingSidebar } from '@/components/research/ask-anything-sidebar'
-import { ResearchMetadata } from '@/components/research/research-metadata'
 import { StatusPoller } from '@/components/research/status-poller'
 import { ResearchTrigger } from '@/components/research/research-trigger'
 import { PartialResultsContainer } from '@/components/research/partial-results-container'
@@ -265,7 +264,7 @@ export default async function ResearchDetailPage({
       {/* Back button and header */}
       <div className="mb-6">
           <Link href="/dashboard">
-            <Button variant="ghost" size="sm" className="mb-4">
+            <Button variant="ghost" size="sm" className="mb-4 -ml-2">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Dashboard
             </Button>
@@ -273,14 +272,14 @@ export default async function ResearchDetailPage({
 
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <h1 className="text-2xl font-bold mb-2">{researchJob.hypothesis}</h1>
+              <h1 className="text-2xl font-bold tracking-tight mb-2">{researchJob.hypothesis}</h1>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1.5">
                   <Calendar className="h-4 w-4" />
                   {formatDate(researchJob.created_at)}
                 </span>
                 {result?.data?.metadata?.processingTimeMs && (
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1.5">
                     <Clock className="h-4 w-4" />
                     {(result.data.metadata.processingTimeMs / 1000).toFixed(1)}s processing
                   </span>
@@ -302,11 +301,11 @@ export default async function ResearchDetailPage({
               <Badge
                 className={
                   researchJob.status === 'completed'
-                    ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400'
+                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-500/20 dark:text-emerald-400'
                     : researchJob.status === 'processing'
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400'
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/20 dark:text-blue-400'
                     : researchJob.status === 'failed'
-                    ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400'
+                    ? 'bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-500/20 dark:text-red-400'
                     : 'bg-muted text-muted-foreground'
                 }
               >
@@ -370,34 +369,31 @@ export default async function ResearchDetailPage({
             <TabsContent value="community">
               {communityVoiceResult?.data ? (
                 <div className="space-y-6">
+                  {/* Research Hero Stats - Compact summary with Pain Score gauge */}
+                  {communityVoiceResult.data.metadata.filteringMetrics && painScoreInput && (
+                    <ResearchHeroStats
+                      painScore={painScoreInput.overallScore}
+                      painScoreConfidence={painScoreInput.confidence}
+                      totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
+                      coreSignals={communityVoiceResult.data.metadata.filteringMetrics.coreSignals}
+                      relevanceRate={Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) || 0}
+                      dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
+                      recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
+                      dataSources={communityVoiceResult.data.metadata.dataSources}
+                      communitiesCount={communityVoiceResult.data.subreddits?.analyzed?.length ?? 0}
+                      communityNames={communityVoiceResult.data.subreddits?.analyzed}
+                      dateRange={communityVoiceResult.data.painSummary?.dateRange}
+                      postsAnalyzed={communityVoiceResult.data.metadata.postsAnalyzed}
+                      totalPostsFound={communityVoiceResult.data.metadata.filteringMetrics.postsFound}
+                      commentsAnalyzed={communityVoiceResult.data.metadata.commentsAnalyzed}
+                      processingTimeMs={communityVoiceResult.data.metadata.processingTimeMs}
+                    />
+                  )}
                   <CommunityVoiceResults
                     results={communityVoiceResult.data}
                     jobId={id}
                     hypothesis={researchJob.hypothesis}
                     showNextStep={false}
-                  />
-                  {communityVoiceResult.data.metadata.filteringMetrics && (
-                    <DataQualityCard
-                      postsFound={communityVoiceResult.data.metadata.filteringMetrics.postsFound}
-                      postsAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed}
-                      postsFiltered={communityVoiceResult.data.metadata.filteringMetrics.postsFiltered}
-                      postFilterRate={communityVoiceResult.data.metadata.filteringMetrics.postFilterRate}
-                      commentsFound={communityVoiceResult.data.metadata.filteringMetrics.commentsFound}
-                      commentsAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.commentsAnalyzed}
-                      commentsFiltered={communityVoiceResult.data.metadata.filteringMetrics.commentsFiltered}
-                      commentFilterRate={communityVoiceResult.data.metadata.filteringMetrics.commentFilterRate}
-                      qualityLevel={communityVoiceResult.data.metadata.filteringMetrics.qualityLevel}
-                    />
-                  )}
-                  <ResearchMetadata
-                    postsAnalyzed={communityVoiceResult.data.metadata.postsAnalyzed}
-                    commentsAnalyzed={communityVoiceResult.data.metadata.commentsAnalyzed}
-                    subredditsSearched={communityVoiceResult.data.subreddits.analyzed}
-                    dateRange={communityVoiceResult.data.painSummary.dateRange}
-                    dataConfidence={communityVoiceResult.data.painSummary.dataConfidence}
-                    temporalDistribution={communityVoiceResult.data.painSummary.temporalDistribution}
-                    recencyScore={communityVoiceResult.data.painSummary.recencyScore}
-                    dataSource="Reddit discussions"
                   />
                 </div>
               ) : (
@@ -579,36 +575,31 @@ export default async function ResearchDetailPage({
             <TabsContent value="community">
               {communityVoiceResult?.data ? (
                 <div className="space-y-6">
+                  {/* Research Hero Stats - Compact summary with Pain Score gauge */}
+                  {communityVoiceResult.data.metadata.filteringMetrics && painScoreInput && (
+                    <ResearchHeroStats
+                      painScore={painScoreInput.overallScore}
+                      painScoreConfidence={painScoreInput.confidence}
+                      totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
+                      coreSignals={communityVoiceResult.data.metadata.filteringMetrics.coreSignals}
+                      relevanceRate={Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) || 0}
+                      dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
+                      recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
+                      dataSources={communityVoiceResult.data.metadata.dataSources}
+                      communitiesCount={communityVoiceResult.data.subreddits?.analyzed?.length ?? 0}
+                      communityNames={communityVoiceResult.data.subreddits?.analyzed}
+                      dateRange={communityVoiceResult.data.painSummary?.dateRange}
+                      postsAnalyzed={communityVoiceResult.data.metadata.postsAnalyzed}
+                      totalPostsFound={communityVoiceResult.data.metadata.filteringMetrics.postsFound}
+                      commentsAnalyzed={communityVoiceResult.data.metadata.commentsAnalyzed}
+                      processingTimeMs={communityVoiceResult.data.metadata.processingTimeMs}
+                    />
+                  )}
                   <CommunityVoiceResults
                     results={communityVoiceResult.data}
                     jobId={id}
                     hypothesis={researchJob.hypothesis}
                     showNextStep={false}
-                  />
-                  {/* Data Quality Card - Filtering transparency */}
-                  {communityVoiceResult.data.metadata.filteringMetrics && (
-                    <DataQualityCard
-                      postsFound={communityVoiceResult.data.metadata.filteringMetrics.postsFound}
-                      postsAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed}
-                      postsFiltered={communityVoiceResult.data.metadata.filteringMetrics.postsFiltered}
-                      postFilterRate={communityVoiceResult.data.metadata.filteringMetrics.postFilterRate}
-                      commentsFound={communityVoiceResult.data.metadata.filteringMetrics.commentsFound}
-                      commentsAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.commentsAnalyzed}
-                      commentsFiltered={communityVoiceResult.data.metadata.filteringMetrics.commentsFiltered}
-                      commentFilterRate={communityVoiceResult.data.metadata.filteringMetrics.commentFilterRate}
-                      qualityLevel={communityVoiceResult.data.metadata.filteringMetrics.qualityLevel}
-                    />
-                  )}
-                  {/* Research Metadata - Data quality and transparency */}
-                  <ResearchMetadata
-                    postsAnalyzed={communityVoiceResult.data.metadata.postsAnalyzed}
-                    commentsAnalyzed={communityVoiceResult.data.metadata.commentsAnalyzed}
-                    subredditsSearched={communityVoiceResult.data.subreddits.analyzed}
-                    dateRange={communityVoiceResult.data.painSummary.dateRange}
-                    dataConfidence={communityVoiceResult.data.painSummary.dataConfidence}
-                    temporalDistribution={communityVoiceResult.data.painSummary.temporalDistribution}
-                    recencyScore={communityVoiceResult.data.painSummary.recencyScore}
-                    dataSource="Reddit discussions"
                   />
                 </div>
               ) : (
@@ -637,36 +628,39 @@ export default async function ResearchDetailPage({
               {marketData ? (
                 <div className="space-y-6">
                   {/* Market Score Overview */}
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between mb-6">
+                  <Card className="overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-500/10 via-emerald-500/10 to-purple-500/10 p-6">
+                      <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="text-lg font-semibold">Market Sizing Analysis</h3>
-                          <p className="text-sm text-muted-foreground">
+                          <h3 className="text-xl font-bold">Market Sizing Analysis</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
                             TAM/SAM/SOM estimation via Fermi analysis
                           </p>
                         </div>
                         <div className="text-right">
-                          <div className="text-3xl font-bold">
+                          <div className="text-4xl font-bold">
                             {marketData.score.toFixed(1)}
-                            <span className="text-lg text-muted-foreground">/10</span>
+                            <span className="text-xl text-muted-foreground">/10</span>
                           </div>
-                          <Badge variant={
-                            marketData.mscAnalysis.achievability === 'highly_achievable' ? 'default' :
-                            marketData.mscAnalysis.achievability === 'achievable' ? 'secondary' :
-                            'destructive'
+                          <Badge className={
+                            marketData.mscAnalysis.achievability === 'highly_achievable'
+                              ? 'bg-emerald-500 hover:bg-emerald-600'
+                              : marketData.mscAnalysis.achievability === 'achievable'
+                              ? 'bg-blue-500 hover:bg-blue-600'
+                              : 'bg-red-500 hover:bg-red-600'
                           }>
                             {marketData.mscAnalysis.achievability.replace('_', ' ')}
                           </Badge>
                         </div>
                       </div>
-
+                    </div>
+                    <CardContent className="pt-6">
                       {/* TAM/SAM/SOM Breakdown */}
                       <div className="space-y-4">
-                        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                        <div className="p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200 dark:border-blue-500/20">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-blue-900 dark:text-blue-100">TAM (Total Addressable Market)</span>
-                            <span className="text-blue-700 dark:text-blue-300 font-bold">
+                            <span className="font-semibold text-blue-900 dark:text-blue-100">TAM (Total Addressable Market)</span>
+                            <span className="text-blue-700 dark:text-blue-300 font-bold text-lg">
                               {marketData.tam.value.toLocaleString()} users
                             </span>
                           </div>
@@ -674,21 +668,21 @@ export default async function ResearchDetailPage({
                           <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">{marketData.tam.reasoning}</p>
                         </div>
 
-                        <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                        <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-green-900 dark:text-green-100">SAM (Serviceable Available Market)</span>
-                            <span className="text-green-700 dark:text-green-300 font-bold">
+                            <span className="font-semibold text-emerald-900 dark:text-emerald-100">SAM (Serviceable Available Market)</span>
+                            <span className="text-emerald-700 dark:text-emerald-300 font-bold text-lg">
                               {marketData.sam.value.toLocaleString()} users
                             </span>
                           </div>
-                          <p className="text-sm text-green-700 dark:text-green-300">{marketData.sam.description}</p>
-                          <p className="text-xs text-green-600 dark:text-green-400 mt-1">{marketData.sam.reasoning}</p>
+                          <p className="text-sm text-emerald-700 dark:text-emerald-300">{marketData.sam.description}</p>
+                          <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">{marketData.sam.reasoning}</p>
                         </div>
 
-                        <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
+                        <div className="p-4 bg-purple-50 dark:bg-purple-500/10 rounded-xl border border-purple-200 dark:border-purple-500/20">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-purple-900 dark:text-purple-100">SOM (Serviceable Obtainable Market)</span>
-                            <span className="text-purple-700 dark:text-purple-300 font-bold">
+                            <span className="font-semibold text-purple-900 dark:text-purple-100">SOM (Serviceable Obtainable Market)</span>
+                            <span className="text-purple-700 dark:text-purple-300 font-bold text-lg">
                               {marketData.som.value.toLocaleString()} users
                             </span>
                           </div>
@@ -704,20 +698,20 @@ export default async function ResearchDetailPage({
                     <CardContent className="pt-6">
                       <h3 className="text-lg font-semibold mb-4">Revenue Goal Analysis</h3>
                       <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="p-4 bg-muted rounded-lg">
-                          <div className="text-sm text-muted-foreground">Customers Needed</div>
-                          <div className="text-2xl font-bold">
+                        <div className="p-4 bg-muted/50 rounded-xl border">
+                          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Customers Needed</div>
+                          <div className="text-3xl font-bold mt-1">
                             {marketData.mscAnalysis.customersNeeded.toLocaleString()}
                           </div>
                         </div>
-                        <div className="p-4 bg-muted rounded-lg">
-                          <div className="text-sm text-muted-foreground">Penetration Required</div>
-                          <div className="text-2xl font-bold">
+                        <div className="p-4 bg-muted/50 rounded-xl border">
+                          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Penetration Required</div>
+                          <div className="text-3xl font-bold mt-1">
                             {marketData.mscAnalysis.penetrationRequired.toFixed(1)}%
                           </div>
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-lg">
                         {marketData.mscAnalysis.verdict}
                       </p>
                     </CardContent>
@@ -837,24 +831,32 @@ export default async function ResearchDetailPage({
               {timingData ? (
                 <div className="space-y-6">
                   {/* Timing Score Overview */}
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between mb-6">
+                  <Card className="overflow-hidden">
+                    <div className={`p-6 ${
+                      timingData.trend === 'rising'
+                        ? 'bg-gradient-to-r from-emerald-500/10 to-emerald-500/5'
+                        : timingData.trend === 'stable'
+                        ? 'bg-gradient-to-r from-blue-500/10 to-blue-500/5'
+                        : 'bg-gradient-to-r from-red-500/10 to-red-500/5'
+                    }`}>
+                      <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="text-lg font-semibold">Market Timing Analysis</h3>
-                          <p className="text-sm text-muted-foreground">
+                          <h3 className="text-xl font-bold">Market Timing Analysis</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
                             Tailwinds, headwinds, and timing window assessment
                           </p>
                         </div>
                         <div className="text-right">
-                          <div className="text-3xl font-bold">
+                          <div className="text-4xl font-bold">
                             {timingData.score.toFixed(1)}
-                            <span className="text-lg text-muted-foreground">/10</span>
+                            <span className="text-xl text-muted-foreground">/10</span>
                           </div>
-                          <Badge variant={
-                            timingData.trend === 'rising' ? 'default' :
-                            timingData.trend === 'stable' ? 'secondary' :
-                            'destructive'
+                          <Badge className={
+                            timingData.trend === 'rising'
+                              ? 'bg-emerald-500 hover:bg-emerald-600'
+                              : timingData.trend === 'stable'
+                              ? 'bg-blue-500 hover:bg-blue-600'
+                              : 'bg-red-500 hover:bg-red-600'
                           }>
                             {timingData.trend === 'rising' ? '↑ Rising' :
                              timingData.trend === 'stable' ? '→ Stable' :
@@ -862,12 +864,13 @@ export default async function ResearchDetailPage({
                           </Badge>
                         </div>
                       </div>
-
+                    </div>
+                    <CardContent className="pt-6">
                       {/* Timing Window */}
-                      <div className="p-4 bg-muted rounded-lg mb-6">
-                        <div className="text-sm text-muted-foreground">Timing Window</div>
-                        <div className="text-xl font-bold">{timingData.timingWindow}</div>
-                        <p className="text-sm text-muted-foreground mt-1">
+                      <div className="p-4 bg-muted/50 rounded-xl border mb-6">
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Timing Window</div>
+                        <div className="text-2xl font-bold mt-1">{timingData.timingWindow}</div>
+                        <p className="text-sm text-muted-foreground mt-2">
                           {timingData.verdict}
                         </p>
                       </div>
@@ -875,23 +878,26 @@ export default async function ResearchDetailPage({
                       {/* Tailwinds */}
                       {timingData.tailwinds && timingData.tailwinds.length > 0 && (
                         <div className="mb-6">
-                          <h4 className="font-medium text-green-700 dark:text-green-400 mb-3 flex items-center gap-2">
-                            <span className="text-lg">↑</span> Tailwinds ({timingData.tailwinds.length})
+                          <h4 className="font-semibold text-emerald-700 dark:text-emerald-400 mb-3 flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
+                              <span className="text-sm">↑</span>
+                            </div>
+                            Tailwinds ({timingData.tailwinds.length})
                           </h4>
                           <div className="space-y-3">
                             {timingData.tailwinds.map((tw, i) => (
-                              <div key={i} className="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="font-medium text-green-900 dark:text-green-100">{tw.signal}</span>
-                                  <Badge variant="outline" className={
-                                    tw.impact === 'high' ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-300 dark:border-green-700' :
-                                    tw.impact === 'medium' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800' :
-                                    'bg-muted text-muted-foreground border-border'
+                              <div key={i} className="p-4 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="font-medium text-emerald-900 dark:text-emerald-100">{tw.signal}</span>
+                                  <Badge className={
+                                    tw.impact === 'high' ? 'bg-emerald-600 hover:bg-emerald-700' :
+                                    tw.impact === 'medium' ? 'bg-emerald-500 hover:bg-emerald-600' :
+                                    'bg-emerald-400 hover:bg-emerald-500'
                                   }>
                                     {tw.impact} impact
                                   </Badge>
                                 </div>
-                                <p className="text-sm text-green-700 dark:text-green-300">{tw.description}</p>
+                                <p className="text-sm text-emerald-700 dark:text-emerald-300">{tw.description}</p>
                               </div>
                             ))}
                           </div>
@@ -901,18 +907,21 @@ export default async function ResearchDetailPage({
                       {/* Headwinds */}
                       {timingData.headwinds && timingData.headwinds.length > 0 && (
                         <div>
-                          <h4 className="font-medium text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
-                            <span className="text-lg">↓</span> Headwinds ({timingData.headwinds.length})
+                          <h4 className="font-semibold text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center">
+                              <span className="text-sm">↓</span>
+                            </div>
+                            Headwinds ({timingData.headwinds.length})
                           </h4>
                           <div className="space-y-3">
                             {timingData.headwinds.map((hw, i) => (
-                              <div key={i} className="p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
-                                <div className="flex items-center justify-between mb-1">
+                              <div key={i} className="p-4 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200 dark:border-red-500/20">
+                                <div className="flex items-center justify-between mb-2">
                                   <span className="font-medium text-red-900 dark:text-red-100">{hw.signal}</span>
-                                  <Badge variant="outline" className={
-                                    hw.impact === 'high' ? 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-700' :
-                                    hw.impact === 'medium' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800' :
-                                    'bg-muted text-muted-foreground border-border'
+                                  <Badge className={
+                                    hw.impact === 'high' ? 'bg-red-600 hover:bg-red-700' :
+                                    hw.impact === 'medium' ? 'bg-red-500 hover:bg-red-600' :
+                                    'bg-red-400 hover:bg-red-500'
                                   }>
                                     {hw.impact} impact
                                   </Badge>
