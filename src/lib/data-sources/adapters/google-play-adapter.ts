@@ -309,6 +309,64 @@ export class GooglePlayAdapter implements DataSourceAdapter {
   }
 
   // ===========================================================================
+  // APP-CENTRIC METHODS (for app analysis mode)
+  // ===========================================================================
+
+  /**
+   * Fetch reviews for a specific app by ID
+   * Used in app-centric analysis mode to get reviews for the exact app being analyzed
+   */
+  async getReviewsForAppId(
+    appId: string,
+    options: { limit?: number; sort?: 'helpfulness' | 'newest' | 'rating' } = {}
+  ): Promise<RedditPost[]> {
+    const { limit = 100, sort = 'helpfulness' } = options
+
+    const sortMap = {
+      helpfulness: SORT.HELPFULNESS,
+      newest: SORT.NEWEST,
+      rating: SORT.RATING,
+    }
+
+    try {
+      // Fetch app details for the app name
+      const appDetails = await gplay.app({ appId })
+      const appName = appDetails.title || appId
+
+      // Fetch reviews directly by app ID
+      const reviewsResult = await gplay.reviews({
+        appId,
+        num: limit,
+        lang: 'en',
+        country: 'us',
+        sort: sortMap[sort],
+      })
+
+      const reviews = reviewsResult.data as PlayReview[]
+      console.log(`[GooglePlayAdapter] Fetched ${reviews.length} reviews for ${appName} (${appId})`)
+
+      // Convert to RedditPost format for pipeline compatibility
+      return reviews.map(review => ({
+        id: `gplay_${review.id}`,
+        title: review.text.slice(0, 100) + (review.text.length > 100 ? '...' : ''),
+        body: review.text,
+        author: review.userName || 'Anonymous',
+        subreddit: 'google_play', // Source attribution for pain signals
+        score: review.thumbsUp || 0,
+        numComments: 0,
+        createdUtc: Math.floor(new Date(review.date).getTime() / 1000),
+        permalink: `https://play.google.com/store/apps/details?id=${appId}`,
+        url: `https://play.google.com/store/apps/details?id=${appId}`,
+        // Store rating in score for filtering (low ratings = more pain)
+        rating: review.score,
+      } as RedditPost & { rating?: number }))
+    } catch (error) {
+      console.error(`[GooglePlayAdapter] getReviewsForAppId failed for ${appId}:`, error)
+      return []
+    }
+  }
+
+  // ===========================================================================
   // LEGACY METHODS (for backward compatibility with existing pipeline)
   // Returns RedditPost format for the existing relevance filter and analyzers
   // ===========================================================================

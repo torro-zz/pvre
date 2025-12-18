@@ -52,6 +52,9 @@ import {
   RelevanceDecision,
 } from '@/lib/research/relevance-filter'
 import { StructuredHypothesis, TargetGeography } from '@/types/research'
+import { AppDetails } from '@/lib/data-sources/types'
+import { googlePlayAdapter } from '@/lib/data-sources/adapters/google-play-adapter'
+import { appStoreAdapter } from '@/lib/data-sources/adapters/app-store-adapter'
 
 // Calculate data quality level based on filter rates
 function calculateQualityLevel(postFilterRate: number, commentFilterRate: number): 'high' | 'medium' | 'low' {
@@ -243,6 +246,7 @@ export async function POST(request: NextRequest) {
     let mscTarget: number | undefined
     let targetPrice: number | undefined
     let selectedDataSources: string[] | undefined
+    let appData: AppDetails | undefined
     if (jobId) {
       const adminClient = createAdminClient()
       // Update status and fetch job data in one query
@@ -288,6 +292,16 @@ export async function POST(request: NextRequest) {
       selectedDataSources = coverageData?.selectedDataSources as string[] | undefined
       if (selectedDataSources && selectedDataSources.length > 0) {
         console.log('Using selected data sources:', selectedDataSources)
+      }
+
+      // Check for app data from app-centric analysis mode
+      appData = coverageData?.appData as AppDetails | undefined
+      if (appData) {
+        console.log('App-centric mode detected:', {
+          appId: appData.appId,
+          store: appData.store,
+          name: appData.name,
+        })
       }
     }
 
@@ -388,6 +402,35 @@ export async function POST(request: NextRequest) {
     let rawComments = multiSourceData.comments
 
     console.log(`Fetched ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || multiSourceData.metadata.source}`)
+
+    // Step 3b: For app-centric mode, fetch reviews directly for the specific app
+    if (appData && appData.appId) {
+      console.log(`Step 3b: Fetching reviews for specific app: ${appData.name} (${appData.appId})`)
+      try {
+        let appReviews: RedditPost[] = []
+
+        if (appData.store === 'google_play') {
+          appReviews = await googlePlayAdapter.getReviewsForAppId(appData.appId, { limit: 100 })
+          if (appReviews.length > 0) {
+            rawPosts = [...rawPosts, ...appReviews]
+            console.log(`Added ${appReviews.length} Google Play reviews for ${appData.name}`)
+          }
+        } else if (appData.store === 'app_store') {
+          appReviews = await appStoreAdapter.getReviewsForAppId(appData.appId, { limit: 100 })
+          if (appReviews.length > 0) {
+            rawPosts = [...rawPosts, ...appReviews]
+            console.log(`Added ${appReviews.length} App Store reviews for ${appData.name}`)
+          }
+        }
+
+        if (appReviews.length === 0) {
+          console.warn(`No reviews found for app ${appData.name} (${appData.appId})`)
+        }
+      } catch (appReviewError) {
+        console.error(`Failed to fetch app reviews for ${appData.name}:`, appReviewError)
+        // Continue without app reviews - don't fail the entire request
+      }
+    }
 
     // Check for data source warnings
     if (multiSourceData.metadata.warning) {

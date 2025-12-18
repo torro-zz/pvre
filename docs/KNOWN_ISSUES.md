@@ -10,6 +10,7 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 
 *No open P0 issues*
 
+
 ---
 
 ## Business Model Notes
@@ -37,7 +38,8 @@ The current credit model (1 credit = 1 research) may need rethinking:
 *No open P1 issues*
 
 ### Relevance
- it looks like the relevance of our data is always very low because we only have a fraction of posts that go through to actually being analysed because the rest is not as important may be a few of these post might actually be very important and actually relevant in that case, how can we change this so that we have a more True signal when it comes to relevance and confidence?
+Status: Open P1
+Issue: it looks like the relevance of our data is always very low because we only have a fraction of posts that go through to actually being analysed because the rest is not as important may be a few of these post might actually be very important and actually relevant in that case, how can we change this so that we have a more True signal when it comes to relevance and confidence?
 ---
 
 ## P2 — Low Priority

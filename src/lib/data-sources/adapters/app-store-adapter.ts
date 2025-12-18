@@ -297,6 +297,75 @@ export class AppStoreAdapter implements DataSourceAdapter {
   }
 
   // ===========================================================================
+  // APP-CENTRIC METHODS (for app analysis mode)
+  // ===========================================================================
+
+  /**
+   * Fetch reviews for a specific app by ID
+   * Used in app-centric analysis mode to get reviews for the exact app being analyzed
+   */
+  async getReviewsForAppId(
+    appId: string,
+    options: { limit?: number; sort?: 'helpful' | 'recent'; market?: string } = {}
+  ): Promise<RedditPost[]> {
+    const { limit = 100, sort = 'helpful', market = 'us' } = options
+
+    const sortMap = {
+      helpful: SORT.HELPFUL,
+      recent: SORT.RECENT,
+    }
+
+    try {
+      // Fetch app details for the app name
+      const appDetails = await store.app({ id: parseInt(appId, 10), country: market })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const appName = (appDetails as any).title || appId
+
+      // Fetch reviews directly by app ID - App Store returns max ~50 per page
+      const reviews: AppStoreReview[] = []
+      const pagesNeeded = Math.ceil(limit / 50)
+
+      for (let page = 1; page <= pagesNeeded && reviews.length < limit; page++) {
+        try {
+          const pageReviews = await store.reviews({
+            id: parseInt(appId, 10), // App Store expects numeric ID
+            page,
+            country: market,
+            sort: sortMap[sort],
+          }) as AppStoreReview[]
+
+          if (!pageReviews || pageReviews.length === 0) break
+          reviews.push(...pageReviews)
+        } catch (pageError) {
+          console.warn(`[AppStoreAdapter] Failed to fetch page ${page} for ${appId}:`, pageError)
+          break
+        }
+      }
+
+      console.log(`[AppStoreAdapter] Fetched ${reviews.length} reviews for ${appName} (${appId})`)
+
+      // Convert to RedditPost format for pipeline compatibility
+      return reviews.slice(0, limit).map(review => ({
+        id: `appstore_${review.id}`,
+        title: review.title || review.text.slice(0, 100) + (review.text.length > 100 ? '...' : ''),
+        body: review.text,
+        author: review.userName || 'Anonymous',
+        subreddit: 'app_store', // Source attribution for pain signals
+        score: 0, // App Store doesn't have upvotes
+        numComments: 0,
+        createdUtc: Math.floor(new Date(review.date).getTime() / 1000),
+        permalink: `https://apps.apple.com/${market}/app/app/id${appId}`,
+        url: `https://apps.apple.com/${market}/app/app/id${appId}`,
+        // Store rating for filtering (low ratings = more pain)
+        rating: review.score,
+      } as RedditPost & { rating?: number }))
+    } catch (error) {
+      console.error(`[AppStoreAdapter] getReviewsForAppId failed for ${appId}:`, error)
+      return []
+    }
+  }
+
+  // ===========================================================================
   // LEGACY METHODS (for backward compatibility with existing pipeline)
   // Returns RedditPost format for the existing relevance filter and analyzers
   // ===========================================================================
