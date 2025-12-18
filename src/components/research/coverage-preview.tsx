@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink, Sparkles, Database, Smartphone, SlidersHorizontal, Info } from 'lucide-react'
+import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink, Sparkles, Database, Smartphone, SlidersHorizontal, Info, Search } from 'lucide-react'
+import { QualityPreviewModal, QualityPreviewData, shouldShowQualityWarning } from './quality-preview-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -69,6 +70,8 @@ export interface CoverageData {
   // App-centric analysis mode
   mode?: 'hypothesis' | 'app-analysis'
   appData?: AppDetails | null
+  // Quality preview (pre-research relevance prediction)
+  qualityPreview?: QualityPreviewData
 }
 
 interface CoveragePreviewProps {
@@ -138,6 +141,9 @@ export function CoveragePreview({
   const [mscTarget, setMscTarget] = useState<number>(1000000) // Default $1M ARR
   const [targetPrice, setTargetPrice] = useState<number>(29) // Default $29/month
   const [showPricingEditor, setShowPricingEditor] = useState(false)
+
+  // Quality preview modal state
+  const [showQualityModal, setShowQualityModal] = useState(false)
 
   // Data sources state
   const [selectedDataSources, setSelectedDataSources] = useState<Set<string>>(new Set(['Reddit']))
@@ -351,6 +357,25 @@ export function CoveragePreview({
       mode: mode,
       appData: appData,
     }
+  }
+
+  // Handle start research - check for quality warnings first
+  const handleStartResearch = () => {
+    if (!coverage) return
+
+    // If there's a quality warning, show the modal for user acknowledgment
+    if (shouldShowQualityWarning(coverage.qualityPreview)) {
+      setShowQualityModal(true)
+      return
+    }
+
+    // No warning - proceed directly
+    onProceed(getFinalCoverageData())
+  }
+
+  // Called when user confirms in the quality modal
+  const handleQualityConfirm = () => {
+    onProceed(getFinalCoverageData())
   }
 
   // Toggle a data source
@@ -829,7 +854,7 @@ export function CoveragePreview({
       {/* Action button */}
       <Button
         type="button"
-        onClick={() => onProceed(getFinalCoverageData())}
+        onClick={handleStartResearch}
         disabled={disabled || selectedSubreddits.size === 0}
         size="lg"
         className="w-full h-12 text-base"
@@ -846,6 +871,17 @@ export function CoveragePreview({
           </>
         )}
       </Button>
+
+      {/* Quality Preview Modal */}
+      {coverage?.qualityPreview && (
+        <QualityPreviewModal
+          open={showQualityModal}
+          onOpenChange={setShowQualityModal}
+          qualityData={coverage.qualityPreview}
+          onProceed={handleQualityConfirm}
+          onRefine={onRefine}
+        />
+      )}
     </div>
   )
 }

@@ -14,6 +14,8 @@ import {
 } from '@/lib/data-sources'
 import { extractSearchKeywords } from '@/lib/reddit/keyword-extractor'
 import { StructuredHypothesis } from '@/types/research'
+import { sampleQualityCheck, QualitySampleResult } from '@/lib/research/relevance-filter'
+import { redditAdapter } from '@/lib/data-sources'
 
 export interface CoverageCheckRequest {
   hypothesis: string
@@ -70,6 +72,8 @@ export interface CoverageCheckResponse {
   }
   // Data sources that will be used
   dataSources?: string[]
+  // Quality preview (pre-research relevance prediction)
+  qualityPreview?: QualitySampleResult
 }
 
 /**
@@ -253,6 +257,54 @@ export async function POST(req: Request) {
       (googlePlayCoverage?.estimatedPosts || 0) +
       (appStoreCoverage?.estimatedPosts || 0)
 
+    // Step 4: Quality sampling - fetch actual posts and run relevance prediction
+    // This helps users understand expected quality BEFORE they pay
+    let qualityPreview: QualitySampleResult | undefined
+
+    try {
+      // Fetch 40 sample posts from top subreddits for quality analysis
+      const topSubreddits = subredditCoverage
+        .filter(s => s.estimatedPosts > 0)
+        .slice(0, 4)  // Top 4 subreddits
+        .map(s => s.name)
+
+      if (topSubreddits.length > 0) {
+        // Fetch 10 posts from each subreddit (up to 40 total)
+        const samplePostPromises = topSubreddits.map(sub =>
+          redditAdapter.getSamplePostsWithKeywords(sub, 10, sampleKeywords)
+        )
+        const samplePostResults = await Promise.all(samplePostPromises)
+        const allSamplePosts = samplePostResults.flat()
+
+        if (allSamplePosts.length >= 10) {
+          // Convert SamplePost[] to RedditPost[] format for quality check
+          const postsForSampling = allSamplePosts.map(p => ({
+            id: p.permalink.split('/').slice(-2)[0] || Math.random().toString(),
+            title: p.title,
+            body: '', // Sample posts don't have body, but title is enough for domain gate
+            subreddit: p.subreddit,
+            author: '',
+            score: p.score,
+            createdUtc: Date.now() / 1000,
+            permalink: p.permalink,
+            url: p.permalink,
+            numComments: 0,
+          }))
+
+          qualityPreview = await sampleQualityCheck(
+            postsForSampling,
+            hypothesis,
+            structuredHypothesis
+          )
+
+          console.log(`[QualityPreview] Predicted relevance: ${qualityPreview.predictedRelevance}%, Warning: ${qualityPreview.qualityWarning}`)
+        }
+      }
+    } catch (error) {
+      console.warn('[QualityPreview] Failed to run quality sampling:', error)
+      // Non-blocking - continue without quality preview
+    }
+
     return NextResponse.json({
       subreddits: subredditCoverage,
       totalEstimatedPosts,
@@ -272,6 +324,8 @@ export async function POST(req: Request) {
       googlePlay: googlePlayCoverage || undefined,
       appStore: appStoreCoverage || undefined,
       dataSources,
+      // Quality preview (pre-research relevance prediction)
+      qualityPreview,
     } as CoverageCheckResponse)
   } catch (error) {
     console.error('Coverage check failed:', error)

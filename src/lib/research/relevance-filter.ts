@@ -1093,3 +1093,184 @@ Respond with ${batch.length} letters (Y or N):`
 
   return { items: passed, metrics, decisions: allDecisions }
 }
+
+// ============================================================================
+// QUALITY SAMPLING (for pre-research quality prediction)
+// ============================================================================
+
+export interface QualitySampleResult {
+  predictedRelevance: number  // 0-100 percentage
+  predictedConfidence: 'very_low' | 'low' | 'medium' | 'high'
+  qualityWarning: 'none' | 'caution' | 'strong_warning'
+
+  // Sample posts for user to see
+  sampleRelevant: Array<{
+    title: string
+    body_preview: string
+    subreddit: string
+  }>
+  sampleFiltered: Array<{
+    title: string
+    body_preview: string
+    subreddit: string
+    filterReason: string
+  }>
+
+  // What topics were filtered (for "Your audience talks more about X")
+  filteredTopics: Array<{ topic: string; count: number }>
+
+  // Suggestion if quality is low
+  suggestion?: string
+}
+
+/**
+ * Quick quality sampling for coverage-check
+ * Runs relevance filter on a sample of posts to predict final quality
+ *
+ * Cost: ~$0.01 (40 posts through Haiku domain gate)
+ */
+export async function sampleQualityCheck(
+  posts: RedditPost[],
+  hypothesis: string,
+  structured?: StructuredHypothesis
+): Promise<QualitySampleResult> {
+  // Take up to 40 random posts for sampling
+  const sampleSize = Math.min(40, posts.length)
+  const shuffled = [...posts].sort(() => Math.random() - 0.5)
+  const sample = shuffled.slice(0, sampleSize)
+
+  if (sample.length < 10) {
+    return {
+      predictedRelevance: 0,
+      predictedConfidence: 'very_low',
+      qualityWarning: 'strong_warning',
+      sampleRelevant: [],
+      sampleFiltered: [],
+      filteredTopics: [],
+      suggestion: 'Very few posts found. Try different keywords or communities.',
+    }
+  }
+
+  // Stage 1: Quality gate (free, code-only)
+  const { passed: qualityPassed, decisions: qualityDecisions } = qualityGateFilter(sample)
+
+  // Stage 2: Extract domain for gate filter
+  const { domain, antiDomains } = await extractProblemDomain(hypothesis, structured)
+
+  // Stage 3: Domain gate filter (cheap Haiku call)
+  const { passed: domainPassed, filtered: domainFiltered, decisions: domainDecisions } =
+    await domainGateFilter(qualityPassed, domain, antiDomains)
+
+  // Calculate predicted relevance
+  const predictedRelevance = sample.length > 0
+    ? Math.round((domainPassed.length / sample.length) * 100)
+    : 0
+
+  // Determine confidence level based on expected final signals
+  // If 40 samples → X% pass → expect (totalPosts * X%) relevant
+  // We'll estimate conservatively since problem match filter will reduce further
+  const estimatedSignals = domainPassed.length * 0.6  // ~40% filtered by problem match
+
+  let predictedConfidence: QualitySampleResult['predictedConfidence']
+  if (estimatedSignals < 10) {
+    predictedConfidence = 'very_low'
+  } else if (estimatedSignals < 20) {
+    predictedConfidence = 'low'
+  } else if (estimatedSignals < 40) {
+    predictedConfidence = 'medium'
+  } else {
+    predictedConfidence = 'high'
+  }
+
+  // Determine warning level
+  let qualityWarning: QualitySampleResult['qualityWarning'] = 'none'
+  if (predictedRelevance < 15) {
+    qualityWarning = 'strong_warning'
+  } else if (predictedRelevance < 25) {
+    qualityWarning = 'caution'
+  }
+
+  // Prepare sample relevant posts (up to 3)
+  const sampleRelevant = domainPassed.slice(0, 3).map(post => ({
+    title: post.title,
+    body_preview: (post.body || '').slice(0, 150) + ((post.body || '').length > 150 ? '...' : ''),
+    subreddit: post.subreddit,
+  }))
+
+  // Prepare sample filtered posts with reasons (up to 5)
+  const sampleFiltered = domainFiltered.slice(0, 5).map(post => {
+    const decision = domainDecisions.find(d => d.reddit_id === post.id)
+    return {
+      title: post.title,
+      body_preview: (post.body || '').slice(0, 100) + ((post.body || '').length > 100 ? '...' : ''),
+      subreddit: post.subreddit,
+      filterReason: decision?.reason || 'Off-topic',
+    }
+  })
+
+  // Analyze filtered topics - group by apparent topic
+  const filteredTopics = analyzeFilteredTopics(domainFiltered, domain)
+
+  // Generate suggestion based on results
+  let suggestion: string | undefined
+  if (predictedRelevance < 15) {
+    if (filteredTopics.length > 0) {
+      const topTopic = filteredTopics[0].topic
+      suggestion = `Your audience talks more about "${topTopic}" than your hypothesis topic. Consider pivoting or narrowing your focus.`
+    } else {
+      suggestion = 'Try being more specific about the pain point, or explore different communities.'
+    }
+  } else if (predictedRelevance < 25) {
+    suggestion = 'Consider narrowing your hypothesis for more focused results.'
+  }
+
+  return {
+    predictedRelevance,
+    predictedConfidence,
+    qualityWarning,
+    sampleRelevant,
+    sampleFiltered,
+    filteredTopics,
+    suggestion,
+  }
+}
+
+/**
+ * Analyze filtered posts to find common off-topic themes
+ */
+function analyzeFilteredTopics(
+  filteredPosts: RedditPost[],
+  targetDomain: string
+): Array<{ topic: string; count: number }> {
+  if (filteredPosts.length < 3) return []
+
+  // Simple keyword extraction from filtered posts
+  const topicCounts = new Map<string, number>()
+
+  // Common topic patterns by subreddit type
+  const topicPatterns: Array<{ pattern: RegExp; topic: string }> = [
+    { pattern: /\b(honey|harvest|extract|jar|sell)\b/i, topic: 'honey harvesting' },
+    { pattern: /\b(photo|pic|look at|check out|show off)\b/i, topic: 'sharing photos' },
+    { pattern: /\b(identify|what is|what kind|species)\b/i, topic: 'identification' },
+    { pattern: /\b(buy|purchase|where to get|recommend|best)\b/i, topic: 'product recommendations' },
+    { pattern: /\b(beginner|started|new to|first time)\b/i, topic: 'getting started' },
+    { pattern: /\b(recipe|cook|food|meal|eat)\b/i, topic: 'recipes/food' },
+    { pattern: /\b(sell|business|money|income|profit)\b/i, topic: 'business/selling' },
+  ]
+
+  for (const post of filteredPosts) {
+    const text = `${post.title} ${post.body || ''}`.toLowerCase()
+
+    for (const { pattern, topic } of topicPatterns) {
+      if (pattern.test(text) && !topic.toLowerCase().includes(targetDomain.toLowerCase())) {
+        topicCounts.set(topic, (topicCounts.get(topic) || 0) + 1)
+      }
+    }
+  }
+
+  // Sort by count and return top 3
+  return Array.from(topicCounts.entries())
+    .map(([topic, count]) => ({ topic, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3)
+}
