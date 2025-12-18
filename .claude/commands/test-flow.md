@@ -1,154 +1,49 @@
 ---
-description: Comprehensive end-to-end test of PVRE research flow via Puppeteer
+description: Run detailed E2E test using flow-tester agent
 ---
 
 # E2E Test Flow
 
-Automated Puppeteer test of the complete PVRE research flow.
+Use the `flow-tester` agent for detailed end-to-end testing with full logging.
 
-## Test Modes
+## What flow-tester Does
 
-| Mode | Duration | Credits | Use When |
-|------|----------|---------|----------|
-| Smoke | ~2 min | 0 | Quick sanity check |
-| Full | ~5 min | 1 | Before release, after major changes |
+1. **Documents everything** — Every input, output, screenshot logged
+2. **Traces API calls** — All requests/responses captured
+3. **Captures timing** — How long each operation takes
+4. **Checks console** — Errors logged at every step
 
-## Test Hypothesis
+## Test Scenarios
+
+| Scenario | Credits | Purpose |
+|----------|---------|---------|
+| Happy Path | 1 | Full research flow |
+| Edge Cases | 0 | Validation, limits |
+| Error States | 0 | Failure handling |
+
+## Standard Test Hypothesis
+
 ```
 A tool to help freelancers manage their invoicing and client payments
 ```
 
----
+## Output
 
-## Pre-Flight
+The flow-tester produces a detailed report where a human can understand exactly what happened at each step, including:
+- Exact inputs entered
+- Visual state before/after
+- API calls made
+- Console activity
+- Timing for each operation
 
-```bash
-# Check if dev server running
-lsof -i :3000 | head -1
+## After Testing
 
-# Start if needed
-npm run dev
-```
+- Review report for unexpected behavior
+- Record learnings to `docs/agent-learnings.md`
+- Fix any issues found
 
----
+## Related Agents
 
-## SMOKE TEST (No credits)
-
-### 1. Homepage
-```
-puppeteer_navigate → http://localhost:3000
-mcp__browser-tools__getConsoleErrors
-puppeteer_screenshot → 'home'
-✓ CTA visible, no errors
-```
-
-### 2. Auth
-```
-puppeteer_evaluate → fetch('/api/dev/login', { method: 'POST' })
-puppeteer_navigate → http://localhost:3000/dashboard
-puppeteer_screenshot → 'dashboard'
-✓ "Welcome back, Test User (Dev)!"
-```
-
-### 3. Research Page
-```
-puppeteer_navigate → http://localhost:3000/research
-mcp__browser-tools__getConsoleErrors
-puppeteer_screenshot → 'research'
-✓ Form visible, submit button present
-```
-
-### 4. Admin
-```
-puppeteer_navigate → http://localhost:3000/admin
-mcp__browser-tools__getConsoleErrors
-puppeteer_screenshot → 'admin'
-✓ Analytics visible
-```
-
----
-
-## FULL TEST (Uses 1 credit)
-
-Includes smoke test PLUS:
-
-### 5. Run Research
-```
-puppeteer_fill → textarea: "[hypothesis]"
-puppeteer_click → button[type="submit"]
-[Wait up to 120s, screenshot every 30s]
-mcp__browser-tools__getConsoleErrors
-puppeteer_screenshot → 'results'
-✓ Pain score, signals, verdict displayed
-```
-
-### 6. Verify Each Tab
-```
-Click and screenshot: Verdict, Community, Market, Timing, Competitors
-✓ All tabs render with data
-```
-
-### 7. Data Persistence
-```
-puppeteer_navigate → http://localhost:3000/dashboard
-✓ New research appears in history
-```
-
-### 8. PDF Export
-```
-Click PDF download button
-✓ Downloads without error
-```
-
----
-
-## Error Detection
-
-**CRITICAL: Check after EVERY navigation:**
-```
-mcp__browser-tools__getConsoleErrors
-mcp__browser-tools__getNetworkErrors
-```
-
----
-
-## Report Format
-
-```markdown
-## E2E Test Results
-
-**Date:** [timestamp]
-**Duration:** [X]s
-**Mode:** Smoke/Full
-**Status:** PASS/FAIL
-
-| Test | Status | Notes |
-|------|--------|-------|
-| Homepage | ✓/✗ | |
-| Auth | ✓/✗ | |
-| Dashboard | ✓/✗ | |
-| Research Form | ✓/✗ | |
-| Research Complete | ✓/✗ | [X]s |
-| Results Display | ✓/✗ | |
-| Admin | ✓/✗ | |
-
-### Console Errors
-[None / List with pages]
-
-### Network Errors
-[None / List]
-
-### Issues Found
-[Any problems to investigate]
-```
-
----
-
-## Success Criteria
-
-- [ ] All pages load without JS errors
-- [ ] Auth works (dev login)
-- [ ] Research completes (if full test)
-- [ ] Results display correctly
-- [ ] Data persists to dashboard
-- [ ] Admin accessible
+- `ceo-review` → Visual product walkthrough
+- `output-quality` → Research result quality check
+- `debugger` → If errors need investigation

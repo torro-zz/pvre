@@ -147,19 +147,68 @@ When research fails, `error_source` in `research_jobs` shows where:
 
 ---
 
-## Sub-Agents
+## Agent System
 
-Specialized agents in `.claude/agents/`. Each has safety boundaries and product context.
+Specialized agents in `.claude/agents/` with **shared learning** capability.
 
-| Agent | Purpose | Key Feature |
+### Agent Roster
+
+| Agent | Purpose | When to Use |
 |-------|---------|-------------|
-| `ceo-review` | Visual inspection | Screenshots every page, checks relevance |
-| `code-quality` | Standards enforcement | Runs before commits |
-| `debugger` | Root cause analysis | 30-min escalation trigger |
-| `test-runner` | E2E automation | Smoke (0 credits) + Full (1 credit) |
-| `improver` | Improvement planning | Waits for approval |
+| `output-quality` | LeanSpark evaluation: "Does this help founders decide?" | After research, before releases |
+| `flow-tester` | Detailed E2E testing with full input/output logging | Testing features, debugging flows |
+| `code-hardener` | Security, types, refactoring, performance | Before commits, audits |
+| `ui-specialist` | Visual polish, accessibility, responsiveness | UI changes, design reviews |
+| `ceo-review` | CEO-level visual product walkthrough | Before releases, product checks |
+| `debugger` | Root cause analysis for bugs | Error messages, "why is this broken" |
+| `learner` | Meta-agent: synthesizes patterns, improves other agents | Periodically, after incidents |
 
-**Relevance checking:** `ceo-review`, `code-quality`, and `test-runner` all check for the 64% relevance issue.
+### Self-Learning System
+
+All agents share knowledge through `docs/agent-learnings.md`:
+
+1. **Every agent reads it first** — Before starting work, agents check for relevant learnings
+2. **Agents write discoveries** — When something important is found, it's added to the file
+3. **Learner synthesizes** — Periodically identifies patterns and proposes agent updates
+
+```
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│ output-     │   │ flow-       │   │ code-       │
+│ quality     │   │ tester      │   │ hardener    │
+└──────┬──────┘   └──────┬──────┘   └──────┬──────┘
+       │                 │                 │
+       └────── WRITE ────┼────── WRITE ────┘
+                         │
+                         ▼
+            ┌────────────────────────┐
+            │  docs/agent-learnings.md │
+            │                        │
+            │  [All agents READ this │
+            │   before starting]     │
+            └────────────────────────┘
+                         │
+                         ▼
+            ┌────────────────────────┐
+            │      learner agent     │
+            │  (synthesizes patterns │
+            │   & updates agents)    │
+            └────────────────────────┘
+```
+
+### Deploying Agents
+
+CC should proactively use agents when:
+- **output-quality** → After any research completes, to verify quality
+- **flow-tester** → When testing new features or debugging
+- **code-hardener** → Before commits, especially for API/security changes
+- **ui-specialist** → After UI changes, before releases
+- **ceo-review** → Before any release, for final product check
+- **debugger** → When encountering errors or unexpected behavior
+- **learner** → Weekly, or after incidents
+
+### Agent Quality Focus
+
+All agents check for the **64% relevance issue** — the critical quality metric where pain signals must actually relate to the business hypothesis.
 
 ---
 

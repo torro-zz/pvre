@@ -1,139 +1,65 @@
 ---
-description: Run a comprehensive CEO-ready product review with detailed UX/UI analysis, data quality assessment, and strategic recommendations
+description: Run CEO-level product walkthrough using ceo-review agent
 ---
 
 # CEO Product Review
 
-A demanding CEO walkthrough. See what users see. Be brutally honest.
+Use the `ceo-review` agent for a demanding product walkthrough.
 
-**Duration:** ~15 minutes | **Credits Used:** 1 | **Output:** `docs/archive/ceo-review-report-YYYY-MM-DD.md`
+## What ceo-review Does
 
-## Core Rules
+1. **Screenshots every page** — Visual documentation
+2. **Checks console errors** — After every navigation
+3. **Tests full research flow** — Uses 1 credit
+4. **Grades honestly** — A-F with justification
+5. **Records learnings** — To shared learnings file
 
-1. **LOOK at every screenshot** - Describe what you literally see
-2. **Check console errors after EVERY navigation** - `mcp__browser-tools__getConsoleErrors`
-3. **Be honest** - This is for fixing problems, not for praise
-4. **Save the report** - Must write to `docs/archive/ceo-review-report-[DATE].md`
+## Grading Rubric
+
+| Grade | Meaning |
+|-------|---------|
+| A | Ship it. Minor polish only. |
+| B | Good foundation. Fix critical issues. |
+| C | Functional but needs work. 1-2 weeks. |
+| D | Significant problems. Major rework. |
+| F | Broken. Do not show to users. |
 
 ## Test Hypothesis
+
 ```
 A tool to help freelancers manage their invoicing and client payments
 ```
 
----
+## Pages Checked
 
-## PHASES
+1. Landing page (hero, CTA, pricing)
+2. Dashboard (welcome, credits, history)
+3. Research form (input, submit)
+4. Research progress (feedback, timing)
+5. Results (all tabs, data quality)
+6. Account & Admin
 
-### 1. Landing Page
-```
-puppeteer_navigate → http://localhost:3000
-mcp__browser-tools__takeScreenshot
-mcp__browser-tools__getConsoleErrors
-puppeteer_evaluate → window.scrollBy(0, 800)
-mcp__browser-tools__takeScreenshot
-```
-**Describe:** Hero clarity, CTA visibility, value prop, features section, footer
+## Output
 
-### 2. Auth + Dashboard
-```
-puppeteer_evaluate → fetch('/api/dev/login', { method: 'POST' })
-puppeteer_navigate → http://localhost:3000/dashboard
-mcp__browser-tools__takeScreenshot
-```
-**Describe:** Welcome message, layout, navigation, research history, credits
+Report saved to: `docs/archive/ceo-review-[DATE].md`
 
-### 3. Research Flow (Uses 1 Credit)
-```
-puppeteer_navigate → http://localhost:3000/research
-puppeteer_fill → textarea: [hypothesis]
-puppeteer_click → button[type="submit"]
-[Screenshot every 15s during processing]
-[Wait up to 2 minutes]
-mcp__browser-tools__takeScreenshot
-```
-**Describe:** Progress feedback, completion, time taken
+Includes:
+- 30-second board summary
+- Grade with justification
+- Critical issues (fix this week)
+- UX issues (fix this month)
+- Console/network errors
+- Data quality assessment
+- "Would I pay £14?" verdict
 
-### 4. Results Analysis
-For each tab (Verdict, Community, Market, Timing, Competitors):
-```
-puppeteer_click → [tab]
-mcp__browser-tools__takeScreenshot
-```
-**Describe for each:**
-- Verdict: Score, 4 dimensions, weights, recommendations
-- Community: Pain score, signals, quotes, interview prep
-- Market: TAM/SAM/SOM, methodology
-- Timing: Tailwinds/headwinds, trend direction
-- Competitors: Analysis or prompt to run
+## After Review
 
-### 5. Account & Admin
-```
-puppeteer_navigate → http://localhost:3000/account
-puppeteer_navigate → http://localhost:3000/admin
-[Screenshot and check errors for each]
-```
+- Fix critical issues first
+- Record learnings to `docs/agent-learnings.md`
+- Update status if needed
 
-### 6. PDF Export
-```
-Click PDF download button
-[Verify download works]
-```
+## Related Agents
 
----
-
-## Report Template
-
-Save to: `docs/archive/ceo-review-report-YYYY-MM-DD.md`
-
-```markdown
-# CEO Review Report - [DATE]
-
-**Duration:** [X] min | **Credits:** 1 | **Grade:** [A-F]
-
-## 30-Second Summary
-[What would you tell the board?]
-
-## What Works
-1. [Strength] - [Evidence]
-2. [Strength] - [Evidence]
-
-## Critical Issues (Fix This Week)
-1. **[Issue]** - [What you saw] → [Fix]
-
-## UX Issues (Fix This Month)
-1. **[Issue]** - [What you saw] → [Fix]
-
-## Page Analysis
-
-| Page | Grade | Key Issues |
-|------|-------|------------|
-| Landing | [A-F] | [Brief] |
-| Dashboard | [A-F] | [Brief] |
-| Research | [A-F] | [Brief] |
-| Results | [A-F] | [Brief] |
-| Admin | [A-F] | [Brief] |
-
-## Data Quality
-- Pain Score: X/10
-- Signals: X found
-- Quote Quality: [Authentic/Generic]
-- Would I trust this? [Yes/No]
-
-## Console Errors
-[List all errors with pages]
-
-## Bottom Line
-**Would I invest?** [Yes/No/Maybe]
-**One thing to fix first:** [Most critical]
-```
-
----
-
-## Success Checklist
-
-- [ ] Every page visited and screenshotted
-- [ ] Console errors checked after each navigation
-- [ ] Full research flow completed
-- [ ] All result tabs inspected
-- [ ] Report saved with actionable recommendations
-- [ ] Honest grade assigned
+- `output-quality` → For detailed LeanSpark evaluation
+- `flow-tester` → For comprehensive E2E logging
+- `ui-specialist` → For accessibility/responsiveness

@@ -1,80 +1,49 @@
 ---
-description: Get the next priority improvement with a plan (asks for approval before implementing)
+description: Synthesize learnings and find next improvement using learner agent
 ---
 
 # Find Next Improvement
 
-Analyze the codebase and identify the next best improvement to implement.
+Use the `learner` agent to synthesize learnings and identify patterns.
 
-## Analysis Sources
+## What learner Does
 
-1. **`docs/KNOWN_ISSUES.md`** - Active bugs (check first!)
-2. **`CLAUDE.md`** - Remaining items and implementation status
-3. **Codebase** - TODOs, FIXMEs, patterns to improve
-4. **Build/Tests** - Any failures to address
+1. **Reads agent learnings** — From `docs/agent-learnings.md`
+2. **Identifies patterns** — Same issue appearing multiple times
+3. **Proposes updates** — To agent prompts if patterns warrant
+4. **Archives processed** — Moves completed learnings to archive
 
-## Priority Levels
+## When to Run
 
-| Level | Description | Example |
-|-------|-------------|---------|
-| P0 | Production broken | Auth failing for all users |
-| P1 | User-facing bug | Button doesn't work |
-| P2 | UX issue | Confusing workflow |
-| P3 | Nice-to-have | Dark mode |
+- **Weekly** — Regular synthesis
+- **After incidents** — When bugs are fixed
+- **After releases** — To capture what was learned
 
-## Process
+## Priority Sources
 
-### Step 1: Quick Health Check
-```bash
-npm run build 2>&1 | grep -i error
-npm run test:run 2>&1 | tail -10
-```
+| Source | What to Check |
+|--------|---------------|
+| `docs/agent-learnings.md` | Recent findings from all agents |
+| `docs/KNOWN_ISSUES.md` | Active bugs |
+| `CLAUDE.md` | Remaining items |
+| Codebase TODOs | Technical debt |
 
-### Step 2: Read Known Issues
-Read `docs/KNOWN_ISSUES.md` for currently tracked bugs.
+## Output
 
-### Step 3: Check CLAUDE.md
-Read the "Remaining Items" section of `CLAUDE.md`.
+The learner produces:
+- Pattern analysis across learnings
+- Recommended agent updates
+- Archived processed learnings
+- Remaining items needing more data
 
-### Step 4: Scan for TODOs
-```bash
-grep -rn "TODO\|FIXME" src/ --include="*.ts" --include="*.tsx" | head -20
-```
+## After Running
 
-### Step 5: Present Recommendation
+- Review proposed agent updates
+- Apply updates if appropriate
+- Clear processed learnings
 
-```markdown
-## Next Improvement
+## Related Agents
 
-**[Name]** (P[X])
-
-### Why This
-[Brief rationale]
-
-### Implementation Plan
-1. [Step 1]
-2. [Step 2]
-3. [Step 3]
-
-### Files
-- `src/path/file.ts`
-
-### Effort
-[Small/Medium/Large]
-
-Shall I proceed?
-```
-
-### Step 6: After User Approval
-1. Implement the fix
-2. Run `npm run build` and `npm run test:run`
-3. Update `docs/KNOWN_ISSUES.md` if bug was fixed
-4. Update `CLAUDE.md` if status changed
-
-## Quality Gate
-
-Before marking complete:
-- [ ] Build passes
-- [ ] Tests pass
-- [ ] Change tested manually
-- [ ] Documentation updated
+- `output-quality` → For checking research quality
+- `code-hardener` → For code audit
+- `flow-tester` → For testing flows
