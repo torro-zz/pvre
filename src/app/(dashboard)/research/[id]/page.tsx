@@ -239,6 +239,7 @@ export default async function ResearchDetailPage({
   const viabilityVerdict = calculateViability(painScoreInput, competitionScoreInput, marketScoreInput, timingScoreInput)
 
   // P1 FIX: Add additional red flags from filteringMetrics
+  // Only show warnings when they indicate actual problems (not just normal filtering)
   const filteringMetrics = communityVoiceResult?.data?.metadata?.filteringMetrics
   if (filteringMetrics) {
     // Initialize redFlags array if needed
@@ -246,21 +247,24 @@ export default async function ResearchDetailPage({
       viabilityVerdict.redFlags = []
     }
 
-    // Flag narrow problem definition (>50% Stage 2 filter rate)
+    // Flag narrow problem definition - only if the narrowness actually hurt results
+    // (threshold raised to 70% and requires <15 posts in relevance-filter.ts)
     if (filteringMetrics.narrowProblemWarning) {
       viabilityVerdict.redFlags.push({
         severity: 'MEDIUM',
         title: 'Narrow Problem Definition',
-        message: `${Math.round(filteringMetrics.stage2FilterRate || 0)}% of domain-relevant posts didn't match your specific problem`,
+        message: `${Math.round(filteringMetrics.stage2FilterRate || 0)}% of domain-relevant posts didn't match your specific problem. Consider broadening your hypothesis.`,
       })
     }
 
-    // Flag very low data quality
-    if (filteringMetrics.qualityLevel === 'low' && filteringMetrics.postFilterRate > 90) {
+    // Flag very low data quality - only if we have very few posts to analyze
+    // Raised threshold: 95% filter rate AND less than 10 posts analyzed
+    const postsAnalyzed = filteringMetrics.postsAnalyzed || 0
+    if (filteringMetrics.qualityLevel === 'low' && filteringMetrics.postFilterRate > 95 && postsAnalyzed < 10) {
       viabilityVerdict.redFlags.push({
         severity: 'MEDIUM',
         title: 'Very High Filter Rate',
-        message: `${Math.round(filteringMetrics.postFilterRate)}% of posts were filtered out. Limited relevant data found.`,
+        message: `Only ${postsAnalyzed} relevant posts found. Results may be less reliable.`,
       })
     }
   }

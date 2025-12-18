@@ -151,12 +151,24 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
           )}
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <span className="text-sm text-muted-foreground">Subreddits analyzed:</span>
-            {results.subreddits.analyzed.map((sub) => (
+            <span className="text-sm text-muted-foreground">Sources analyzed:</span>
+            {/* Show Reddit subreddits */}
+            {results.subreddits.analyzed.filter(s => s !== 'google_play' && s !== 'app_store').map((sub) => (
               <Badge key={sub} variant="outline">
                 r/{sub}
               </Badge>
             ))}
+            {/* Show App Store sources if signals came from them */}
+            {painSignals.some(s => s.source.subreddit === 'google_play') && (
+              <Badge variant="outline" className="bg-green-500/10 border-green-500/30">
+                🤖 Google Play
+              </Badge>
+            )}
+            {painSignals.some(s => s.source.subreddit === 'app_store') && (
+              <Badge variant="outline" className="bg-blue-500/10 border-blue-500/30">
+                🍎 App Store
+              </Badge>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -226,6 +238,22 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                   <p className="text-sm text-muted-foreground mb-3">
                     {theme.description}
                   </p>
+                  {/* Source Badges - show which data sources this theme came from */}
+                  {theme.sources && theme.sources.length > 0 && (
+                    <div className="flex gap-1.5 mb-3">
+                      {theme.sources.map((source: string) => (
+                        <Badge
+                          key={source}
+                          variant="outline"
+                          className="text-xs font-normal"
+                        >
+                          {source === 'reddit' && '💬 Reddit'}
+                          {source === 'google_play' && '🤖 Google Play'}
+                          {source === 'app_store' && '🍎 App Store'}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   {theme.examples.length > 0 && (
                     <div className="space-y-2">
                       {theme.examples.map((example, i) => (

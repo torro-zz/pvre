@@ -359,10 +359,14 @@ ${antiDomainList}
 Posts:
 ${postSummaries}
 
-Rules:
-- Y = post discusses or relates to ${domain} (even tangentially or as context)
-- N = post is clearly about a completely different topic
-- When in doubt, say Y (we filter more precisely in the next stage)
+Rules - BE LENIENT (more passes will be filtered precisely in the next stage):
+- Y = post discusses, mentions, or could relate to ${domain} (even loosely)
+- Y = if the topic MIGHT be connected to ${domain} from the user's perspective
+- Y = if there's ANY pain point, frustration, or challenge that could relate
+- N = ONLY if post is CLEARLY about a completely unrelated topic (sports, recipes, gaming, etc.)
+
+When in doubt, ALWAYS say Y - we filter more precisely in the next stage.
+Better to let borderline posts through than miss valuable signals.
 
 Respond with exactly ${batch.length} letters (Y or N), one per post:`
 
@@ -710,8 +714,8 @@ Respond with exactly ${batchLength} letters (C, R, or N):`
  * Build standard prompt for single-domain hypotheses
  * Returns Y or N (all passes become CORE)
  *
- * P0 FIX: This prompt now requires the SPECIFIC PROBLEM to match, not just the domain.
- * Example: For "forgetting to drink water", posts about "taste of water" or "water filters" should be rejected.
+ * P1 FIX: Balanced - strict enough to filter noise, lenient enough to capture valuable signals.
+ * Posts about the same problem domain with pain points should generally pass.
  */
 function buildStandardPrompt(
   problem: string,
@@ -723,39 +727,44 @@ function buildStandardPrompt(
   // Extract the core problem action/experience for clearer matching
   const specificProblem = structured?.problem || problem
 
-  return `SPECIFIC PROBLEM MATCH: The post must describe someone experiencing THIS EXACT problem.
+  return `PROBLEM RELEVANCE CHECK: Does the post relate to this problem?
 
-THE SPECIFIC PROBLEM TO MATCH:
+THE PROBLEM TO MATCH:
 "${specificProblem}"
 
 TARGET AUDIENCE: ${audience}${structured?.problemLanguage ? `
 PHRASES THAT INDICATE A MATCH: ${structured.problemLanguage}` : ''}${structured?.excludeTopics ? `
 EXCLUDE POSTS ABOUT: ${structured.excludeTopics}` : ''}
 
-DECISION RULE - Be STRICT about problem matching:
+DECISION RULES - Balance precision with coverage:
 
-Y = Post describes someone experiencing the SPECIFIC PROBLEM above
-- The person is struggling with THIS EXACT issue
-- The post expresses frustration, seeks help, or discusses THIS problem specifically
+Y = Post is RELEVANT to understanding this problem:
+- Someone experiencing THIS problem or a closely related challenge
+- Discussions about pain points, frustrations, or needs in this domain
+- Posts seeking solutions to related issues (indicates unmet need)
+- Comparative discussions that reveal what people want
 
-N = Post is about a DIFFERENT problem, even if it's in the same general domain
-- Post is about a related but DIFFERENT issue
-- Post discusses the topic generally but not THIS specific problem
+N = Post is CLEARLY IRRELEVANT:
+- Completely different problem in the same space (e.g., "taste" vs "forgetting")
+- Pure product reviews without pain signals
+- Off-topic discussions that won't help understand the problem
+- Demographics that EXPLICITLY conflict with "${audience}"
 
 EXAMPLES (for "forgetting to drink water during busy workdays"):
 - "I get so absorbed in work I realize at 5pm I haven't had water all day" → Y (exact problem)
 - "How do you remember to drink water when you're in meetings all day?" → Y (exact problem)
-- "I don't like the taste of plain water" → N (taste preference, NOT forgetting)
-- "Best water bottle recommendations?" → N (product shopping, NOT the problem)
-- "Water filter vs bottled water?" → N (water quality, NOT forgetting to drink)
-- "I drink too much water, is that bad?" → N (opposite problem)
+- "I know I should drink more water but I always forget" → Y (related challenge)
+- "Any tips for staying hydrated at work?" → Y (related need)
+- "I don't like the taste of plain water" → N (taste, NOT forgetting)
+- "Best water bottle recommendations?" → N (shopping, no pain signal)
+- "Water filter vs bottled water?" → N (water quality, NOT forgetting)
 
-Also reject if demographics EXPLICITLY conflict with "${audience}".
+When in doubt, say Y - better to include a borderline post than miss valuable insights.
 
 POSTS:
 ${postSummaries}
 
-Respond with exactly ${batchLength} letters (Y or N). Be strict - only Y for posts about THE SPECIFIC PROBLEM:`
+Respond with exactly ${batchLength} letters (Y or N):`
 }
 
 // ============================================================================
@@ -934,8 +943,10 @@ export async function filterRelevantPosts(
   const stage1PassedCount = stage1.passed.length
   if (stage1PassedCount > 0) {
     metrics.stage2FilterRate = (metrics.stage2Filtered / stage1PassedCount) * 100
-    // If >50% of domain-relevant posts fail problem matching, flag as narrow problem
-    metrics.narrowProblemWarning = metrics.stage2FilterRate > 50
+    // Only flag as narrow problem if BOTH:
+    // 1. >70% of domain-relevant posts fail problem matching (raised from 50% to reduce false positives)
+    // 2. We ended up with very few relevant posts (< 15), so the narrowness actually hurts the analysis
+    metrics.narrowProblemWarning = metrics.stage2FilterRate > 70 && metrics.after < 15
   }
 
   const narrowWarning = metrics.narrowProblemWarning

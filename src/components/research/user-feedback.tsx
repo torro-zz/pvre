@@ -24,13 +24,35 @@ function categorizeSignals(signals: PainSignal[]) {
   const featureRequests: PainSignal[] = []
 
   for (const signal of appStoreSignals) {
-    // Feature requests: solution-seeking signals
+    const rating = signal.source.rating
+
+    // Feature requests: solution-seeking signals (any rating)
     if (signal.solutionSeeking) {
       featureRequests.push(signal)
       continue
     }
 
-    // Positive signals (love): low intensity with hope/neutral emotion
+    // Use star rating as primary categorization (more reliable than text analysis)
+    if (rating !== undefined) {
+      if (rating >= 4) {
+        // 4-5 star reviews are positive
+        love.push(signal)
+      } else if (rating <= 2) {
+        // 1-2 star reviews are pain points
+        pain.push(signal)
+      } else {
+        // 3-star reviews: check text sentiment
+        if (signal.emotion === 'hope' || signal.emotion === 'neutral') {
+          love.push(signal)
+        } else {
+          pain.push(signal)
+        }
+      }
+      continue
+    }
+
+    // Fallback for signals without rating (old data or non-app-store)
+    // Positive signals: low intensity with hope/neutral emotion
     if ((signal.emotion === 'hope' || signal.emotion === 'neutral') && signal.intensity === 'low') {
       love.push(signal)
       continue
@@ -60,6 +82,42 @@ function groupSimilarSignals(signals: PainSignal[]): { theme: string; signals: P
   return Array.from(groups.entries())
     .map(([theme, signals]) => ({ theme, signals, count: signals.length }))
     .sort((a, b) => b.count - a.count)
+}
+
+// Expandable quote component
+function ExpandableQuote({ signal }: { signal: PainSignal }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const text = signal.text
+  const isLong = text.length > 200
+  const displayText = isExpanded || !isLong ? text : text.slice(0, 200) + '...'
+  const rating = signal.source.rating
+
+  return (
+    <div className="space-y-1">
+      {/* Star rating badge */}
+      {rating !== undefined && (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star
+              key={i}
+              className={`h-3 w-3 ${i < rating ? 'text-yellow-500 fill-yellow-500' : 'text-muted'}`}
+            />
+          ))}
+        </div>
+      )}
+      <blockquote className="text-sm text-muted-foreground italic border-l-2 border-muted pl-3">
+        "{displayText}"
+        {isLong && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="ml-2 text-primary hover:underline text-xs not-italic font-medium"
+          >
+            {isExpanded ? 'Show less' : 'Read more'}
+          </button>
+        )}
+      </blockquote>
+    </div>
+  )
 }
 
 function FeedbackSection({
@@ -114,11 +172,9 @@ function FeedbackSection({
                   {group.count}x
                 </Badge>
               </div>
-              {/* Show a sample quote */}
+              {/* Show expandable quote */}
               {group.signals[0] && (
-                <blockquote className="text-sm text-muted-foreground italic border-l-2 border-muted pl-3">
-                  "{group.signals[0].text.slice(0, 150)}{group.signals[0].text.length > 150 ? '...' : ''}"
-                </blockquote>
+                <ExpandableQuote signal={group.signals[0]} />
               )}
             </div>
           ))}

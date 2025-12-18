@@ -24,6 +24,66 @@ const SORT = {
   RECENT: 'mostRecent',
 } as const
 
+// Keywords that indicate in-app purchases in description
+const IAP_KEYWORDS = [
+  'subscription', 'subscribe', 'premium', 'pro version', 'pro plan',
+  'upgrade', 'unlock', 'in-app purchase', 'in app purchase',
+  'free trial', 'trial period', 'membership', 'monthly', 'yearly',
+  'annual plan', 'weekly', '/month', '/year', '/week',
+  'premium features', 'premium access', 'full version', 'paid',
+  'purchase', 'restore purchases', 'subscription auto-renews',
+  // Additional common IAP-related terms
+  'pricing', 'price', 'cost', 'billing', 'renew', 'cancel anytime',
+  'auto-renewal', 'auto renewal', 'terms of service', 'privacy policy',
+  'itunes account', 'apple id', 'recurring', 'per month', 'per year',
+]
+
+// Categories that almost always have IAP for free apps
+const IAP_COMMON_CATEGORIES = [
+  'health & fitness', 'health', 'fitness', 'wellness',
+  'productivity', 'business',
+  'education', 'learning',
+  'lifestyle', 'self-care', 'mental health', 'meditation', 'journal',
+  'music', 'entertainment',
+  'photo & video', 'photo', 'video',
+]
+
+/**
+ * Detect if app has in-app purchases
+ * Uses multiple heuristics since App Store scraper doesn't return offersIAP:
+ * 1. Description keywords (subscriptions, premium, etc.)
+ * 2. Category heuristic (free apps in certain categories almost always have IAP)
+ */
+function detectIAPFromDescription(description: string, category?: string, isFree?: boolean): boolean {
+  if (!description) {
+    // Fallback: if free app in IAP-common category, assume IAP
+    if (isFree && category) {
+      const lowerCategory = category.toLowerCase()
+      return IAP_COMMON_CATEGORIES.some(cat => lowerCategory.includes(cat))
+    }
+    return false
+  }
+
+  const lowerDesc = description.toLowerCase()
+
+  // Check description keywords
+  if (IAP_KEYWORDS.some(keyword => lowerDesc.includes(keyword))) {
+    return true
+  }
+
+  // For free apps in IAP-common categories, be aggressive about assuming IAP
+  // Most free apps in these categories monetize through subscriptions
+  if (isFree && category) {
+    const lowerCategory = category.toLowerCase()
+    if (IAP_COMMON_CATEGORIES.some(cat => lowerCategory.includes(cat))) {
+      // Even without keywords, most free apps in these categories have IAP
+      return true
+    }
+  }
+
+  return false
+}
+
 // Stop words for keyword extraction
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
@@ -190,17 +250,21 @@ export class AppStoreAdapter implements DataSourceAdapter {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const appDetails = details as any
 
+      const category = appDetails.primaryGenre || appDetails.genres?.[0] || 'Unknown'
+      const isFree = appDetails.free === true
+
       return {
         appId: String(appDetails.id),
         store: 'app_store' as const,
         name: appDetails.title,
         developer: appDetails.developer,
-        category: appDetails.primaryGenre || appDetails.genres?.[0] || 'Unknown',
+        category,
         description: appDetails.description || '',
         rating: appDetails.score || 0,
         reviewCount: appDetails.reviews || 0,
-        price: appDetails.free ? 'Free' : (appDetails.price ? `$${appDetails.price}` : 'Paid'),
-        hasIAP: appDetails.offersIAP || false,
+        price: isFree ? 'Free' : (appDetails.price ? `$${appDetails.price}` : 'Paid'),
+        // App Store scraper doesn't return offersIAP, so detect with heuristics
+        hasIAP: detectIAPFromDescription(appDetails.description || '', category, isFree),
         lastUpdated: appDetails.updated || appDetails.currentVersionReleaseDate || '',
         iconUrl: appDetails.icon || undefined,
         url: appDetails.url || `https://apps.apple.com/${market}/app/app/id${appId}`,

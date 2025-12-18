@@ -200,19 +200,31 @@ export function CoveragePreview({
         }
       } else if (appData.hasIAP) {
         // Freemium app - use category-based subscription defaults
-        const categoryDefaults: Record<string, number> = {
-          'health & fitness': 10,
-          'medical': 15,
-          'productivity': 10,
-          'business': 15,
-          'finance': 12,
-          'education': 12,
-          'entertainment': 10,
-          'music': 10,
-          'lifestyle': 10,
-        }
-        const category = appData.category.toLowerCase()
-        const defaultPrice = categoryDefaults[category] || 10
+        // Map of category keywords to default prices (more flexible matching)
+        const categoryPrices: Array<{ keywords: string[]; price: number }> = [
+          { keywords: ['health', 'fitness', 'wellness'], price: 10 },
+          { keywords: ['medical', 'medicine', 'healthcare'], price: 15 },
+          { keywords: ['productivity', 'utilities'], price: 10 },
+          { keywords: ['business', 'enterprise'], price: 15 },
+          { keywords: ['finance', 'fintech', 'banking', 'money'], price: 12 },
+          { keywords: ['education', 'learning', 'books'], price: 12 },
+          { keywords: ['entertainment', 'games', 'gaming'], price: 10 },
+          { keywords: ['music', 'audio'], price: 10 },
+          { keywords: ['lifestyle', 'social'], price: 10 },
+          { keywords: ['food', 'drink', 'recipe'], price: 8 },
+          { keywords: ['photo', 'video', 'camera'], price: 8 },
+          { keywords: ['travel', 'navigation'], price: 10 },
+          { keywords: ['news', 'magazine', 'weather'], price: 8 },
+        ]
+
+        // Normalize category for matching (handle formats like "HEALTH_AND_FITNESS", "Health & Fitness", etc.)
+        const normalizedCategory = appData.category.toLowerCase().replace(/[_&]/g, ' ').replace(/\s+/g, ' ')
+
+        // Find matching category by keyword
+        const match = categoryPrices.find(cat =>
+          cat.keywords.some(kw => normalizedCategory.includes(kw))
+        )
+        const defaultPrice = match?.price || 10
         setTargetPrice(defaultPrice)
       }
     }

@@ -172,17 +172,24 @@ function generateRecommendations(
 
 function detectNicheOpportunity(painSignals: PainSignal[]): { segment: string; reason: string } | null {
   // Simple heuristic: look for segment-specific complaints
-  const segments = ['beginner', 'professional', 'family', 'enterprise', 'senior', 'student']
+  const segments: { singular: string; plural: string }[] = [
+    { singular: 'beginner', plural: 'Beginners' },
+    { singular: 'professional', plural: 'Professionals' },
+    { singular: 'family', plural: 'Families' },
+    { singular: 'enterprise', plural: 'Enterprise' },
+    { singular: 'senior', plural: 'Seniors' },
+    { singular: 'student', plural: 'Students' },
+  ]
 
-  for (const segment of segments) {
+  for (const { singular, plural } of segments) {
     const mentions = painSignals.filter(s =>
-      s.text.toLowerCase().includes(segment)
+      s.text.toLowerCase().includes(singular)
     ).length
 
     if (mentions >= 2) {
       return {
-        segment: segment.charAt(0).toUpperCase() + segment.slice(1) + 's',
-        reason: `${mentions} signals mention ${segment}s specifically - may be an underserved segment.`,
+        segment: plural,
+        reason: `${mentions} signals mention ${singular === 'family' ? 'families' : singular + 's'} specifically - may be an underserved segment.`,
       }
     }
   }

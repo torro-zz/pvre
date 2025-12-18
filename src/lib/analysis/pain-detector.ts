@@ -313,6 +313,7 @@ export interface PainSignal {
     url: string
     createdUtc: number
     engagementScore: number
+    rating?: number  // Star rating (1-5) for app store reviews
   }
 }
 
@@ -818,6 +819,8 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
             : `https://reddit.com/r/${post.subreddit}/comments/${post.id}`,
           createdUtc: post.createdUtc,
           engagementScore: engagement,
+          // Include star rating for app store reviews (1-5)
+          rating: (post as RedditPost & { rating?: number }).rating,
         },
       })
     }

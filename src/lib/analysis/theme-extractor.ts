@@ -17,6 +17,7 @@ export interface Theme {
   examples: string[]
   resonance?: 'low' | 'medium' | 'high'  // Engagement quality - how much people care about this topic
   tier?: 'core' | 'contextual'  // core = from intersection signals, contextual = from related/broader signals
+  sources?: string[]  // Which data sources contributed to this theme (e.g., ['reddit', 'google_play'])
 }
 
 /**
@@ -99,22 +100,49 @@ export async function extractThemes(
   const coreCount = topSignals.filter(s => s.tier === 'CORE').length
   const relatedCount = topSignals.filter(s => s.tier === 'RELATED').length
 
-  // Prepare signals for Claude with tier information
+  // Helper to get human-readable source name
+  const getSourceType = (subreddit: string): string => {
+    if (subreddit === 'google_play') return 'Google Play review'
+    if (subreddit === 'app_store') return 'App Store review'
+    return `r/${subreddit}`
+  }
+
+  // Count sources for context
+  const redditCount = topSignals.filter(s =>
+    s.source.subreddit !== 'google_play' && s.source.subreddit !== 'app_store'
+  ).length
+  const googlePlayCount = topSignals.filter(s => s.source.subreddit === 'google_play').length
+  const appStoreCount = topSignals.filter(s => s.source.subreddit === 'app_store').length
+
+  // Prepare signals for Claude with tier and source information
   const signalTexts = topSignals.map((signal, index) => ({
     index: index + 1,
     tier: signal.tier || 'CORE', // Default to CORE if not specified
+    source: getSourceType(signal.source.subreddit),
     text: truncateText(signal.text, 500),
     title: signal.title || '',
     painScore: signal.score,
-    subreddit: signal.source.subreddit,
     signals: signal.signals.slice(0, 5).join(', '),
     solutionSeeking: signal.solutionSeeking,
     willingnessToPaySignal: signal.willingnessToPaySignal,
+    rating: signal.source.rating, // Include star rating for app store reviews
   }))
+
+  // Build source summary for prompt
+  const sourceSummary = []
+  if (redditCount > 0) sourceSummary.push(`${redditCount} Reddit posts/comments`)
+  if (googlePlayCount > 0) sourceSummary.push(`${googlePlayCount} Google Play reviews`)
+  if (appStoreCount > 0) sourceSummary.push(`${appStoreCount} App Store reviews`)
 
   const systemPrompt = `You are a market research analyst helping entrepreneurs understand customer pain points and needs.
 
-Your task is to analyze Reddit posts/comments and extract actionable insights for validating a business hypothesis.
+Your task is to analyze user feedback from MULTIPLE SOURCES (Reddit discussions, Google Play reviews, and/or App Store reviews) and extract actionable insights for validating a business hypothesis.
+
+DATA SOURCES:
+- Reddit posts/comments: Discussion-style, often detailed context about problems
+- Google Play reviews: Android app user feedback, often mentions specific features
+- App Store reviews: iOS app user feedback, similar to Google Play
+- The "source" field tells you where each piece of feedback came from
 
 SIGNAL TIER SYSTEM:
 - CORE signals: Directly about the hypothesis intersection (most valuable - weight heavily)
@@ -127,6 +155,7 @@ CRITICAL REQUIREMENTS FOR THEMES:
 - Themes must connect directly to the business hypothesis
 - CORE-derived themes should appear FIRST in your list
 - If a theme is derived mainly from RELATED signals, prefix with "[CONTEXTUAL] "
+- For each theme, track which sources it appears in (reddit, google_play, app_store)
 
 BAD THEME EXAMPLES (NEVER produce these):
 - "Pain point: concerns" (too vague, uses bad prefix)
@@ -141,6 +170,7 @@ GOOD THEME EXAMPLES:
 
 Focus on:
 - Identifying recurring pain themes from CORE signals first (3-6 word descriptive names)
+- Tracking which sources (Reddit, Google Play, App Store) each theme appears in
 - Extracting the exact language customers use
 - Finding mentions of existing solutions, alternatives, competitors, tools, products, or services (be thorough - these are critical for competitive analysis)
 - Identifying signals that people would pay for a solution
@@ -163,7 +193,7 @@ Be specific and actionable. Avoid generic observations.`
 
   const userPrompt = `Business Hypothesis: "${hypothesis}"
 
-Analyze these ${topSignals.length} Reddit posts/comments (${coreCount} CORE, ${relatedCount} RELATED) about problems and needs related to this hypothesis:
+Analyze these ${topSignals.length} pieces of user feedback (${sourceSummary.join(', ')}, ${coreCount} CORE tier, ${relatedCount} RELATED tier) about problems and needs related to this hypothesis:
 
 ${JSON.stringify(signalTexts, null, 2)}
 
@@ -175,7 +205,8 @@ Provide a structured analysis in JSON format:
       "description": "1-2 sentence description of this pain theme",
       "frequency": <number of posts mentioning this theme>,
       "intensity": "low" | "medium" | "high",
-      "examples": ["Brief example 1", "Brief example 2"]
+      "examples": ["Brief example 1", "Brief example 2"],
+      "sources": ["reddit", "google_play", "app_store"] // which sources this theme appears in
     }
   ],
   "customerLanguage": ["exact phrases customers use to describe their problems"],
@@ -185,7 +216,7 @@ Provide a structured analysis in JSON format:
   "keyQuotes": [
     {
       "quote": "Powerful quote from the data (max 150 chars)",
-      "source": "r/subreddit",
+      "source": "Reddit/Google Play/App Store - identify correctly based on source field",
       "painScore": <pain score of this quote>
     }
   ],

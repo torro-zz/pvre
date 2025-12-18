@@ -1,6 +1,6 @@
 # Known Issues
 
-Last updated: December 16, 2025
+Last updated: December 18, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
@@ -9,7 +9,6 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 ## P0 — Critical
 
 *No open P0 issues*
-
 
 ---
 
@@ -37,18 +36,11 @@ The current credit model (1 credit = 1 research) may need rethinking:
 
 *No open P1 issues*
 
-### Relevance
-Status: Open P1
-Issue: it looks like the relevance of our data is always very low because we only have a fraction of posts that go through to actually being analysed because the rest is not as important may be a few of these post might actually be very important and actually relevant in that case, how can we change this so that we have a more True signal when it comes to relevance and confidence?
 ---
 
 ## P2 — Low Priority
 
-### Data Reliability in the different tabs
-Status: Open P2
-Issue: Reliability of the data we show
-What is the logic behind each tab meaning community market timing competitors and verdict? What is the logic that makes the score the way it is and is there a way to use more reliable data to make this allergic more reliable and real?
-
+*No open P2 issues*
 
 ---
 
@@ -59,6 +51,16 @@ What is the logic behind each tab meaning community market timing competitors an
 ---
 
 ## Completed Issues
+
+### December 18, 2025
+- ✅ **[P0] App IAP Display** — Fixed apps showing "Free" when they have In-App Purchases. App Store adapter now detects IAP from description keywords (subscription, premium, unlock, etc.) since API doesn't provide `offersIAP` field. Display shows "Free + IAP" instead of just "Free".
+- ✅ **[P0] Feedback Tab Quality** — Fixed truncated review text (was 150 chars, now expandable with "Read more"). Fixed missing positive reviews by using star ratings (4-5★ = positive, 1-2★ = pain). Added star rating display to each quote.
+- ✅ **[P0] Market Tab Source Separation** — Themes now show source badges (Reddit, Google Play, App Store). Theme extraction prompts track which sources each theme appears in. "Sources analyzed" header shows app store sources alongside subreddits.
+- ✅ **[P0] Chat Typo Fix** — Fixed "Familys" typo in niche detection by using explicit plural mappings instead of simple `+ 's'` pluralization.
+- ✅ **[P0] Verdict Warning Frequency** — Fixed warnings appearing too frequently. Raised "Narrow Problem Definition" threshold from 50% to 70% AND requires <15 relevant posts. Raised "Very High Filter Rate" threshold to 95% AND <10 posts analyzed. Warnings only appear when they indicate actual problems.
+- ✅ **[P1] Revenue/Pricing Adaptation** — Fixed pricing defaults not adapting to app categories. Improved category matching using keyword-based lookup instead of exact string matching. Handles different formats (HEALTH_AND_FITNESS, Health & Fitness, etc.). Added more categories (food, photo, video, travel, news).
+- ✅ **[P1] Relevance Signal Accuracy** — Made Stage 1 (Domain Gate) more lenient with clearer "when in doubt, say Y" instructions. Made Stage 2 (Problem Match) more balanced - accepts "closely related challenges" and "posts seeking solutions" while still filtering clearly irrelevant content.
+- ✅ **[P2] Scoring Logic Documentation** — Confirmed scoring logic is documented in TECHNICAL_OVERVIEW.md (lines 195-241). Formula: Pain (35%) + Market (25%) + Competition (25%) + Timing (15%). Relevance improvements above help make scores more reliable.
 
 ### December 16, 2025 (Evening)
 - ✅ **[UX] Analysis Depth Selector** — Users can now choose sample size per source: Quick (100), Standard (200), Deep (300). Shows "per source, prioritizing 2-3★ reviews" and total data points estimate. Passed through to research pipeline via `sampleSizePerSource` in coverage data.
