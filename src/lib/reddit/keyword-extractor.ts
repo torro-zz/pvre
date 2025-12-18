@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getCurrentTracker } from '@/lib/anthropic'
 import { trackUsage } from '@/lib/analysis/token-tracker'
 import { StructuredHypothesis, formatHypothesisForSearch } from '@/types/research'
+import { safeParseJSON } from '../json-parse'
 
 const anthropic = new Anthropic()
 
@@ -149,14 +150,14 @@ Respond with JSON only:
       return getDefaultKeywords(searchContext)
     }
 
-    // Extract JSON from response
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      console.warn('Keyword extraction: could not parse JSON response')
+    // Extract JSON from response with repair capability
+    const parseResult = safeParseJSON<ExtractedKeywords>(content.text)
+    if (!parseResult.success || !parseResult.data) {
+      console.warn('Keyword extraction: could not parse JSON response', parseResult.error)
       return getDefaultKeywords(searchContext)
     }
 
-    const result = JSON.parse(jsonMatch[0]) as ExtractedKeywords
+    const result = parseResult.data
 
     // Validate the result has required fields
     if (!result.primary || !Array.isArray(result.primary)) {

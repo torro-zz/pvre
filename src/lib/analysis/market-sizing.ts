@@ -6,6 +6,7 @@
 
 import { anthropic, getCurrentTracker } from "../anthropic";
 import { trackUsage } from "./token-tracker";
+import { parseClaudeJSON } from "../json-parse";
 
 // Re-export pricing utilities for backwards compatibility
 export {
@@ -178,13 +179,19 @@ Respond with ONLY valid JSON in this exact format:
     throw new Error("Unexpected response type from Claude");
   }
 
-  // Parse JSON from response
-  const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Could not parse market sizing response");
-  }
-
-  const data = JSON.parse(jsonMatch[0]);
+  // Parse JSON from response with repair capability
+  const data = parseClaudeJSON<{
+    market_score: number;
+    confidence: 'high' | 'medium' | 'low';
+    tam: { value: number; description: string; reasoning: string };
+    sam: { value: number; description: string; reasoning: string };
+    som: { value: number; description: string; reasoning: string };
+    customers_needed: number;
+    penetration_required: number;
+    verdict: string;
+    achievability: 'highly_achievable' | 'achievable' | 'challenging' | 'difficult' | 'unlikely';
+    suggestions?: string[];
+  }>(content.text, 'market sizing');
 
   // Generate pricing scenarios to help user understand pricing impact
   const somValue = data.som.value;
@@ -202,7 +209,7 @@ Respond with ONLY valid JSON in this exact format:
       verdict: data.verdict,
       achievability: data.achievability
     },
-    suggestions: data.suggestions,
+    suggestions: data.suggestions || [],
     pricingScenarios,
   };
 }

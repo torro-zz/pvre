@@ -4,6 +4,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getCurrentTracker } from '@/lib/anthropic'
 import { trackUsage } from './token-tracker'
+import { safeParseJSON } from '../json-parse'
 
 const anthropic = new Anthropic()
 
@@ -72,12 +73,12 @@ Respond with JSON only:
       return getDefaultWeights(subreddits)
     }
 
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
+    const result = safeParseJSON<{ weights: Record<string, number> }>(content.text)
+    if (!result.success || !result.data) {
       return getDefaultWeights(subreddits)
     }
 
-    const data = JSON.parse(jsonMatch[0])
+    const data = result.data
     const weights = new Map<string, number>()
 
     if (data.weights && typeof data.weights === 'object') {

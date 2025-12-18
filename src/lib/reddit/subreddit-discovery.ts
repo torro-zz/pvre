@@ -5,6 +5,7 @@
 import { anthropic, getCurrentTracker } from '../anthropic'
 import { trackUsage } from '../analysis/token-tracker'
 import { searchSubreddits } from '../arctic-shift/client'
+import { parseClaudeJSON } from '../json-parse'
 
 // =============================================================================
 // TYPES
@@ -204,12 +205,7 @@ What is the PROBLEM DOMAIN (not the audience)?
       throw new Error('No text response from Claude')
     }
 
-    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error('Could not parse JSON from domain extraction')
-    }
-
-    const result = JSON.parse(jsonMatch[0]) as DomainExtraction
+    const result = parseClaudeJSON<DomainExtraction>(textContent.text, 'domain extraction')
     // Attach transition context
     result.transition = transition
     return result
@@ -365,12 +361,7 @@ Example for skincare hypothesis:
       throw new Error('No text response from Claude')
     }
 
-    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error('Could not parse JSON from subreddit discovery')
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]) as { subreddits: SubredditCandidate[] }
+    const parsed = parseClaudeJSON<{ subreddits: SubredditCandidate[] }>(textContent.text, 'subreddit discovery')
     let subreddits = parsed.subreddits || []
 
     // Post-processing for transition hypotheses: deprioritize/filter established business subs
@@ -505,14 +496,9 @@ Only include subreddits where the problem would be ON-TOPIC. Reject aggressively
       throw new Error('No text response from Claude')
     }
 
-    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error('Could not parse JSON from validation')
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]) as {
+    const parsed = parseClaudeJSON<{
       validated: { name: string; isValid: boolean; problemRelevance: string; rejectReason?: string }[]
-    }
+    }>(textContent.text, 'subreddit validation')
 
     // Merge validation results with candidates
     return candidates.map((candidate) => {

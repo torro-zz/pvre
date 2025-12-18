@@ -6,6 +6,7 @@
 
 import { anthropic, getCurrentTracker } from "../anthropic";
 import { trackUsage } from "./token-tracker";
+import { parseClaudeJSON } from "../json-parse";
 
 export interface TimingInput {
   hypothesis: string;
@@ -112,13 +113,16 @@ Respond with ONLY valid JSON:
     throw new Error("Unexpected response type from Claude");
   }
 
-  // Parse JSON from response
-  const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Could not parse timing response");
-  }
-
-  const data = JSON.parse(jsonMatch[0]);
+  // Parse JSON from response with repair capability
+  const data = parseClaudeJSON<{
+    timing_score: number;
+    confidence: 'high' | 'medium' | 'low';
+    tailwinds: { signal: string; impact: 'high' | 'medium' | 'low'; description: string }[];
+    headwinds: { signal: string; impact: 'high' | 'medium' | 'low'; description: string }[];
+    timing_window: string;
+    verdict: string;
+    trend: 'rising' | 'stable' | 'falling';
+  }>(content.text, 'timing analysis');
 
   return {
     score: data.timing_score,

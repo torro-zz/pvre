@@ -4,6 +4,7 @@
 import { anthropic, getCurrentTracker } from '../anthropic'
 import { trackUsage } from './token-tracker'
 import { PainSignal } from './pain-detector'
+import { parseClaudeJSON } from '../json-parse'
 
 // Re-export resonance calculation from dedicated module
 export { calculateThemeResonance } from './theme-resonance'
@@ -225,13 +226,8 @@ Identify 3-7 themes, 5-10 customer language phrases, 3-5 key quotes, and 2-3 str
       throw new Error('No text response from Claude')
     }
 
-    // Parse JSON from response
-    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error('Could not parse JSON from response')
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]) as ThemeAnalysis
+    // Parse JSON from response with repair capability
+    const parsed = parseClaudeJSON<ThemeAnalysis>(textContent.text, 'theme extraction')
 
     // Validate and clean up the response
     // Parse tier from theme names (Claude prefixes contextual themes with "[CONTEXTUAL]")
@@ -399,12 +395,7 @@ Return JSON:
       throw new Error('No text response from Claude')
     }
 
-    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error('Could not parse JSON from retry response')
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]) as ThemeAnalysis
+    const parsed = parseClaudeJSON<ThemeAnalysis>(textContent.text, 'theme extraction retry')
 
     return {
       themes: (parsed.themes || []).map(parseThemeTier),
@@ -573,12 +564,11 @@ Questions should directly relate to the themes and use customer language where a
       throw new Error('No text response from Claude')
     }
 
-    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error('Could not parse JSON from response')
-    }
-
-    return JSON.parse(jsonMatch[0])
+    return parseClaudeJSON<{
+      contextQuestions: string[]
+      problemQuestions: string[]
+      solutionQuestions: string[]
+    }>(textContent.text, 'interview questions')
   } catch (error) {
     console.error('Interview question generation failed:', error)
     return getFallbackQuestions(themeAnalysis)
