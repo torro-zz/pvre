@@ -532,15 +532,20 @@ Only include subreddits where the problem would be ON-TOPIC. Reject aggressively
  * Implements 3-stage pipeline: Domain Extraction → Domain-First Discovery → Validation
  *
  * @param input - Either a string hypothesis (legacy) or structured hypothesis object
+ * @param excludeSubreddits - Optional array of subreddits to exclude from results (for adaptive fetching)
  */
 export async function discoverSubreddits(
-  input: string | StructuredHypothesis
+  input: string | StructuredHypothesis,
+  excludeSubreddits?: string[]
 ): Promise<DiscoveryResult> {
   // Handle legacy string input by converting to structured format
   const hypothesis: StructuredHypothesis =
     typeof input === 'string'
       ? { audience: input, problem: input }
       : input
+
+  // Normalize exclude list for case-insensitive comparison
+  const excludeSet = new Set((excludeSubreddits || []).map(s => s.toLowerCase()))
 
   console.log('[SubredditDiscovery] Stage 1: Extracting problem domain...')
 
@@ -581,7 +586,13 @@ export async function discoverSubreddits(
   }
 
   // Clean up subreddit names
-  const cleanedNames = await validateSubredditsExist(validSubreddits.map((s) => s.name))
+  let cleanedNames = await validateSubredditsExist(validSubreddits.map((s) => s.name))
+
+  // Filter out excluded subreddits (for adaptive fetching)
+  if (excludeSet.size > 0) {
+    cleanedNames = cleanedNames.filter(name => !excludeSet.has(name.toLowerCase()))
+    console.log(`[SubredditDiscovery] Filtered to ${cleanedNames.length} after excluding already-searched`)
+  }
 
   // Determine recommendation based on results
   let warning: string | null = null

@@ -1,9 +1,10 @@
 'use client'
 
-import { Database, Calendar, Clock, Users, Zap } from 'lucide-react'
+import { Database, Calendar, Clock, Users, Zap, Info } from 'lucide-react'
 import { ScoreGauge } from '@/components/ui/score-gauge'
 import { StatBlock } from '@/components/ui/stat-card'
 import { MetricRow, StatusBadge } from '@/components/ui/metric-row'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 
 interface ResearchHeroStatsProps {
   painScore: number
@@ -80,23 +81,53 @@ export function ResearchHeroStats({
         <div className="mt-6 pt-5 border-t flex flex-wrap items-center gap-6">
           {/* Relevance */}
           <div className="flex-1 min-w-[200px]">
-            <MetricRow label="Relevance" value={relevanceRate} icon={Zap} />
+            <div className="flex items-center gap-1.5">
+              <MetricRow label="Relevance" value={relevanceRate} icon={Zap} />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[200px]">
+                  Percentage of posts that directly relate to your hypothesis. Higher = more focused data.
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
 
           {/* Confidence */}
           <div className="flex items-center gap-3">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-              Confidence
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                Confidence
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[220px]">
+                  Based on signal count. Very Low (&lt;10), Low (10-30), Medium (30-100), High (100+).
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <StatusBadge status={dataConfidence} />
           </div>
 
           {/* Recency */}
           {recencyScore !== undefined && (
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                Recency
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                  Recency
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[180px]">
+                    How recent the data is. 100% = all from the last 30 days.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <span className="text-sm font-semibold text-foreground">
                 {Math.round(recencyScore * 100)}%
               </span>

@@ -9,6 +9,30 @@ interface AppOverviewProps {
   appData: AppDetails
 }
 
+// Format lastUpdated - handles timestamps (ms or s) and date strings
+function formatLastUpdated(value: string | undefined): string | null {
+  if (!value) return null
+
+  // Check if it's a numeric timestamp
+  const numValue = Number(value)
+  if (!isNaN(numValue) && numValue > 0) {
+    // If it's in milliseconds (13+ digits), convert to seconds
+    const timestamp = numValue > 9999999999 ? numValue : numValue * 1000
+    const date = new Date(timestamp)
+    // Validate it's a reasonable date (between 2000 and 2100)
+    if (date.getFullYear() >= 2000 && date.getFullYear() <= 2100) {
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    }
+  }
+
+  // If it's already a formatted string, return as-is
+  return value
+}
+
 export function AppOverview({ appData }: AppOverviewProps) {
   const storeIcon = appData.store === 'google_play' ? '🤖' : '🍎'
   const storeName = appData.store === 'google_play' ? 'Google Play' : 'App Store'
@@ -81,14 +105,14 @@ export function AppOverview({ appData }: AppOverviewProps) {
               </div>
             </div>
 
-            {appData.lastUpdated && (
+            {formatLastUpdated(appData.lastUpdated) && (
               <div className="flex items-center gap-2 text-sm">
                 <div className="p-2 rounded-lg bg-muted">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide">Last Updated</p>
-                  <p className="font-medium">{appData.lastUpdated}</p>
+                  <p className="font-medium">{formatLastUpdated(appData.lastUpdated)}</p>
                 </div>
               </div>
             )}

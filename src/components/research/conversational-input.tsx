@@ -592,11 +592,8 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                   </p>
                 )}
                 {isUrlValid && urlValidation.type && (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-                    <Check className="h-4 w-4" />
-                    {(() => { const Icon = URL_TYPE_INFO[urlValidation.type].icon; return <Icon className="h-4 w-4" />; })()}
-                    <span className="font-medium">{URL_TYPE_INFO[urlValidation.type].label}</span>
-                    <span className="text-muted-foreground">— {URL_TYPE_INFO[urlValidation.type].description}</span>
+                  <p className="text-sm text-muted-foreground">
+                    {URL_TYPE_INFO[urlValidation.type].description}
                   </p>
                 )}
               </div>
@@ -615,12 +612,23 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                   <span>Supported sources</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {Object.entries(URL_TYPE_INFO).map(([key, { label, icon: Icon }]) => (
-                    <span key={key} className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-muted/50 border text-muted-foreground">
-                      <Icon className="h-3.5 w-3.5" />
-                      <span>{label}</span>
-                    </span>
-                  ))}
+                  {Object.entries(URL_TYPE_INFO).map(([key, { label, icon: Icon }]) => {
+                    const isMatched = isUrlValid && urlValidation.type === key
+                    return (
+                      <span
+                        key={key}
+                        className={`inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${
+                          isMatched
+                            ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-600 dark:text-emerald-400'
+                            : 'bg-muted/50 text-muted-foreground'
+                        }`}
+                      >
+                        {isMatched && <Check className="h-3.5 w-3.5" />}
+                        <Icon className="h-3.5 w-3.5" />
+                        <span>{label}</span>
+                      </span>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -1030,215 +1038,158 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
         {/* Step: App Confirmation (App-Centric Mode) */}
         {step === 'app-confirm' && appData && appInterpretation && !showPreview && (
-          <div className="space-y-4">
-            {/* App Card */}
-            <div className="p-4 bg-gradient-to-r from-violet-500/10 to-blue-500/10 rounded-lg border border-violet-500/20">
-              <div className="flex gap-4">
-                {/* App Icon */}
-                {appData.iconUrl && (
-                  <img
-                    src={appData.iconUrl}
-                    alt={appData.name}
-                    className="w-16 h-16 rounded-xl shadow-sm flex-shrink-0"
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-lg truncate">{appData.name}</h3>
-                    {/* Store indicator */}
-                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
-                      appData.store === 'google_play'
-                        ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                        : 'bg-gray-500/20 text-gray-600 dark:text-gray-400'
-                    }`}>
-                      {appData.store === 'google_play' ? (
-                        <><Smartphone className="h-3 w-3 mr-1" />Google Play</>
-                      ) : (
-                        <><Apple className="h-3 w-3 mr-1" />App Store</>
-                      )}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{appData.developer}</p>
-                  <div className="flex items-center gap-3 mt-1.5 text-sm">
-                    <span className="flex items-center gap-1">
-                      <span className="text-yellow-500">★</span>
-                      {appData.rating.toFixed(1)}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {appData.reviewCount.toLocaleString()} reviews
-                    </span>
-                    {appData.installs && (
-                      <span className="text-muted-foreground">
-                        {appData.installs} installs
-                      </span>
-                    )}
-                    <Badge variant="secondary" className="text-xs">
-                      {appData.category}
-                    </Badge>
-                  </div>
+          <div className="space-y-5">
+            {/* Compact App Header */}
+            <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-xl">
+              {appData.iconUrl && (
+                <img
+                  src={appData.iconUrl}
+                  alt={appData.name}
+                  className="w-12 h-12 rounded-lg shadow-sm flex-shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium truncate">{appData.name}</h3>
+                  <span className="text-xs text-muted-foreground">
+                    {appData.store === 'google_play' ? 'Google Play' : 'App Store'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-0.5">
+                    <span className="text-yellow-500">★</span>
+                    {appData.rating.toFixed(1)}
+                  </span>
+                  <span>•</span>
+                  <span>{appData.reviewCount.toLocaleString()} reviews</span>
+                  <span>•</span>
+                  <span>{appData.category}</span>
                 </div>
               </div>
             </div>
 
-            {/* Problem Domain Interpretation */}
-            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Sparkles className="h-4 w-4 text-violet-500" />
-                Here&apos;s what this app solves:
+            {/* Problem Focus - Clean Card */}
+            <div className="p-4 rounded-xl border bg-card">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                Problem Domain
               </div>
-
-              <div className="space-y-3">
-                {/* Primary Domain */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <AlertTriangle className="h-3 w-3" />
-                    Primary Problem
-                  </div>
-                  <p className="text-sm font-medium">{appInterpretation.primaryDomain}</p>
-                </div>
-
-                {/* Secondary Domains */}
-                {appInterpretation.secondaryDomains.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="text-xs text-muted-foreground">Also addresses:</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {appInterpretation.secondaryDomains.map((domain, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs">
-                          {domain}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Target Audience */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Users className="h-3 w-3" />
-                    Target Users
-                  </div>
-                  <p className="text-sm">{appInterpretation.targetAudience}</p>
-                </div>
-
-                {/* Search Phrases - editable */}
-                <div className="space-y-2 pt-2 border-t">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <MessageSquare className="h-3 w-3" />
-                    Search phrases for Reddit/HN:
-                    <span className="text-muted-foreground/60">(click to remove)</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {appSearchPhrases.map((phrase, idx) => (
-                      <Badge
-                        key={idx}
-                        variant="secondary"
-                        className="text-xs pr-1 cursor-pointer hover:bg-secondary/80 group"
-                      >
-                        &quot;{phrase}&quot;
-                        <button
-                          type="button"
-                          onClick={() => setAppSearchPhrases(prev => prev.filter(p => p !== phrase))}
-                          className="ml-1 opacity-50 group-hover:opacity-100 hover:text-destructive transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                    {/* Add phrase button/input */}
-                    {showAppAddPhrase ? (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          ref={appAddPhraseInputRef}
-                          value={appNewPhrase}
-                          onChange={(e) => setAppNewPhrase(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              if (appNewPhrase.trim() && !appSearchPhrases.includes(appNewPhrase.trim())) {
-                                setAppSearchPhrases(prev => [...prev, appNewPhrase.trim()])
-                              }
-                              setAppNewPhrase('')
-                              setShowAppAddPhrase(false)
-                            } else if (e.key === 'Escape') {
-                              setShowAppAddPhrase(false)
-                              setAppNewPhrase('')
-                            }
-                          }}
-                          onBlur={() => {
-                            if (!appNewPhrase.trim()) {
-                              setShowAppAddPhrase(false)
-                            }
-                          }}
-                          placeholder="Add phrase..."
-                          className="h-6 text-xs w-40"
-                          autoFocus
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2"
-                          onClick={() => {
-                            if (appNewPhrase.trim() && !appSearchPhrases.includes(appNewPhrase.trim())) {
-                              setAppSearchPhrases(prev => [...prev, appNewPhrase.trim()])
-                            }
-                            setAppNewPhrase('')
-                            setShowAppAddPhrase(false)
-                          }}
-                          disabled={!appNewPhrase.trim()}
-                        >
-                          <Check className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowAppAddPhrase(true)
-                          setTimeout(() => appAddPhraseInputRef.current?.focus(), 0)
-                        }}
-                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-dashed border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground transition-colors"
-                      >
-                        <Plus className="h-3 w-3" />
-                        Add
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Competitor Terms */}
-                {appInterpretation.competitorTerms.length > 0 && (
-                  <div className="space-y-1 pt-2 border-t">
-                    <div className="text-xs text-muted-foreground">Competitors to compare:</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {appInterpretation.competitorTerms.slice(0, 5).map((comp, idx) => (
-                        <span key={idx} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                          {comp}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <p className="text-base font-medium leading-relaxed">
+                {appInterpretation.primaryDomain}
+              </p>
+              {appInterpretation.secondaryDomains.length > 0 && (
+                <p className="text-sm text-muted-foreground mt-1.5">
+                  Also: {appInterpretation.secondaryDomains.slice(0, 2).join(', ')}
+                  {appInterpretation.secondaryDomains.length > 2 && ` +${appInterpretation.secondaryDomains.length - 2} more`}
+                </p>
+              )}
             </div>
+
+            {/* Search Phrases - Main Focus */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Search Phrases
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {appSearchPhrases.length} phrases
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {appSearchPhrases.map((phrase, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-primary/5 border border-primary/20 text-foreground group"
+                  >
+                    {phrase}
+                    <button
+                      type="button"
+                      onClick={() => setAppSearchPhrases(prev => prev.filter(p => p !== phrase))}
+                      className="opacity-40 group-hover:opacity-100 hover:text-destructive transition-opacity ml-0.5"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
+                {/* Add phrase */}
+                {showAppAddPhrase ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      ref={appAddPhraseInputRef}
+                      value={appNewPhrase}
+                      onChange={(e) => setAppNewPhrase(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          if (appNewPhrase.trim() && !appSearchPhrases.includes(appNewPhrase.trim())) {
+                            setAppSearchPhrases(prev => [...prev, appNewPhrase.trim()])
+                          }
+                          setAppNewPhrase('')
+                          setShowAppAddPhrase(false)
+                        } else if (e.key === 'Escape') {
+                          setShowAppAddPhrase(false)
+                          setAppNewPhrase('')
+                        }
+                      }}
+                      onBlur={() => {
+                        if (!appNewPhrase.trim()) {
+                          setShowAppAddPhrase(false)
+                        }
+                      }}
+                      placeholder="Add phrase..."
+                      className="h-8 text-sm w-44"
+                      autoFocus
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAppAddPhrase(true)
+                      setTimeout(() => appAddPhraseInputRef.current?.focus(), 0)
+                    }}
+                    className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-dashed border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add
+                  </button>
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                We&apos;ll search Reddit and Hacker News for these phrases to find pain signals
+              </p>
+            </div>
+
+            {/* Competitors - Subtle inline */}
+            {appInterpretation.competitorTerms.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
+                <span>Comparing with:</span>
+                <span className="text-foreground">
+                  {appInterpretation.competitorTerms.slice(0, 4).join(', ')}
+                  {appInterpretation.competitorTerms.length > 4 && ` +${appInterpretation.competitorTerms.length - 4}`}
+                </span>
+              </div>
+            )}
 
             {/* Action buttons */}
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleBack} className="flex-1">
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" onClick={handleBack} size="lg" className="flex-1 h-11">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
               </Button>
               <Button
                 onClick={() => setShowPreview(true)}
                 disabled={isLoading || appSearchPhrases.length === 0}
-                className="flex-1"
+                size="lg"
+                className="flex-1 h-11"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Check className="mr-2 h-4 w-4" />
-                    Search These Phrases
+                    Continue
+                    <ArrowRight className="ml-2 h-4 w-4" />
                   </>
                 )}
               </Button>

@@ -64,6 +64,14 @@ function calculateQualityLevel(postFilterRate: number, commentFilterRate: number
   return 'low'
 }
 
+// Expansion attempt for adaptive fetching
+export interface ExpansionAttempt {
+  type: 'time_range' | 'fetch_limit' | 'communities'
+  value: string
+  success: boolean
+  signalsGained: number
+}
+
 // Filtering metrics for transparency
 export interface FilteringMetrics {
   postsFound: number
@@ -83,6 +91,10 @@ export interface FilteringMetrics {
   // P0 FIX: Stage 2 (problem-specific) filter metrics
   stage2FilterRate?: number  // % of Stage 1 passes that failed Stage 2
   narrowProblemWarning?: boolean  // True if >50% of Stage 1 passes failed Stage 2
+  // Adaptive fetching diagnostics
+  expansionAttempts?: ExpansionAttempt[]  // What we tried to get more data
+  timeRangeMonths?: number               // Final time range used
+  communitiesSearched?: string[]         // All communities searched
 }
 
 export interface CommunityVoiceResult {
@@ -126,6 +138,10 @@ export interface CommunityVoiceResult {
     }
   }
 }
+
+// Adaptive fetching thresholds
+const MIN_CORE_SIGNALS = 15  // Minimum core signals for reliable analysis
+const MIN_TOTAL_SIGNALS = 30 // Minimum total signals (core + related)
 
 // Error sources for tracking failures
 type ErrorSource = 'anthropic' | 'arctic_shift' | 'database' | 'timeout' | 'unknown'
@@ -460,6 +476,9 @@ export async function POST(request: NextRequest) {
     console.log(`Filtered to ${posts.length} relevant posts (from ${rawPosts.length}, ${postFilterResult.metrics.filterRate.toFixed(1)}% filtered)`)
     console.log(`Filtered to ${comments.length} relevant comments (from ${rawComments.length}, ${commentFilterResult.metrics.filterRate.toFixed(1)}% filtered)`)
 
+    // Track expansion attempts for adaptive fetching
+    const expansionAttempts: ExpansionAttempt[] = []
+
     // Build filtering metrics for transparency
     const filteringMetrics: FilteringMetrics = {
       postsFound: postFilterResult.metrics.before,
@@ -479,6 +498,10 @@ export async function POST(request: NextRequest) {
       // P0 FIX: Include Stage 2 filter metrics
       stage2FilterRate: postFilterResult.metrics.stage2FilterRate,
       narrowProblemWarning: postFilterResult.metrics.narrowProblemWarning,
+      // Diagnostic data for UI
+      expansionAttempts,
+      timeRangeMonths: 24, // Initial: 2 years
+      communitiesSearched: [...subredditsToSearch],
     }
 
     console.log(`Data quality level: ${filteringMetrics.qualityLevel}`)
@@ -487,12 +510,115 @@ export async function POST(request: NextRequest) {
     }
     console.log(`Signal tiers: ${postFilterResult.metrics.coreSignals} CORE, ${postFilterResult.metrics.relatedSignals} RELATED`)
 
+    // Step 4.5: Adaptive fetching - try to get more data if below threshold
+    let finalPosts = posts
+    let finalComments = comments
+    let finalCoreItems = postFilterResult.coreItems
+    let finalRelatedItems = postFilterResult.relatedItems
+
+    const totalSignals = postFilterResult.metrics.coreSignals + postFilterResult.metrics.relatedSignals
+    const needsMoreData = postFilterResult.metrics.coreSignals < MIN_CORE_SIGNALS || totalSignals < MIN_TOTAL_SIGNALS
+
+    if (needsMoreData && !userSelectedSubreddits) {
+      console.log(`Step 4.5: Below threshold (${postFilterResult.metrics.coreSignals} core, ${totalSignals} total). Attempting adaptive fetch...`)
+
+      try {
+        // Discover additional subreddits using Claude
+        lastErrorSource = 'anthropic'
+        const additionalDiscovery = await discoverSubreddits(
+          `Find MORE subreddits about: ${searchContext} (already searched: ${subredditsToSearch.join(', ')})`,
+          subredditsToSearch // exclude already searched
+        )
+
+        const newSubreddits = additionalDiscovery.subreddits
+          .filter(s => !subredditsToSearch.includes(s))
+          .slice(0, 5) // Max 5 additional
+
+        if (newSubreddits.length > 0) {
+          console.log(`Found ${newSubreddits.length} additional subreddits:`, newSubreddits)
+
+          // Fetch from new subreddits
+          lastErrorSource = 'arctic_shift'
+          const additionalData = await fetchMultiSourceData({
+            subreddits: newSubreddits,
+            keywords: searchKeywords,
+            limit: 100,
+            timeRange: {
+              after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000),
+            },
+          }, hypothesis, false, false, false) // No HN/app stores for expansion
+
+          if (additionalData.posts.length > 0 || additionalData.comments.length > 0) {
+            // Filter new posts and comments in parallel
+            lastErrorSource = 'anthropic'
+            const [additionalPostFilter, additionalCommentFilter] = await Promise.all([
+              additionalData.posts.length > 0
+                ? filterRelevantPosts(additionalData.posts, hypothesis, structuredHypothesis)
+                : Promise.resolve({ items: [], coreItems: [], relatedItems: [], metrics: { coreSignals: 0, relatedSignals: 0, after: 0 }, decisions: [] }),
+              additionalData.comments.length > 0
+                ? filterRelevantComments(additionalData.comments, hypothesis, structuredHypothesis)
+                : Promise.resolve({ items: [], metrics: { after: 0 }, decisions: [] }),
+            ])
+
+            const postSignalsGained = additionalPostFilter.metrics.coreSignals + additionalPostFilter.metrics.relatedSignals
+            const commentSignalsGained = additionalCommentFilter.items.length
+            const totalSignalsGained = postSignalsGained + commentSignalsGained
+
+            expansionAttempts.push({
+              type: 'communities',
+              value: newSubreddits.join(', '),
+              success: totalSignalsGained > 0,
+              signalsGained: totalSignalsGained,
+            })
+
+            if (totalSignalsGained > 0) {
+              // Merge post results
+              if (postSignalsGained > 0) {
+                finalPosts = [...posts, ...additionalPostFilter.items]
+                finalCoreItems = [...postFilterResult.coreItems, ...additionalPostFilter.coreItems]
+                finalRelatedItems = [...postFilterResult.relatedItems, ...additionalPostFilter.relatedItems]
+                filteringMetrics.postsFound += additionalData.posts.length
+                filteringMetrics.postsAnalyzed += additionalPostFilter.metrics.after
+                filteringMetrics.coreSignals += additionalPostFilter.metrics.coreSignals
+                filteringMetrics.relatedSignals += additionalPostFilter.metrics.relatedSignals
+              }
+
+              // Merge comment results
+              if (commentSignalsGained > 0) {
+                finalComments = [...comments, ...additionalCommentFilter.items]
+                filteringMetrics.commentsFound += additionalData.comments.length
+                filteringMetrics.commentsAnalyzed += additionalCommentFilter.metrics.after
+              }
+
+              filteringMetrics.communitiesSearched?.push(...newSubreddits)
+              console.log(`Adaptive fetch added ${postSignalsGained} post signals + ${commentSignalsGained} comment signals from ${newSubreddits.length} communities`)
+            }
+          }
+        } else {
+          expansionAttempts.push({
+            type: 'communities',
+            value: 'No new communities found',
+            success: false,
+            signalsGained: 0,
+          })
+        }
+      } catch (adaptiveError) {
+        console.error('Adaptive fetching failed (non-blocking):', adaptiveError)
+        expansionAttempts.push({
+          type: 'communities',
+          value: 'Expansion failed',
+          success: false,
+          signalsGained: 0,
+        })
+      }
+    }
+
     // Step 5: Analyze posts and comments for pain signals with tier awareness
     console.log('Step 5: Analyzing pain signals')
-    const corePostSignals = analyzePosts(postFilterResult.coreItems).map(s => ({ ...s, tier: 'CORE' as const }))
-    const relatedPostSignals = analyzePosts(postFilterResult.relatedItems).map(s => ({ ...s, tier: 'RELATED' as const }))
+    const corePostSignals = analyzePosts(finalCoreItems).map(s => ({ ...s, tier: 'CORE' as const }))
+    const relatedPostSignals = analyzePosts(finalRelatedItems).map(s => ({ ...s, tier: 'RELATED' as const }))
     const postSignals = [...corePostSignals, ...relatedPostSignals]
-    const commentSignals = analyzeComments(comments)
+    const commentSignals = analyzeComments(finalComments)
     const allPainSignals = combinePainSignals(postSignals, commentSignals)
 
     console.log(`Found ${allPainSignals.length} pain signals`)
@@ -555,7 +681,7 @@ export async function POST(request: NextRequest) {
       hypothesis,
       subreddits: {
         discovered: discoveryResult.subreddits,
-        analyzed: subredditsToSearch,
+        analyzed: filteringMetrics.communitiesSearched || subredditsToSearch,
       },
       painSignals: allPainSignals.slice(0, 50), // Return top 50 signals
       painSummary,
@@ -564,8 +690,8 @@ export async function POST(request: NextRequest) {
       marketSizing,
       timing,
       metadata: {
-        postsAnalyzed: posts.length,
-        commentsAnalyzed: comments.length,
+        postsAnalyzed: finalPosts.length,
+        commentsAnalyzed: finalComments.length,
         processingTimeMs,
         timestamp: new Date().toISOString(),
         dataSources: multiSourceData.sources.length > 0 ? multiSourceData.sources : ['Reddit'],

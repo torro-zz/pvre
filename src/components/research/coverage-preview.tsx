@@ -85,38 +85,28 @@ interface CoveragePreviewProps {
 const confidenceConfig = {
   high: {
     icon: CheckCircle,
-    color: 'text-green-500',
-    bg: 'bg-green-500/10',
-    border: 'border-green-500/20',
-    label: 'Good Data Coverage',
+    color: 'text-emerald-500',
+    badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    label: 'Good coverage',
   },
   medium: {
     icon: CheckCircle,
     color: 'text-blue-500',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/20',
-    label: 'Moderate Data Coverage',
+    badge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+    label: 'Moderate coverage',
   },
   low: {
     icon: AlertTriangle,
-    color: 'text-yellow-500',
-    bg: 'bg-yellow-500/10',
-    border: 'border-yellow-500/20',
-    label: 'Limited Data Available',
+    color: 'text-amber-500',
+    badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    label: 'Limited data',
   },
   very_low: {
     icon: AlertCircle,
     color: 'text-red-500',
-    bg: 'bg-red-500/10',
-    border: 'border-red-500/20',
-    label: 'Very Limited Data',
+    badge: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
+    label: 'Very limited',
   },
-}
-
-const relevanceColors = {
-  high: 'bg-green-500/20 text-green-600 dark:text-green-400',
-  medium: 'bg-blue-500/20 text-blue-600 dark:text-blue-400',
-  low: 'bg-zinc-500/20 text-zinc-600 dark:text-zinc-400',
 }
 
 export function CoveragePreview({
@@ -445,166 +435,89 @@ export function CoveragePreview({
   const Icon = config.icon
 
   return (
-    <div className={cn('p-4 rounded-lg border', config.bg, config.border)}>
-      {/* Context header - different for hypothesis vs app-analysis mode */}
-      {mode === 'app-analysis' && appData ? (
-        <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-          <div className="flex items-center gap-3">
-            {appData.iconUrl ? (
-              <img
-                src={appData.iconUrl}
-                alt={appData.name}
-                className="w-10 h-10 rounded-lg"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <Smartphone className="h-5 w-5 text-blue-500" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <Smartphone className="h-3.5 w-3.5 text-blue-500" />
-                <p className="text-xs text-blue-600 dark:text-blue-400 uppercase tracking-wide font-medium">
-                  Market Opportunity
-                </p>
-              </div>
-              <h3 className="font-semibold text-foreground truncate">{appData.name}</h3>
-              <p className="text-sm text-muted-foreground">
-                Finding white space around this competitor
-              </p>
-            </div>
-          </div>
+    <div className="space-y-4">
+      {/* Header with coverage status */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="text-lg font-semibold">Configure Research</div>
+          <span className={cn('inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border', config.badge)}>
+            <Icon className="h-3 w-3" />
+            {config.label}
+          </span>
         </div>
-      ) : structuredHypothesis ? (
-        <div className="mb-4 p-3 rounded-lg bg-violet-500/10 border border-violet-500/20">
-          <div className="flex items-center gap-2 mb-2">
-            <Target className="h-4 w-4 text-violet-500" />
-            <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-wide font-medium">
-              Hypothesis Being Tested
-            </p>
-          </div>
-          <p className="text-sm font-medium text-foreground">
-            <span className="text-muted-foreground">Audience:</span> {structuredHypothesis.audience}
-          </p>
-          <p className="text-sm font-medium text-foreground mt-1">
-            <span className="text-muted-foreground">Problem:</span> {structuredHypothesis.problem}
-          </p>
-        </div>
-      ) : null}
-
-      {/* Header */}
-      <div className="flex items-start gap-3 mb-4">
-        <Icon className={cn('w-5 h-5 mt-0.5', config.color)} />
-        <div className="flex-1">
-          <h3 className="font-semibold">{config.label}</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            {(() => {
-              // Calculate what we'll actually analyze
-              const redditCount = Math.min(selectedSubreddits.size * sampleSize, coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0) - (coverage.googlePlay?.estimatedPosts || 0) - (coverage.appStore?.estimatedPosts || 0))
-              const hnCount = selectedDataSources.has('Hacker News') && coverage.hackerNews?.included ? Math.min(sampleSize, coverage.hackerNews.estimatedPosts) : 0
-              const gpCount = selectedDataSources.has('Google Play') && coverage.googlePlay?.included ? Math.min(sampleSize, coverage.googlePlay.estimatedPosts) : 0
-              const asCount = selectedDataSources.has('App Store') && coverage.appStore?.included ? Math.min(sampleSize, coverage.appStore.estimatedPosts) : 0
-              const totalToAnalyze = redditCount + hnCount + gpCount + asCount
-              return `Analyzing ~${totalToAnalyze.toLocaleString()} of ${coverage.totalEstimatedPosts.toLocaleString()} available`
-            })()}
-          </p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={resetCheck} className="text-xs">
-          Reset
-        </Button>
+        <span className="text-sm text-muted-foreground">
+          {(() => {
+            const redditCount = Math.min(selectedSubreddits.size * sampleSize, coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0) - (coverage.googlePlay?.estimatedPosts || 0) - (coverage.appStore?.estimatedPosts || 0))
+            const hnCount = selectedDataSources.has('Hacker News') && coverage.hackerNews?.included ? Math.min(sampleSize, coverage.hackerNews.estimatedPosts) : 0
+            const gpCount = selectedDataSources.has('Google Play') && coverage.googlePlay?.included ? Math.min(sampleSize, coverage.googlePlay.estimatedPosts) : 0
+            const asCount = selectedDataSources.has('App Store') && coverage.appStore?.included ? Math.min(sampleSize, coverage.appStore.estimatedPosts) : 0
+            const totalToAnalyze = redditCount + hnCount + gpCount + asCount
+            return `~${totalToAnalyze.toLocaleString()} posts`
+          })()}
+        </span>
       </div>
 
-      {/* Domain-first discovery warning banner */}
-      {coverage.discoveryWarning && (
-        <div className={cn(
-          'mb-4 p-3 rounded-lg flex items-start gap-3',
-          coverage.discoveryRecommendation === 'reconsider'
-            ? 'bg-red-500/10 border border-red-500/20'
-            : 'bg-yellow-500/10 border border-yellow-500/20'
-        )}>
-          <AlertTriangle className={cn(
-            'w-5 h-5 mt-0.5 flex-shrink-0',
-            coverage.discoveryRecommendation === 'reconsider' ? 'text-red-500' : 'text-yellow-500'
-          )} />
+      {/* Warning banner - only if serious */}
+      {coverage.discoveryWarning && coverage.discoveryRecommendation === 'reconsider' && (
+        <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
           <div className="flex-1">
-            <p className={cn(
-              'text-sm font-medium',
-              coverage.discoveryRecommendation === 'reconsider' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
-            )}>
-              {coverage.discoveryRecommendation === 'reconsider' ? 'Consider Refining' : 'Limited Coverage'}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">{coverage.discoveryWarning}</p>
-            {coverage.domain && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Detected domain: <span className="font-medium">{coverage.domain.primaryDomain}</span>
-                {coverage.domain.secondaryDomains.length > 0 && (
-                  <span> + {coverage.domain.secondaryDomains.join(', ')}</span>
-                )}
-              </p>
-            )}
+            <p className="text-sm text-foreground">{coverage.discoveryWarning}</p>
           </div>
         </div>
       )}
 
-      {/* Subreddit breakdown - Compact Pill Layout */}
+      {/* Communities Section */}
       {coverage.subreddits.length > 0 && (
-        <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              Communities to analyze
-            </p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Communities
+            </div>
             <span className="text-xs text-muted-foreground">
               {selectedSubreddits.size} selected
             </span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {/* AI-suggested subreddits as pills */}
-            {coverage.subreddits.slice(0, 8).map((sub) => (
-              <button
-                key={sub.name}
-                type="button"
-                onClick={() => toggleSubreddit(sub.name)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all',
-                  selectedSubreddits.has(sub.name)
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                )}
-              >
-                <span className="font-mono">r/{sub.name}</span>
-                <span className={cn(
-                  'text-[10px] px-1 py-0.5 rounded',
-                  selectedSubreddits.has(sub.name)
-                    ? 'bg-primary-foreground/20'
-                    : sub.relevanceScore === 'high' ? 'bg-green-500/30' :
-                      sub.relevanceScore === 'medium' ? 'bg-blue-500/30' : 'bg-zinc-500/30'
-                )}>
-                  {sub.estimatedPosts}
-                </span>
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {coverage.subreddits.slice(0, 8).map((sub) => {
+              const isSelected = selectedSubreddits.has(sub.name)
+              return (
+                <button
+                  key={sub.name}
+                  type="button"
+                  onClick={() => toggleSubreddit(sub.name)}
+                  className={cn(
+                    'inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-all',
+                    isSelected
+                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                  )}
+                >
+                  <span className="font-mono text-xs">r/{sub.name}</span>
+                  <span className={cn('text-xs', isSelected ? 'opacity-80' : 'opacity-50')}>{sub.estimatedPosts}</span>
+                </button>
+              )
+            })}
 
-            {/* User-added custom subreddits */}
             {customSubreddits.map((name) => (
               <div
                 key={`custom-${name}`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/30 text-xs"
+                className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground border border-primary shadow-sm"
               >
-                <span className="font-mono">r/{name}</span>
+                <span className="font-mono text-xs">r/{name}</span>
                 <button
                   type="button"
                   onClick={() => removeCustomSubreddit(name)}
-                  className="hover:text-destructive"
+                  className="opacity-70 hover:opacity-100"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             ))}
 
-            {/* Add custom subreddit */}
             {showAddInput ? (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-dashed border-primary/50 bg-background">
-                <span className="text-xs text-muted-foreground">r/</span>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-dashed border-primary/50 bg-background">
+                <span className="text-xs text-muted-foreground font-mono">r/</span>
                 <Input
                   type="text"
                   value={newSubreddit}
@@ -619,35 +532,17 @@ export function CoveragePreview({
                     }
                   }}
                   placeholder="name"
-                  className="h-5 text-xs font-mono w-24 border-0 p-0 focus-visible:ring-0"
+                  className="h-6 text-sm font-mono w-28 border-0 p-0 focus-visible:ring-0"
                   autoFocus
                 />
-                <button
-                  type="button"
-                  onClick={addCustomSubreddit}
-                  className="text-primary hover:text-primary/80"
-                  disabled={!newSubreddit.trim()}
-                >
-                  <CheckCircle className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddInput(false)
-                    setNewSubreddit('')
-                  }}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => setShowAddInput(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-primary border border-dashed border-primary/50 hover:bg-primary/5"
+                className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
               >
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5" />
                 Add
               </button>
             )}
@@ -655,104 +550,88 @@ export function CoveragePreview({
         </div>
       )}
 
-      {/* Data Sources Selection - Horizontal Toggle Buttons */}
-      <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
-        <div className="flex items-center gap-2 mb-3">
-          <Database className="h-4 w-4 text-muted-foreground" />
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">
-            Data Sources
-          </p>
+      {/* Data Sources - Clean horizontal layout */}
+      <div className="space-y-3">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Data Sources
         </div>
-
-        {/* Horizontal toggle row */}
         <div className="flex flex-wrap gap-2">
-          {/* Reddit - always required */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border">
-            <span className="text-sm font-medium">Reddit</span>
-            <span className="text-xs text-muted-foreground">
-              ({formatSourceCount(
+          {/* Reddit - always included */}
+          <div className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground border border-primary shadow-sm">
+            <span>Reddit</span>
+            <span className="text-xs opacity-80">
+              {formatSourceCount(
                 coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0) - (coverage.googlePlay?.estimatedPosts || 0) - (coverage.appStore?.estimatedPosts || 0),
                 selectedSubreddits.size * FETCH_LIMITS.redditPerSub
-              )})
+              )}
             </span>
-            <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">Required</span>
           </div>
 
-          {/* Hacker News - toggleable */}
           {coverage.hackerNews?.included && (
             <button
               type="button"
               onClick={() => toggleDataSource('Hacker News')}
               className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors',
+                'inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-all',
                 selectedDataSources.has('Hacker News')
-                  ? 'bg-orange-500/10 border-orange-500/50 text-orange-700 dark:text-orange-400'
-                  : 'bg-muted/30 border-border hover:bg-muted/50'
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
               )}
             >
-              <span className="text-sm font-medium">Hacker News</span>
-              <span className="text-xs opacity-70">({formatSourceCount(coverage.hackerNews.estimatedPosts, FETCH_LIMITS.hackerNews)})</span>
-              {selectedDataSources.has('Hacker News') && (
-                <CheckCircle className="h-3.5 w-3.5" />
-              )}
+              <span>Hacker News</span>
+              <span className={cn('text-xs', selectedDataSources.has('Hacker News') ? 'opacity-80' : 'opacity-50')}>
+                {formatSourceCount(coverage.hackerNews.estimatedPosts, FETCH_LIMITS.hackerNews)}
+              </span>
             </button>
           )}
 
-          {/* Google Play - toggleable */}
           {coverage.googlePlay?.included && (
             <button
               type="button"
               onClick={() => toggleDataSource('Google Play')}
               className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors',
+                'inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-all',
                 selectedDataSources.has('Google Play')
-                  ? 'bg-green-500/10 border-green-500/50 text-green-700 dark:text-green-400'
-                  : 'bg-muted/30 border-border hover:bg-muted/50'
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
               )}
             >
-              <span className="text-sm font-medium">Google Play</span>
-              <span className="text-xs opacity-70">({formatSourceCount(coverage.googlePlay.estimatedPosts, FETCH_LIMITS.googlePlay)})</span>
-              {selectedDataSources.has('Google Play') && (
-                <CheckCircle className="h-3.5 w-3.5" />
-              )}
+              <span>Google Play</span>
+              <span className={cn('text-xs', selectedDataSources.has('Google Play') ? 'opacity-80' : 'opacity-50')}>
+                {formatSourceCount(coverage.googlePlay.estimatedPosts, FETCH_LIMITS.googlePlay)}
+              </span>
             </button>
           )}
 
-          {/* App Store - toggleable */}
           {coverage.appStore?.included && (
             <button
               type="button"
               onClick={() => toggleDataSource('App Store')}
               className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors',
+                'inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-all',
                 selectedDataSources.has('App Store')
-                  ? 'bg-blue-500/10 border-blue-500/50 text-blue-700 dark:text-blue-400'
-                  : 'bg-muted/30 border-border hover:bg-muted/50'
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
               )}
             >
-              <span className="text-sm font-medium">App Store</span>
-              <span className="text-xs opacity-70">({formatSourceCount(coverage.appStore.estimatedPosts, FETCH_LIMITS.appStore)})</span>
-              {selectedDataSources.has('App Store') && (
-                <CheckCircle className="h-3.5 w-3.5" />
-              )}
+              <span>App Store</span>
+              <span className={cn('text-xs', selectedDataSources.has('App Store') ? 'opacity-80' : 'opacity-50')}>
+                {formatSourceCount(coverage.appStore.estimatedPosts, FETCH_LIMITS.appStore)}
+              </span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Analysis Depth Selector */}
-      <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              Analysis Depth
-            </p>
+      {/* Analysis Depth - Compact */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Analysis Depth
           </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Info className="h-3 w-3" />
-            <span>per source, prioritizing 2-3★ reviews</span>
-          </div>
+          <span className="text-xs text-muted-foreground">
+            {sampleSizePresets.find(p => p.value === sampleSize)?.description}
+          </span>
         </div>
         <div className="flex gap-2">
           {sampleSizePresets.map((preset) => (
@@ -761,33 +640,25 @@ export function CoveragePreview({
               type="button"
               onClick={() => setSampleSize(preset.value)}
               className={cn(
-                'flex-1 flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg border transition-colors',
+                'flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all',
                 sampleSize === preset.value
-                  ? 'bg-primary/10 border-primary/50 text-primary'
-                  : 'bg-muted/30 border-border hover:bg-muted/50'
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
               )}
             >
-              <span className="text-sm font-medium">{preset.label}</span>
-              <span className="text-xs opacity-70">{preset.value}/source</span>
+              {preset.label}
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground text-center">
-          {sampleSizePresets.find(p => p.value === sampleSize)?.description} • Last 12 months • Constructive reviews prioritized
-        </p>
       </div>
 
-      {/* Sample Posts Preview - 2-Column Grid Layout */}
+      {/* Sample Posts Preview */}
       {coverage.samplePosts && coverage.samplePosts.length > 0 && (() => {
-        // Filter out removed/deleted posts - they provide no value in preview
         const validPosts = coverage.samplePosts.filter(post => {
           const title = post.title.toLowerCase()
-          // Skip posts with removed/deleted markers
           if (title.includes('[removed]') || title.includes('[deleted]')) return false
-          // Skip posts where title is mostly removal text
           if (title.includes('removed by moderator')) return false
           if (title.includes('deleted by user')) return false
-          // Skip very short titles (likely garbage)
           if (post.title.trim().length < 20) return false
           return true
         })
@@ -795,34 +666,24 @@ export function CoveragePreview({
         if (validPosts.length === 0) return null
 
         return (
-        <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
-          <div className="flex items-center gap-2 mb-3">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              Example posts we&apos;ll analyze
-            </p>
+        <div className="space-y-3">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Example Posts
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {validPosts.map((post, i) => (
+            {validPosts.slice(0, 4).map((post, i) => (
               <a
                 key={i}
                 href={`https://reddit.com${post.permalink}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex flex-col p-3 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors group"
+                className="p-3 rounded-xl border bg-card hover:bg-muted/50 transition-colors group"
               >
-                <span className="text-xs text-muted-foreground font-mono mb-1">
-                  r/{post.subreddit}
-                </span>
-                <span className="text-sm text-foreground line-clamp-2 flex-1">
-                  &ldquo;{post.title}&rdquo;
-                </span>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-xs text-muted-foreground">
-                    {post.score > 0 && `${post.score} upvotes`}
-                  </span>
-                  <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-xs text-muted-foreground font-mono">r/{post.subreddit}</span>
+                  {post.score > 0 && <span className="text-xs text-muted-foreground">• {post.score}↑</span>}
                 </div>
+                <span className="text-sm text-foreground line-clamp-2">{post.title}</span>
               </a>
             ))}
           </div>
@@ -830,318 +691,161 @@ export function CoveragePreview({
         )
       })()}
 
-      {/* Problem phrases - key innovation: show users what we're searching for */}
-      {coverage.problemPhrases && coverage.problemPhrases.length > 0 && (
-        <div className="mb-4 p-3 rounded-lg bg-background/50 border border-border/50">
-          <div className="flex items-center gap-2 mb-2">
-            <MessageCircle className="h-4 w-4 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              We&apos;ll search for people expressing
-            </p>
-          </div>
-          <div className="space-y-1">
-            {coverage.problemPhrases.map((phrase, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm">
-                <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
-                <span className="text-foreground">&ldquo;{phrase}&rdquo;</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Keywords used (fallback if no problem phrases) */}
-      {coverage.keywords.length > 0 && (!coverage.problemPhrases || coverage.problemPhrases.length === 0) && (
-        <div className="mb-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-            Search keywords
-          </p>
-          <div className="flex flex-wrap gap-1">
-            {coverage.keywords.map((keyword) => (
-              <span
-                key={keyword}
-                className="text-xs px-2 py-0.5 rounded bg-secondary"
-              >
-                {keyword}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Geography & Pricing - Two Column Layout on Desktop */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        {/* Geography selector for market sizing */}
-        <div className="p-3 rounded-lg bg-background/50 border border-border/50">
-          <div className="flex items-center justify-between mb-2">
+      {/* Settings Row - Geography & Pricing inline */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 py-3 border-t border-b text-sm">
+        {/* Geography */}
+        <div className="flex items-center gap-2">
+          <Globe className="h-4 w-4 text-muted-foreground" />
+          {showGeographyEditor ? (
             <div className="flex items-center gap-2">
-              <Globe className="h-4 w-4 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                Target Market
-              </p>
-            </div>
-            {!showGeographyEditor && (
+              {(['local', 'national', 'global'] as GeographyScope[]).map((scope) => (
+                <button
+                  key={scope}
+                  type="button"
+                  onClick={() => {
+                    setGeographyScope(scope)
+                    if (scope === 'global') setShowGeographyEditor(false)
+                  }}
+                  className={cn(
+                    'px-2 py-1 rounded text-xs transition-colors',
+                    targetGeography?.scope === scope
+                      ? 'bg-primary/10 text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {scope === 'local' ? 'Local' : scope === 'national' ? 'National' : 'Global'}
+                </button>
+              ))}
               <button
                 type="button"
-                onClick={() => setShowGeographyEditor(true)}
-                className="text-xs text-primary hover:text-primary/80"
+                onClick={() => setShowGeographyEditor(false)}
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
-                Change
+                Done
               </button>
-            )}
-          </div>
-
-          {showGeographyEditor ? (
-            <div className="space-y-3">
-              {/* Scope selection */}
-              <div className="flex flex-wrap gap-1.5">
-                {(['local', 'national', 'global'] as GeographyScope[]).map((scope) => {
-                  const Icon = geographyIcons[scope]
-                  return (
-                    <button
-                      key={scope}
-                      type="button"
-                      onClick={() => setGeographyScope(scope)}
-                      className={cn(
-                        'flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors',
-                        targetGeography?.scope === scope
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-secondary hover:bg-secondary/80'
-                      )}
-                    >
-                      <Icon className="h-3 w-3" />
-                      {scope === 'local' ? 'Local' : scope === 'national' ? 'National' : 'Global'}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Location input for local/national */}
-              {targetGeography?.scope && targetGeography.scope !== 'global' && (
-                <Input
-                  type="text"
-                  value={targetGeography?.location || customLocation}
-                  onChange={(e) => {
-                    setCustomLocation(e.target.value)
-                    setTargetGeography(prev => ({
-                      scope: prev?.scope || 'local',
-                      location: e.target.value,
-                    }))
-                  }}
-                  placeholder={targetGeography?.scope === 'local' ? 'e.g., London, UK' : 'e.g., United States'}
-                  className="h-7 text-xs"
-                />
-              )}
-
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowGeographyEditor(false)}
-                  className="text-xs h-6 px-2"
-                >
-                  Done
-                </Button>
-              </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              {targetGeography ? (
-                <>
-                  {(() => {
-                    const Icon = geographyIcons[targetGeography.scope]
-                    return <Icon className="h-4 w-4 text-primary" />
-                  })()}
-                  <span className="text-sm font-medium truncate">
-                    {targetGeography.scope === 'global'
-                      ? 'Global'
-                      : targetGeography.location || geographyLabels[targetGeography.scope]}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Globe className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Global</span>
-                </>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowGeographyEditor(true)}
+              className="text-foreground hover:text-primary transition-colors"
+            >
+              {targetGeography?.scope === 'global' || !targetGeography
+                ? 'Global'
+                : targetGeography.location || (targetGeography.scope === 'local' ? 'Local' : 'National')}
+            </button>
           )}
         </div>
 
-        {/* Revenue Goal and Pricing for market sizing */}
-        <div className="p-3 rounded-lg bg-background/50 border border-border/50">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                Revenue & Pricing
-              </p>
-            </div>
-            {!showPricingEditor && (
-              <button
-                type="button"
-                onClick={() => setShowPricingEditor(true)}
-                className="text-xs text-primary hover:text-primary/80"
-              >
-                Change
-              </button>
-            )}
-          </div>
+        <span className="text-muted-foreground/30">|</span>
 
+        {/* Revenue Goal */}
+        <div className="flex items-center gap-2">
+          <Target className="h-4 w-4 text-muted-foreground" />
           {showPricingEditor ? (
-            <div className="space-y-3">
-              {/* Revenue Goal selection */}
-              <div>
-                <p className="text-xs text-muted-foreground mb-1.5">Revenue Goal:</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {mscPresets.map((preset) => (
-                    <button
-                      key={preset.value}
-                      type="button"
-                      onClick={() => setMscTarget(preset.value)}
-                      className={cn(
-                        'px-2 py-1 rounded-md text-xs transition-colors',
-                        mscTarget === preset.value
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-secondary hover:bg-secondary/80'
-                      )}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Pricing input */}
-              <div>
-                <p className="text-xs text-muted-foreground mb-1.5">Price/month:</p>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">$</span>
-                  <Input
-                    type="number"
-                    value={targetPrice || ''}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      if (val === '') {
-                        setTargetPrice(0)
-                      } else {
-                        const num = Number(val)
-                        if (!isNaN(num) && num >= 0) {
-                          setTargetPrice(num)
-                        }
-                      }
-                    }}
-                    onBlur={(e) => {
-                      if (!e.target.value || Number(e.target.value) <= 0) {
-                        setTargetPrice(29)
-                      }
-                    }}
-                    placeholder="29"
-                    className="h-7 text-xs w-16"
-                    min={1}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    (${(targetPrice * 12).toLocaleString()}/yr)
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button
+            <div className="flex items-center gap-2">
+              {mscPresets.map((preset) => (
+                <button
+                  key={preset.value}
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowPricingEditor(false)}
-                  className="text-xs h-6 px-2"
+                  onClick={() => setMscTarget(preset.value)}
+                  className={cn(
+                    'px-2 py-1 rounded text-xs transition-colors',
+                    mscTarget === preset.value
+                      ? 'bg-primary/10 text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
                 >
-                  Done
-                </Button>
-              </div>
+                  {preset.label}
+                </button>
+              ))}
             </div>
           ) : (
-            <div className="flex items-center gap-3 text-sm">
-              <div className="flex items-center gap-1">
-                <Target className="h-3.5 w-3.5 text-primary" />
-                <span className="font-medium">
-                  {mscPresets.find(p => p.value === mscTarget)?.label || `$${(mscTarget / 1000000).toFixed(1)}M`}
-                </span>
-              </div>
-              <span className="text-muted-foreground">•</span>
-              <div className="flex items-center gap-1">
-                <span className="font-medium">${targetPrice}/mo</span>
-              </div>
+            <button
+              type="button"
+              onClick={() => setShowPricingEditor(true)}
+              className="text-foreground hover:text-primary transition-colors"
+            >
+              {mscPresets.find(p => p.value === mscTarget)?.label || `$${(mscTarget / 1000000).toFixed(1)}M`} goal
+            </button>
+          )}
+        </div>
+
+        <span className="text-muted-foreground/30">|</span>
+
+        {/* Pricing */}
+        <div className="flex items-center gap-2">
+          <DollarSign className="h-4 w-4 text-muted-foreground" />
+          {showPricingEditor ? (
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                value={targetPrice || ''}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val === '') setTargetPrice(0)
+                  else {
+                    const num = Number(val)
+                    if (!isNaN(num) && num >= 0) setTargetPrice(num)
+                  }
+                }}
+                onBlur={(e) => {
+                  if (!e.target.value || Number(e.target.value) <= 0) setTargetPrice(29)
+                }}
+                placeholder="29"
+                className="h-6 text-xs w-14 px-1"
+                min={1}
+              />
+              <span className="text-xs text-muted-foreground">/mo</span>
+              <button
+                type="button"
+                onClick={() => setShowPricingEditor(false)}
+                className="text-xs text-muted-foreground hover:text-foreground ml-1"
+              >
+                Done
+              </button>
             </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowPricingEditor(true)}
+              className="text-foreground hover:text-primary transition-colors"
+            >
+              ${targetPrice}/mo
+            </button>
           )}
         </div>
       </div>
 
-      {/* Suggestions if coverage is low */}
-      {coverage.refinementSuggestions && coverage.refinementSuggestions.length > 0 && (
-        <div className="mb-4 p-3 rounded-lg bg-background/50">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
-            Suggestions
-          </p>
-          <ul className="text-sm text-muted-foreground space-y-1">
-            {coverage.refinementSuggestions.map((suggestion, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className="text-muted-foreground">•</span>
-                {suggestion}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Validation: need at least one subreddit */}
+      {/* Validation warning */}
       {selectedSubreddits.size === 0 && (
-        <div className="mb-4 p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
-          <p className="text-xs text-yellow-600 dark:text-yellow-400">
-            Select at least one subreddit to analyze
+        <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+          <p className="text-sm text-amber-600 dark:text-amber-400">
+            Select at least one community to analyze
           </p>
         </div>
       )}
 
-      {/* Action buttons - type="button" prevents form submission */}
-      <div className="flex gap-3">
-        {coverage.recommendation === 'refine' ? (
+      {/* Action button */}
+      <Button
+        type="button"
+        onClick={() => onProceed(getFinalCoverageData())}
+        disabled={disabled || selectedSubreddits.size === 0}
+        size="lg"
+        className="w-full h-12 text-base"
+      >
+        {disabled ? (
           <>
-            <Button type="button" onClick={onRefine} variant="default" className="flex-1" disabled={disabled}>
-              Refine Hypothesis
-            </Button>
-            <Button type="button" onClick={() => onProceed(getFinalCoverageData())} variant="outline" disabled={disabled || selectedSubreddits.size === 0}>
-              Run Anyway
-            </Button>
-          </>
-        ) : coverage.recommendation === 'caution' ? (
-          <>
-            <Button type="button" onClick={() => onProceed(getFinalCoverageData())} variant="default" className="flex-1" disabled={disabled || selectedSubreddits.size === 0}>
-              {disabled ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Running...
-                </>
-              ) : (
-                'Start Research'
-              )}
-            </Button>
-            <Button type="button" onClick={onRefine} variant="outline" disabled={disabled}>
-              Refine First
-            </Button>
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            Analyzing...
           </>
         ) : (
-          <Button type="button" onClick={() => onProceed(getFinalCoverageData())} variant="default" className="flex-1" disabled={disabled || selectedSubreddits.size === 0}>
-            {disabled ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Running...
-              </>
-            ) : (
-              'Start Research'
-            )}
-          </Button>
+          <>
+            Start Research
+            <Sparkles className="ml-2 h-5 w-5" />
+          </>
         )}
-      </div>
+      </Button>
     </div>
   )
 }

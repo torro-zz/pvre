@@ -33,6 +33,7 @@ import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
 import { AppOverview } from '@/components/research/app-overview'
 import { UserFeedback } from '@/components/research/user-feedback'
 import { Opportunities } from '@/components/research/opportunities'
+import { DataQualityInsights, DataQualityDiagnostics } from '@/components/research/data-quality-insights'
 import { Smartphone, MessageSquare, Sparkles } from 'lucide-react'
 import type { AppDetails } from '@/lib/data-sources/types'
 
@@ -709,23 +710,38 @@ export default async function ResearchDetailPage({
                 <div className="space-y-6">
                   {/* Research Hero Stats - Compact summary with Pain Score gauge */}
                   {communityVoiceResult.data.metadata.filteringMetrics && painScoreInput && (
-                    <ResearchHeroStats
-                      painScore={painScoreInput.overallScore}
-                      painScoreConfidence={painScoreInput.confidence}
-                      totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
-                      coreSignals={communityVoiceResult.data.metadata.filteringMetrics.coreSignals}
-                      relevanceRate={Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) || 0}
-                      dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
-                      recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
-                      dataSources={communityVoiceResult.data.metadata.dataSources}
-                      communitiesCount={communityVoiceResult.data.subreddits?.analyzed?.length ?? 0}
-                      communityNames={communityVoiceResult.data.subreddits?.analyzed}
-                      dateRange={communityVoiceResult.data.painSummary?.dateRange}
-                      postsAnalyzed={communityVoiceResult.data.metadata.postsAnalyzed}
-                      totalPostsFound={communityVoiceResult.data.metadata.filteringMetrics.postsFound}
-                      commentsAnalyzed={communityVoiceResult.data.metadata.commentsAnalyzed}
-                      processingTimeMs={communityVoiceResult.data.metadata.processingTimeMs}
-                    />
+                    <>
+                      <ResearchHeroStats
+                        painScore={painScoreInput.overallScore}
+                        painScoreConfidence={painScoreInput.confidence}
+                        totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
+                        coreSignals={communityVoiceResult.data.metadata.filteringMetrics.coreSignals}
+                        relevanceRate={Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) || 0}
+                        dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
+                        recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
+                        dataSources={communityVoiceResult.data.metadata.dataSources}
+                        communitiesCount={communityVoiceResult.data.subreddits?.analyzed?.length ?? 0}
+                        communityNames={communityVoiceResult.data.subreddits?.analyzed}
+                        dateRange={communityVoiceResult.data.painSummary?.dateRange}
+                        postsAnalyzed={communityVoiceResult.data.metadata.postsAnalyzed}
+                        totalPostsFound={communityVoiceResult.data.metadata.filteringMetrics.postsFound}
+                        commentsAnalyzed={communityVoiceResult.data.metadata.commentsAnalyzed}
+                        processingTimeMs={communityVoiceResult.data.metadata.processingTimeMs}
+                      />
+                      {/* Data Quality Insights - shows when scores are low */}
+                      <DataQualityInsights
+                        diagnostics={{
+                          postsFound: communityVoiceResult.data.metadata.filteringMetrics.postsFound,
+                          postsPassedFilter: communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed,
+                          relevanceRate: Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) || 0,
+                          coreSignals: communityVoiceResult.data.metadata.filteringMetrics.coreSignals,
+                          confidence: communityVoiceResult.data.painSummary?.dataConfidence ?? 'low',
+                          expansionAttempts: communityVoiceResult.data.metadata.filteringMetrics.expansionAttempts,
+                          communitiesSearched: communityVoiceResult.data.metadata.filteringMetrics.communitiesSearched || communityVoiceResult.data.subreddits?.analyzed,
+                          timeRangeMonths: communityVoiceResult.data.metadata.filteringMetrics.timeRangeMonths,
+                        }}
+                      />
+                    </>
                   )}
                   <CommunityVoiceResults
                     results={communityVoiceResult.data}

@@ -4,7 +4,21 @@ import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Heart, AlertTriangle, Lightbulb, Star, ChevronDown, ChevronUp, MessageSquare, ThumbsUp, ThumbsDown } from 'lucide-react'
+import {
+  DollarSign,
+  Megaphone,
+  Shield,
+  Zap,
+  Lightbulb,
+  Star,
+  ChevronDown,
+  ChevronUp,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
+  TrendingUp,
+  Sparkles
+} from 'lucide-react'
 import type { PainSignal } from '@/lib/analysis/pain-detector'
 
 interface UserFeedbackProps {
@@ -12,80 +26,143 @@ interface UserFeedbackProps {
   appName?: string
 }
 
-// Categorize signals into love, pain, and feature requests
-function categorizeSignals(signals: PainSignal[]) {
+// Opportunity categories with their keywords and display info
+const OPPORTUNITY_CATEGORIES = {
+  pricing: {
+    label: 'Pricing & Monetization',
+    icon: DollarSign,
+    color: 'text-emerald-600 dark:text-emerald-400',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-500/10',
+    borderColor: 'border-emerald-200 dark:border-emerald-500/20',
+    keywords: ['expensive', 'cost', 'pay', 'money', 'price', 'subscription', 'premium', 'free', 'purchase', 'buy', 'afford', 'worth', 'overpriced', 'cheap', 'fee', 'in-app', 'iap', 'microtransaction']
+  },
+  ads: {
+    label: 'Ads & Interruptions',
+    icon: Megaphone,
+    color: 'text-orange-600 dark:text-orange-400',
+    bgColor: 'bg-orange-50 dark:bg-orange-500/10',
+    borderColor: 'border-orange-200 dark:border-orange-500/20',
+    keywords: ['ad', 'ads', 'advertisement', 'commercial', 'banner', 'popup', 'pop-up', 'interrupt', 'annoying ad', 'too many ad', 'ad-free', 'remove ad']
+  },
+  content: {
+    label: 'Content & Moderation',
+    icon: Shield,
+    color: 'text-purple-600 dark:text-purple-400',
+    bgColor: 'bg-purple-50 dark:bg-purple-500/10',
+    borderColor: 'border-purple-200 dark:border-purple-500/20',
+    keywords: ['inappropriate', 'moderation', 'content', 'character', 'nsfw', 'adult', 'children', 'kid', 'safe', 'filter', 'report', 'offensive', 'toxic', 'harassment']
+  },
+  performance: {
+    label: 'Performance & Bugs',
+    icon: Zap,
+    color: 'text-red-600 dark:text-red-400',
+    bgColor: 'bg-red-50 dark:bg-red-500/10',
+    borderColor: 'border-red-200 dark:border-red-500/20',
+    keywords: ['crash', 'bug', 'slow', 'lag', 'freeze', 'glitch', 'error', 'broken', 'fix', 'issue', 'problem', 'stuck', 'load', 'loading', 'performance', 'battery', 'memory']
+  },
+  features: {
+    label: 'Missing Features',
+    icon: Lightbulb,
+    color: 'text-amber-600 dark:text-amber-400',
+    bgColor: 'bg-amber-50 dark:bg-amber-500/10',
+    borderColor: 'border-amber-200 dark:border-amber-500/20',
+    keywords: ['wish', 'want', 'need', 'should', 'would be nice', 'please add', 'missing', 'lack', 'option', 'feature', 'setting', 'ability', 'could', 'hope']
+  }
+}
+
+type OpportunityCategory = keyof typeof OPPORTUNITY_CATEGORIES
+
+interface Opportunity {
+  category: OpportunityCategory
+  signals: PainSignal[]
+  fromHappyUsers: number // count from 4-5 star reviews
+  totalCount: number
+}
+
+// Categorize a signal into opportunity categories based on text content
+function categorizeSignal(signal: PainSignal): OpportunityCategory[] {
+  const text = (signal.text + ' ' + (signal.title || '')).toLowerCase()
+  const categories: OpportunityCategory[] = []
+
+  for (const [category, config] of Object.entries(OPPORTUNITY_CATEGORIES)) {
+    const hasKeyword = config.keywords.some(keyword => text.includes(keyword))
+    if (hasKeyword) {
+      categories.push(category as OpportunityCategory)
+    }
+  }
+
+  // If solution-seeking, also add to features
+  if (signal.solutionSeeking && !categories.includes('features')) {
+    categories.push('features')
+  }
+
+  return categories
+}
+
+// Extract opportunities from all signals
+function extractOpportunities(signals: PainSignal[]): Opportunity[] {
   // Filter to only app store reviews
   const appStoreSignals = signals.filter(
     s => s.source.subreddit === 'google_play' || s.source.subreddit === 'app_store'
   )
 
-  const love: PainSignal[] = []
-  const pain: PainSignal[] = []
-  const featureRequests: PainSignal[] = []
+  // Group signals by category
+  const categoryMap = new Map<OpportunityCategory, PainSignal[]>()
+
+  for (const signal of appStoreSignals) {
+    const categories = categorizeSignal(signal)
+    for (const category of categories) {
+      const existing = categoryMap.get(category) || []
+      existing.push(signal)
+      categoryMap.set(category, existing)
+    }
+  }
+
+  // Convert to opportunities array with stats
+  const opportunities: Opportunity[] = []
+
+  for (const [category, categorySignals] of categoryMap.entries()) {
+    const fromHappyUsers = categorySignals.filter(s => {
+      const rating = s.source.rating
+      return rating !== undefined && rating >= 4
+    }).length
+
+    opportunities.push({
+      category,
+      signals: categorySignals,
+      fromHappyUsers,
+      totalCount: categorySignals.length
+    })
+  }
+
+  // Sort by total count (most mentioned first)
+  return opportunities.sort((a, b) => b.totalCount - a.totalCount)
+}
+
+// Calculate sentiment stats
+function calculateSentiment(signals: PainSignal[]) {
+  const appStoreSignals = signals.filter(
+    s => s.source.subreddit === 'google_play' || s.source.subreddit === 'app_store'
+  )
+
+  let positive = 0
+  let negative = 0
+  let neutral = 0
 
   for (const signal of appStoreSignals) {
     const rating = signal.source.rating
-
-    // Feature requests: solution-seeking signals (any rating)
-    if (signal.solutionSeeking) {
-      featureRequests.push(signal)
-      continue
-    }
-
-    // Use star rating as primary categorization (more reliable than text analysis)
     if (rating !== undefined) {
-      if (rating >= 4) {
-        // 4-5 star reviews are positive
-        love.push(signal)
-      } else if (rating <= 2) {
-        // 1-2 star reviews are pain points
-        pain.push(signal)
-      } else {
-        // 3-star reviews: check text sentiment
-        if (signal.emotion === 'hope' || signal.emotion === 'neutral') {
-          love.push(signal)
-        } else {
-          pain.push(signal)
-        }
-      }
-      continue
+      if (rating >= 4) positive++
+      else if (rating <= 2) negative++
+      else neutral++
     }
-
-    // Fallback for signals without rating (old data or non-app-store)
-    // Positive signals: low intensity with hope/neutral emotion
-    if ((signal.emotion === 'hope' || signal.emotion === 'neutral') && signal.intensity === 'low') {
-      love.push(signal)
-      continue
-    }
-
-    // Everything else is a pain point
-    pain.push(signal)
   }
 
-  return { love, pain, featureRequests }
+  return { positive, negative, neutral, total: appStoreSignals.length }
 }
 
-// Group similar signals by extracting key phrases
-function groupSimilarSignals(signals: PainSignal[]): { theme: string; signals: PainSignal[]; count: number }[] {
-  // Simple grouping by first signal keyword
-  const groups = new Map<string, PainSignal[]>()
-
-  for (const signal of signals) {
-    // Use the first signal indicator as the theme
-    const theme = signal.signals[0] || 'General feedback'
-    const existing = groups.get(theme) || []
-    existing.push(signal)
-    groups.set(theme, existing)
-  }
-
-  // Convert to array and sort by count
-  return Array.from(groups.entries())
-    .map(([theme, signals]) => ({ theme, signals, count: signals.length }))
-    .sort((a, b) => b.count - a.count)
-}
-
-// Expandable quote component
-function ExpandableQuote({ signal }: { signal: PainSignal }) {
+// Expandable quote component with star rating
+function QuoteWithRating({ signal }: { signal: PainSignal }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const text = signal.text
   const isLong = text.length > 200
@@ -93,98 +170,89 @@ function ExpandableQuote({ signal }: { signal: PainSignal }) {
   const rating = signal.source.rating
 
   return (
-    <div className="space-y-1">
-      {/* Star rating badge */}
+    <div className="py-3 border-b last:border-0">
+      {/* Star rating */}
       {rating !== undefined && (
-        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+        <div className="flex items-center gap-1 mb-1.5">
           {Array.from({ length: 5 }).map((_, i) => (
             <Star
               key={i}
-              className={`h-3 w-3 ${i < rating ? 'text-yellow-500 fill-yellow-500' : 'text-muted'}`}
+              className={`h-3 w-3 ${i < rating ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground/30'}`}
             />
           ))}
+          {rating >= 4 && (
+            <Badge variant="outline" className="ml-2 text-[10px] py-0 text-emerald-600 border-emerald-300">
+              Happy user
+            </Badge>
+          )}
         </div>
       )}
-      <blockquote className="text-sm text-muted-foreground italic border-l-2 border-muted pl-3">
+      <p className="text-sm text-muted-foreground">
         "{displayText}"
         {isLong && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="ml-2 text-primary hover:underline text-xs not-italic font-medium"
+            className="ml-2 text-primary hover:underline text-xs font-medium"
           >
             {isExpanded ? 'Show less' : 'Read more'}
           </button>
         )}
-      </blockquote>
+      </p>
     </div>
   )
 }
 
-function FeedbackSection({
-  title,
-  icon: Icon,
-  iconColor,
-  bgColor,
-  signals,
-  emptyMessage,
-}: {
-  title: string
-  icon: typeof Heart
-  iconColor: string
-  bgColor: string
-  signals: PainSignal[]
-  emptyMessage: string
-}) {
+// Opportunity card component
+function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
   const [expanded, setExpanded] = useState(false)
-  const grouped = groupSimilarSignals(signals)
-  const displayGroups = expanded ? grouped : grouped.slice(0, 3)
-
-  if (signals.length === 0) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="py-8 text-center">
-          <Icon className={`h-8 w-8 mx-auto mb-2 ${iconColor} opacity-50`} />
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-        </CardContent>
-      </Card>
-    )
-  }
+  const config = OPPORTUNITY_CATEGORIES[opportunity.category]
+  const Icon = config.icon
+  const displaySignals = expanded ? opportunity.signals : opportunity.signals.slice(0, 2)
+  const happyUserPercent = opportunity.totalCount > 0
+    ? Math.round((opportunity.fromHappyUsers / opportunity.totalCount) * 100)
+    : 0
 
   return (
-    <Card className="overflow-hidden">
-      <div className={`${bgColor} p-4`}>
+    <Card className={`overflow-hidden border ${config.borderColor}`}>
+      <div className={`${config.bgColor} p-4`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Icon className={`h-5 w-5 ${iconColor}`} />
-            <h3 className="font-semibold">{title}</h3>
+            <Icon className={`h-5 w-5 ${config.color}`} />
+            <h3 className="font-semibold">{config.label}</h3>
           </div>
-          <Badge variant="secondary">{signals.length} mentions</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs">
+              {opportunity.totalCount} mentions
+            </Badge>
+          </div>
         </div>
+
+        {/* Opportunity insight - highlight if many from happy users */}
+        {opportunity.fromHappyUsers > 0 && (
+          <div className="flex items-center gap-1.5 mt-2 text-xs">
+            <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
+            <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+              {opportunity.fromHappyUsers} from 4-5★ reviews ({happyUserPercent}%)
+            </span>
+            <span className="text-muted-foreground">
+              — high opportunity signal
+            </span>
+          </div>
+        )}
       </div>
 
       <CardContent className="pt-4">
-        <div className="space-y-4">
-          {displayGroups.map((group, i) => (
-            <div key={i} className="border-b last:border-0 pb-4 last:pb-0">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-sm">{group.theme}</span>
-                <Badge variant="outline" className="text-xs">
-                  {group.count}x
-                </Badge>
-              </div>
-              {/* Show expandable quote */}
-              {group.signals[0] && (
-                <ExpandableQuote signal={group.signals[0]} />
-              )}
-            </div>
+        <div className="space-y-0">
+          {displaySignals.map((signal, i) => (
+            <QuoteWithRating key={i} signal={signal} />
           ))}
         </div>
 
-        {grouped.length > 3 && (
+        {opportunity.signals.length > 2 && (
           <Button
             variant="ghost"
             size="sm"
-            className="w-full mt-4"
+            className="w-full mt-3"
             onClick={() => setExpanded(!expanded)}
           >
             {expanded ? (
@@ -193,7 +261,7 @@ function FeedbackSection({
               </>
             ) : (
               <>
-                Show {grouped.length - 3} More <ChevronDown className="ml-2 h-4 w-4" />
+                Show {opportunity.signals.length - 2} More <ChevronDown className="ml-2 h-4 w-4" />
               </>
             )}
           </Button>
@@ -204,13 +272,15 @@ function FeedbackSection({
 }
 
 export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
-  const { love, pain, featureRequests } = categorizeSignals(painSignals)
-  const totalReviews = love.length + pain.length + featureRequests.length
+  const sentiment = calculateSentiment(painSignals)
+  const opportunities = extractOpportunities(painSignals)
 
-  // Calculate sentiment breakdown
-  const sentimentScore = totalReviews > 0
-    ? Math.round((love.length / totalReviews) * 100)
+  const sentimentScore = sentiment.total > 0
+    ? Math.round((sentiment.positive / sentiment.total) * 100)
     : 50
+
+  // Count total opportunities from happy users
+  const totalHappyUserOpportunities = opportunities.reduce((sum, o) => sum + o.fromHappyUsers, 0)
 
   return (
     <div className="space-y-6">
@@ -219,7 +289,7 @@ export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
         <div className="bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-purple-500/10 p-6">
           <h2 className="text-xl font-bold mb-1">User Feedback Analysis</h2>
           <p className="text-sm text-muted-foreground">
-            Insights from {totalReviews} app store reviews{appName ? ` for ${appName}` : ''}
+            Insights from {sentiment.total} app store reviews{appName ? ` for ${appName}` : ''}
           </p>
         </div>
 
@@ -228,30 +298,30 @@ export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
             <div className="text-center p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
               <ThumbsUp className="h-6 w-6 mx-auto mb-2 text-emerald-600 dark:text-emerald-400" />
               <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-                {love.length}
+                {sentiment.positive}
               </div>
-              <p className="text-xs text-emerald-600 dark:text-emerald-500">Positive</p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-500">4-5 Stars</p>
+            </div>
+
+            <div className="text-center p-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+              <Star className="h-6 w-6 mx-auto mb-2 text-amber-600 dark:text-amber-400" />
+              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                {sentiment.neutral}
+              </div>
+              <p className="text-xs text-amber-600 dark:text-amber-500">3 Stars</p>
             </div>
 
             <div className="text-center p-4 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
               <ThumbsDown className="h-6 w-6 mx-auto mb-2 text-red-600 dark:text-red-400" />
               <div className="text-2xl font-bold text-red-700 dark:text-red-400">
-                {pain.length}
+                {sentiment.negative}
               </div>
-              <p className="text-xs text-red-600 dark:text-red-500">Pain Points</p>
-            </div>
-
-            <div className="text-center p-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
-              <Lightbulb className="h-6 w-6 mx-auto mb-2 text-amber-600 dark:text-amber-400" />
-              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                {featureRequests.length}
-              </div>
-              <p className="text-xs text-amber-600 dark:text-amber-500">Requests</p>
+              <p className="text-xs text-red-600 dark:text-red-500">1-2 Stars</p>
             </div>
           </div>
 
           {/* Sentiment Bar */}
-          {totalReviews > 0 && (
+          {sentiment.total > 0 && (
             <div className="mt-6">
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
                 <span>Overall Sentiment</span>
@@ -268,38 +338,49 @@ export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
         </CardContent>
       </Card>
 
-      {/* What Users Love */}
-      <FeedbackSection
-        title="What Users Love"
-        icon={Heart}
-        iconColor="text-emerald-600 dark:text-emerald-400"
-        bgColor="bg-emerald-50 dark:bg-emerald-500/10"
-        signals={love}
-        emptyMessage="No strongly positive feedback found in the analyzed reviews"
-      />
+      {/* Opportunities Header */}
+      {opportunities.length > 0 && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Opportunities Found</h2>
+          </div>
+          {totalHappyUserOpportunities > 0 && (
+            <Badge variant="outline" className="text-emerald-600 border-emerald-300">
+              <TrendingUp className="h-3 w-3 mr-1" />
+              {totalHappyUserOpportunities} from happy users
+            </Badge>
+          )}
+        </div>
+      )}
 
-      {/* Pain Points */}
-      <FeedbackSection
-        title="Pain Points"
-        icon={AlertTriangle}
-        iconColor="text-red-600 dark:text-red-400"
-        bgColor="bg-red-50 dark:bg-red-500/10"
-        signals={pain}
-        emptyMessage="No significant pain points found in the analyzed reviews"
-      />
+      {opportunities.length > 0 && (
+        <p className="text-sm text-muted-foreground -mt-4">
+          Pain points extracted from all reviews. Complaints from 4-5★ users = high opportunity (they're almost satisfied).
+        </p>
+      )}
 
-      {/* Feature Requests */}
-      <FeedbackSection
-        title="Feature Requests"
-        icon={Lightbulb}
-        iconColor="text-amber-600 dark:text-amber-400"
-        bgColor="bg-amber-50 dark:bg-amber-500/10"
-        signals={featureRequests}
-        emptyMessage="No feature requests detected in the analyzed reviews"
-      />
+      {/* Opportunity Cards */}
+      {opportunities.map((opportunity) => (
+        <OpportunityCard key={opportunity.category} opportunity={opportunity} />
+      ))}
+
+      {/* No Opportunities Found */}
+      {opportunities.length === 0 && sentiment.total > 0 && (
+        <Card className="border-dashed">
+          <CardContent className="py-12 text-center">
+            <ThumbsUp className="h-12 w-12 mx-auto mb-4 text-emerald-500 opacity-50" />
+            <h3 className="text-lg font-semibold mb-2">No Major Pain Points Detected</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              The analyzed reviews don't show strong patterns of complaints.
+              This could mean the competitor is doing well, or there's limited review data.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* No App Store Data Message */}
-      {totalReviews === 0 && (
+      {sentiment.total === 0 && (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
             <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
