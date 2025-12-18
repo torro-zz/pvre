@@ -15,7 +15,7 @@ export function ControlledTabs({ children, className }: ControlledTabsProps) {
   return (
     <Tabs
       value={activeTab}
-      onValueChange={(value) => setActiveTab(value as 'community' | 'market' | 'timing' | 'competitors' | 'verdict')}
+      onValueChange={(value) => setActiveTab(value as 'community' | 'market' | 'timing' | 'competitors' | 'verdict' | 'app-overview' | 'user-feedback' | 'opportunities')}
       className={className}
     >
       {children}

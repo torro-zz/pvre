@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   Card,
   CardContent,
@@ -8,8 +9,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
+import { ScoreGauge } from '@/components/ui/score-gauge'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -22,6 +23,9 @@ import {
   ArrowRight,
   Target,
   PieChart,
+  ChevronDown,
+  ChevronUp,
+  Zap,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useResearchTabs } from './research-tabs-context'
@@ -33,6 +37,7 @@ import {
   VerdictLevel,
   SampleSizeLabel,
 } from '@/lib/analysis/viability-calculator'
+import { cn } from '@/lib/utils'
 
 interface ViabilityVerdictProps {
   verdict: ViabilityVerdict
@@ -42,6 +47,110 @@ interface ViabilityVerdictProps {
   onRunCompetitors?: () => void
 }
 
+// Mini ring component for dimension scores
+function MiniScoreRing({
+  score,
+  max = 10,
+  size = 48,
+  strokeWidth = 4,
+  className
+}: {
+  score: number
+  max?: number
+  size?: number
+  strokeWidth?: number
+  className?: string
+}) {
+  const percentage = (score / max) * 100
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const strokeDashoffset = circumference - (percentage / 100) * circumference
+
+  const getColor = (pct: number) => {
+    if (pct >= 75) return '#10b981' // green
+    if (pct >= 50) return '#f59e0b' // yellow
+    if (pct >= 25) return '#f97316' // orange
+    return '#ef4444' // red
+  }
+
+  const color = getColor(percentage)
+
+  return (
+    <div className={cn('relative', className)} style={{ width: size, height: size }}>
+      <svg className="w-full h-full -rotate-90" viewBox={`0 0 ${size} ${size}`}>
+        {/* Background track */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={strokeWidth}
+          className="stroke-muted/20"
+        />
+        {/* Progress arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          className="transition-all duration-700 ease-out"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-xs font-bold" style={{ color }}>
+          {score.toFixed(1)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// Wave bar visualization for confidence levels
+function WaveBar({
+  value,
+  max = 100,
+  label,
+  color = 'primary'
+}: {
+  value: number
+  max?: number
+  label?: string
+  color?: 'primary' | 'success' | 'warning' | 'danger'
+}) {
+  const percentage = (value / max) * 100
+  const colorClasses = {
+    primary: 'from-blue-500 to-cyan-400',
+    success: 'from-emerald-500 to-green-400',
+    warning: 'from-amber-500 to-yellow-400',
+    danger: 'from-red-500 to-orange-400',
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {label && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">{label}</span>
+          <span className="font-medium">{value.toFixed(0)}%</span>
+        </div>
+      )}
+      <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
+        <div
+          className={cn(
+            'h-full rounded-full bg-gradient-to-r transition-all duration-700 ease-out',
+            colorClasses[color]
+          )}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function ViabilityVerdictDisplay({
   verdict,
   hypothesis,
@@ -49,445 +158,393 @@ export function ViabilityVerdictDisplay({
   onRunCommunityVoice,
   onRunCompetitors,
 }: ViabilityVerdictProps) {
+  const [showRedFlags, setShowRedFlags] = useState(false)
   const colors = VerdictColors[verdict.verdict]
   const { setActiveTab, setCommunitySubTab } = useResearchTabs()
 
-  const getVerdictIcon = (level: VerdictLevel) => {
+  const getVerdictLabel = (level: VerdictLevel) => {
     switch (level) {
-      case 'strong':
-        return <CheckCircle2 className="h-8 w-8 text-green-500" />
-      case 'mixed':
-        return <AlertTriangle className="h-8 w-8 text-yellow-500" />
-      case 'weak':
-        return <AlertTriangle className="h-8 w-8 text-orange-500" />
-      case 'none':
-        return <XCircle className="h-8 w-8 text-red-500" />
+      case 'strong': return 'Strong Signal'
+      case 'mixed': return 'Mixed Signal'
+      case 'weak': return 'Weak Signal'
+      case 'none': return 'No Signal'
     }
   }
 
-  const getConfidenceLabel = (confidence: 'low' | 'medium' | 'high') => {
-    switch (confidence) {
-      case 'high':
-        return 'High confidence - based on substantial data'
-      case 'medium':
-        return 'Medium confidence - more data would improve accuracy'
-      case 'low':
-        return 'Low confidence - limited data available'
+  const getVerdictGradient = (level: VerdictLevel) => {
+    switch (level) {
+      case 'strong': return 'from-emerald-500/20 to-green-500/5'
+      case 'mixed': return 'from-amber-500/20 to-yellow-500/5'
+      case 'weak': return 'from-orange-500/20 to-amber-500/5'
+      case 'none': return 'from-red-500/20 to-orange-500/5'
+    }
+  }
+
+  const getDimensionIcon = (name: string) => {
+    switch (name) {
+      case 'Pain Score': return TrendingUp
+      case 'Market Score': return PieChart
+      case 'Timing Score': return BarChart3
+      case 'Competition Score': return Shield
+      default: return Target
     }
   }
 
   const getSampleSizeColor = (label: SampleSizeLabel) => {
     switch (label) {
-      case 'high_confidence':
-        return 'bg-green-500'
-      case 'moderate_confidence':
-        return 'bg-blue-500'
-      case 'low_confidence':
-        return 'bg-yellow-500'
-      case 'very_limited':
-        return 'bg-orange-500'
-    }
-  }
-
-  // Get severity color for red flags
-  const getRedFlagSeverityColor = (severity: 'HIGH' | 'MEDIUM' | 'LOW') => {
-    switch (severity) {
-      case 'HIGH':
-        return 'bg-red-100 border-red-300 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-300'
-      case 'MEDIUM':
-        return 'bg-orange-100 border-orange-300 text-orange-800 dark:bg-orange-950 dark:border-orange-800 dark:text-orange-300'
-      case 'LOW':
-        return 'bg-yellow-100 border-yellow-300 text-yellow-800 dark:bg-yellow-950 dark:border-yellow-800 dark:text-yellow-300'
+      case 'high_confidence': return 'success'
+      case 'moderate_confidence': return 'primary'
+      case 'low_confidence': return 'warning'
+      case 'very_limited': return 'danger'
     }
   }
 
   return (
     <div className="space-y-6">
-      {/* P1 FIX: Red Flags Section - Shown BEFORE the score */}
+      {/* Subtle Red Flags Alert - Collapsible */}
       {verdict.redFlags && verdict.redFlags.length > 0 && (
-        <Card className="border-2 border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2 text-red-700 dark:text-red-400">
-              <AlertTriangle className="h-5 w-5" />
-              Red Flags Detected
-            </CardTitle>
-            <CardDescription className="text-red-600 dark:text-red-400">
-              Critical warning signs that may affect viability
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="space-y-2">
+        <div className="rounded-xl border border-red-200/50 dark:border-red-900/50 bg-gradient-to-r from-red-50/50 to-transparent dark:from-red-950/30 dark:to-transparent overflow-hidden">
+          <button
+            onClick={() => setShowRedFlags(!showRedFlags)}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-red-50/50 dark:hover:bg-red-950/20 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/50">
+                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+              </div>
+              <div className="text-left">
+                <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                  {verdict.redFlags.length} Warning{verdict.redFlags.length > 1 ? 's' : ''} Detected
+                </span>
+                <span className="text-xs text-red-600/70 dark:text-red-400/70 ml-2">
+                  Review before proceeding
+                </span>
+              </div>
+            </div>
+            {showRedFlags ? (
+              <ChevronUp className="h-4 w-4 text-red-500" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-red-500" />
+            )}
+          </button>
+
+          {showRedFlags && (
+            <div className="px-4 pb-4 space-y-2">
               {verdict.redFlags.map((flag, i) => (
                 <div
                   key={i}
-                  className={`flex items-start gap-3 p-3 rounded-md border ${getRedFlagSeverityColor(flag.severity)}`}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-black/20 border border-red-100 dark:border-red-900/30"
                 >
-                  <XCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-medium">{flag.title}</div>
-                    <div className="text-sm opacity-90">{flag.message}</div>
+                  <XCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-red-800 dark:text-red-200">
+                      {flag.title}
+                    </div>
+                    <div className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">
+                      {flag.message}
+                    </div>
                   </div>
                   <Badge
                     variant="outline"
-                    className={`ml-auto flex-shrink-0 ${
-                      flag.severity === 'HIGH'
-                        ? 'border-red-500 text-red-700 dark:text-red-400'
-                        : flag.severity === 'MEDIUM'
-                        ? 'border-orange-500 text-orange-700 dark:text-orange-400'
-                        : 'border-yellow-500 text-yellow-700 dark:text-yellow-400'
-                    }`}
+                    className={cn(
+                      'text-[10px] flex-shrink-0',
+                      flag.severity === 'HIGH' && 'border-red-300 text-red-600 bg-red-50 dark:bg-red-950',
+                      flag.severity === 'MEDIUM' && 'border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950',
+                      flag.severity === 'LOW' && 'border-yellow-300 text-yellow-600 bg-yellow-50 dark:bg-yellow-950',
+                    )}
                   >
                     {flag.severity}
                   </Badge>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       )}
 
-      {/* Main Verdict Card */}
-      <Card className={`border-2 ${colors.border}`}>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              {getVerdictIcon(verdict.verdict)}
-              <div>
-                <CardTitle className="text-2xl">Viability Verdict</CardTitle>
-                <CardDescription className="mt-1">
-                  {verdict.isComplete
-                    ? 'Complete assessment based on all available dimensions'
-                    : `Partial assessment (${verdict.availableDimensions}/${verdict.totalDimensions} dimensions)`}
-                </CardDescription>
-              </div>
-            </div>
+      {/* Main Verdict Card - Modern Design */}
+      <div className={cn(
+        'relative rounded-2xl border overflow-hidden',
+        'bg-gradient-to-br',
+        getVerdictGradient(verdict.verdict),
+        'border-border/50'
+      )}>
+        {/* Decorative background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-gradient-to-br from-white/10 to-transparent blur-2xl" />
+          <div className="absolute -bottom-12 -left-12 w-32 h-32 rounded-full bg-gradient-to-tr from-white/5 to-transparent blur-xl" />
+        </div>
 
-            {/* Score Display */}
-            <div className="text-right">
-              <div className={`text-4xl font-bold ${colors.text}`}>
-                {verdict.scoreRange ? (
-                  <>
-                    {verdict.overallScore.toFixed(1)}
-                    <span className="text-lg text-muted-foreground"> ±{(verdict.scoreRange.max - verdict.overallScore).toFixed(1)}</span>
-                  </>
-                ) : (
-                  <>
-                    {verdict.overallScore.toFixed(1)}
-                    <span className="text-lg text-muted-foreground">/10</span>
-                  </>
-                )}
+        <div className="relative p-6">
+          {/* Header */}
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-semibold">Viability Verdict</h3>
               </div>
-              <Badge className={`${colors.bg} text-white mt-1`}>
-                {verdict.calibratedVerdictLabel}
-              </Badge>
+              <p className="text-sm text-muted-foreground">
+                {verdict.isComplete
+                  ? 'Complete assessment based on all dimensions'
+                  : `Partial assessment (${verdict.availableDimensions}/${verdict.totalDimensions} dimensions)`}
+              </p>
             </div>
+            <Badge className={cn('px-3 py-1', colors.bg, 'text-white')}>
+              {getVerdictLabel(verdict.verdict)}
+            </Badge>
           </div>
-        </CardHeader>
 
-        <CardContent className="space-y-6">
-          {/* Score Progress Bar */}
-          <div className="space-y-2">
-            <div className="relative">
-              <Progress value={verdict.overallScore * 10} className="h-4" />
-              {/* Threshold markers */}
-              <div className="absolute top-0 left-0 w-full h-4 flex items-center pointer-events-none">
-                <div
-                  className="absolute border-l-2 border-muted-foreground/50 h-6 -top-1"
-                  style={{ left: '25%' }}
-                  title="Weak threshold (2.5)"
-                />
-                <div
-                  className="absolute border-l-2 border-muted-foreground/50 h-6 -top-1"
-                  style={{ left: '50%' }}
-                  title="Mixed threshold (5.0)"
-                />
-                <div
-                  className="absolute border-l-2 border-muted-foreground/50 h-6 -top-1"
-                  style={{ left: '75%' }}
-                  title="Strong threshold (7.5)"
-                />
-              </div>
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>No Signal</span>
-              <span>Weak</span>
-              <span>Mixed</span>
-              <span>Strong</span>
-            </div>
+          {/* Score Display with Gauge */}
+          <div className="flex items-center justify-center mb-6">
+            <ScoreGauge
+              score={verdict.overallScore}
+              max={10}
+              size="lg"
+              label={verdict.scoreRange ? `±${(verdict.scoreRange.max - verdict.overallScore).toFixed(1)}` : undefined}
+            />
           </div>
 
           {/* Verdict Description */}
-          <div className={`${colors.bgLight} rounded-lg p-4`}>
-            <p className={`font-medium ${colors.text}`}>{verdict.verdictDescription}</p>
+          <div className="bg-white/50 dark:bg-black/20 rounded-xl p-4 mb-6 backdrop-blur-sm">
+            <p className="text-sm text-center text-foreground/80">
+              {verdict.verdictDescription}
+            </p>
           </div>
 
-          {/* Limited Data Warning */}
-          {verdict.sampleSize && (verdict.sampleSize.label === 'very_limited' || verdict.sampleSize.label === 'low_confidence') && (
-            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-amber-800 dark:text-amber-200">Limited data available</p>
-                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
-                  This verdict is based on {verdict.sampleSize.postsAnalyzed} relevant posts.
-                  {verdict.sampleSize.postsAnalyzed < 20
-                    ? ' Consider this a directional signal rather than definitive evidence. Try broader search terms or additional communities to gather more data.'
-                    : ' More data would increase confidence. Consider expanding your search to additional communities.'}
-                </p>
+          {/* Confidence Indicators */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className={cn(
+                'w-3 h-3 rounded-full mx-auto mb-1.5',
+                verdict.confidence === 'high' && 'bg-emerald-500',
+                verdict.confidence === 'medium' && 'bg-amber-500',
+                verdict.confidence === 'low' && 'bg-red-500',
+              )} />
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                Confidence
               </div>
+              <div className="text-xs font-semibold capitalize">{verdict.confidence}</div>
             </div>
-          )}
-
-          {/* Confidence & Data Sufficiency Indicators */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-sm">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  verdict.confidence === 'high'
-                    ? 'bg-green-500'
-                    : verdict.confidence === 'medium'
-                    ? 'bg-yellow-500'
-                    : 'bg-gray-400'
-                }`}
-              />
-              <span className="text-muted-foreground">
-                {getConfidenceLabel(verdict.confidence)}
-              </span>
+            <div className="text-center">
+              <div className={cn(
+                'w-3 h-3 rounded-full mx-auto mb-1.5',
+                verdict.dataSufficiency === 'strong' && 'bg-emerald-500',
+                verdict.dataSufficiency === 'adequate' && 'bg-blue-500',
+                verdict.dataSufficiency === 'limited' && 'bg-amber-500',
+                verdict.dataSufficiency === 'insufficient' && 'bg-red-500',
+              )} />
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                Data Quality
+              </div>
+              <div className="text-xs font-semibold capitalize">{verdict.dataSufficiency}</div>
             </div>
-            {/* Data Sufficiency Indicator */}
-            <div className="flex items-center gap-2 text-sm">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  verdict.dataSufficiency === 'strong'
-                    ? 'bg-green-500'
-                    : verdict.dataSufficiency === 'adequate'
-                    ? 'bg-blue-500'
-                    : verdict.dataSufficiency === 'limited'
-                    ? 'bg-yellow-500'
-                    : 'bg-red-500'
-                }`}
-              />
-              <span className="text-muted-foreground">
-                Data: {verdict.dataSufficiencyReason}
-              </span>
-            </div>
-            {/* Sample Size Indicator */}
             {verdict.sampleSize && (
-              <div className="flex items-center gap-2 text-sm">
-                <div className={`w-3 h-3 rounded-full ${getSampleSizeColor(verdict.sampleSize.label)}`} />
-                <span className="text-muted-foreground">
-                  Sample: {verdict.sampleSize.postsAnalyzed} posts analyzed ({verdict.sampleSize.signalsFound} signals) — {verdict.sampleSize.description}
-                </span>
+              <div className="text-center">
+                <div className="text-lg font-bold text-primary mb-0.5">
+                  {verdict.sampleSize.postsAnalyzed}
+                </div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                  Posts Analyzed
+                </div>
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Dimension Breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Dimension Breakdown
-          </CardTitle>
-          <CardDescription>
-            How each research dimension contributes to your overall score
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {verdict.dimensions.length > 0 ? (
-            verdict.dimensions.map((dim) => (
-              <div key={dim.name} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {dim.name === 'Pain Score' ? (
-                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                    ) : dim.name === 'Market Score' ? (
-                      <PieChart className="h-4 w-4 text-muted-foreground" />
-                    ) : dim.name === 'Timing Score' ? (
-                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Shield className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <span className="font-medium">{dim.name}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {Math.round(dim.weight * 100)}% weight
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`font-bold ${StatusColors[dim.status]}`}>
-                      {dim.score.toFixed(1)}/10
-                    </span>
+      {/* Limited Data Warning - More subtle */}
+      {verdict.sampleSize && (verdict.sampleSize.label === 'very_limited' || verdict.sampleSize.label === 'low_confidence') && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30">
+          <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <span className="font-medium text-amber-800 dark:text-amber-200">
+              Limited data available.
+            </span>
+            <span className="text-amber-700 dark:text-amber-300">
+              {' '}Consider expanding your search to additional communities for higher confidence.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Dimension Breakdown - Modern Grid with Mini Rings */}
+      {verdict.dimensions.length > 0 && (
+        <div className="rounded-2xl border bg-card/50 backdrop-blur-sm overflow-hidden">
+          <div className="px-6 py-4 border-b bg-muted/30">
+            <h4 className="font-semibold flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              Score Breakdown
+            </h4>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Individual dimension contributions
+            </p>
+          </div>
+
+          <div className="p-4">
+            <div className="grid gap-3">
+              {verdict.dimensions.map((dim) => {
+                const Icon = getDimensionIcon(dim.name)
+                return (
+                  <div
+                    key={dim.name}
+                    className="flex items-center gap-4 p-3 rounded-xl bg-muted/20 hover:bg-muted/30 transition-colors"
+                  >
+                    <MiniScoreRing score={dim.score} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-sm font-medium">{dim.name}</span>
+                        <Badge variant="outline" className="text-[10px] ml-auto">
+                          {Math.round(dim.weight * 100)}%
+                        </Badge>
+                      </div>
+                      {dim.summary && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                          {dim.summary}
+                        </p>
+                      )}
+                    </div>
                     <Badge
                       variant="outline"
-                      className={`${
-                        dim.status === 'strong'
-                          ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800'
-                          : dim.status === 'adequate'
-                          ? 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-400 dark:border-yellow-800'
-                          : dim.status === 'needs_work'
-                          ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-400 dark:border-orange-800'
-                          : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800'
-                      }`}
+                      className={cn(
+                        'text-[10px] flex-shrink-0',
+                        dim.status === 'strong' && 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400',
+                        dim.status === 'adequate' && 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400',
+                        dim.status === 'needs_work' && 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-400',
+                        dim.status === 'critical' && 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400',
+                      )}
                     >
                       {StatusLabels[dim.status]}
                     </Badge>
                   </div>
-                </div>
-                <Progress value={dim.score * 10} className="h-2" />
-                {dim.summary && (
-                  <p className="text-xs text-muted-foreground">{dim.summary}</p>
-                )}
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <Target className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No research dimensions available yet.</p>
-              <p className="text-sm">Run research modules to generate your Viability Verdict.</p>
+                )
+              })}
             </div>
-          )}
 
-          {/* Missing dimensions CTAs */}
-          {!verdict.isComplete && verdict.dimensions.length > 0 && (
-            <div className="border-t pt-4 mt-4">
-              <p className="text-sm text-muted-foreground mb-3">
-                Complete more research to improve your verdict accuracy:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {!verdict.dimensions.find((d) => d.name === 'Pain Score') && (
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={jobId ? `/research?jobId=${jobId}` : '/research'}>
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      Run Community Voice
-                    </Link>
-                  </Button>
-                )}
-                {!verdict.dimensions.find((d) => d.name === 'Competition Score') && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setActiveTab('competitors')}
-                  >
-                    <Shield className="h-4 w-4 mr-1" />
-                    Run Competitor Intelligence
-                  </Button>
-                )}
-                {!verdict.dimensions.find((d) => d.name === 'Market Score') && (
-                  <Badge variant="outline" className="text-xs py-1 px-2">
-                    <PieChart className="h-3 w-3 mr-1" />
-                    Market Score auto-runs with Community Voice
-                  </Badge>
-                )}
-                {!verdict.dimensions.find((d) => d.name === 'Timing Score') && (
-                  <Badge variant="outline" className="text-xs py-1 px-2">
-                    <BarChart3 className="h-3 w-3 mr-1" />
-                    Timing Score auto-runs with Community Voice
-                  </Badge>
-                )}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Dealbreakers */}
-      {verdict.dealbreakers.length > 0 && (
-        <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/50">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2 text-red-700 dark:text-red-400">
-              <XCircle className="h-5 w-5" />
-              Dealbreakers Detected
-            </CardTitle>
-            <CardDescription className="text-red-600 dark:text-red-400">
-              Critical issues that may make this opportunity non-viable
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {verdict.dealbreakers.map((dealbreaker, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm">
-                  <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400 mt-0.5 flex-shrink-0" />
-                  <span className="text-red-700 dark:text-red-300">{dealbreaker}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recommendations */}
-      {verdict.recommendations.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Lightbulb className="h-5 w-5 text-yellow-500" />
-              Recommendations
-            </CardTitle>
-            <CardDescription>
-              Suggested next steps to improve viability or validate further
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {verdict.recommendations.map((rec, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-sm font-medium flex-shrink-0">
-                    {i + 1}
-                  </div>
-                  <span className="text-sm text-muted-foreground">{rec}</span>
-                </li>
-              ))}
-            </ul>
-
-            {/* Next Steps CTA - Interview Guide */}
-            {verdict.isComplete && verdict.verdict !== 'none' && (
-              <div className="mt-6 pt-4 border-t bg-green-50 dark:bg-green-950 -mx-6 px-6 pb-4 rounded-b-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-green-800 dark:text-green-200">Ready to validate with real customers?</p>
-                    <p className="text-sm text-green-600 dark:text-green-400">
-                      Get your personalized Interview Guide with Mom Test questions
-                    </p>
-                  </div>
-                  <Button
-                    size="lg"
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => {
-                      // Switch to Community tab and Interview subtab using context
-                      setCommunitySubTab('interview')
-                      setActiveTab('community')
-                    }}
-                  >
-                    View Interview Guide
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
+            {/* Missing dimensions hint */}
+            {!verdict.isComplete && (
+              <div className="mt-4 pt-4 border-t border-border/50">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Run additional research to complete your verdict:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {!verdict.dimensions.find((d) => d.name === 'Pain Score') && (
+                    <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
+                      <Link href={jobId ? `/research?jobId=${jobId}` : '/research'}>
+                        <TrendingUp className="h-3 w-3 mr-1" />
+                        Community Voice
+                      </Link>
+                    </Button>
+                  )}
+                  {!verdict.dimensions.find((d) => d.name === 'Competition Score') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setActiveTab('competitors')}
+                    >
+                      <Shield className="h-3 w-3 mr-1" />
+                      Competitors
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* Info Card */}
-      <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-        <CardContent className="pt-4">
-          <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-            <div className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
-              <p className="font-medium">About the Viability Verdict</p>
-              <p>
-                This score combines multiple research dimensions using dynamically weighted averages.
-                Full formula: Pain (35%) + Market (25%) + Competition (25%) + Timing (15%).
-              </p>
-              <p>
-                Market Sizing analyzes TAM/SAM/SOM using Fermi estimation. Timing Analysis
-                identifies tailwinds, headwinds, and your market timing window.
-              </p>
-            </div>
+      {/* Empty state for no dimensions */}
+      {verdict.dimensions.length === 0 && (
+        <div className="text-center py-12 px-6 rounded-2xl border border-dashed">
+          <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+          <p className="text-muted-foreground mb-1">No research dimensions available yet</p>
+          <p className="text-sm text-muted-foreground/70">
+            Run research modules to generate your Viability Verdict
+          </p>
+        </div>
+      )}
+
+      {/* Recommendations - Clean card design */}
+      {verdict.recommendations.length > 0 && (
+        <div className="rounded-2xl border bg-card overflow-hidden">
+          <div className="px-6 py-4 border-b bg-gradient-to-r from-amber-50/50 to-transparent dark:from-amber-950/20">
+            <h4 className="font-semibold flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-amber-500" />
+              Next Steps
+            </h4>
           </div>
-        </CardContent>
-      </Card>
+          <div className="p-4 space-y-2">
+            {verdict.recommendations.map((rec, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex-shrink-0">
+                  {i + 1}
+                </div>
+                <span className="text-sm text-muted-foreground leading-relaxed">{rec}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Interview Guide CTA */}
+          {verdict.isComplete && verdict.verdict !== 'none' && (
+            <div className="px-6 py-4 border-t bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-950/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-emerald-800 dark:text-emerald-200 text-sm">
+                    Ready to validate with real customers?
+                  </p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    Get personalized Mom Test interview questions
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => {
+                    setCommunitySubTab('interview')
+                    setActiveTab('community')
+                  }}
+                >
+                  Interview Guide
+                  <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Dealbreakers - If any */}
+      {verdict.dealbreakers.length > 0 && (
+        <div className="rounded-xl border border-red-200 dark:border-red-900 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-950/20 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <XCircle className="h-4 w-4 text-red-500" />
+            <span className="font-medium text-sm text-red-700 dark:text-red-300">
+              Dealbreakers Detected
+            </span>
+          </div>
+          <ul className="space-y-2">
+            {verdict.dealbreakers.map((dealbreaker, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
+                <span className="text-red-400">-</span>
+                {dealbreaker}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Info footer - Minimal */}
+      <div className="flex items-start gap-2 text-xs text-muted-foreground px-1">
+        <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+        <p>
+          Score formula: Pain (35%) + Market (25%) + Competition (25%) + Timing (15%).
+          Market uses TAM/SAM/SOM Fermi estimation. Timing identifies tailwinds and headwinds.
+        </p>
+      </div>
     </div>
   )
 }

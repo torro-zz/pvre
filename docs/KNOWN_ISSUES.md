@@ -36,11 +36,17 @@ The current credit model (1 credit = 1 research) may need rethinking:
 
 *No open P1 issues*
 
+### Relevance
+ it looks like the relevance of our data is always very low because we only have a fraction of posts that go through to actually being analysed because the rest is not as important may be a few of these post might actually be very important and actually relevant in that case, how can we change this so that we have a more True signal when it comes to relevance and confidence?
 ---
 
 ## P2 — Low Priority
 
-*No open P2 issues*
+### Data Reliability in the different tabs
+Status: Open P2
+Issue: Reliability of the data we show
+What is the logic behind each tab meaning community market timing competitors and verdict? What is the logic that makes the score the way it is and is there a way to use more reliable data to make this allergic more reliable and real?
+
 
 ---
 
