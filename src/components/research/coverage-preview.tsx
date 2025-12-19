@@ -58,12 +58,16 @@ export interface CoverageData {
     included: boolean
     estimatedPosts: number
     samplePosts: SamplePost[]
+    apps?: AppDetails[]
   }
   appStore?: {
     included: boolean
     estimatedPosts: number
     samplePosts: SamplePost[]
+    apps?: AppDetails[]
   }
+  // Selected apps for research
+  selectedApps?: AppDetails[]
   selectedDataSources?: string[] // User-selected sources to use
   // Sample size per source (how many reviews/posts to analyze)
   sampleSizePerSource?: number
@@ -147,6 +151,10 @@ export function CoveragePreview({
 
   // Data sources state
   const [selectedDataSources, setSelectedDataSources] = useState<Set<string>>(new Set(['Reddit']))
+
+  // App selection state (for Google Play and App Store)
+  const [selectedGooglePlayApps, setSelectedGooglePlayApps] = useState<Set<string>>(new Set())
+  const [selectedAppStoreApps, setSelectedAppStoreApps] = useState<Set<string>>(new Set())
 
   // Sample size state (reviews/posts per source)
   const [sampleSize, setSampleSize] = useState<number>(100) // Default 100, max 300 for now
@@ -275,6 +283,15 @@ export function CoveragePreview({
       const names: string[] = highMediumSubs.map((s: SubredditCoverage) => s.name)
       setSelectedSubreddits(new Set(names))
       setCustomSubreddits([])
+
+      // Auto-select all discovered apps by default
+      if (data.googlePlay?.apps) {
+        setSelectedGooglePlayApps(new Set(data.googlePlay.apps.map((a: AppDetails) => a.appId)))
+      }
+      if (data.appStore?.apps) {
+        setSelectedAppStoreApps(new Set(data.appStore.apps.map((a: AppDetails) => a.appId)))
+      }
+
       setChecked(true)
     } catch (err) {
       console.error('Coverage check failed:', err)
@@ -344,6 +361,13 @@ export function CoveragePreview({
   // Build final coverage data with user modifications
   const getFinalCoverageData = (): CoverageData => {
     if (!coverage) throw new Error('No coverage data')
+
+    // Collect selected apps from both stores
+    const selectedApps: AppDetails[] = [
+      ...(coverage.googlePlay?.apps?.filter(a => selectedGooglePlayApps.has(a.appId)) || []),
+      ...(coverage.appStore?.apps?.filter(a => selectedAppStoreApps.has(a.appId)) || []),
+    ]
+
     return {
       ...coverage,
       userSelectedSubreddits: Array.from(selectedSubreddits),
@@ -353,6 +377,7 @@ export function CoveragePreview({
       targetPrice: targetPrice,
       selectedDataSources: Array.from(selectedDataSources),
       sampleSizePerSource: sampleSize,
+      selectedApps: selectedApps,
       // App-centric analysis mode
       mode: mode,
       appData: appData,
@@ -388,6 +413,32 @@ export function CoveragePreview({
         next.delete(source)
       } else {
         next.add(source)
+      }
+      return next
+    })
+  }
+
+  // Toggle Google Play app selection
+  const toggleGooglePlayApp = (appId: string) => {
+    setSelectedGooglePlayApps(prev => {
+      const next = new Set(prev)
+      if (next.has(appId)) {
+        next.delete(appId)
+      } else {
+        next.add(appId)
+      }
+      return next
+    })
+  }
+
+  // Toggle App Store app selection
+  const toggleAppStoreApp = (appId: string) => {
+    setSelectedAppStoreApps(prev => {
+      const next = new Set(prev)
+      if (next.has(appId)) {
+        next.delete(appId)
+      } else {
+        next.add(appId)
       }
       return next
     })
@@ -610,42 +661,97 @@ export function CoveragePreview({
             </button>
           )}
 
-          {coverage.googlePlay?.included && (
-            <button
-              type="button"
-              onClick={() => toggleDataSource('Google Play')}
-              className={cn(
-                'inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-all',
-                selectedDataSources.has('Google Play')
-                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                  : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
-              )}
-            >
-              <span>Google Play</span>
-              <span className={cn('text-xs', selectedDataSources.has('Google Play') ? 'opacity-80' : 'opacity-50')}>
-                {formatSourceCount(coverage.googlePlay.estimatedPosts, FETCH_LIMITS.googlePlay)}
-              </span>
-            </button>
-          )}
-
-          {coverage.appStore?.included && (
-            <button
-              type="button"
-              onClick={() => toggleDataSource('App Store')}
-              className={cn(
-                'inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-all',
-                selectedDataSources.has('App Store')
-                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                  : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
-              )}
-            >
-              <span>App Store</span>
-              <span className={cn('text-xs', selectedDataSources.has('App Store') ? 'opacity-80' : 'opacity-50')}>
-                {formatSourceCount(coverage.appStore.estimatedPosts, FETCH_LIMITS.appStore)}
-              </span>
-            </button>
-          )}
         </div>
+
+        {/* Google Play Apps */}
+        {coverage.googlePlay?.included && coverage.googlePlay.apps && coverage.googlePlay.apps.length > 0 && (
+          <div className="space-y-2 pt-2">
+            <div className="flex items-center gap-2">
+              <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
+                Google Play · {selectedGooglePlayApps.size} of {coverage.googlePlay.apps.length} apps
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {coverage.googlePlay.apps.map((app) => {
+                const isSelected = selectedGooglePlayApps.has(app.appId)
+                return (
+                  <button
+                    key={app.appId}
+                    type="button"
+                    onClick={() => toggleGooglePlayApp(app.appId)}
+                    className={cn(
+                      'inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-all',
+                      isSelected
+                        ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                        : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                    )}
+                  >
+                    {app.iconUrl && (
+                      <img
+                        src={app.iconUrl}
+                        alt=""
+                        className="w-5 h-5 rounded"
+                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                      />
+                    )}
+                    <div className="text-left">
+                      <div className="font-medium text-xs leading-tight truncate max-w-[120px]">{app.name}</div>
+                      <div className={cn('text-[10px] leading-tight', isSelected ? 'opacity-70' : 'opacity-50')}>
+                        ⭐{app.rating.toFixed(1)} · {app.reviewCount.toLocaleString()} reviews
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* App Store Apps */}
+        {coverage.appStore?.included && coverage.appStore.apps && coverage.appStore.apps.length > 0 && (
+          <div className="space-y-2 pt-2">
+            <div className="flex items-center gap-2">
+              <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
+                App Store · {selectedAppStoreApps.size} of {coverage.appStore.apps.length} apps
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {coverage.appStore.apps.map((app) => {
+                const isSelected = selectedAppStoreApps.has(app.appId)
+                return (
+                  <button
+                    key={app.appId}
+                    type="button"
+                    onClick={() => toggleAppStoreApp(app.appId)}
+                    className={cn(
+                      'inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-all',
+                      isSelected
+                        ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                        : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                    )}
+                  >
+                    {app.iconUrl && (
+                      <img
+                        src={app.iconUrl}
+                        alt=""
+                        className="w-5 h-5 rounded"
+                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                      />
+                    )}
+                    <div className="text-left">
+                      <div className="font-medium text-xs leading-tight truncate max-w-[120px]">{app.name}</div>
+                      <div className={cn('text-[10px] leading-tight', isSelected ? 'opacity-70' : 'opacity-50')}>
+                        ⭐{app.rating.toFixed(1)} · {app.reviewCount.toLocaleString()} reviews
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Analysis Depth - Compact */}

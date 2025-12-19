@@ -508,20 +508,22 @@ export async function checkGooglePlayCoverage(hypothesis: string): Promise<{
   available: boolean
   estimatedPosts: number
   samplePosts: SamplePost[]
+  apps: import('./types').AppDetails[]
 }> {
   if (!(await googlePlayAdapter.healthCheck())) {
-    return { available: false, estimatedPosts: 0, samplePosts: [] }
+    return { available: false, estimatedPosts: 0, samplePosts: [], apps: [] }
   }
 
-  const [count, samples] = await Promise.all([
-    googlePlayAdapter.getPostCount(hypothesis),
+  const [appsResult, samples] = await Promise.all([
+    googlePlayAdapter.searchAppsWithDetails(hypothesis),
     googlePlayAdapter.getSamplePosts(hypothesis, 3),
   ])
 
   return {
     available: true,
-    estimatedPosts: count,
+    estimatedPosts: appsResult.totalReviews,
     samplePosts: samples,
+    apps: appsResult.apps,
   }
 }
 
@@ -533,20 +535,22 @@ export async function checkAppStoreCoverage(hypothesis: string): Promise<{
   available: boolean
   estimatedPosts: number
   samplePosts: SamplePost[]
+  apps: import('./types').AppDetails[]
 }> {
   if (!(await appStoreAdapter.healthCheck())) {
-    return { available: false, estimatedPosts: 0, samplePosts: [] }
+    return { available: false, estimatedPosts: 0, samplePosts: [], apps: [] }
   }
 
-  const [count, samples] = await Promise.all([
-    appStoreAdapter.getPostCount(hypothesis),
+  const [appsResult, samples] = await Promise.all([
+    appStoreAdapter.searchAppsWithDetails(hypothesis),
     appStoreAdapter.getSamplePosts(hypothesis, 3),
   ])
 
   return {
     available: true,
-    estimatedPosts: count,
+    estimatedPosts: appsResult.totalReviews,
     samplePosts: samples,
+    apps: appsResult.apps,
   }
 }
 

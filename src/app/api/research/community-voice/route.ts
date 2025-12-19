@@ -262,6 +262,7 @@ export async function POST(request: NextRequest) {
     let mscTarget: number | undefined
     let targetPrice: number | undefined
     let selectedDataSources: string[] | undefined
+    let selectedApps: AppDetails[] | undefined
     let appData: AppDetails | undefined
     if (jobId) {
       const adminClient = createAdminClient()
@@ -308,6 +309,12 @@ export async function POST(request: NextRequest) {
       selectedDataSources = coverageData?.selectedDataSources as string[] | undefined
       if (selectedDataSources && selectedDataSources.length > 0) {
         console.log('Using selected data sources:', selectedDataSources)
+      }
+
+      // Check for selected apps from coverage preview (user-selected apps for analysis)
+      selectedApps = coverageData?.selectedApps as AppDetails[] | undefined
+      if (selectedApps && selectedApps.length > 0) {
+        console.log('Using selected apps:', selectedApps.map(a => `${a.name} (${a.store})`))
       }
 
       // Check for app data from app-centric analysis mode
@@ -396,10 +403,20 @@ export async function POST(request: NextRequest) {
     const includesHN = selectedDataSources
       ? selectedDataSources.includes('Hacker News')
       : shouldIncludeHN(hypothesis) // Fallback to auto-detection if no explicit selection
-    const includesGooglePlay = selectedDataSources?.includes('Google Play') ?? false
-    const includesAppStore = selectedDataSources?.includes('App Store') ?? false
 
-    const sourcesList = ['Reddit', includesHN && 'Hacker News', includesGooglePlay && 'Google Play', includesAppStore && 'App Store'].filter(Boolean).join(' + ')
+    // When selectedApps is provided, we fetch directly from those apps (Step 3b)
+    // so we skip the keyword-based search in fetchMultiSourceData
+    const includesGooglePlay = selectedApps && selectedApps.length > 0 ? false : (selectedDataSources?.includes('Google Play') ?? false)
+    const includesAppStore = selectedApps && selectedApps.length > 0 ? false : (selectedDataSources?.includes('App Store') ?? false)
+
+    const hasSelectedApps = selectedApps && selectedApps.length > 0
+    const sourcesList = [
+      'Reddit',
+      includesHN && 'Hacker News',
+      hasSelectedApps && `${selectedApps!.length} selected apps`,
+      !hasSelectedApps && includesGooglePlay && 'Google Play',
+      !hasSelectedApps && includesAppStore && 'App Store'
+    ].filter(Boolean).join(' + ')
     console.log(`Step 3: Fetching data from ${sourcesList}`)
     lastErrorSource = 'arctic_shift' // Reddit data API (primary source)
     const searchKeywords = extractedKeywords.primary.length > 0
@@ -419,9 +436,39 @@ export async function POST(request: NextRequest) {
 
     console.log(`Fetched ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || multiSourceData.metadata.source}`)
 
-    // Step 3b: For app-centric mode, fetch reviews directly for the specific app
-    if (appData && appData.appId) {
-      console.log(`Step 3b: Fetching reviews for specific app: ${appData.name} (${appData.appId})`)
+    // Step 3b: Fetch reviews for selected apps (user-selected apps from coverage preview)
+    if (selectedApps && selectedApps.length > 0) {
+      console.log(`Step 3b: Fetching reviews for ${selectedApps.length} selected apps`)
+      try {
+        const reviewsPerApp = Math.ceil(100 / selectedApps.length) // Distribute limit across apps
+
+        for (const app of selectedApps) {
+          try {
+            let appReviews: RedditPost[] = []
+
+            if (app.store === 'google_play') {
+              appReviews = await googlePlayAdapter.getReviewsForAppId(app.appId, { limit: reviewsPerApp })
+            } else if (app.store === 'app_store') {
+              appReviews = await appStoreAdapter.getReviewsForAppId(app.appId, { limit: reviewsPerApp })
+            }
+
+            if (appReviews.length > 0) {
+              rawPosts = [...rawPosts, ...appReviews]
+              console.log(`Added ${appReviews.length} reviews from ${app.name} (${app.store})`)
+            }
+          } catch (appError) {
+            console.warn(`Failed to fetch reviews for ${app.name}:`, appError)
+            // Continue with other apps
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch app reviews:', error)
+        // Continue without app reviews - don't fail the entire request
+      }
+    }
+    // Step 3c: For app-centric mode, fetch reviews directly for the specific app
+    else if (appData && appData.appId) {
+      console.log(`Step 3c: Fetching reviews for specific app: ${appData.name} (${appData.appId})`)
       try {
         let appReviews: RedditPost[] = []
 

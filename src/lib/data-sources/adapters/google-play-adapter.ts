@@ -181,6 +181,68 @@ export class GooglePlayAdapter implements DataSourceAdapter {
   }
 
   /**
+   * Search for apps and return their details
+   * Used by coverage check to show users which apps will be analyzed
+   */
+  async searchAppsWithDetails(query: string): Promise<{
+    apps: AppDetails[]
+    totalReviews: number
+  }> {
+    const searchTerms = this.extractSearchTerms(query)
+    if (!searchTerms) return { apps: [], totalReviews: 0 }
+
+    try {
+      const searchResults = await gplay.search({
+        term: searchTerms,
+        num: 5,
+        lang: 'en',
+        country: 'us',
+      }) as PlayApp[]
+
+      if (!searchResults || searchResults.length === 0) {
+        return { apps: [], totalReviews: 0 }
+      }
+
+      // Get full details for top 3 apps
+      const appDetailsPromises = searchResults.slice(0, 3).map(async (app) => {
+        try {
+          const details = await gplay.app({ appId: app.appId })
+          return {
+            appId: details.appId,
+            store: 'google_play' as const,
+            name: details.title,
+            developer: details.developer,
+            category: details.genre || details.genreId || 'Unknown',
+            description: details.description || '',
+            rating: details.score || 0,
+            reviewCount: details.reviews || 0,
+            price: details.free ? 'Free' : (details.priceText || 'Paid'),
+            hasIAP: details.offersIAP || false,
+            installs: details.installs || undefined,
+            lastUpdated: String(details.updated || ''),
+            iconUrl: details.icon || undefined,
+            url: details.url || `https://play.google.com/store/apps/details?id=${app.appId}`,
+          } as AppDetails
+        } catch (error) {
+          console.error(`[GooglePlayAdapter] Failed to get details for ${app.appId}:`, error)
+          return null
+        }
+      })
+
+      const appDetails = (await Promise.all(appDetailsPromises)).filter(
+        (app): app is AppDetails => app !== null
+      )
+
+      const totalReviews = appDetails.reduce((sum, app) => sum + app.reviewCount, 0)
+
+      return { apps: appDetails, totalReviews }
+    } catch (error) {
+      console.error('[GooglePlayAdapter] searchAppsWithDetails failed:', error)
+      return { apps: [], totalReviews: 0 }
+    }
+  }
+
+  /**
    * Get full app details from app ID or URL
    * Used for App-Centric Analysis Mode
    */

@@ -226,6 +226,72 @@ export class AppStoreAdapter implements DataSourceAdapter {
   }
 
   /**
+   * Search for apps and return their details
+   * Used by coverage check to show users which apps will be analyzed
+   */
+  async searchAppsWithDetails(query: string): Promise<{
+    apps: AppDetails[]
+    totalReviews: number
+  }> {
+    const searchTerms = this.extractSearchTerms(query)
+    if (!searchTerms) return { apps: [], totalReviews: 0 }
+
+    try {
+      const searchResults = await store.search({
+        term: searchTerms,
+        num: 5,
+        country: 'us',
+      }) as AppStoreApp[]
+
+      if (!searchResults || searchResults.length === 0) {
+        return { apps: [], totalReviews: 0 }
+      }
+
+      // Get full details for top 3 apps
+      const appDetailsPromises = searchResults.slice(0, 3).map(async (app) => {
+        try {
+          const details = await store.app({ id: app.id, country: 'us' })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const appData = details as any
+
+          const category = appData.primaryGenre || appData.genres?.[0] || 'Unknown'
+          const isFree = appData.free === true
+
+          return {
+            appId: String(appData.id),
+            store: 'app_store' as const,
+            name: appData.title,
+            developer: appData.developer,
+            category,
+            description: appData.description || '',
+            rating: appData.score || 0,
+            reviewCount: appData.reviews || 0,
+            price: isFree ? 'Free' : (appData.price ? `$${appData.price}` : 'Paid'),
+            hasIAP: detectIAPFromDescription(appData.description || '', category, isFree),
+            lastUpdated: appData.updated || appData.currentVersionReleaseDate || '',
+            iconUrl: appData.icon || undefined,
+            url: appData.url || `https://apps.apple.com/us/app/app/id${appData.id}`,
+          } as AppDetails
+        } catch (error) {
+          console.error(`[AppStoreAdapter] Failed to get details for ${app.id}:`, error)
+          return null
+        }
+      })
+
+      const appDetails = (await Promise.all(appDetailsPromises)).filter(
+        (app): app is AppDetails => app !== null
+      )
+
+      const totalReviews = appDetails.reduce((sum, app) => sum + app.reviewCount, 0)
+
+      return { apps: appDetails, totalReviews }
+    } catch (error) {
+      console.error('[AppStoreAdapter] searchAppsWithDetails failed:', error)
+      return { apps: [], totalReviews: 0 }
+    }
+  }
+
+  /**
    * Get full app details from app ID or URL
    * Used for App-Centric Analysis Mode
    */

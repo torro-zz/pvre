@@ -12,6 +12,7 @@ import {
   checkGooglePlayCoverage,
   checkAppStoreCoverage,
 } from '@/lib/data-sources'
+import { AppDetails } from '@/lib/data-sources/types'
 import { extractSearchKeywords } from '@/lib/reddit/keyword-extractor'
 import { StructuredHypothesis } from '@/types/research'
 import { sampleQualityCheck, QualitySampleResult } from '@/lib/research/relevance-filter'
@@ -63,12 +64,14 @@ export interface CoverageCheckResponse {
     included: boolean
     estimatedPosts: number
     samplePosts: SamplePost[]
+    apps: AppDetails[]  // List of discovered apps
   }
   // App Store data (for mobile app hypotheses)
   appStore?: {
     included: boolean
     estimatedPosts: number
     samplePosts: SamplePost[]
+    apps: AppDetails[]  // List of discovered apps
   }
   // Data sources that will be used
   dataSources?: string[]
@@ -238,6 +241,7 @@ export async function POST(req: Request) {
         included: true,
         estimatedPosts: gplayData.estimatedPosts,
         samplePosts: gplayData.samplePosts,
+        apps: gplayData.apps,
       }
       dataSources.push('Google Play')
     }
@@ -247,6 +251,7 @@ export async function POST(req: Request) {
         included: true,
         estimatedPosts: appStoreData.estimatedPosts,
         samplePosts: appStoreData.samplePosts,
+        apps: appStoreData.apps,
       }
       dataSources.push('App Store')
     }
