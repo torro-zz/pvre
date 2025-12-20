@@ -16,6 +16,8 @@ import {
   RedditPost,
   RedditComment,
   SamplePost,
+  AppDetails,
+  PostStats,
 } from './types'
 import { RedditAdapter, redditAdapter } from './adapters/reddit-adapter'
 import { HackerNewsAdapter, hackerNewsAdapter } from './adapters/hacker-news-adapter'
@@ -23,6 +25,169 @@ import { googlePlayAdapter } from './adapters/google-play-adapter'
 import { appStoreAdapter } from './adapters/app-store-adapter'
 import { PullPushSource } from './pullpush'
 import { getCachedData, setCachedData, generateCacheKey } from './cache'
+import Anthropic from '@anthropic-ai/sdk'
+
+// =============================================================================
+// APP RELEVANCE SCORING
+// =============================================================================
+
+/**
+ * Scored app with relevance information
+ */
+export interface ScoredApp extends AppDetails {
+  relevanceScore: number      // 0-10 scale
+  relevanceReason: string     // Human-readable explanation
+}
+
+/**
+ * App discovery metadata from hypothesis interpretation
+ */
+export interface AppDiscoveryContext {
+  hypothesis: string
+  audience?: string
+  problem?: string
+  domainKeywords?: string[]
+  expectedCategories?: string[]
+  antiCategories?: string[]
+  competitorApps?: string[]
+}
+
+const anthropic = new Anthropic()
+
+/**
+ * Score apps for relevance to a hypothesis using Claude Haiku
+ * This is the core intelligence that filters out irrelevant apps
+ */
+export async function scoreAppRelevance(
+  apps: AppDetails[],
+  context: AppDiscoveryContext
+): Promise<ScoredApp[]> {
+  if (apps.length === 0) return []
+
+  // Stage 1: Category gate (free, fast) - filter out obvious mismatches
+  const categoryFilteredApps = apps.filter(app => {
+    // If we have antiCategories, filter them out
+    if (context.antiCategories && context.antiCategories.length > 0) {
+      const appCategory = app.category.toLowerCase()
+      const isAntiCategory = context.antiCategories.some(
+        anti => appCategory.includes(anti.toLowerCase())
+      )
+      if (isAntiCategory) {
+        console.log(`[AppRelevance] Category gate filtered: ${app.name} (${app.category})`)
+        return false
+      }
+    }
+    return true
+  })
+
+  if (categoryFilteredApps.length === 0) {
+    console.log('[AppRelevance] All apps filtered by category gate')
+    return []
+  }
+
+  // Stage 2: LLM relevance scoring (Claude Haiku)
+  const appsForScoring = categoryFilteredApps.slice(0, 15) // Limit to 15 for cost efficiency
+
+  const appDescriptions = appsForScoring.map((app, i) => `
+APP ${i + 1}:
+- Name: ${app.name}
+- Developer: ${app.developer}
+- Category: ${app.category}
+- Rating: ${app.rating.toFixed(1)} stars (${app.reviewCount.toLocaleString()} reviews)
+- Price: ${app.price}${app.hasIAP ? ' + In-App Purchases' : ''}
+- Description: ${app.description.slice(0, 300)}${app.description.length > 300 ? '...' : ''}
+`).join('\n')
+
+  const prompt = `You are evaluating mobile apps for relevance to a business hypothesis.
+
+HYPOTHESIS: "${context.hypothesis}"
+${context.audience ? `TARGET AUDIENCE: ${context.audience}` : ''}
+${context.problem ? `PROBLEM BEING SOLVED: ${context.problem}` : ''}
+${context.domainKeywords?.length ? `KEY DOMAIN TERMS: ${context.domainKeywords.join(', ')}` : ''}
+${context.expectedCategories?.length ? `EXPECTED CATEGORIES: ${context.expectedCategories.join(', ')}` : ''}
+
+APPS TO EVALUATE:
+${appDescriptions}
+
+For each app, score its relevance (0-10) to the hypothesis:
+- 9-10: DIRECT MATCH - App serves this exact audience AND solves this exact problem
+- 7-8: STRONG MATCH - App serves similar audience OR solves related problem
+- 5-6: PARTIAL MATCH - Some overlap in audience or problem domain
+- 3-4: WEAK MATCH - Tangentially related, different primary purpose
+- 0-2: NO MATCH - Different audience, different problem, not relevant
+
+Be STRICT. Generic apps that happen to match keywords but serve different audiences should score 3 or below.
+Example: For "expat health insurance", a US-only job search app should score 1-2 even if it matches "job" keyword.
+
+Respond ONLY with a JSON array (no markdown, no explanation):
+[
+  {"appIndex": 1, "score": 8, "reason": "Brief explanation"},
+  {"appIndex": 2, "score": 3, "reason": "Brief explanation"}
+]`
+
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-3-5-haiku-latest',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const content = message.content[0]
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type from Claude')
+    }
+
+    // Parse JSON response
+    let scores: Array<{ appIndex: number; score: number; reason: string }>
+    try {
+      // Handle potential markdown code blocks
+      let jsonStr = content.text.trim()
+      const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
+      if (jsonMatch) {
+        jsonStr = jsonMatch[1].trim()
+      }
+      scores = JSON.parse(jsonStr)
+    } catch (parseError) {
+      console.error('[AppRelevance] Failed to parse scores:', content.text)
+      // Fallback: return apps without scores
+      return appsForScoring.map(app => ({
+        ...app,
+        relevanceScore: 5,
+        relevanceReason: 'Could not score - using default',
+      }))
+    }
+
+    // Map scores back to apps
+    const scoredApps: ScoredApp[] = appsForScoring.map((app, i) => {
+      const scoreData = scores.find(s => s.appIndex === i + 1)
+      return {
+        ...app,
+        relevanceScore: scoreData?.score ?? 5,
+        relevanceReason: scoreData?.reason ?? 'No score provided',
+      }
+    })
+
+    // Sort by relevance score (descending) and filter low scores
+    const filteredApps = scoredApps
+      .sort((a, b) => b.relevanceScore - a.relevanceScore)
+      .filter(app => app.relevanceScore >= 5) // Only keep score >= 5
+
+    console.log(`[AppRelevance] Scored ${appsForScoring.length} apps, ${filteredApps.length} passed threshold`)
+    filteredApps.forEach(app => {
+      console.log(`  - ${app.name}: ${app.relevanceScore}/10 (${app.relevanceReason})`)
+    })
+
+    return filteredApps
+  } catch (error) {
+    console.error('[AppRelevance] Scoring failed:', error)
+    // Fallback: return apps without filtering
+    return appsForScoring.map(app => ({
+      ...app,
+      relevanceScore: 5,
+      relevanceReason: 'Scoring unavailable',
+    }))
+  }
+}
 
 // Re-export the orchestrator and adapters
 export { orchestrator, shouldIncludeHN, shouldIncludeGooglePlay } from './orchestrator'
@@ -41,6 +206,7 @@ const legacySources: DataSource[] = [
     searchPosts: (params) => redditAdapter.searchPostsLegacy(params),
     searchComments: (params) => redditAdapter.searchCommentsLegacy(params),
     getPostCount: (subreddit, keywords) => redditAdapter.getPostCount(subreddit),
+    getPostStats: (subreddit, keywords) => redditAdapter.getPostStats(subreddit),
     getSamplePosts: (subreddit, limit, keywords) =>
       redditAdapter.getSamplePostsWithKeywords(subreddit, limit, keywords),
   },
@@ -189,6 +355,7 @@ export async function fetchRedditData(params: SearchParams): Promise<SearchResul
 
 /**
  * Check data coverage for a hypothesis (used by coverage-check endpoint)
+ * Now includes posting velocity for adaptive time-stratified fetching
  */
 export async function checkCoverage(
   subreddits: string[],
@@ -213,21 +380,23 @@ export async function checkCoverage(
     }
   }
 
-  // Check post count for each subreddit
+  // Check post count AND velocity for each subreddit
   for (const subreddit of subreddits) {
     try {
-      const count = await sourceUsed.getPostCount(subreddit, keywords)
+      const stats = await sourceUsed.getPostStats(subreddit, keywords)
       coverageResults.push({
         name: subreddit,
-        estimatedPosts: count,
-        relevanceScore: count >= 50 ? 'high' : count >= 20 ? 'medium' : 'low',
+        estimatedPosts: stats.count,
+        relevanceScore: stats.count >= 50 ? 'high' : stats.count >= 20 ? 'medium' : 'low',
+        postsPerDay: stats.postsPerDay, // NEW: velocity for adaptive fetching
       })
     } catch (error) {
-      console.warn(`Failed to get count for r/${subreddit}:`, error)
+      console.warn(`Failed to get stats for r/${subreddit}:`, error)
       coverageResults.push({
         name: subreddit,
         estimatedPosts: 0,
         relevanceScore: 'low',
+        postsPerDay: 1, // Default to medium activity
       })
     }
   }
@@ -503,54 +672,110 @@ export async function checkHNCoverage(hypothesis: string): Promise<{
 /**
  * Check Google Play coverage for a hypothesis
  * Returns app review data for mobile app validation
+ * Now with smart LLM-based relevance scoring
  */
-export async function checkGooglePlayCoverage(hypothesis: string): Promise<{
+export async function checkGooglePlayCoverage(
+  hypothesis: string,
+  appDiscoveryContext?: AppDiscoveryContext
+): Promise<{
   available: boolean
   estimatedPosts: number
   samplePosts: SamplePost[]
-  apps: import('./types').AppDetails[]
+  apps: ScoredApp[]
 }> {
   if (!(await googlePlayAdapter.healthCheck())) {
     return { available: false, estimatedPosts: 0, samplePosts: [], apps: [] }
   }
 
+  // Build search options from context
+  const searchOptions = appDiscoveryContext ? {
+    maxApps: 12,
+    domainKeywords: appDiscoveryContext.domainKeywords,
+    competitorApps: appDiscoveryContext.competitorApps,
+  } : { maxApps: 10 }
+
   const [appsResult, samples] = await Promise.all([
-    googlePlayAdapter.searchAppsWithDetails(hypothesis),
+    googlePlayAdapter.searchAppsWithDetails(hypothesis, searchOptions),
     googlePlayAdapter.getSamplePosts(hypothesis, 3),
   ])
 
+  // Score apps for relevance if we have context
+  let scoredApps: ScoredApp[]
+  if (appDiscoveryContext && appsResult.apps.length > 0) {
+    scoredApps = await scoreAppRelevance(appsResult.apps, appDiscoveryContext)
+    console.log(`[GooglePlay] Scored ${appsResult.apps.length} apps, ${scoredApps.length} passed relevance filter`)
+  } else {
+    // No context - return apps with default scores
+    scoredApps = appsResult.apps.map(app => ({
+      ...app,
+      relevanceScore: 5,
+      relevanceReason: 'No scoring context available',
+    }))
+  }
+
+  // Calculate total reviews from scored apps only
+  const totalReviews = scoredApps.reduce((sum, app) => sum + app.reviewCount, 0)
+
   return {
     available: true,
-    estimatedPosts: appsResult.totalReviews,
+    estimatedPosts: totalReviews,
     samplePosts: samples,
-    apps: appsResult.apps,
+    apps: scoredApps,
   }
 }
 
 /**
  * Check App Store coverage for a hypothesis
  * Returns iOS app review data for mobile app validation
+ * Now with smart LLM-based relevance scoring
  */
-export async function checkAppStoreCoverage(hypothesis: string): Promise<{
+export async function checkAppStoreCoverage(
+  hypothesis: string,
+  appDiscoveryContext?: AppDiscoveryContext
+): Promise<{
   available: boolean
   estimatedPosts: number
   samplePosts: SamplePost[]
-  apps: import('./types').AppDetails[]
+  apps: ScoredApp[]
 }> {
   if (!(await appStoreAdapter.healthCheck())) {
     return { available: false, estimatedPosts: 0, samplePosts: [], apps: [] }
   }
 
+  // Build search options from context
+  const searchOptions = appDiscoveryContext ? {
+    maxApps: 12,
+    domainKeywords: appDiscoveryContext.domainKeywords,
+    competitorApps: appDiscoveryContext.competitorApps,
+  } : { maxApps: 10 }
+
   const [appsResult, samples] = await Promise.all([
-    appStoreAdapter.searchAppsWithDetails(hypothesis),
+    appStoreAdapter.searchAppsWithDetails(hypothesis, searchOptions),
     appStoreAdapter.getSamplePosts(hypothesis, 3),
   ])
 
+  // Score apps for relevance if we have context
+  let scoredApps: ScoredApp[]
+  if (appDiscoveryContext && appsResult.apps.length > 0) {
+    scoredApps = await scoreAppRelevance(appsResult.apps, appDiscoveryContext)
+    console.log(`[AppStore] Scored ${appsResult.apps.length} apps, ${scoredApps.length} passed relevance filter`)
+  } else {
+    // No context - return apps with default scores
+    scoredApps = appsResult.apps.map(app => ({
+      ...app,
+      relevanceScore: 5,
+      relevanceReason: 'No scoring context available',
+    }))
+  }
+
+  // Calculate total reviews from scored apps only
+  const totalReviews = scoredApps.reduce((sum, app) => sum + app.reviewCount, 0)
+
   return {
     available: true,
-    estimatedPosts: appsResult.totalReviews,
+    estimatedPosts: totalReviews,
     samplePosts: samples,
-    apps: appsResult.apps,
+    apps: scoredApps,
   }
 }
 

@@ -11,6 +11,8 @@ import {
   shouldIncludeGooglePlay,
   checkGooglePlayCoverage,
   checkAppStoreCoverage,
+  AppDiscoveryContext,
+  ScoredApp,
 } from '@/lib/data-sources'
 import { AppDetails } from '@/lib/data-sources/types'
 import { extractSearchKeywords } from '@/lib/reddit/keyword-extractor'
@@ -27,6 +29,7 @@ export interface SubredditCoverage {
   name: string
   estimatedPosts: number
   relevanceScore: 'high' | 'medium' | 'low'
+  postsPerDay?: number  // Posting velocity for adaptive time-stratified fetching
 }
 
 export interface SamplePost {
@@ -64,14 +67,14 @@ export interface CoverageCheckResponse {
     included: boolean
     estimatedPosts: number
     samplePosts: SamplePost[]
-    apps: AppDetails[]  // List of discovered apps
+    apps: ScoredApp[]  // List of discovered apps with relevance scores
   }
   // App Store data (for mobile app hypotheses)
   appStore?: {
     included: boolean
     estimatedPosts: number
     samplePosts: SamplePost[]
-    apps: AppDetails[]  // List of discovered apps
+    apps: ScoredApp[]  // List of discovered apps with relevance scores
   }
   // Data sources that will be used
   dataSources?: string[]
@@ -201,6 +204,7 @@ export async function POST(req: Request) {
         name: cov.name,
         estimatedPosts: cov.estimatedPosts,
         relevanceScore: suggestion?.relevance || cov.relevanceScore || 'medium',
+        postsPerDay: cov.postsPerDay, // Pass through velocity for adaptive fetching
       }
     })
 
@@ -230,10 +234,28 @@ export async function POST(req: Request) {
     let googlePlayCoverage = null
     let appStoreCoverage = null
 
+    // Build app discovery context from structured hypothesis (if available)
+    // This enables smart LLM-based relevance scoring for apps
+    const appDiscoveryContext: AppDiscoveryContext | undefined = structuredHypothesis ? {
+      hypothesis,
+      audience: structuredHypothesis.audience,
+      problem: structuredHypothesis.problem,
+      // Extract domain keywords from the hypothesis interpretation
+      domainKeywords: keywords.slice(0, 5),
+      // These would come from interpret-hypothesis in the full flow
+      expectedCategories: undefined,
+      antiCategories: undefined,
+      competitorApps: undefined,
+    } : {
+      // Fallback: just pass hypothesis for basic scoring
+      hypothesis,
+      domainKeywords: keywords.slice(0, 5),
+    }
+
     // Fetch both app stores in parallel - always include if data is available
     const [gplayData, appStoreData] = await Promise.all([
-      checkGooglePlayCoverage(hypothesis),
-      checkAppStoreCoverage(hypothesis),
+      checkGooglePlayCoverage(hypothesis, appDiscoveryContext),
+      checkAppStoreCoverage(hypothesis, appDiscoveryContext),
     ])
 
     if (gplayData.available && gplayData.estimatedPosts > 0) {
@@ -303,12 +325,19 @@ export async function POST(req: Request) {
           )
 
           console.log(`[QualityPreview] Predicted relevance: ${qualityPreview.predictedRelevance}%, Warning: ${qualityPreview.qualityWarning}`)
+          console.log(`[QualityPreview] Sample relevant: ${qualityPreview.sampleRelevant?.length || 0}, filtered: ${qualityPreview.sampleFiltered?.length || 0}`)
+        } else {
+          console.log(`[QualityPreview] Skipped - only ${allSamplePosts.length} sample posts (need ≥10)`)
         }
+      } else {
+        console.log(`[QualityPreview] Skipped - no subreddits with posts`)
       }
     } catch (error) {
       console.warn('[QualityPreview] Failed to run quality sampling:', error)
       // Non-blocking - continue without quality preview
     }
+
+    console.log(`[CoverageCheck] qualityPreview is ${qualityPreview ? 'set' : 'undefined'}`)
 
     return NextResponse.json({
       subreddits: subredditCoverage,

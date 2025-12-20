@@ -11,12 +11,13 @@ import {
   SearchSubredditsParams,
   ArcticShiftResponse,
 } from './types'
+import { rateLimitedFetch } from './rate-limiter'
 
 const BASE_URL = 'https://arctic-shift.photon-reddit.com'
 const DEFAULT_LIMIT = 50
-const REQUEST_DELAY_MS = 500 // Delay between requests to be respectful
+const REQUEST_DELAY_MS = 300 // Delay between requests for legacy functions
 
-// Helper to add delay between requests
+// Helper to add delay between requests (only used for legacy functions)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 // Build query string from params
@@ -33,6 +34,7 @@ function buildQueryString(params: Record<string, string | number | boolean | und
 }
 
 // Generic fetch with error handling and retries
+// All requests go through the rate limiter to handle concurrent users
 async function fetchWithRetry<T>(
   url: string,
   retries = 3,
@@ -47,12 +49,15 @@ async function fetchWithRetry<T>(
         console.log('[ArcticShift] Request:', url)
       }
 
-      const response = await fetch(url, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'PVRE/1.0 (research tool)',
-        },
-      })
+      // Use rate limiter to prevent API overload from concurrent users
+      const response = await rateLimitedFetch(() =>
+        fetch(url, {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'PVRE/1.0 (research tool)',
+          },
+        })
+      )
 
       if (!response.ok) {
         // Get response body for better error diagnosis
@@ -135,6 +140,95 @@ export async function searchComments(params: SearchCommentsParams): Promise<Redd
 
   const response = await fetchWithRetry<ArcticShiftResponse<RedditComment>>(url)
   return response.data || []
+}
+
+/**
+ * Fetch posts with pagination support (for limits > 100)
+ * Makes multiple requests using timestamp-based pagination to get more posts
+ */
+export async function searchPostsPaginated(
+  params: SearchPostsParams,
+  targetCount: number
+): Promise<RedditPost[]> {
+  const allPosts: RedditPost[] = []
+  const seenIds = new Set<string>()
+  let lastTimestamp: number | undefined
+  const maxPages = Math.ceil(targetCount / 100)
+
+  for (let page = 0; page < maxPages && allPosts.length < targetCount; page++) {
+    const pageParams: SearchPostsParams = {
+      ...params,
+      limit: 100,
+      // For pagination: use before=lastTimestamp to get older posts
+      before: lastTimestamp ? String(lastTimestamp) : params.before,
+    }
+
+    const posts = await searchPosts(pageParams)
+
+    if (posts.length === 0) {
+      // No more posts available
+      break
+    }
+
+    // Deduplicate by ID (edge case: posts at exact same timestamp)
+    for (const post of posts) {
+      if (!seenIds.has(post.id) && allPosts.length < targetCount) {
+        seenIds.add(post.id)
+        allPosts.push(post)
+      }
+    }
+
+    // Get timestamp of oldest post for next page
+    // (sort=desc means newest first, so last post is oldest)
+    const oldestPost = posts[posts.length - 1]
+    lastTimestamp = oldestPost.created_utc
+    // Rate limiting handled by rateLimitedFetch - no manual delay needed
+  }
+
+  return allPosts
+}
+
+/**
+ * Fetch comments with pagination support (for limits > 100)
+ * Makes multiple requests using timestamp-based pagination to get more comments
+ */
+export async function searchCommentsPaginated(
+  params: SearchCommentsParams,
+  targetCount: number
+): Promise<RedditComment[]> {
+  const allComments: RedditComment[] = []
+  const seenIds = new Set<string>()
+  let lastTimestamp: number | undefined
+  const maxPages = Math.ceil(targetCount / 100)
+
+  for (let page = 0; page < maxPages && allComments.length < targetCount; page++) {
+    const pageParams: SearchCommentsParams = {
+      ...params,
+      limit: 100,
+      before: lastTimestamp ? String(lastTimestamp) : params.before,
+    }
+
+    const comments = await searchComments(pageParams)
+
+    if (comments.length === 0) {
+      break
+    }
+
+    // Deduplicate by ID
+    for (const comment of comments) {
+      if (!seenIds.has(comment.id) && allComments.length < targetCount) {
+        seenIds.add(comment.id)
+        allComments.push(comment)
+      }
+    }
+
+    // Get timestamp of oldest comment for next page
+    const oldestComment = comments[comments.length - 1]
+    lastTimestamp = oldestComment.created_utc
+    // Rate limiting handled by rateLimitedFetch - no manual delay needed
+  }
+
+  return allComments
 }
 
 /**

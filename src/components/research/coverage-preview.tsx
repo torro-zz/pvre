@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { StructuredHypothesis, TargetGeography, GeographyScope, detectGeographyFromAudience } from '@/types/research'
 import type { AppDetails } from '@/lib/data-sources/types'
+import type { ScoredApp } from '@/lib/data-sources'
 
 export interface SubredditCoverage {
   name: string
   estimatedPosts: number
   relevanceScore: 'high' | 'medium' | 'low'
+  postsPerDay?: number  // Posting velocity for adaptive time-stratified fetching
 }
 
 export interface SamplePost {
@@ -58,13 +60,13 @@ export interface CoverageData {
     included: boolean
     estimatedPosts: number
     samplePosts: SamplePost[]
-    apps?: AppDetails[]
+    apps?: ScoredApp[]  // Apps with relevance scores
   }
   appStore?: {
     included: boolean
     estimatedPosts: number
     samplePosts: SamplePost[]
-    apps?: AppDetails[]
+    apps?: ScoredApp[]  // Apps with relevance scores
   }
   // Selected apps for research
   selectedApps?: AppDetails[]
@@ -157,7 +159,7 @@ export function CoveragePreview({
   const [selectedAppStoreApps, setSelectedAppStoreApps] = useState<Set<string>>(new Set())
 
   // Sample size state (reviews/posts per source)
-  const [sampleSize, setSampleSize] = useState<number>(100) // Default 100, max 300 for now
+  const [sampleSize, setSampleSize] = useState<number>(150) // Default Quick (150), uses adaptive time windows
 
   // MSC presets
   const mscPresets = [
@@ -167,11 +169,12 @@ export function CoveragePreview({
     { value: 10000000, label: '$10M+', description: 'Venture-scale' },
   ]
 
-  // Sample size presets
+  // Sample size presets (posts/comments per subreddit)
+  // Adaptive time-stratified fetching ensures good coverage across time periods
   const sampleSizePresets = [
-    { value: 100, label: 'Quick', description: '~400 data points' },
-    { value: 200, label: 'Standard', description: '~800 data points' },
-    { value: 300, label: 'Deep', description: '~1,200 data points' },
+    { value: 150, label: 'Quick', description: '2+ months coverage' },
+    { value: 300, label: 'Standard', description: '6+ months coverage' },
+    { value: 450, label: 'Deep', description: 'Full year coverage' },
   ]
 
   // Fetch limits per source (based on selected sample size)
@@ -284,12 +287,12 @@ export function CoveragePreview({
       setSelectedSubreddits(new Set(names))
       setCustomSubreddits([])
 
-      // Auto-select all discovered apps by default
+      // Auto-select all discovered apps by default (only those that passed relevance filter)
       if (data.googlePlay?.apps) {
-        setSelectedGooglePlayApps(new Set(data.googlePlay.apps.map((a: AppDetails) => a.appId)))
+        setSelectedGooglePlayApps(new Set(data.googlePlay.apps.map((a: ScoredApp) => a.appId)))
       }
       if (data.appStore?.apps) {
-        setSelectedAppStoreApps(new Set(data.appStore.apps.map((a: AppDetails) => a.appId)))
+        setSelectedAppStoreApps(new Set(data.appStore.apps.map((a: ScoredApp) => a.appId)))
       }
 
       setChecked(true)
@@ -675,11 +678,16 @@ export function CoveragePreview({
             <div className="flex flex-wrap gap-2">
               {coverage.googlePlay.apps.map((app) => {
                 const isSelected = selectedGooglePlayApps.has(app.appId)
+                // Get relevance score badge color
+                const scoreColor = app.relevanceScore >= 8 ? 'text-emerald-500' :
+                                   app.relevanceScore >= 6 ? 'text-blue-500' :
+                                   app.relevanceScore >= 4 ? 'text-amber-500' : 'text-red-500'
                 return (
                   <button
                     key={app.appId}
                     type="button"
                     onClick={() => toggleGooglePlayApp(app.appId)}
+                    title={app.relevanceReason || 'Relevance score not available'}
                     className={cn(
                       'inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-all',
                       isSelected
@@ -697,8 +705,18 @@ export function CoveragePreview({
                     )}
                     <div className="text-left">
                       <div className="font-medium text-xs leading-tight truncate max-w-[120px]">{app.name}</div>
-                      <div className={cn('text-[10px] leading-tight', isSelected ? 'opacity-70' : 'opacity-50')}>
-                        ⭐{app.rating.toFixed(1)} · {app.reviewCount.toLocaleString()} reviews
+                      <div className={cn('text-[10px] leading-tight flex items-center gap-1', isSelected ? 'opacity-70' : 'opacity-50')}>
+                        <span>⭐{app.rating.toFixed(1)}</span>
+                        <span>·</span>
+                        <span>{app.reviewCount.toLocaleString()} reviews</span>
+                        {app.relevanceScore !== undefined && (
+                          <>
+                            <span>·</span>
+                            <span className={cn('font-medium', isSelected ? '' : scoreColor)}>
+                              {app.relevanceScore}/10
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -720,11 +738,16 @@ export function CoveragePreview({
             <div className="flex flex-wrap gap-2">
               {coverage.appStore.apps.map((app) => {
                 const isSelected = selectedAppStoreApps.has(app.appId)
+                // Get relevance score badge color
+                const scoreColor = app.relevanceScore >= 8 ? 'text-emerald-500' :
+                                   app.relevanceScore >= 6 ? 'text-blue-500' :
+                                   app.relevanceScore >= 4 ? 'text-amber-500' : 'text-red-500'
                 return (
                   <button
                     key={app.appId}
                     type="button"
                     onClick={() => toggleAppStoreApp(app.appId)}
+                    title={app.relevanceReason || 'Relevance score not available'}
                     className={cn(
                       'inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-all',
                       isSelected
@@ -742,8 +765,18 @@ export function CoveragePreview({
                     )}
                     <div className="text-left">
                       <div className="font-medium text-xs leading-tight truncate max-w-[120px]">{app.name}</div>
-                      <div className={cn('text-[10px] leading-tight', isSelected ? 'opacity-70' : 'opacity-50')}>
-                        ⭐{app.rating.toFixed(1)} · {app.reviewCount.toLocaleString()} reviews
+                      <div className={cn('text-[10px] leading-tight flex items-center gap-1', isSelected ? 'opacity-70' : 'opacity-50')}>
+                        <span>⭐{app.rating.toFixed(1)}</span>
+                        <span>·</span>
+                        <span>{app.reviewCount.toLocaleString()} reviews</span>
+                        {app.relevanceScore !== undefined && (
+                          <>
+                            <span>·</span>
+                            <span className={cn('font-medium', isSelected ? '' : scoreColor)}>
+                              {app.relevanceScore}/10
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </button>

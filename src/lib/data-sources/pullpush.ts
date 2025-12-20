@@ -7,6 +7,7 @@ import {
   RedditComment,
   SearchParams,
   SamplePost,
+  PostStats,
 } from './types'
 
 const PULLPUSH_BASE = 'https://api.pullpush.io/reddit'
@@ -222,6 +223,45 @@ export class PullPushSource implements DataSource {
       return response.metadata?.total_results || response.data?.length || 0
     } catch {
       return 0
+    }
+  }
+
+  /**
+   * Get post count AND posting velocity for adaptive time-stratified fetching
+   * Velocity is calculated from the timestamp spread of sample posts
+   */
+  async getPostStats(subreddit: string, keywords?: string[]): Promise<PostStats> {
+    try {
+      const queryParams = new URLSearchParams({
+        subreddit,
+        size: '100',
+        sort: 'created_utc',
+        sort_type: 'desc',
+      })
+
+      const url = `${PULLPUSH_BASE}/search/submission?${queryParams}`
+      const response = await fetchWithRetry<PullPushResponse<PullPushPost>>(url)
+
+      if (!response.data || response.data.length < 2) {
+        return { count: response.data?.length || 0, postsPerDay: 0.5 }
+      }
+
+      // Calculate posting velocity from timestamp spread
+      const timestamps = response.data.map(p => p.created_utc).sort((a, b) => b - a)
+      const newestTimestamp = timestamps[0]
+      const oldestTimestamp = timestamps[timestamps.length - 1]
+
+      // Calculate days spanned (minimum 1 day to avoid division issues)
+      const secondsSpanned = newestTimestamp - oldestTimestamp
+      const daysSpanned = Math.max(secondsSpanned / 86400, 1)
+
+      const postsPerDay = response.data.length / daysSpanned
+
+      console.log(`[PullPush] r/${subreddit}: ${response.data.length} posts over ${daysSpanned.toFixed(1)} days = ${postsPerDay.toFixed(1)} posts/day`)
+
+      return { count: response.data.length, postsPerDay }
+    } catch {
+      return { count: 0, postsPerDay: 1 } // Default to medium activity on error
     }
   }
 

@@ -326,6 +326,44 @@ export async function POST(request: NextRequest) {
           name: appData.name,
         })
       }
+
+    }
+
+    // Extract sample size and subreddit velocities from coverage data for adaptive fetching
+    // Default to Quick (150) if not specified
+    let sampleSizePerSource = 150
+    let subredditVelocities: Map<string, number> | undefined
+
+    if (jobId) {
+      const adminClient = createAdminClient()
+      const { data: jobData } = await adminClient
+        .from('research_jobs')
+        .select('*')
+        .eq('id', jobId)
+        .single()
+
+      const coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
+      if (coverageData) {
+        // Get sample size (user-selected depth: Quick=150, Standard=300, Deep=450)
+        if (coverageData.sampleSizePerSource) {
+          sampleSizePerSource = coverageData.sampleSizePerSource as number
+          console.log('Using sample size per source:', sampleSizePerSource)
+        }
+
+        // Build subreddit velocities map for adaptive time-stratified fetching
+        const subredditsWithVelocity = coverageData.subreddits as Array<{ name: string; postsPerDay?: number }> | undefined
+        if (subredditsWithVelocity) {
+          subredditVelocities = new Map<string, number>()
+          for (const sub of subredditsWithVelocity) {
+            if (sub.postsPerDay !== undefined) {
+              subredditVelocities.set(sub.name, sub.postsPerDay)
+            }
+          }
+          if (subredditVelocities.size > 0) {
+            console.log('Using subreddit velocities for adaptive fetching:', Object.fromEntries(subredditVelocities))
+          }
+        }
+      }
     }
 
     // Step 1: Extract hypothesis-specific keywords for better search precision
@@ -425,10 +463,10 @@ export async function POST(request: NextRequest) {
     const multiSourceData = await fetchMultiSourceData({
       subreddits: subredditsToSearch,
       keywords: searchKeywords,
-      limit: 100, // 100/subreddit × 10-12 subreddits = 1000-1200 posts max (API caps at 100/request)
-      timeRange: {
-        after: new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000), // Last 2 years
-      },
+      limit: sampleSizePerSource, // User-selected depth: Quick=150, Standard=300, Deep=450
+      // Note: timeRange is now handled by adaptive time windows based on subreddit velocity
+      // The arctic-shift adapter will use time-stratified fetching for good coverage
+      subredditVelocities, // Posting velocity per subreddit for adaptive time windows
     }, hypothesis, includesHN, includesGooglePlay, includesAppStore)
 
     let rawPosts = multiSourceData.posts

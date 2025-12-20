@@ -17,6 +17,7 @@ import {
   RedditComment,
   SearchParams,
   DataSource,
+  PostStats,
 } from '../types'
 import {
   searchPosts as arcticSearchPosts,
@@ -91,6 +92,42 @@ export class RedditAdapter implements DataSourceAdapter {
       return posts.length
     } catch {
       return 0
+    }
+  }
+
+  /**
+   * Get post count AND posting velocity for adaptive time-stratified fetching
+   * Velocity is calculated from the timestamp spread of sample posts
+   */
+  async getPostStats(subreddit: string): Promise<PostStats> {
+    try {
+      const posts = await arcticSearchPosts({
+        subreddit,
+        limit: 100,
+        sort: 'desc', // Newest first
+      })
+
+      if (posts.length < 2) {
+        return { count: posts.length, postsPerDay: 0.5 } // Very low activity default
+      }
+
+      // Calculate posting velocity from timestamp spread
+      const timestamps = posts.map(p => p.created_utc).sort((a, b) => b - a)
+      const newestTimestamp = timestamps[0]
+      const oldestTimestamp = timestamps[timestamps.length - 1]
+
+      // Calculate days spanned (minimum 1 day to avoid division issues)
+      const secondsSpanned = newestTimestamp - oldestTimestamp
+      const daysSpanned = Math.max(secondsSpanned / 86400, 1)
+
+      // Posts per day = count / days
+      const postsPerDay = posts.length / daysSpanned
+
+      console.log(`[RedditAdapter] r/${subreddit}: ${posts.length} posts over ${daysSpanned.toFixed(1)} days = ${postsPerDay.toFixed(1)} posts/day`)
+
+      return { count: posts.length, postsPerDay }
+    } catch {
+      return { count: 0, postsPerDay: 1 } // Default to medium activity on error
     }
   }
 

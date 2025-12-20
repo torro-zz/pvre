@@ -132,6 +132,9 @@ export interface SearchParams {
     after?: Date
     before?: Date
   }
+  // Posting velocity per subreddit (calculated during coverage check)
+  // Used for adaptive time-stratified sampling
+  subredditVelocities?: Map<string, number>  // subreddit -> posts per day
 }
 
 export interface SearchResult {
@@ -153,6 +156,7 @@ export interface SubredditCoverage {
   name: string
   estimatedPosts: number
   relevanceScore?: 'high' | 'medium' | 'low'
+  postsPerDay?: number  // Posting velocity (calculated from sample timestamps)
 }
 
 export interface CoverageResult {
@@ -171,12 +175,22 @@ export interface SamplePost {
   permalink: string
 }
 
+/**
+ * Post statistics with velocity (returned by getPostStats)
+ */
+export interface PostStats {
+  count: number
+  postsPerDay: number  // Calculated from sample timestamps
+}
+
 export interface DataSource {
   name: string
   isAvailable(): Promise<boolean>
   searchPosts(params: SearchParams): Promise<RedditPost[]>
   searchComments(params: SearchParams): Promise<RedditComment[]>
   getPostCount(subreddit: string, keywords?: string[]): Promise<number>
+  /** Get post count AND posting velocity for adaptive time-stratified fetching */
+  getPostStats(subreddit: string, keywords?: string[]): Promise<PostStats>
   getSamplePosts(subreddit: string, limit?: number, keywords?: string[]): Promise<SamplePost[]>
 }
 
