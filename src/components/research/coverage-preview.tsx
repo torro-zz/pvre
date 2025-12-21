@@ -166,6 +166,21 @@ export function CoveragePreview({
   // Sample size state (reviews/posts per source)
   const [sampleSize, setSampleSize] = useState<number>(150) // Default Quick (150), uses adaptive time windows
 
+  // Beta: Relevance check toggle (persisted in localStorage)
+  const [showRelevanceCheck, setShowRelevanceCheck] = useState<boolean>(true)
+
+  // Load and persist relevance check preference from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('pvre-show-relevance-check')
+    if (saved === 'false') {
+      setShowRelevanceCheck(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem('pvre-show-relevance-check', String(showRelevanceCheck))
+  }, [showRelevanceCheck])
+
   // MSC presets
   const mscPresets = [
     { value: 100000, label: '$100k', description: 'Lifestyle business' },
@@ -1056,87 +1071,64 @@ export function CoveragePreview({
         </div>
       </div>
 
-      {/* Inline Quality Preview - shows relevance BEFORE commit */}
+      {/* Beta: Relevance Check - Simple binary feedback with toggle */}
       {coverage?.qualityPreview && (
-        <div className={cn(
-          "p-4 rounded-xl border",
-          coverage.qualityPreview.qualityWarning === 'strong_warning' && "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800",
-          coverage.qualityPreview.qualityWarning === 'caution' && "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800",
-          coverage.qualityPreview.qualityWarning === 'none' && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
-        )}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {coverage.qualityPreview.qualityWarning === 'strong_warning' && (
-                <AlertTriangle className="w-5 h-5 text-red-500" />
-              )}
-              {coverage.qualityPreview.qualityWarning === 'caution' && (
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
-              )}
-              {coverage.qualityPreview.qualityWarning === 'none' && (
-                <CheckCircle className="w-5 h-5 text-emerald-500" />
-              )}
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Expected Relevance</span>
-                  <span className={cn(
-                    "text-lg font-bold",
-                    coverage.qualityPreview.qualityWarning === 'strong_warning' && "text-red-600 dark:text-red-400",
-                    coverage.qualityPreview.qualityWarning === 'caution' && "text-amber-600 dark:text-amber-400",
-                    coverage.qualityPreview.qualityWarning === 'none' && "text-emerald-600 dark:text-emerald-400"
-                  )}>
-                    {coverage.qualityPreview.predictedRelevance}%
-                  </span>
-                </div>
-                {/* Show WHERE the percentage comes from - makes it concrete */}
-                <p className="text-xs text-muted-foreground">
-                  Based on checking {coverage.qualityPreview.sampleSize || 37} sample posts: {' '}
-                  {Math.round((coverage.qualityPreview.predictedRelevance / 100) * (coverage.qualityPreview.sampleSize || 37))} matched your problem
-                </p>
-                <p className={cn(
-                  "text-xs mt-0.5",
-                  coverage.qualityPreview.qualityWarning === 'strong_warning' && "text-red-600 dark:text-red-400",
-                  coverage.qualityPreview.qualityWarning === 'caution' && "text-amber-600 dark:text-amber-400",
-                  coverage.qualityPreview.qualityWarning === 'none' && "text-emerald-600 dark:text-emerald-400"
-                )}>
-                  {coverage.qualityPreview.qualityWarning === 'strong_warning' && "Most posts discuss related topics but not your specific problem."}
-                  {coverage.qualityPreview.qualityWarning === 'caution' && "Some posts match. Research will filter for relevant discussions."}
-                  {coverage.qualityPreview.qualityWarning === 'none' && "Good match rate. Results should be useful."}
-                </p>
-              </div>
+        <div className="rounded-xl border border-border/60 overflow-hidden">
+          {/* Header with Beta badge and toggle */}
+          <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b border-border/40">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Relevance Check</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-600 dark:text-violet-400 font-medium uppercase tracking-wide">Beta</span>
             </div>
             <button
               type="button"
-              onClick={() => setShowQualityModal(true)}
-              className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+              onClick={() => setShowRelevanceCheck(!showRelevanceCheck)}
+              className="text-xs text-muted-foreground hover:text-foreground"
             >
-              See details
+              {showRelevanceCheck ? 'Hide' : 'Show'}
             </button>
           </div>
 
-          {/* Why is relevance low? - Educational explanation */}
-          {coverage.qualityPreview.qualityWarning !== 'none' && (
-            <div className="mt-3 pt-3 border-t border-current/10 space-y-2">
-              <div className="flex items-center gap-2">
-                <Info className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                <span className="text-xs font-medium text-muted-foreground">Why is relevance low?</span>
+          {/* Content - only shown when toggled on */}
+          {showRelevanceCheck && (
+            <div className={cn(
+              "p-4",
+              coverage.qualityPreview.qualityWarning === 'none'
+                ? "bg-emerald-50/50 dark:bg-emerald-950/20"
+                : "bg-amber-50/50 dark:bg-amber-950/20"
+            )}>
+              <div className="flex items-start gap-3">
+                {coverage.qualityPreview.qualityWarning === 'none' ? (
+                  <CheckCircle className="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                )}
+                <div className="space-y-1">
+                  {/* Simple binary message - no percentages */}
+                  <p className={cn(
+                    "text-sm font-medium",
+                    coverage.qualityPreview.qualityWarning === 'none'
+                      ? "text-emerald-700 dark:text-emerald-400"
+                      : "text-amber-700 dark:text-amber-400"
+                  )}>
+                    {coverage.qualityPreview.qualityWarning === 'none'
+                      ? "Good match — Your search aligns well with these communities"
+                      : "Broad search — AI will filter to find relevant discussions"
+                    }
+                  </p>
+                  {/* Clear explanation of how we know this */}
+                  <p className="text-xs text-muted-foreground">
+                    Tested {coverage.qualityPreview.sampleSize || 40} sample posts from selected communities
+                  </p>
+                  {/* Suggestion if available and not a good match */}
+                  {coverage.qualityPreview.suggestion && coverage.qualityPreview.qualityWarning !== 'none' && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <span className="font-medium">Tip:</span> {coverage.qualityPreview.suggestion}
+                    </p>
+                  )}
+                </div>
               </div>
-              <ul className={cn(
-                "text-xs space-y-1 ml-5",
-                coverage.qualityPreview.qualityWarning === 'strong_warning' && "text-red-600/80 dark:text-red-400/80",
-                coverage.qualityPreview.qualityWarning === 'caution' && "text-amber-600/80 dark:text-amber-400/80"
-              )}>
-                <li>• <strong>Too specific:</strong> Seasonal or time-bound terms (holidays, events) limit matches</li>
-                <li>• <strong>Narrow definition:</strong> Very specific problem phrasing misses related discussions</li>
-                <li>• <strong>Different language:</strong> People might describe this problem differently online</li>
-              </ul>
-            </div>
-          )}
-
-          {/* Suggestion if available */}
-          {coverage.qualityPreview.suggestion && coverage.qualityPreview.qualityWarning !== 'none' && (
-            <div className="flex items-start gap-2 mt-3 pt-3 border-t border-current/10">
-              <Sparkles className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-muted-foreground"><strong>Suggestion:</strong> {coverage.qualityPreview.suggestion}</p>
             </div>
           )}
         </div>
