@@ -43,8 +43,10 @@ const AUDIENCE_WORDS = [
   'parents', 'students', 'developers', 'designers', 'managers', 'workers', 'employees',
   'professionals', 'beginners', 'experts', 'teams', 'companies', 'startups', 'businesses',
   'men', 'women', 'adults', 'seniors', 'millennials', 'gen z', 'remote', 'solo',
+  // Expat/immigrant related
   'expat', 'expats', 'expatriate', 'expatriates', 'immigrant', 'immigrants',
-  'foreigner', 'foreigners', 'abroad', 'overseas', 'nomad', 'nomads', 'traveler', 'travelers'
+  'foreigner', 'foreigners', 'abroad', 'overseas', 'nomad', 'nomads', 'traveler', 'travelers',
+  'digital nomad', 'digital nomads', 'relocated', 'relocating', 'new country', 'living abroad'
 ]
 
 // Problem indicator words
@@ -150,6 +152,12 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   const [confirmNewPhrase, setConfirmNewPhrase] = useState('')
   const [showAddPhrase, setShowAddPhrase] = useState(false)
   const addPhraseInputRef = useRef<HTMLInputElement>(null)
+
+  // Inline editing state for audience/problem on confirm screen
+  const [editingAudience, setEditingAudience] = useState(false)
+  const [editingProblem, setEditingProblem] = useState(false)
+  const [tempAudience, setTempAudience] = useState('')
+  const [tempProblem, setTempProblem] = useState('')
 
   // Coverage preview state
   const [showPreview, setShowPreview] = useState(false)
@@ -334,10 +342,11 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
     setStep('adjust')
     setShowPreview(false)
     setUserEditedPhrases(false) // Reset - user hasn't edited phrases yet in this session
+    setUserAddedPhrases([]) // Clear user-added tracking for fresh session
   }
 
-  // Apply a refinement suggestion and proceed to search
-  const applyRefinement = (suggestion: RefinementSuggestion) => {
+  // Apply a refinement suggestion and regenerate search phrases
+  const applyRefinement = async (suggestion: RefinementSuggestion) => {
     if (!interpretation) return
 
     let newAudience = interpretation.audience
@@ -352,18 +361,53 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
       newProblem = suggestion.suggestion
     }
 
-    // Update interpretation
+    // Regenerate search phrases for the new hypothesis
+    setIsRegenerating(true)
+    try {
+      const response = await fetch('/api/research/interpret-hypothesis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawInput: `${newAudience} who ${newProblem}`
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.mode === 'hypothesis' && data.interpretation?.searchPhrases) {
+          // Update with fresh phrases
+          setInterpretation({
+            ...interpretation,
+            audience: newAudience,
+            problem: newProblem,
+            searchPhrases: data.interpretation.searchPhrases,
+          })
+          setAdjustedAudience(newAudience)
+          setAdjustedProblem(newProblem)
+          setAdjustedPhrases([...data.interpretation.searchPhrases])
+
+          // Proceed to coverage check
+          if (showCoveragePreview) {
+            setShowPreview(true)
+          }
+          return
+        }
+      }
+    } catch (err) {
+      console.error('Failed to regenerate phrases for refinement:', err)
+    } finally {
+      setIsRegenerating(false)
+    }
+
+    // Fallback: update without regenerating phrases
     setInterpretation({
       ...interpretation,
       audience: newAudience,
       problem: newProblem,
     })
-
-    // Update adjusted fields to stay in sync
     setAdjustedAudience(newAudience)
     setAdjustedProblem(newProblem)
 
-    // Automatically proceed to coverage check
     if (showCoveragePreview) {
       setShowPreview(true)
     }
@@ -371,10 +415,12 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
   // Step 3: Add a search phrase
   const addPhrase = () => {
-    if (newPhrase.trim() && !adjustedPhrases.includes(newPhrase.trim())) {
-      setAdjustedPhrases([...adjustedPhrases, newPhrase.trim()])
+    const trimmed = newPhrase.trim()
+    if (trimmed && !adjustedPhrases.includes(trimmed)) {
+      setAdjustedPhrases([...adjustedPhrases, trimmed])
+      setUserAddedPhrases([...userAddedPhrases, trimmed]) // Track user additions
       setNewPhrase('')
-      setUserEditedPhrases(true) // User manually edited phrases
+      setUserEditedPhrases(true)
     }
   }
 
@@ -413,11 +459,100 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
     }
   }
 
-  // Track if user manually edited phrases in adjust mode
+  // Start inline editing for audience
+  const startEditingAudience = () => {
+    if (interpretation) {
+      setTempAudience(interpretation.audience)
+      setEditingAudience(true)
+    }
+  }
+
+  // Start inline editing for problem
+  const startEditingProblem = () => {
+    if (interpretation) {
+      setTempProblem(interpretation.problem)
+      setEditingProblem(true)
+    }
+  }
+
+  // Save inline audience edit and regenerate phrases
+  const saveAudienceEdit = async () => {
+    if (!interpretation || !tempAudience.trim()) return
+
+    const changed = tempAudience.trim() !== interpretation.audience.trim()
+    setEditingAudience(false)
+
+    if (changed) {
+      setIsRegenerating(true)
+      try {
+        const response = await fetch('/api/research/interpret-hypothesis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rawInput: `${tempAudience.trim()} who ${interpretation.problem.trim()}`
+          }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.mode === 'hypothesis' && data.interpretation?.searchPhrases) {
+            setInterpretation({
+              ...interpretation,
+              audience: tempAudience.trim(),
+              searchPhrases: data.interpretation.searchPhrases,
+            })
+            setAdjustedAudience(tempAudience.trim())
+            setAdjustedPhrases(data.interpretation.searchPhrases)
+          }
+        }
+      } finally {
+        setIsRegenerating(false)
+      }
+    }
+  }
+
+  // Save inline problem edit and regenerate phrases
+  const saveProblemEdit = async () => {
+    if (!interpretation || !tempProblem.trim()) return
+
+    const changed = tempProblem.trim() !== interpretation.problem.trim()
+    setEditingProblem(false)
+
+    if (changed) {
+      setIsRegenerating(true)
+      try {
+        const response = await fetch('/api/research/interpret-hypothesis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rawInput: `${interpretation.audience.trim()} who ${tempProblem.trim()}`
+          }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.mode === 'hypothesis' && data.interpretation?.searchPhrases) {
+            setInterpretation({
+              ...interpretation,
+              problem: tempProblem.trim(),
+              searchPhrases: data.interpretation.searchPhrases,
+            })
+            setAdjustedProblem(tempProblem.trim())
+            setAdjustedPhrases(data.interpretation.searchPhrases)
+          }
+        }
+      } finally {
+        setIsRegenerating(false)
+      }
+    }
+  }
+
+  // Track user-added custom phrases (to preserve when regenerating)
+  const [userAddedPhrases, setUserAddedPhrases] = useState<string[]>([])
   const [userEditedPhrases, setUserEditedPhrases] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
 
-  // Step 3: Confirm adjustments - regenerate phrases if audience/problem changed
+  // Step 3: Confirm adjustments - ALWAYS regenerate phrases if audience/problem changed
   const handleConfirmAdjustments = async () => {
     if (!interpretation) return
 
@@ -425,8 +560,8 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
     const audienceChanged = adjustedAudience.trim() !== interpretation.audience.trim()
     const problemChanged = adjustedProblem.trim() !== interpretation.problem.trim()
 
-    // If user changed audience/problem (not just phrases), regenerate search phrases
-    if ((audienceChanged || problemChanged) && !userEditedPhrases) {
+    // ALWAYS regenerate when audience/problem changes - old phrases become stale
+    if (audienceChanged || problemChanged) {
       setIsRegenerating(true)
       try {
         const response = await fetch('/api/research/interpret-hypothesis', {
@@ -440,13 +575,21 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
         if (response.ok) {
           const data = await response.json()
           if (data.mode === 'hypothesis' && data.interpretation?.searchPhrases) {
-            // Use fresh phrases from the new interpretation
-            setAdjustedPhrases([...data.interpretation.searchPhrases])
+            // Merge regenerated phrases with user-added custom phrases
+            const newPhrases = [...data.interpretation.searchPhrases]
+            // Add back any user-added phrases that aren't already in the new list
+            for (const userPhrase of userAddedPhrases) {
+              if (!newPhrases.some(p => p.toLowerCase() === userPhrase.toLowerCase())) {
+                newPhrases.push(userPhrase)
+              }
+            }
+
+            setAdjustedPhrases(newPhrases)
             setInterpretation({
               ...interpretation,
               audience: adjustedAudience,
               problem: adjustedProblem,
-              searchPhrases: data.interpretation.searchPhrases,
+              searchPhrases: newPhrases,
             })
             setStep('confirm')
             return
@@ -460,7 +603,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
       }
     }
 
-    // Either no changes, user edited phrases manually, or regeneration failed - use existing phrases
+    // No hypothesis changes - use existing phrases as-is
     setInterpretation({
       ...interpretation,
       audience: adjustedAudience,
@@ -802,29 +945,112 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
           {/* Main Content Card - Spacious and Premium */}
           <div className="rounded-2xl border border-border/60 bg-muted/30 p-6 sm:p-8 space-y-6">
-            {/* Audience Section */}
+            {/* Audience Section - Inline Editable */}
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Users className="h-3.5 w-3.5" />
-                Audience
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <Users className="h-3.5 w-3.5" />
+                  Audience
+                </div>
+                {!editingAudience && (
+                  <button
+                    type="button"
+                    onClick={startEditingAudience}
+                    disabled={isRegenerating}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                    Edit
+                  </button>
+                )}
               </div>
-              <p className="text-lg font-medium leading-relaxed text-foreground">
-                {interpretation.audience}
-              </p>
+              {editingAudience ? (
+                <div className="space-y-2">
+                  <Input
+                    value={tempAudience}
+                    onChange={(e) => setTempAudience(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        saveAudienceEdit()
+                      } else if (e.key === 'Escape') {
+                        setEditingAudience(false)
+                      }
+                    }}
+                    className="text-lg"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => setEditingAudience(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="button" size="sm" onClick={saveAudienceEdit} disabled={!tempAudience.trim()}>
+                      <Check className="h-3.5 w-3.5 mr-1" />
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-lg font-medium leading-relaxed text-foreground">
+                  {interpretation.audience}
+                </p>
+              )}
             </div>
 
             {/* Divider */}
             <div className="border-t border-border/40" />
 
-            {/* Problem Section */}
+            {/* Problem Section - Inline Editable */}
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Problem
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Problem
+                </div>
+                {!editingProblem && (
+                  <button
+                    type="button"
+                    onClick={startEditingProblem}
+                    disabled={isRegenerating}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                    Edit
+                  </button>
+                )}
               </div>
-              <p className="text-lg font-medium leading-relaxed text-foreground">
-                {interpretation.problem}
-              </p>
+              {editingProblem ? (
+                <div className="space-y-2">
+                  <Textarea
+                    value={tempProblem}
+                    onChange={(e) => setTempProblem(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        saveProblemEdit()
+                      } else if (e.key === 'Escape') {
+                        setEditingProblem(false)
+                      }
+                    }}
+                    rows={2}
+                    className="text-lg resize-none"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => setEditingProblem(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="button" size="sm" onClick={saveProblemEdit} disabled={!tempProblem.trim()}>
+                      <Check className="h-3.5 w-3.5 mr-1" />
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-lg font-medium leading-relaxed text-foreground">
+                  {interpretation.problem}
+                </p>
+              )}
             </div>
 
             {/* Divider */}
@@ -979,7 +1205,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
           )}
 
           {/* Action Buttons - Modern and Prominent */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Button
               variant="outline"
               onClick={handleBack}
@@ -990,21 +1216,12 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
               Back
             </Button>
             <Button
-              variant="outline"
-              onClick={handleAdjust}
-              size="lg"
-              className="h-12 rounded-xl"
-            >
-              <Edit2 className="mr-2 h-4 w-4" />
-              Adjust
-            </Button>
-            <Button
               onClick={handleConfirm}
-              disabled={isLoading}
+              disabled={isLoading || isRegenerating}
               size="lg"
               className="h-12 rounded-xl"
             >
-              {isLoading ? (
+              {isLoading || isRegenerating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>

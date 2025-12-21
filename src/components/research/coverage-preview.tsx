@@ -78,6 +78,8 @@ export interface CoverageData {
   appData?: AppDetails | null
   // Quality preview (pre-research relevance prediction)
   qualityPreview?: QualityPreviewData
+  // Sample posts used for quality preview (for caching during refinement)
+  qualitySamplePosts?: SamplePost[]
 }
 
 interface CoveragePreviewProps {
@@ -150,6 +152,9 @@ export function CoveragePreview({
 
   // Quality preview modal state
   const [showQualityModal, setShowQualityModal] = useState(false)
+
+  // Cached sample posts for consistent quality scoring during refinement
+  const [cachedQualitySamplePosts, setCachedQualitySamplePosts] = useState<SamplePost[] | null>(null)
 
   // Data sources state
   const [selectedDataSources, setSelectedDataSources] = useState<Set<string>>(new Set(['Reddit']))
@@ -268,6 +273,8 @@ export function CoveragePreview({
         body: JSON.stringify({
           hypothesis,
           structuredHypothesis, // Pass structured data for better extraction
+          // Pass cached sample posts for consistent quality scoring during refinement
+          cachedSamplePosts: cachedQualitySamplePosts || undefined,
         }),
       })
 
@@ -278,6 +285,13 @@ export function CoveragePreview({
 
       const data = await res.json()
       setCoverage(data)
+
+      // Cache sample posts for consistent quality scoring during refinement
+      // Only cache on first successful check (when we don't have cached posts yet)
+      if (!cachedQualitySamplePosts && data.qualitySamplePosts?.length > 0) {
+        setCachedQualitySamplePosts(data.qualitySamplePosts)
+      }
+
       // Only auto-select high and medium relevance subreddits
       // Low-relevance subreddits are shown but NOT pre-selected (user can opt-in)
       const highMediumSubs = data.subreddits?.filter(
@@ -1040,7 +1054,7 @@ export function CoveragePreview({
       {/* Inline Quality Preview - shows relevance BEFORE commit */}
       {coverage?.qualityPreview && (
         <div className={cn(
-          "p-3 rounded-xl border",
+          "p-4 rounded-xl border",
           coverage.qualityPreview.qualityWarning === 'strong_warning' && "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800",
           coverage.qualityPreview.qualityWarning === 'caution' && "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800",
           coverage.qualityPreview.qualityWarning === 'none' && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
@@ -1074,9 +1088,9 @@ export function CoveragePreview({
                   coverage.qualityPreview.qualityWarning === 'caution' && "text-amber-600 dark:text-amber-400",
                   coverage.qualityPreview.qualityWarning === 'none' && "text-emerald-600 dark:text-emerald-400"
                 )}>
-                  {coverage.qualityPreview.qualityWarning === 'strong_warning' && "Very few matching posts. Consider refining your search."}
-                  {coverage.qualityPreview.qualityWarning === 'caution' && "Moderate match rate. Research will focus on relevant discussions."}
-                  {coverage.qualityPreview.qualityWarning === 'none' && "Good relevance. Results should be useful."}
+                  {coverage.qualityPreview.qualityWarning === 'strong_warning' && "Most posts don't match your specific problem."}
+                  {coverage.qualityPreview.qualityWarning === 'caution' && "Some posts match. Research will filter for relevant discussions."}
+                  {coverage.qualityPreview.qualityWarning === 'none' && "Good match rate. Results should be useful."}
                 </p>
               </div>
             </div>
@@ -1088,11 +1102,31 @@ export function CoveragePreview({
               See details
             </button>
           </div>
+
+          {/* Why is relevance low? - Educational explanation */}
+          {coverage.qualityPreview.qualityWarning !== 'none' && (
+            <div className="mt-3 pt-3 border-t border-current/10 space-y-2">
+              <div className="flex items-center gap-2">
+                <Info className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="text-xs font-medium text-muted-foreground">Why is relevance low?</span>
+              </div>
+              <ul className={cn(
+                "text-xs space-y-1 ml-5",
+                coverage.qualityPreview.qualityWarning === 'strong_warning' && "text-red-600/80 dark:text-red-400/80",
+                coverage.qualityPreview.qualityWarning === 'caution' && "text-amber-600/80 dark:text-amber-400/80"
+              )}>
+                <li>• <strong>Too specific:</strong> Seasonal or time-bound terms (holidays, events) limit matches</li>
+                <li>• <strong>Narrow definition:</strong> Very specific problem phrasing misses related discussions</li>
+                <li>• <strong>Different language:</strong> People might describe this problem differently online</li>
+              </ul>
+            </div>
+          )}
+
           {/* Suggestion if available */}
           {coverage.qualityPreview.suggestion && coverage.qualityPreview.qualityWarning !== 'none' && (
-            <div className="flex items-start gap-2 mt-2 pt-2 border-t border-current/10">
+            <div className="flex items-start gap-2 mt-3 pt-3 border-t border-current/10">
               <Sparkles className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-muted-foreground">{coverage.qualityPreview.suggestion}</p>
+              <p className="text-xs text-muted-foreground"><strong>Suggestion:</strong> {coverage.qualityPreview.suggestion}</p>
             </div>
           )}
         </div>

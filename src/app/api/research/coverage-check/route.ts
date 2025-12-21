@@ -23,6 +23,7 @@ import { redditAdapter } from '@/lib/data-sources'
 export interface CoverageCheckRequest {
   hypothesis: string
   structuredHypothesis?: StructuredHypothesis // New: structured input
+  cachedSamplePosts?: SamplePost[] // Cached posts from previous check for consistent quality scoring
 }
 
 export interface SubredditCoverage {
@@ -80,6 +81,8 @@ export interface CoverageCheckResponse {
   dataSources?: string[]
   // Quality preview (pre-research relevance prediction)
   qualityPreview?: QualitySampleResult
+  // Sample posts used for quality preview (for caching during refinement)
+  qualitySamplePosts?: SamplePost[]
 }
 
 /**
@@ -137,7 +140,7 @@ export async function POST(req: Request) {
 
     // Parse request body
     const body = await req.json()
-    const { hypothesis, structuredHypothesis } = body as CoverageCheckRequest
+    const { hypothesis, structuredHypothesis, cachedSamplePosts } = body as CoverageCheckRequest
 
     // Validate based on input type
     if (structuredHypothesis) {
@@ -286,51 +289,58 @@ export async function POST(req: Request) {
 
     // Step 4: Quality sampling - fetch actual posts and run relevance prediction
     // This helps users understand expected quality BEFORE they pay
+    // Use cached posts if provided (for consistent scoring during refinement)
     let qualityPreview: QualitySampleResult | undefined
+    let allSamplePosts: SamplePost[] = []
 
     try {
-      // Fetch 40 sample posts from top subreddits for quality analysis
-      const topSubreddits = subredditCoverage
-        .filter(s => s.estimatedPosts > 0)
-        .slice(0, 4)  // Top 4 subreddits
-        .map(s => s.name)
-
-      if (topSubreddits.length > 0) {
-        // Fetch 10 posts from each subreddit (up to 40 total)
-        const samplePostPromises = topSubreddits.map(sub =>
-          redditAdapter.getSamplePostsWithKeywords(sub, 10, sampleKeywords)
-        )
-        const samplePostResults = await Promise.all(samplePostPromises)
-        const allSamplePosts = samplePostResults.flat()
-
-        if (allSamplePosts.length >= 10) {
-          // Convert SamplePost[] to RedditPost[] format for quality check
-          const postsForSampling = allSamplePosts.map(p => ({
-            id: p.permalink.split('/').slice(-2)[0] || Math.random().toString(),
-            title: p.title,
-            body: '', // Sample posts don't have body, but title is enough for domain gate
-            subreddit: p.subreddit,
-            author: '',
-            score: p.score,
-            createdUtc: Date.now() / 1000,
-            permalink: p.permalink,
-            url: p.permalink,
-            numComments: 0,
-          }))
-
-          qualityPreview = await sampleQualityCheck(
-            postsForSampling,
-            hypothesis,
-            structuredHypothesis
-          )
-
-          console.log(`[QualityPreview] Predicted relevance: ${qualityPreview.predictedRelevance}%, Warning: ${qualityPreview.qualityWarning}`)
-          console.log(`[QualityPreview] Sample relevant: ${qualityPreview.sampleRelevant?.length || 0}, filtered: ${qualityPreview.sampleFiltered?.length || 0}`)
-        } else {
-          console.log(`[QualityPreview] Skipped - only ${allSamplePosts.length} sample posts (need ≥10)`)
-        }
+      // Check if we have cached posts from a previous check
+      if (cachedSamplePosts && cachedSamplePosts.length >= 10) {
+        console.log(`[QualityPreview] Using ${cachedSamplePosts.length} cached posts for consistent scoring`)
+        allSamplePosts = cachedSamplePosts
       } else {
-        console.log(`[QualityPreview] Skipped - no subreddits with posts`)
+        // Fetch 40 sample posts from top subreddits for quality analysis
+        const topSubreddits = subredditCoverage
+          .filter(s => s.estimatedPosts > 0)
+          .slice(0, 4)  // Top 4 subreddits
+          .map(s => s.name)
+
+        if (topSubreddits.length > 0) {
+          // Fetch 10 posts from each subreddit (up to 40 total)
+          const samplePostPromises = topSubreddits.map(sub =>
+            redditAdapter.getSamplePostsWithKeywords(sub, 10, sampleKeywords)
+          )
+          const samplePostResults = await Promise.all(samplePostPromises)
+          allSamplePosts = samplePostResults.flat()
+          console.log(`[QualityPreview] Fetched ${allSamplePosts.length} fresh sample posts`)
+        }
+      }
+
+      if (allSamplePosts.length >= 10) {
+        // Convert SamplePost[] to RedditPost[] format for quality check
+        const postsForSampling = allSamplePosts.map(p => ({
+          id: p.permalink.split('/').slice(-2)[0] || Math.random().toString(),
+          title: p.title,
+          body: '', // Sample posts don't have body, but title is enough for domain gate
+          subreddit: p.subreddit,
+          author: '',
+          score: p.score,
+          createdUtc: Date.now() / 1000,
+          permalink: p.permalink,
+          url: p.permalink,
+          numComments: 0,
+        }))
+
+        qualityPreview = await sampleQualityCheck(
+          postsForSampling,
+          hypothesis,
+          structuredHypothesis
+        )
+
+        console.log(`[QualityPreview] Predicted relevance: ${qualityPreview.predictedRelevance}%, Warning: ${qualityPreview.qualityWarning}`)
+        console.log(`[QualityPreview] Sample relevant: ${qualityPreview.sampleRelevant?.length || 0}, filtered: ${qualityPreview.sampleFiltered?.length || 0}`)
+      } else {
+        console.log(`[QualityPreview] Skipped - only ${allSamplePosts.length} sample posts (need ≥10)`)
       }
     } catch (error) {
       console.warn('[QualityPreview] Failed to run quality sampling:', error)
@@ -360,6 +370,8 @@ export async function POST(req: Request) {
       dataSources,
       // Quality preview (pre-research relevance prediction)
       qualityPreview,
+      // Sample posts used for quality preview (for caching during refinement)
+      qualitySamplePosts: allSamplePosts.length > 0 ? allSamplePosts : undefined,
     } as CoverageCheckResponse)
   } catch (error) {
     console.error('Coverage check failed:', error)
