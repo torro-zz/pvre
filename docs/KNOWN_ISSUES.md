@@ -66,7 +66,7 @@ The current credit model (1 credit = 1 research) may need rethinking:
 |---|-------|----------|--------|
 | 1 | "Specify who" hint despite "expats" in input | P2 | ✅ Fixed - Added expat keywords |
 | 2 | Adding subreddit doesn't update post count | P2 | ✅ Already worked (reactive) |
-| 3 | Analysis Depth has no visible effect | P2 | ✅ Already worked (shows description) |
+| 3 | Analysis Depth has no visible effect | P2 | ✅ Fixed - Pill counts now update with depth |
 | 4 | Data source hierarchy confusing | P2 | ✅ Already grouped by type |
 | 5 | No toggle to disable all app stores | P2 | ✅ Already existed |
 | 6 | Hacker News not visible | P2 | ✅ Working (tech only by design) |
@@ -104,7 +104,9 @@ The current credit model (1 credit = 1 research) may need rethinking:
 - ✅ **[P1] Consistent Relevance During Refinement** — Fixed relevance % fluctuating due to random sample variance. Coverage-check API now caches sample posts and reuses them for subsequent checks during the same session. Ensures consistent quality scoring.
 - ✅ **[P2] Expat Keywords** — Added expat/immigrant/foreigner/abroad keywords to AUDIENCE_WORDS array in conversational-input.tsx. Users specifying these terms no longer see "specify who" hint.
 - ✅ **[P2] Single vs Dual Input Confusion** — Replaced jarring "Adjust" screen transition with inline editing. Users can now click "Edit" next to Audience or Problem on the confirm screen to edit inline. Removed separate adjust step entirely. Phrases are automatically regenerated after inline edits.
-- ✅ **[P2] Community/Depth/Sources Already Working** — Verified post count is reactive to community selection, analysis depth shows descriptions, data sources are grouped by type, app store toggle exists, and HN appears for tech hypotheses.
+- ✅ **[P2] Analysis Depth Pill Counts** — Fixed community pills always showing "100" regardless of Quick/Standard/Deep selection. Root cause: API only fetches 100 posts for stats, so `estimatedPosts` maxes at 100. Fix: If `estimatedPosts >= 100`, display `sampleSize` (150/300/450) since more posts exist. Verified: Quick shows 150, Standard shows 300, Deep shows 450 per community.
+- ✅ **[P2] Coverage Check Caching** — Added two-tier caching (in-memory 30min + Supabase 90 day) for coverage check API calls. Prevents redundant searches when refining hypotheses or revisiting coverage preview.
+- ✅ **[P2] Community/Depth/Sources Already Working** — Verified post count is reactive to community selection, data sources are grouped by type, app store toggle exists, and HN appears for tech hypotheses.
 
 ### December 18, 2025
 - ✅ **[P0] App IAP Display** — Fixed apps showing "Free" when they have In-App Purchases. App Store adapter now detects IAP from description keywords (subscription, premium, unlock, etc.) since API doesn't provide `offersIAP` field. Display shows "Free + IAP" instead of just "Free".

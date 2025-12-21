@@ -545,7 +545,8 @@ export function CoveragePreview({
             let redditCount = 0
             for (const sub of coverage.subreddits) {
               if (selectedSubreddits.has(sub.name)) {
-                redditCount += Math.min(sub.estimatedPosts, sampleSize)
+                // If subreddit has fewer posts than API limit (100), use actual count. Otherwise use sampleSize.
+                redditCount += sub.estimatedPosts < 100 ? sub.estimatedPosts : sampleSize
               }
             }
             // Add estimated count for custom subreddits (assume sampleSize per custom sub)
@@ -597,7 +598,10 @@ export function CoveragePreview({
                   )}
                 >
                   <span className="font-mono text-xs">r/{sub.name}</span>
-                  <span className={cn('text-xs', isSelected ? 'opacity-80' : 'opacity-50')}>{Math.min(sub.estimatedPosts, sampleSize)}</span>
+                  <span className={cn('text-xs', isSelected ? 'opacity-80' : 'opacity-50')}>
+                    {/* If subreddit has fewer posts than API limit (100), show actual count. Otherwise show sampleSize (what we'll fetch) */}
+                    {sub.estimatedPosts < 100 ? sub.estimatedPosts : sampleSize}
+                  </span>
                 </button>
               )
             })}
@@ -673,7 +677,8 @@ export function CoveragePreview({
                 for (const sub of coverage.subreddits) {
                   if (selectedSubreddits.has(sub.name)) {
                     totalAvailable += sub.estimatedPosts
-                    toAnalyze += Math.min(sub.estimatedPosts, sampleSize)
+                    // If subreddit has fewer posts than API limit (100), use actual count. Otherwise use sampleSize.
+                    toAnalyze += sub.estimatedPosts < 100 ? sub.estimatedPosts : sampleSize
                   }
                 }
                 // Add custom subreddits (estimate sampleSize each)
