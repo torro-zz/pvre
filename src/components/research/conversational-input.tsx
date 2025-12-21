@@ -42,7 +42,9 @@ const AUDIENCE_WORDS = [
   'who', 'people', 'users', 'customers', 'founders', 'entrepreneurs', 'freelancers',
   'parents', 'students', 'developers', 'designers', 'managers', 'workers', 'employees',
   'professionals', 'beginners', 'experts', 'teams', 'companies', 'startups', 'businesses',
-  'men', 'women', 'adults', 'seniors', 'millennials', 'gen z', 'remote', 'solo'
+  'men', 'women', 'adults', 'seniors', 'millennials', 'gen z', 'remote', 'solo',
+  'expat', 'expats', 'expatriate', 'expatriates', 'immigrant', 'immigrants',
+  'foreigner', 'foreigners', 'abroad', 'overseas', 'nomad', 'nomads', 'traveler', 'travelers'
 ]
 
 // Problem indicator words
@@ -329,6 +331,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   const handleAdjust = () => {
     setStep('adjust')
     setShowPreview(false)
+    setUserEditedPhrases(false) // Reset - user hasn't edited phrases yet in this session
   }
 
   // Apply a refinement suggestion and proceed to search
@@ -369,12 +372,14 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
     if (newPhrase.trim() && !adjustedPhrases.includes(newPhrase.trim())) {
       setAdjustedPhrases([...adjustedPhrases, newPhrase.trim()])
       setNewPhrase('')
+      setUserEditedPhrases(true) // User manually edited phrases
     }
   }
 
   // Step 3: Remove a search phrase
   const removePhrase = (phrase: string) => {
     setAdjustedPhrases(adjustedPhrases.filter(p => p !== phrase))
+    setUserEditedPhrases(true) // User manually edited phrases
   }
 
   // Confirm step: Remove a phrase directly from interpretation
@@ -406,17 +411,60 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
     }
   }
 
-  // Step 3: Confirm adjustments
-  const handleConfirmAdjustments = () => {
-    // Update interpretation with adjusted values
-    if (interpretation) {
-      setInterpretation({
-        ...interpretation,
-        audience: adjustedAudience,
-        problem: adjustedProblem,
-        searchPhrases: adjustedPhrases,
-      })
+  // Track if user manually edited phrases in adjust mode
+  const [userEditedPhrases, setUserEditedPhrases] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
+
+  // Step 3: Confirm adjustments - regenerate phrases if audience/problem changed
+  const handleConfirmAdjustments = async () => {
+    if (!interpretation) return
+
+    // Check if audience or problem changed from original interpretation
+    const audienceChanged = adjustedAudience.trim() !== interpretation.audience.trim()
+    const problemChanged = adjustedProblem.trim() !== interpretation.problem.trim()
+
+    // If user changed audience/problem (not just phrases), regenerate search phrases
+    if ((audienceChanged || problemChanged) && !userEditedPhrases) {
+      setIsRegenerating(true)
+      try {
+        const response = await fetch('/api/research/interpret-hypothesis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rawInput: `${adjustedAudience.trim()} who ${adjustedProblem.trim()}`
+          }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.mode === 'hypothesis' && data.interpretation?.searchPhrases) {
+            // Use fresh phrases from the new interpretation
+            setAdjustedPhrases([...data.interpretation.searchPhrases])
+            setInterpretation({
+              ...interpretation,
+              audience: adjustedAudience,
+              problem: adjustedProblem,
+              searchPhrases: data.interpretation.searchPhrases,
+            })
+            setStep('confirm')
+            return
+          }
+        }
+      } catch (err) {
+        console.error('Failed to regenerate phrases:', err)
+        // Fall through to use existing phrases
+      } finally {
+        setIsRegenerating(false)
+      }
     }
+
+    // Either no changes, user edited phrases manually, or regeneration failed - use existing phrases
+    setInterpretation({
+      ...interpretation,
+      audience: adjustedAudience,
+      problem: adjustedProblem,
+      searchPhrases: adjustedPhrases,
+    })
     setStep('confirm')
   }
 
@@ -1024,13 +1072,22 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
             {/* Action buttons */}
             <div className="flex gap-2 pt-2">
-              <Button variant="outline" onClick={() => setStep('confirm')} className="flex-1">
+              <Button variant="outline" onClick={() => setStep('confirm')} disabled={isRegenerating} className="flex-1">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
               </Button>
-              <Button onClick={handleConfirmAdjustments} disabled={!isAdjustValid || isLoading} className="flex-1">
-                <Check className="mr-2 h-4 w-4" />
-                Continue with Changes
+              <Button onClick={handleConfirmAdjustments} disabled={!isAdjustValid || isLoading || isRegenerating} className="flex-1">
+                {isRegenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating phrases...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Continue with Changes
+                  </>
+                )}
               </Button>
             </div>
           </div>

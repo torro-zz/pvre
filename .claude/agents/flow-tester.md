@@ -230,5 +230,198 @@ echo "
 - [ ] Console activity captured
 - [ ] Data inputs/outputs recorded
 - [ ] Clear pass/fail per step
+- [ ] UX moments captured with friction scores
+- [ ] Narrative report synthesizes user experience
+- [ ] Comparison with known issues from agent-learnings.md
 - [ ] Learnings recorded if issues found
 - [ ] A human can understand exactly what happened
+
+---
+
+## UX Moment Documentation (NEW)
+
+In addition to technical step documentation, capture the **USER EXPERIENCE** at friction points.
+
+### UX Moment Template
+
+When you observe something that might confuse or frustrate a user:
+
+```markdown
+#### UX Moment [N]: [What User Would Do]
+**Expectation:** What the user expected to happen
+**Reality:** What actually happened
+**Cognitive State:** confused | satisfied | frustrated | uncertain | tired
+**Friction Score:** 0 (none) to 5 (severe)
+
+**User's Internal Monologue:**
+"[Write what the user is probably thinking at this moment - in their voice]"
+
+**Screenshot:** [filename]
+```
+
+### Example UX Moments
+
+```markdown
+#### UX Moment 1: Adding a subreddit
+**Expectation:** Post count should increase when adding r/socialskills
+**Reality:** Post count remained at ~692 - no visible change
+**Cognitive State:** confused
+**Friction Score:** 3
+
+**User's Internal Monologue:**
+"I clicked to add socialskills but nothing changed. Did my click register? Is it already included? This is weird."
+
+---
+
+#### UX Moment 2: Seeing 8% relevance after committing
+**Expectation:** Would have seen this warning BEFORE clicking Start Research
+**Reality:** Warning appeared AFTER I clicked Start Research
+**Cognitive State:** frustrated
+**Friction Score:** 4
+
+**User's Internal Monologue:**
+"Why am I only seeing this now? I already committed! Should I go back? This feels like wasted effort."
+```
+
+---
+
+## Narrative Report Section (NEW)
+
+At the END of your technical step documentation, synthesize findings into a **user-perspective narrative**.
+
+### Narrative Template
+
+```markdown
+## User Experience Narrative
+
+[Write 3-5 paragraphs describing the flow FROM THE USER'S PERSPECTIVE. Include what they did, what they saw, what confused them, and their emotional journey.]
+
+### Example Narrative:
+
+"The research started smoothly - I entered my hypothesis about expats feeling socially isolated during the holidays, and the AI interpretation was spot-on. It correctly identified my audience and problem.
+
+However, when I reached the Configure Research screen, things got confusing. I tried adding r/socialskills but the post count stayed at 692. I selected 'Deep' analysis hoping for more data, but couldn't tell if it did anything. The interface felt unresponsive.
+
+The real frustration came when I clicked Start Research. A modal appeared telling me only 8% of posts would be relevant. Why didn't this show BEFORE I committed? I felt like I was being warned too late.
+
+I went back to refine my hypothesis, removing the seasonal terms as suggested. But after going through the whole flow again, the relevance dropped to 6%. How did broadening my search make things WORSE? By this point I was tired and just clicked through to see what would happen.
+
+Overall: The AI interpretation is great, but the configure/quality flow has too many friction points. I didn't trust what I was seeing."
+```
+
+---
+
+## Comparative Quality Checks (NEW)
+
+Before and after testing, compare findings against known patterns.
+
+### Pre-Test Checklist (from agent-learnings.md)
+
+Check these known issues during testing:
+
+- [ ] **64% irrelevance issue** — Are pain signals actually relevant to hypothesis?
+- [ ] **WTP score inflation** — Is WTP score justified by actual purchase signals?
+- [ ] **App-centric WTP bias** — Are WTP signals from app store reviews (satisfied customers) rather than Reddit (unserved market)?
+- [ ] **Arctic Shift timeout** — Any 422 errors or hanging requests?
+- [ ] **Quality preview using stale data** — Does refinement actually improve relevance?
+
+### Post-Test Comparison Table
+
+```markdown
+| Known Issue | Observed? | Notes |
+|-------------|-----------|-------|
+| 64% irrelevance | YES/NO | [What % of signals were relevant?] |
+| WTP inflation | YES/NO | [Was WTP score realistic?] |
+| App-centric bias | YES/NO | [What % of WTP from app stores?] |
+| Timeout patterns | YES/NO | [Any slow/failed requests?] |
+| Stale quality data | YES/NO | [Did refinement help or hurt?] |
+```
+
+---
+
+## Enhanced Output Format
+
+```markdown
+## Flow Test Report
+
+**Date:** [timestamp]
+**Duration:** [total time]
+**Scenario:** [Happy Path / Edge Cases / Error States]
+**Environment:** localhost:3000 ✅
+
+### Executive Summary
+[2-3 sentences: What was tested, overall outcome, most important finding]
+
+### Quantitative Results
+| Metric | Value |
+|--------|-------|
+| Steps executed | [N] |
+| Passed | [N] |
+| UX friction moments | [N] |
+| Highest friction | [score/5] at [which step] |
+
+**Result:** ✅ PASS / ⚠️ PASS WITH FRICTION / ❌ FAIL
+
+---
+
+### Pre-Flight
+[Environment checks]
+
+---
+
+### Detailed Steps
+[Step-by-step technical documentation]
+
+---
+
+### UX Moments Captured
+[Table of all friction points with scores]
+
+| # | Step | Friction Score | User Feeling |
+|---|------|----------------|--------------|
+| 1 | [step] | [0-5] | [cognitive state] |
+
+---
+
+### User Experience Narrative
+[3-5 paragraph synthesis from user perspective]
+
+---
+
+### Comparison with Known Issues
+[Table comparing against agent-learnings.md patterns]
+
+---
+
+### API Traffic
+[Table of all API calls]
+
+---
+
+### Console Log
+[Table of console activity]
+
+---
+
+### Recommendations (Prioritized)
+1. **[Highest impact fix]** — [why it matters]
+2. **[Second priority]** — [why it matters]
+3. **[Third priority]** — [why it matters]
+
+---
+
+### Learnings Recorded
+[X] Added to docs/agent-learnings.md
+```
+
+---
+
+## Example: Testing Search Flow
+
+When testing the research input → coverage → start flow:
+
+1. **Document each step technically** (existing format)
+2. **At each friction point, add UX Moment** with friction score
+3. **After all steps, write Narrative** from user perspective
+4. **Compare against known issues** from agent-learnings.md
+5. **Prioritize recommendations** by user impact

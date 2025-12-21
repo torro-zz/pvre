@@ -387,17 +387,18 @@ export function CoveragePreview({
     }
   }
 
-  // Handle start research - check for quality warnings first
+  // Handle start research - only show modal for STRONG warnings
   const handleStartResearch = () => {
     if (!coverage) return
 
-    // If there's a quality warning, show the modal for user acknowledgment
-    if (shouldShowQualityWarning(coverage.qualityPreview)) {
+    // Only block with modal for strong_warning (very low relevance < 8%)
+    // Caution and none now show inline and don't require a modal
+    if (coverage.qualityPreview?.qualityWarning === 'strong_warning') {
       setShowQualityModal(true)
       return
     }
 
-    // No warning - proceed directly
+    // Caution or no warning - proceed directly (user saw inline preview)
     onProceed(getFinalCoverageData())
   }
 
@@ -526,7 +527,16 @@ export function CoveragePreview({
         </div>
         <span className="text-sm text-muted-foreground">
           {(() => {
-            const redditCount = Math.min(selectedSubreddits.size * sampleSize, coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0) - (coverage.googlePlay?.estimatedPosts || 0) - (coverage.appStore?.estimatedPosts || 0))
+            // Sum actual estimatedPosts from selected discovered subreddits (capped by sampleSize each)
+            let redditCount = 0
+            for (const sub of coverage.subreddits) {
+              if (selectedSubreddits.has(sub.name)) {
+                redditCount += Math.min(sub.estimatedPosts, sampleSize)
+              }
+            }
+            // Add estimated count for custom subreddits (assume sampleSize per custom sub)
+            redditCount += customSubreddits.length * sampleSize
+
             const hnCount = selectedDataSources.has('Hacker News') && coverage.hackerNews?.included ? Math.min(sampleSize, coverage.hackerNews.estimatedPosts) : 0
             const gpCount = selectedDataSources.has('Google Play') && coverage.googlePlay?.included ? Math.min(sampleSize, coverage.googlePlay.estimatedPosts) : 0
             const asCount = selectedDataSources.has('App Store') && coverage.appStore?.included ? Math.min(sampleSize, coverage.appStore.estimatedPosts) : 0
@@ -629,20 +639,35 @@ export function CoveragePreview({
         </div>
       )}
 
-      {/* Data Sources - Clean horizontal layout */}
+      {/* Discussion Sources - Reddit and Hacker News */}
       <div className="space-y-3">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Data Sources
+        <div className="flex items-center gap-2">
+          <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Discussion Sources
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {/* Reddit - always included */}
           <div className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground border border-primary shadow-sm">
             <span>Reddit</span>
             <span className="text-xs opacity-80">
-              {formatSourceCount(
-                coverage.totalEstimatedPosts - (coverage.hackerNews?.estimatedPosts || 0) - (coverage.googlePlay?.estimatedPosts || 0) - (coverage.appStore?.estimatedPosts || 0),
-                selectedSubreddits.size * FETCH_LIMITS.redditPerSub
-              )}
+              {(() => {
+                // Sum actual estimatedPosts from selected subreddits
+                let totalAvailable = 0
+                let toAnalyze = 0
+                for (const sub of coverage.subreddits) {
+                  if (selectedSubreddits.has(sub.name)) {
+                    totalAvailable += sub.estimatedPosts
+                    toAnalyze += Math.min(sub.estimatedPosts, sampleSize)
+                  }
+                }
+                // Add custom subreddits (estimate sampleSize each)
+                toAnalyze += customSubreddits.length * sampleSize
+                totalAvailable += customSubreddits.length * sampleSize
+
+                return formatSourceCount(totalAvailable, toAnalyze)
+              })()}
             </span>
           </div>
 
@@ -663,129 +688,160 @@ export function CoveragePreview({
               </span>
             </button>
           )}
-
         </div>
-
-        {/* Google Play Apps */}
-        {coverage.googlePlay?.included && coverage.googlePlay.apps && coverage.googlePlay.apps.length > 0 && (
-          <div className="space-y-2 pt-2">
-            <div className="flex items-center gap-2">
-              <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">
-                Google Play · {selectedGooglePlayApps.size} of {coverage.googlePlay.apps.length} apps
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {coverage.googlePlay.apps.map((app) => {
-                const isSelected = selectedGooglePlayApps.has(app.appId)
-                // Get relevance score badge color
-                const scoreColor = app.relevanceScore >= 8 ? 'text-emerald-500' :
-                                   app.relevanceScore >= 6 ? 'text-blue-500' :
-                                   app.relevanceScore >= 4 ? 'text-amber-500' : 'text-red-500'
-                return (
-                  <button
-                    key={app.appId}
-                    type="button"
-                    onClick={() => toggleGooglePlayApp(app.appId)}
-                    title={app.relevanceReason || 'Relevance score not available'}
-                    className={cn(
-                      'inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-all',
-                      isSelected
-                        ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                        : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                    )}
-                  >
-                    {app.iconUrl && (
-                      <img
-                        src={app.iconUrl}
-                        alt=""
-                        className="w-5 h-5 rounded"
-                        onError={(e) => (e.currentTarget.style.display = 'none')}
-                      />
-                    )}
-                    <div className="text-left">
-                      <div className="font-medium text-xs leading-tight truncate max-w-[120px]">{app.name}</div>
-                      <div className={cn('text-[10px] leading-tight flex items-center gap-1', isSelected ? 'opacity-70' : 'opacity-50')}>
-                        <span>⭐{app.rating.toFixed(1)}</span>
-                        <span>·</span>
-                        <span>{app.reviewCount.toLocaleString()} reviews</span>
-                        {app.relevanceScore !== undefined && (
-                          <>
-                            <span>·</span>
-                            <span className={cn('font-medium', isSelected ? '' : scoreColor)}>
-                              {app.relevanceScore}/10
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* App Store Apps */}
-        {coverage.appStore?.included && coverage.appStore.apps && coverage.appStore.apps.length > 0 && (
-          <div className="space-y-2 pt-2">
-            <div className="flex items-center gap-2">
-              <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">
-                App Store · {selectedAppStoreApps.size} of {coverage.appStore.apps.length} apps
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {coverage.appStore.apps.map((app) => {
-                const isSelected = selectedAppStoreApps.has(app.appId)
-                // Get relevance score badge color
-                const scoreColor = app.relevanceScore >= 8 ? 'text-emerald-500' :
-                                   app.relevanceScore >= 6 ? 'text-blue-500' :
-                                   app.relevanceScore >= 4 ? 'text-amber-500' : 'text-red-500'
-                return (
-                  <button
-                    key={app.appId}
-                    type="button"
-                    onClick={() => toggleAppStoreApp(app.appId)}
-                    title={app.relevanceReason || 'Relevance score not available'}
-                    className={cn(
-                      'inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-all',
-                      isSelected
-                        ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                        : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                    )}
-                  >
-                    {app.iconUrl && (
-                      <img
-                        src={app.iconUrl}
-                        alt=""
-                        className="w-5 h-5 rounded"
-                        onError={(e) => (e.currentTarget.style.display = 'none')}
-                      />
-                    )}
-                    <div className="text-left">
-                      <div className="font-medium text-xs leading-tight truncate max-w-[120px]">{app.name}</div>
-                      <div className={cn('text-[10px] leading-tight flex items-center gap-1', isSelected ? 'opacity-70' : 'opacity-50')}>
-                        <span>⭐{app.rating.toFixed(1)}</span>
-                        <span>·</span>
-                        <span>{app.reviewCount.toLocaleString()} reviews</span>
-                        {app.relevanceScore !== undefined && (
-                          <>
-                            <span>·</span>
-                            <span className={cn('font-medium', isSelected ? '' : scoreColor)}>
-                              {app.relevanceScore}/10
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* App Reviews - Google Play and App Store with toggle-all */}
+      {((coverage.googlePlay?.included && coverage.googlePlay.apps && coverage.googlePlay.apps.length > 0) ||
+        (coverage.appStore?.included && coverage.appStore.apps && coverage.appStore.apps.length > 0)) && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                App Reviews (optional)
+              </div>
+            </div>
+            {/* Toggle All button */}
+            <button
+              type="button"
+              onClick={() => {
+                const hasAnySelected = selectedGooglePlayApps.size > 0 || selectedAppStoreApps.size > 0
+                if (hasAnySelected) {
+                  // Deselect all
+                  setSelectedGooglePlayApps(new Set())
+                  setSelectedAppStoreApps(new Set())
+                } else {
+                  // Select all
+                  setSelectedGooglePlayApps(new Set(coverage.googlePlay?.apps?.map(a => a.appId) || []))
+                  setSelectedAppStoreApps(new Set(coverage.appStore?.apps?.map(a => a.appId) || []))
+                }
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {(selectedGooglePlayApps.size > 0 || selectedAppStoreApps.size > 0) ? 'Disable all' : 'Enable all'}
+            </button>
+          </div>
+
+          {/* Google Play Apps */}
+          {coverage.googlePlay?.included && coverage.googlePlay.apps && coverage.googlePlay.apps.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 pl-1">
+                <span className="text-xs text-muted-foreground">
+                  Google Play · {selectedGooglePlayApps.size} of {coverage.googlePlay.apps.length} apps
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {coverage.googlePlay.apps.map((app) => {
+                  const isSelected = selectedGooglePlayApps.has(app.appId)
+                  // Get relevance score badge color
+                  const scoreColor = app.relevanceScore >= 8 ? 'text-emerald-500' :
+                                     app.relevanceScore >= 6 ? 'text-blue-500' :
+                                     app.relevanceScore >= 4 ? 'text-amber-500' : 'text-red-500'
+                  return (
+                    <button
+                      key={app.appId}
+                      type="button"
+                      onClick={() => toggleGooglePlayApp(app.appId)}
+                      title={app.relevanceReason || 'Relevance score not available'}
+                      className={cn(
+                        'inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-all',
+                        isSelected
+                          ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                          : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                      )}
+                    >
+                      {app.iconUrl && (
+                        <img
+                          src={app.iconUrl}
+                          alt=""
+                          className="w-5 h-5 rounded"
+                          onError={(e) => (e.currentTarget.style.display = 'none')}
+                        />
+                      )}
+                      <div className="text-left">
+                        <div className="font-medium text-xs leading-tight truncate max-w-[120px]">{app.name}</div>
+                        <div className={cn('text-[10px] leading-tight flex items-center gap-1', isSelected ? 'opacity-70' : 'opacity-50')}>
+                          <span>⭐{app.rating.toFixed(1)}</span>
+                          <span>·</span>
+                          <span>{app.reviewCount.toLocaleString()} reviews</span>
+                          {app.relevanceScore !== undefined && (
+                            <>
+                              <span>·</span>
+                              <span className={cn('font-medium', isSelected ? '' : scoreColor)}>
+                                {app.relevanceScore}/10
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* App Store Apps */}
+          {coverage.appStore?.included && coverage.appStore.apps && coverage.appStore.apps.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 pl-1">
+                <span className="text-xs text-muted-foreground">
+                  App Store · {selectedAppStoreApps.size} of {coverage.appStore.apps.length} apps
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {coverage.appStore.apps.map((app) => {
+                  const isSelected = selectedAppStoreApps.has(app.appId)
+                  // Get relevance score badge color
+                  const scoreColor = app.relevanceScore >= 8 ? 'text-emerald-500' :
+                                     app.relevanceScore >= 6 ? 'text-blue-500' :
+                                     app.relevanceScore >= 4 ? 'text-amber-500' : 'text-red-500'
+                  return (
+                    <button
+                      key={app.appId}
+                      type="button"
+                      onClick={() => toggleAppStoreApp(app.appId)}
+                      title={app.relevanceReason || 'Relevance score not available'}
+                      className={cn(
+                        'inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-all',
+                        isSelected
+                          ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                          : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                      )}
+                    >
+                      {app.iconUrl && (
+                        <img
+                          src={app.iconUrl}
+                          alt=""
+                          className="w-5 h-5 rounded"
+                          onError={(e) => (e.currentTarget.style.display = 'none')}
+                        />
+                      )}
+                      <div className="text-left">
+                        <div className="font-medium text-xs leading-tight truncate max-w-[120px]">{app.name}</div>
+                        <div className={cn('text-[10px] leading-tight flex items-center gap-1', isSelected ? 'opacity-70' : 'opacity-50')}>
+                          <span>⭐{app.rating.toFixed(1)}</span>
+                          <span>·</span>
+                          <span>{app.reviewCount.toLocaleString()} reviews</span>
+                          {app.relevanceScore !== undefined && (
+                            <>
+                              <span>·</span>
+                              <span className={cn('font-medium', isSelected ? '' : scoreColor)}>
+                                {app.relevanceScore}/10
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Analysis Depth - Compact */}
       <div className="space-y-3">
@@ -980,6 +1036,67 @@ export function CoveragePreview({
           )}
         </div>
       </div>
+
+      {/* Inline Quality Preview - shows relevance BEFORE commit */}
+      {coverage?.qualityPreview && (
+        <div className={cn(
+          "p-3 rounded-xl border",
+          coverage.qualityPreview.qualityWarning === 'strong_warning' && "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800",
+          coverage.qualityPreview.qualityWarning === 'caution' && "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800",
+          coverage.qualityPreview.qualityWarning === 'none' && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+        )}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {coverage.qualityPreview.qualityWarning === 'strong_warning' && (
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+              )}
+              {coverage.qualityPreview.qualityWarning === 'caution' && (
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+              )}
+              {coverage.qualityPreview.qualityWarning === 'none' && (
+                <CheckCircle className="w-5 h-5 text-emerald-500" />
+              )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Expected Relevance</span>
+                  <span className={cn(
+                    "text-lg font-bold",
+                    coverage.qualityPreview.qualityWarning === 'strong_warning' && "text-red-600 dark:text-red-400",
+                    coverage.qualityPreview.qualityWarning === 'caution' && "text-amber-600 dark:text-amber-400",
+                    coverage.qualityPreview.qualityWarning === 'none' && "text-emerald-600 dark:text-emerald-400"
+                  )}>
+                    {coverage.qualityPreview.predictedRelevance}%
+                  </span>
+                </div>
+                <p className={cn(
+                  "text-xs",
+                  coverage.qualityPreview.qualityWarning === 'strong_warning' && "text-red-600 dark:text-red-400",
+                  coverage.qualityPreview.qualityWarning === 'caution' && "text-amber-600 dark:text-amber-400",
+                  coverage.qualityPreview.qualityWarning === 'none' && "text-emerald-600 dark:text-emerald-400"
+                )}>
+                  {coverage.qualityPreview.qualityWarning === 'strong_warning' && "Very few matching posts. Consider refining your search."}
+                  {coverage.qualityPreview.qualityWarning === 'caution' && "Moderate match rate. Research will focus on relevant discussions."}
+                  {coverage.qualityPreview.qualityWarning === 'none' && "Good relevance. Results should be useful."}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowQualityModal(true)}
+              className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+            >
+              See details
+            </button>
+          </div>
+          {/* Suggestion if available */}
+          {coverage.qualityPreview.suggestion && coverage.qualityPreview.qualityWarning !== 'none' && (
+            <div className="flex items-start gap-2 mt-2 pt-2 border-t border-current/10">
+              <Sparkles className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-muted-foreground">{coverage.qualityPreview.suggestion}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Validation warning */}
       {selectedSubreddits.size === 0 && (

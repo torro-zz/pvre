@@ -1,6 +1,6 @@
 # Known Issues
 
-Last updated: December 18, 2025
+Last updated: December 21, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
@@ -32,15 +32,165 @@ The current credit model (1 credit = 1 research) may need rethinking:
 
 ---
 
+## User Flow Test Reports
+
+### December 21, 2025 - Expat Social Isolation Test
+
+**Tester:** User (Manual)
+**Hypothesis Tested:** "expats feeling socially isolated during the seasonal festivities - christmas and new year as they do not have a social circle"
+**Overall Result:** 11 UX friction points identified, relevance prediction dropped from 8% to 6% after refinement
+
+#### User's Original Narrative (Verbatim)
+
+> I am running this search "expats feeling socially isolated during the seasonal festivities - christmas and new year as they do not have a social circle" and as you can see we have this small 'good detail - try specifying who has this problem'. That's one thing that is off as i have mentionned this in my hypothesis already.
+>
+> Then we get to this Image 2, all looks good here - I press search this.
+>
+> Now we are on the Configure Research Screen as shown on image 3. I see ~692 posts. Under communities: I press to add r/socialskills 100, still the same ~692 posts. I look at Data Sources, there is only Reddit. I look at the Communities again and only see 100 posts per most communiites (even though we have changed this to get more posts to cover more time), so i think maybe i can do a deep search and get more posts. I press on Deep under Analysis Depth, no changes...
+>
+> Also Data Sources is displayed in a way where google Play and App Store are under data sources, it almost looks like the app stores are on their own and we think data Sources are Reddit mostly, there is no way to just disable Google Play or App Store at once. And I do not see Hacker news as data sources.
+>
+> I now press on Start Research and get image 4. The 'Based on analyzing 37 posts from your selected communities' is not the first thing i see. I have the feeling that spending this credit will only give me a match of 8% which sounds ridiculously small. as a new user i do not understand why i would only get 8%, there needs to be an explanation to this. But i see I can Broaden my search, suggestion of removing seasonal timing to find the year-round discussion. I Refine my hypothesis.
+>
+> I am now refining and i am on image 5. Here i am a little confused, before it seemed i had only one input window. Now there are two. Who's struggling, i am putting in Expats living abroad - Whats their Problem? I put 'Feeling lonely and socially isolated'. Now even though I have changed this, the search phrases are still the same. You can see this on image 6. I run it like this and click Continue with Changes.
+>
+> Now i am on image 7. I click search This.
+>
+> I am now on image 8 and honestly tired, I click start research.
+>
+> Now i am on Image 9 and it looks like this is even worse than it was before as we see 6%.
+
+#### Friction Points Summary
+
+| # | Issue | Severity | Status |
+|---|-------|----------|--------|
+| 1 | "Specify who" hint despite "expats" in input | P2 | Open |
+| 2 | Adding subreddit doesn't update post count | P2 | Open |
+| 3 | Analysis Depth has no visible effect | P2 | Open |
+| 4 | Data source hierarchy confusing | P2 | Open |
+| 5 | No toggle to disable all app stores | P2 | Open |
+| 6 | Hacker News not visible | P2 | Open |
+| 7 | Quality preview appears AFTER commit | P1 | Open |
+| 8 | No explanation for low relevance % | P1 | Open |
+| 9 | Single vs dual input confusion | P2 | Open |
+| 10 | Search phrases don't regenerate | P1 | Open |
+| 11 | Relevance worse after refinement (8%→6%) | P1 | Open |
+
+---
+
 ## P1 — Important
 
-*No open P1 issues*
+### [UX] Search Phrases Don't Regenerate After Hypothesis Change
+**Status:** Open, December 21, 2025
+**Impact:** Users refine their hypothesis but search phrases contain stale/removed terms, leading to irrelevant searches
+
+**Problem:** When a user goes back to refine their hypothesis (changing audience/problem), the search phrases are not regenerated. The old phrases persist, including terms the user explicitly removed.
+
+**Observed:** User removed "christmas and new year" from hypothesis, but search phrases still contained "spending christmas alone as expat", "lonely during holidays living abroad", etc.
+
+**Solution:** In `conversational-input.tsx`, when `handleConfirmAdjustments()` is called, trigger interpret-hypothesis API to regenerate fresh search phrases.
+
+---
+
+### [UX] Quality Preview Appears After Commit, Not Before
+**Status:** Open, December 21, 2025
+**Impact:** Users don't see relevance prediction until AFTER clicking "Start Research" - by which point they've mentally committed
+
+**Problem:** The QualityPreviewModal only appears after the user clicks "Start Research". The relevance prediction (8%, 6%, etc.) should be visible inline during the coverage preview step, not as a blocking modal after committing.
+
+**Solution:** Move relevance prediction display from modal to inline component in CoveragePreview, visible before "Start Research" button.
+
+---
+
+### [UX] No Explanation for Low Relevance Rate
+**Status:** Open, December 21, 2025
+**Impact:** Users see "8% relevance" but don't understand why or how to improve it
+
+**Problem:** Quality preview shows a percentage but doesn't explain what causes low relevance. The "broadening suggestions" help but don't explain the underlying issue.
+
+**Solution:** Add contextual explanation like "Low relevance often occurs when: (1) terms are too specific/seasonal, (2) problem definition is narrow, (3) community discusses related but different topics."
+
+---
+
+### [UX] Relevance Worsened After Refinement (8% → 6%)
+**Status:** Open, December 21, 2025
+**Impact:** User tried to improve their search by broadening, but results got WORSE - confusing and frustrating
+
+**Problem:** After removing specific seasonal terms and broadening the hypothesis, relevance prediction decreased from 8% to 6%. This is counterintuitive and erodes trust.
+
+**Possible Causes:** Different sample posts fetched on second coverage check, quality sampling using stale search phrases (see above), random variance in small sample sizes.
+
+**Solution:** Investigate quality sampling logic to ensure it uses current hypothesis data, not cached/stale data. Consider caching sample posts for consistency during refinement.
 
 ---
 
 ## P2 — Low Priority
 
-*No open P2 issues*
+### [UX] Audience Detection Missing "Expat" Keywords
+**Status:** Open, December 21, 2025
+**Impact:** Users specifying "expats" see "try specifying who has this problem" hint - confusing when they already did
+
+**Problem:** The `AUDIENCE_WORDS` array in `conversational-input.tsx` doesn't include expat-related terms.
+
+**Solution:** Add 'expat', 'expats', 'expatriate', 'immigrant', 'immigrants', 'foreigner', 'foreigners', 'abroad' to the `AUDIENCE_WORDS` array.
+
+---
+
+### [UX] Community Selection Doesn't Update Post Count
+**Status:** Open, December 21, 2025
+**Impact:** Adding/removing subreddits has no visible effect on "~692 posts" count - erodes trust in UI
+
+**Problem:** The header post count in coverage-preview.tsx doesn't recalculate when `selectedSubreddits` changes.
+
+**Solution:** Make header count reactive to `selectedSubreddits.size` and recalculate based on selected communities.
+
+---
+
+### [UX] Analysis Depth Selector Has No Visible Effect
+**Status:** Open, December 21, 2025
+**Impact:** Quick/Standard/Deep buttons don't visibly change anything - user doesn't know if selection matters
+
+**Problem:** The depth selector changes internal `sampleSize` state but there's no visible feedback. Post counts don't update.
+
+**Solution:** Update total posts estimate when sample size changes. Add tooltip explaining "Quick = 2+ months, Standard = 6+ months, Deep = full year".
+
+---
+
+### [UX] Data Source Hierarchy Confusing
+**Status:** Open, December 21, 2025
+**Impact:** Reddit appears separate from app stores in a way that suggests they're different categories
+
+**Problem:** Current layout shows "Reddit" as a data source, then Google Play and App Store apps below it. The visual hierarchy implies Reddit is the only "real" data source.
+
+**Solution:** Restructure as "Discussion Sources" (Reddit, Hacker News) and "App Review Sources" (Google Play, App Store) with clearer grouping.
+
+---
+
+### [UX] No Toggle to Disable All App Stores
+**Status:** Open, December 21, 2025
+**Impact:** If user wants to exclude all app store data, they must deselect each app individually
+
+**Solution:** Add "Include App Reviews" toggle that enables/disables all Google Play and App Store sources at once.
+
+---
+
+### [UX] Hacker News Not Visible as Data Source
+**Status:** Open, December 21, 2025
+**Impact:** User doesn't know HN is available, can't enable/disable it
+
+**Problem:** Hacker News toggle should appear when HN data is available but may not be rendering.
+
+**Solution:** Verify HN detection logic in coverage-check route and ensure toggle visibility in coverage-preview.tsx.
+
+---
+
+### [UX] Single vs Dual Input Field Confusion
+**Status:** Open, December 21, 2025
+**Impact:** User enters one field initially, but refinement shows two fields (Who/What) - inconsistent experience
+
+**Problem:** Initial input is a single conversational text field. When user clicks "Adjust" or "Refine Hypothesis", they see two separate fields for audience and problem. This context switch is confusing.
+
+**Solution:** Either: (A) Show dual fields from the start for explicit structure, or (B) Keep single field in refinement for consistency. Recommend (A) for clarity.
 
 ---
 
