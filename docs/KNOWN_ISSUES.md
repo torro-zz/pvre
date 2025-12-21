@@ -100,7 +100,7 @@ The current credit model (1 credit = 1 research) may need rethinking:
 
 ### December 21, 2025 (User Testing Fixes)
 - ✅ **[P1] Search Phrase Regeneration** — Fixed phrases not regenerating after hypothesis change. `handleConfirmAdjustments()` and `applyRefinement()` now ALWAYS trigger interpret-hypothesis API to get fresh phrases when audience/problem changes. User-added custom phrases are preserved.
-- ✅ **[P1] Low Relevance Explanation** — Added "Why is relevance low?" educational section in coverage-preview.tsx. Explains common causes: too specific/seasonal terms, narrow problem definition, different language used online.
+- ✅ **[P1] Low Relevance Explanation** — Added "Why is relevance low?" educational section in coverage-preview.tsx. Explains common causes: too specific/seasonal terms, narrow problem definition, different language used online. Also added concrete calculation: "Based on checking 40 sample posts: 5 matched your problem" so users understand WHERE the percentage comes from.
 - ✅ **[P1] Consistent Relevance During Refinement** — Fixed relevance % fluctuating due to random sample variance. Coverage-check API now caches sample posts and reuses them for subsequent checks during the same session. Ensures consistent quality scoring.
 - ✅ **[P2] Expat Keywords** — Added expat/immigrant/foreigner/abroad keywords to AUDIENCE_WORDS array in conversational-input.tsx. Users specifying these terms no longer see "specify who" hint.
 - ✅ **[P2] Single vs Dual Input Confusion** — Replaced jarring "Adjust" screen transition with inline editing. Users can now click "Edit" next to Audience or Problem on the confirm screen to edit inline. Removed separate adjust step entirely. Phrases are automatically regenerated after inline edits.
