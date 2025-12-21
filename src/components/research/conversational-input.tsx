@@ -530,62 +530,54 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
           {/* Text input mode */}
           {inputMode === 'text' && (
-            <div className="space-y-5">
-              {/* Hero Input Area */}
-              <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-violet-500/20 via-primary/20 to-blue-500/20 rounded-2xl blur-lg opacity-0 group-focus-within:opacity-100 transition-opacity duration-300" />
-                <div className="relative">
+            <div className="space-y-6">
+              {/* Hero Input Area with Animated Glow */}
+              <div className="input-glow relative">
+                {/* Input container */}
+                <div className="relative bg-background rounded-2xl border border-border/60 shadow-xl overflow-hidden">
                   <Textarea
                     placeholder="Describe who's struggling and what problem they face..."
                     value={rawInput}
                     onChange={(e) => setRawInput(e.target.value)}
                     disabled={isInterpreting || isLoading}
                     rows={4}
-                    className="resize-none text-lg leading-relaxed bg-background border-2 border-muted hover:border-muted-foreground/20 focus:border-primary/50 rounded-xl px-5 py-4 transition-colors placeholder:text-muted-foreground/50"
+                    className="resize-none text-lg leading-relaxed bg-transparent border-0 px-5 py-5 focus:ring-0 focus-visible:ring-0 placeholder:text-muted-foreground/50"
                     autoFocus
                   />
+                  {/* Bottom bar with quality indicator */}
+                  <div className="flex items-center justify-between px-5 py-3 border-t border-border/40 bg-muted/30">
+                    <InputQualityIndicator input={rawInput} />
+                    <span className="text-xs text-muted-foreground/60 tabular-nums">
+                      {rawInput.length} characters
+                    </span>
+                  </div>
                 </div>
-              </div>
-
-              {/* Input quality indicator */}
-              <div className="flex items-center justify-between">
-                <InputQualityIndicator input={rawInput} />
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {rawInput.length} characters
-                </span>
               </div>
 
               {/* Error message */}
               {interpretError && (
-                <div className="p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300">
+                <div className="p-4 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800/50 rounded-xl text-sm text-red-700 dark:text-red-300">
                   {interpretError}
                 </div>
               )}
 
-              {/* Examples Section - Modern Cards with Visual Teaching */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Lightbulb className="h-4 w-4" />
-                  <span>Need inspiration? Try one of these:</span>
+              {/* Examples Section - Floating Suggestions */}
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/60">
+                  <Lightbulb className="h-3.5 w-3.5" />
+                  <span>Try an example</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl mx-auto">
                   {EXAMPLE_INPUTS.slice(0, 4).map((example, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => useExample(`${example.audience} ${example.problem}`)}
                       disabled={isInterpreting || isLoading}
-                      className="text-left p-4 rounded-xl border border-border/50 bg-card hover:bg-muted/50 hover:border-border transition-all disabled:opacity-50 group shadow-sm"
+                      className="group text-left p-3 rounded-xl border border-border/30 bg-muted/20 hover:bg-muted/40 hover:border-border/60 transition-all disabled:opacity-50"
                     >
-                      <p className="text-sm leading-relaxed text-foreground/90">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary font-medium text-xs">
-                            {example.audience}
-                          </span>
-                        </span>
-                        {' '}
-                        <span className="text-muted-foreground">{example.problem}</span>
-                      </p>
+                      <span className="text-sm font-medium text-foreground/90 group-hover:text-foreground">{example.audience}</span>
+                      <span className="text-sm text-muted-foreground/70 group-hover:text-muted-foreground"> {example.problem}</span>
                     </button>
                   ))}
                 </div>
