@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, Sparkles, ArrowRight, ArrowLeft, Check, Edit2, Users, AlertTriangle, Lightbulb, MessageSquare, X, Plus, Link2, ExternalLink, Smartphone, Apple, Globe, Twitter, Rocket, Newspaper, Briefcase, Linkedin } from 'lucide-react'
 import { CoveragePreview, CoverageData } from './coverage-preview'
@@ -792,196 +791,230 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
       {/* Step 2: Confirmation */}
       {step === 'confirm' && interpretation && !showPreview && (
-        <Card className="rounded-xl">
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              {/* Interpretation display */}
-              <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Check className="h-4 w-4 text-green-600" />
-                Here&apos;s what I understood:
+        <div className="space-y-8">
+          {/* Header - Clean and Minimal */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <Check className="h-5 w-5 text-emerald-600" />
+            </div>
+            <h2 className="text-xl font-semibold">Ready to search</h2>
+          </div>
+
+          {/* Main Content Card - Spacious and Premium */}
+          <div className="rounded-2xl border border-border/60 bg-muted/30 p-6 sm:p-8 space-y-6">
+            {/* Audience Section */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <Users className="h-3.5 w-3.5" />
+                Audience
               </div>
-
-              <div className="space-y-3">
-                {/* Audience */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Users className="h-3 w-3" />
-                    Audience
-                  </div>
-                  <p className="text-sm font-medium">{interpretation.audience}</p>
-                </div>
-
-                {/* Problem */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <AlertTriangle className="h-3 w-3" />
-                    Problem
-                  </div>
-                  <p className="text-sm font-medium">{interpretation.problem}</p>
-                </div>
-
-                {/* Search phrases - editable */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <MessageSquare className="h-3 w-3" />
-                    They might say things like:
-                    <span className="text-muted-foreground/60">(click to remove)</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {interpretation.searchPhrases.map((phrase, idx) => (
-                      <Badge
-                        key={idx}
-                        variant="secondary"
-                        className="text-xs pr-1 cursor-pointer hover:bg-secondary/80 group"
-                      >
-                        &quot;{phrase}&quot;
-                        <button
-                          type="button"
-                          onClick={() => removePhraseFromInterpretation(phrase)}
-                          className="ml-1 opacity-50 group-hover:opacity-100 hover:text-destructive transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                    {/* Add phrase button/input */}
-                    {showAddPhrase ? (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          ref={addPhraseInputRef}
-                          value={confirmNewPhrase}
-                          onChange={(e) => setConfirmNewPhrase(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              addPhraseToInterpretation()
-                            } else if (e.key === 'Escape') {
-                              setShowAddPhrase(false)
-                              setConfirmNewPhrase('')
-                            }
-                          }}
-                          onBlur={() => {
-                            if (!confirmNewPhrase.trim()) {
-                              setShowAddPhrase(false)
-                            }
-                          }}
-                          placeholder="Add phrase..."
-                          className="h-6 text-xs w-40"
-                          autoFocus
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2"
-                          onClick={addPhraseToInterpretation}
-                          disabled={!confirmNewPhrase.trim()}
-                        >
-                          <Check className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowAddPhrase(true)
-                          setTimeout(() => addPhraseInputRef.current?.focus(), 0)
-                        }}
-                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-dashed border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground transition-colors"
-                      >
-                        <Plus className="h-3 w-3" />
-                        Add
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Confidence indicator - brief note, details in refinement section below */}
-                {interpretation.confidence !== 'high' && refinements.length > 0 && (
-                  <div className="pt-2 border-t">
-                    <div className="flex items-center gap-2 text-xs text-amber-600">
-                      <AlertTriangle className="h-3 w-3" />
-                      {interpretation.confidence === 'low'
-                        ? 'See suggestions below for better results ↓'
-                        : 'Good, but see suggestions below for even better results'}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <p className="text-lg font-medium leading-relaxed text-foreground">
+                {interpretation.audience}
+              </p>
             </div>
 
-            {/* Refinement suggestions - prominent for low confidence, helpful for medium */}
-            {refinements.length > 0 && interpretation.confidence !== 'high' && (
-              <div className={`space-y-2 p-3 rounded-lg border ${
-                interpretation.confidence === 'low'
-                  ? 'bg-amber-50 border-amber-300'
-                  : 'bg-violet-50 border-violet-200'
-              }`}>
-                <div className={`flex items-center gap-2 text-sm font-medium ${
-                  interpretation.confidence === 'low' ? 'text-amber-800' : 'text-violet-700'
-                }`}>
-                  {interpretation.confidence === 'low' ? (
-                    <AlertTriangle className="h-4 w-4" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
-                  {interpretation.confidence === 'low'
-                    ? 'Your input is quite broad. Try one of these more specific angles:'
-                    : 'For better results, consider:'}
+            {/* Divider */}
+            <div className="border-t border-border/40" />
+
+            {/* Problem Section */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Problem
+              </div>
+              <p className="text-lg font-medium leading-relaxed text-foreground">
+                {interpretation.problem}
+              </p>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-border/40" />
+
+            {/* Search Phrases Section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Search Phrases
                 </div>
-                <div className="space-y-2">
-                  {refinements.slice(0, 3).map((ref, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => applyRefinement(ref)}
-                      className={`block w-full text-left p-2 bg-white rounded border transition-colors ${
-                        interpretation.confidence === 'low'
-                          ? 'border-amber-200 hover:border-amber-400 hover:bg-amber-50'
-                          : 'border-violet-100 hover:border-violet-300'
-                      }`}
+                <span className="text-xs text-muted-foreground/60">
+                  Click to remove
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {interpretation.searchPhrases.map((phrase, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => removePhraseFromInterpretation(phrase)}
+                    className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-background border border-border/60 hover:border-destructive/50 hover:bg-destructive/5 transition-all text-sm"
+                  >
+                    <span className="text-foreground/90 group-hover:text-foreground">
+                      &quot;{phrase}&quot;
+                    </span>
+                    <X className="h-3.5 w-3.5 text-muted-foreground group-hover:text-destructive transition-colors" />
+                  </button>
+                ))}
+
+                {/* Add phrase button/input */}
+                {showAddPhrase ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      ref={addPhraseInputRef}
+                      value={confirmNewPhrase}
+                      onChange={(e) => setConfirmNewPhrase(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addPhraseToInterpretation()
+                        } else if (e.key === 'Escape') {
+                          setShowAddPhrase(false)
+                          setConfirmNewPhrase('')
+                        }
+                      }}
+                      onBlur={() => {
+                        if (!confirmNewPhrase.trim()) {
+                          setShowAddPhrase(false)
+                        }
+                      }}
+                      placeholder="Add phrase..."
+                      className="h-10 text-sm w-44 rounded-xl"
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-10 px-3 rounded-xl"
+                      onClick={addPhraseToInterpretation}
+                      disabled={!confirmNewPhrase.trim()}
                     >
-                      <p className={`text-sm font-medium ${
-                        interpretation.confidence === 'low' ? 'text-amber-900' : 'text-violet-900'
-                      }`}>{ref.suggestion}</p>
-                      <p className={`text-xs ${
-                        interpretation.confidence === 'low' ? 'text-amber-700' : 'text-violet-600'
-                      }`}>{ref.rationale}</p>
-                    </button>
-                  ))}
-                </div>
-                {interpretation.confidence === 'low' && (
-                  <p className="text-xs text-amber-600 pt-1">
-                    Broad searches often return irrelevant results. Clicking a suggestion above helps us find more targeted signals.
-                  </p>
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddPhrase(true)
+                      setTimeout(() => addPhraseInputRef.current?.focus(), 0)
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-dashed border-border/60 hover:border-primary/50 hover:bg-muted/50 transition-all text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add phrase
+                  </button>
                 )}
               </div>
-            )}
+            </div>
+          </div>
 
-            {/* Action buttons */}
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleBack} className="flex-1">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-              <Button variant="outline" onClick={handleAdjust} className="flex-1">
-                <Edit2 className="mr-2 h-4 w-4" />
-                Adjust
-              </Button>
-              <Button onClick={handleConfirm} disabled={isLoading} className="flex-1">
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+          {/* Confidence Warning - Only show if not high confidence */}
+          {interpretation.confidence !== 'high' && refinements.length > 0 && (
+            <div className={`rounded-2xl border p-5 sm:p-6 space-y-4 ${
+              interpretation.confidence === 'low'
+                ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-800/40'
+                : 'bg-violet-50/50 dark:bg-violet-950/20 border-violet-200/60 dark:border-violet-800/40'
+            }`}>
+              <div className={`flex items-center gap-3 ${
+                interpretation.confidence === 'low' ? 'text-amber-900 dark:text-amber-100' : 'text-violet-900 dark:text-violet-100'
+              }`}>
+                {interpretation.confidence === 'low' ? (
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/20">
+                    <AlertTriangle className="h-4 w-4" />
+                  </div>
                 ) : (
-                  <>
-                    <Check className="mr-2 h-4 w-4" />
-                    Search This
-                  </>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 border border-violet-500/20">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
                 )}
-              </Button>
+                <div>
+                  <h3 className="font-semibold text-sm">
+                    {interpretation.confidence === 'low'
+                      ? 'Your input is quite broad'
+                      : 'Suggestions for better results'}
+                  </h3>
+                  <p className={`text-xs ${
+                    interpretation.confidence === 'low' ? 'text-amber-700 dark:text-amber-300' : 'text-violet-700 dark:text-violet-300'
+                  }`}>
+                    {interpretation.confidence === 'low'
+                      ? 'Try one of these more specific angles:'
+                      : 'Consider these refinements:'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {refinements.slice(0, 3).map((ref, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => applyRefinement(ref)}
+                    className={`block w-full text-left p-3.5 rounded-xl border transition-all ${
+                      interpretation.confidence === 'low'
+                        ? 'bg-white dark:bg-background border-amber-200/60 dark:border-amber-800/40 hover:border-amber-400 hover:shadow-sm'
+                        : 'bg-white dark:bg-background border-violet-200/60 dark:border-violet-800/40 hover:border-violet-400 hover:shadow-sm'
+                    }`}
+                  >
+                    <p className={`text-sm font-medium mb-0.5 ${
+                      interpretation.confidence === 'low' ? 'text-amber-900 dark:text-amber-100' : 'text-violet-900 dark:text-violet-100'
+                    }`}>
+                      {ref.suggestion}
+                    </p>
+                    <p className={`text-xs ${
+                      interpretation.confidence === 'low' ? 'text-amber-700 dark:text-amber-300' : 'text-violet-700 dark:text-violet-300'
+                    }`}>
+                      {ref.rationale}
+                    </p>
+                  </button>
+                ))}
+              </div>
+
+              {interpretation.confidence === 'low' && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 pt-1">
+                  Broad searches often return irrelevant results. Clicking a suggestion above helps us find more targeted signals.
+                </p>
+              )}
             </div>
-            </div>
-          </CardContent>
-        </Card>
+          )}
+
+          {/* Action Buttons - Modern and Prominent */}
+          <div className="grid grid-cols-3 gap-3">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              size="lg"
+              className="h-12 rounded-xl"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleAdjust}
+              size="lg"
+              className="h-12 rounded-xl"
+            >
+              <Edit2 className="mr-2 h-4 w-4" />
+              Adjust
+            </Button>
+            <Button
+              onClick={handleConfirm}
+              disabled={isLoading}
+              size="lg"
+              className="h-12 rounded-xl"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  Search This
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Step 2b: Coverage Preview */}
