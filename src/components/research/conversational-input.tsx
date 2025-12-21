@@ -564,22 +564,9 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
               {/* Examples Section - Modern Cards with Visual Teaching */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Lightbulb className="h-4 w-4" />
-                    <span>Need inspiration? Try one of these:</span>
-                  </div>
-                  {/* Legend */}
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-blue-500" />
-                      who
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-amber-500" />
-                      pain
-                    </span>
-                  </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Lightbulb className="h-4 w-4" />
+                  <span>Need inspiration? Try one of these:</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {EXAMPLE_INPUTS.slice(0, 4).map((example, idx) => (
@@ -588,12 +575,16 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                       type="button"
                       onClick={() => useExample(`${example.audience} ${example.problem}`)}
                       disabled={isInterpreting || isLoading}
-                      className="text-left p-4 rounded-xl border-2 border-transparent bg-muted/50 hover:bg-muted hover:border-muted-foreground/10 transition-all disabled:opacity-50 group"
+                      className="text-left p-4 rounded-xl border border-border/50 bg-card hover:bg-muted/50 hover:border-border transition-all disabled:opacity-50 group shadow-sm"
                     >
-                      <p className="text-sm leading-relaxed">
-                        <span className="text-blue-600 dark:text-blue-400 font-medium">{example.audience}</span>
+                      <p className="text-sm leading-relaxed text-foreground/90">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary font-medium text-xs">
+                            {example.audience}
+                          </span>
+                        </span>
                         {' '}
-                        <span className="text-amber-700 dark:text-amber-400">{example.problem}</span>
+                        <span className="text-muted-foreground">{example.problem}</span>
                       </p>
                     </button>
                   ))}
