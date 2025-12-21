@@ -1087,13 +1087,18 @@ export function CoveragePreview({
                     {coverage.qualityPreview.predictedRelevance}%
                   </span>
                 </div>
+                {/* Show WHERE the percentage comes from - makes it concrete */}
+                <p className="text-xs text-muted-foreground">
+                  Based on checking {coverage.qualityPreview.sampleSize || 37} sample posts: {' '}
+                  {Math.round((coverage.qualityPreview.predictedRelevance / 100) * (coverage.qualityPreview.sampleSize || 37))} matched your problem
+                </p>
                 <p className={cn(
-                  "text-xs",
+                  "text-xs mt-0.5",
                   coverage.qualityPreview.qualityWarning === 'strong_warning' && "text-red-600 dark:text-red-400",
                   coverage.qualityPreview.qualityWarning === 'caution' && "text-amber-600 dark:text-amber-400",
                   coverage.qualityPreview.qualityWarning === 'none' && "text-emerald-600 dark:text-emerald-400"
                 )}>
-                  {coverage.qualityPreview.qualityWarning === 'strong_warning' && "Most posts don't match your specific problem."}
+                  {coverage.qualityPreview.qualityWarning === 'strong_warning' && "Most posts discuss related topics but not your specific problem."}
                   {coverage.qualityPreview.qualityWarning === 'caution' && "Some posts match. Research will filter for relevant discussions."}
                   {coverage.qualityPreview.qualityWarning === 'none' && "Good match rate. Results should be useful."}
                 </p>
