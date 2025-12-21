@@ -69,7 +69,7 @@ The current credit model (1 credit = 1 research) may need rethinking:
 | 3 | Analysis Depth has no visible effect | P2 | ✅ Fixed - Pill counts now update with depth |
 | 4 | Data source hierarchy confusing | P2 | ✅ Already grouped by type |
 | 5 | No toggle to disable all app stores | P2 | ✅ Already existed |
-| 6 | Hacker News not visible | P2 | ✅ Working (tech only by design) |
+| 6 | Hacker News not visible for remote work | P2 | ✅ Fixed - Added remote work keywords to HN trigger |
 | 7 | Quality preview appears AFTER commit | P1 | ✅ Fixed - Already inline |
 | 8 | No explanation for low relevance % | P1 | ✅ Fixed - Added "Why is relevance low?" section |
 | 9 | Single vs dual input confusion | P2 | ✅ Fixed - Added inline editing, removed Adjust step |
@@ -98,7 +98,12 @@ The current credit model (1 credit = 1 research) may need rethinking:
 
 ## Completed Issues
 
-### December 21, 2025 (User Testing Fixes)
+### December 21, 2025 (User Testing Fixes - Session 2)
+- ✅ **[P2] Hacker News for Remote Work** — Added remote work keywords ("remote", "wfh", "distributed team", "digital nomad", "freelancer", etc.) to TECH_KEYWORDS so Hacker News appears as a data source for remote work hypotheses.
+- ✅ **[P2] App Stores Only for App Hypotheses** — App stores (Google Play, App Store) now only appear when hypothesis mentions mobile apps. For non-app hypotheses (e.g., "remote workers feeling isolated"), app stores are hidden since app reviews contain bug complaints, not problem validation signals.
+- ✅ **[P2] Relevance Check Simplified** — Replaced confusing percentages with binary "Good match" / "Broad search" feedback. Added Beta badge and hide toggle. Clear explanation shows sample size tested.
+
+### December 21, 2025 (User Testing Fixes - Session 1)
 - ✅ **[P1] Search Phrase Regeneration** — Fixed phrases not regenerating after hypothesis change. `handleConfirmAdjustments()` and `applyRefinement()` now ALWAYS trigger interpret-hypothesis API to get fresh phrases when audience/problem changes. User-added custom phrases are preserved.
 - ✅ **[P1] Low Relevance Explanation** — Added "Why is relevance low?" educational section in coverage-preview.tsx. Explains common causes: too specific/seasonal terms, narrow problem definition, different language used online. Also added concrete calculation: "Based on checking 40 sample posts: 5 matched your problem" so users understand WHERE the percentage comes from.
 - ✅ **[P1] Consistent Relevance During Refinement** — Fixed relevance % fluctuating due to random sample variance. Coverage-check API now caches sample posts and reuses them for subsequent checks during the same session. Ensures consistent quality scoring.
