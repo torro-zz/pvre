@@ -1,5 +1,6 @@
 -- Migration: Add app_discovery_events table for learning system
 -- This tracks app discovery, scoring, and user selection for continuous improvement
+-- Idempotent: safe to run multiple times
 
 CREATE TABLE IF NOT EXISTS app_discovery_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -42,26 +43,21 @@ CREATE TABLE IF NOT EXISTS app_discovery_events (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Index for querying events by user
-CREATE INDEX idx_app_discovery_user ON app_discovery_events(user_id);
-
--- Index for querying events by job
-CREATE INDEX idx_app_discovery_job ON app_discovery_events(job_id);
-
--- Index for analyzing patterns by app store
-CREATE INDEX idx_app_discovery_store ON app_discovery_events(app_store, app_category);
-
--- Index for analyzing selection patterns
-CREATE INDEX idx_app_discovery_selection ON app_discovery_events(was_auto_selected, user_kept_selected);
-
--- Index for analyzing relevance score distribution
-CREATE INDEX idx_app_discovery_score ON app_discovery_events(llm_relevance_score);
-
--- Index for analyzing by hypothesis domain (for pattern extraction)
-CREATE INDEX idx_app_discovery_domain ON app_discovery_events(hypothesis_domain);
+-- Indexes (idempotent with IF NOT EXISTS)
+CREATE INDEX IF NOT EXISTS idx_app_discovery_user ON app_discovery_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_app_discovery_job ON app_discovery_events(job_id);
+CREATE INDEX IF NOT EXISTS idx_app_discovery_store ON app_discovery_events(app_store, app_category);
+CREATE INDEX IF NOT EXISTS idx_app_discovery_selection ON app_discovery_events(was_auto_selected, user_kept_selected);
+CREATE INDEX IF NOT EXISTS idx_app_discovery_score ON app_discovery_events(llm_relevance_score);
+CREATE INDEX IF NOT EXISTS idx_app_discovery_domain ON app_discovery_events(hypothesis_domain);
 
 -- RLS: Users can only see their own discovery events
 ALTER TABLE app_discovery_events ENABLE ROW LEVEL SECURITY;
+
+-- Drop policies if they exist before recreating
+DROP POLICY IF EXISTS "Users can view their own app discovery events" ON app_discovery_events;
+DROP POLICY IF EXISTS "Service role can insert app discovery events" ON app_discovery_events;
+DROP POLICY IF EXISTS "Service role can update app discovery events" ON app_discovery_events;
 
 CREATE POLICY "Users can view their own app discovery events"
   ON app_discovery_events FOR SELECT
@@ -75,7 +71,7 @@ CREATE POLICY "Service role can update app discovery events"
   ON app_discovery_events FOR UPDATE
   USING (true);
 
--- Function to update updated_at timestamp
+-- Function to update updated_at timestamp (CREATE OR REPLACE is idempotent)
 CREATE OR REPLACE FUNCTION update_app_discovery_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -83,6 +79,9 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Drop trigger if exists before recreating
+DROP TRIGGER IF EXISTS trigger_app_discovery_updated_at ON app_discovery_events;
 
 CREATE TRIGGER trigger_app_discovery_updated_at
   BEFORE UPDATE ON app_discovery_events
