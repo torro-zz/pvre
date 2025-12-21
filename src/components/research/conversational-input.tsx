@@ -530,7 +530,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
           {/* Text input mode */}
           {inputMode === 'text' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               {/* Hero Input Area with Animated Glow */}
               <div className="input-glow relative">
                 {/* Input container */}
@@ -541,11 +541,11 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                     onChange={(e) => setRawInput(e.target.value)}
                     disabled={isInterpreting || isLoading}
                     rows={4}
-                    className="resize-none text-lg leading-relaxed bg-transparent border-0 px-5 py-5 focus:ring-0 focus-visible:ring-0 placeholder:text-muted-foreground/50"
+                    className="resize-none text-lg leading-relaxed bg-transparent border-0 px-6 py-6 focus:ring-0 focus-visible:ring-0 placeholder:text-muted-foreground/50"
                     autoFocus
                   />
                   {/* Bottom bar with quality indicator */}
-                  <div className="flex items-center justify-between px-5 py-3 border-t border-border/40 bg-muted/30">
+                  <div className="flex items-center justify-between px-6 py-4 border-t border-border/40 bg-muted/30">
                     <InputQualityIndicator input={rawInput} />
                     <span className="text-xs text-muted-foreground/60 tabular-nums">
                       {rawInput.length} characters
@@ -562,19 +562,19 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
               )}
 
               {/* Examples Section - Floating Suggestions */}
-              <div className="space-y-4 pt-2">
+              <div className="space-y-4">
                 <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/60">
                   <Lightbulb className="h-3.5 w-3.5" />
                   <span>Try an example</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl mx-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
                   {EXAMPLE_INPUTS.slice(0, 4).map((example, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => useExample(`${example.audience} ${example.problem}`)}
                       disabled={isInterpreting || isLoading}
-                      className="group text-left p-3 rounded-xl border border-border/30 bg-muted/20 hover:bg-muted/40 hover:border-border/60 transition-all disabled:opacity-50"
+                      className="group text-left p-4 rounded-xl border border-border/30 bg-muted/20 hover:bg-muted/40 hover:border-border/60 transition-all disabled:opacity-50"
                     >
                       <span className="text-sm font-medium text-foreground/90 group-hover:text-foreground">{example.audience}</span>
                       <span className="text-sm text-muted-foreground/70 group-hover:text-muted-foreground"> {example.problem}</span>
@@ -588,7 +588,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                 onClick={handleInterpret}
                 disabled={!isInputValid || isInterpreting || isLoading}
                 size="lg"
-                className="w-full rounded-xl h-12 text-base"
+                className="w-full rounded-xl h-12 text-base mt-2"
               >
                 {isInterpreting ? (
                   <>
@@ -607,7 +607,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
           {/* URL input mode */}
           {inputMode === 'url' && (
-            <div className="space-y-5">
+            <div className="space-y-8">
               {/* Hero URL Input */}
               <div className="relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 via-primary/20 to-violet-500/20 rounded-2xl blur-lg opacity-0 group-focus-within:opacity-100 transition-opacity duration-300" />
