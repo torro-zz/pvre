@@ -27,8 +27,14 @@ import {
   RedditPost as ArcticPost,
   RedditComment as ArcticComment,
 } from '../../arctic-shift/types'
+import { getCachedData, setCachedData, generateCacheKey } from '../cache'
 
 const ARCTIC_SHIFT_BASE = 'https://arctic-shift.photon-reddit.com'
+
+// In-memory cache for coverage stats (short-lived, per-process)
+// Key: subreddit name, Value: { stats, fetchedAt }
+const statsCache = new Map<string, { stats: PostStats; fetchedAt: number }>()
+const STATS_CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
 const HEALTH_CHECK_TIMEOUT = 5000
 
 /**
@@ -98,8 +104,29 @@ export class RedditAdapter implements DataSourceAdapter {
   /**
    * Get post count AND posting velocity for adaptive time-stratified fetching
    * Velocity is calculated from the timestamp spread of sample posts
+   * Results are cached to avoid redundant API calls
    */
   async getPostStats(subreddit: string): Promise<PostStats> {
+    // 1. Check in-memory cache first (fastest)
+    const cachedEntry = statsCache.get(subreddit.toLowerCase())
+    if (cachedEntry && Date.now() - cachedEntry.fetchedAt < STATS_CACHE_TTL_MS) {
+      console.log(`[RedditAdapter] Cache HIT (memory) for r/${subreddit}`)
+      return cachedEntry.stats
+    }
+
+    // 2. Check Supabase cache for existing posts
+    const cacheKey = generateCacheKey([subreddit], [], undefined)
+    const supabaseCache = await getCachedData(cacheKey)
+
+    if (supabaseCache && supabaseCache.posts.length > 0 && !supabaseCache.isExpired) {
+      console.log(`[RedditAdapter] Cache HIT (supabase) for r/${subreddit} - ${supabaseCache.posts.length} posts`)
+      const stats = this.calculateStatsFromPosts(supabaseCache.posts, subreddit)
+      // Update in-memory cache
+      statsCache.set(subreddit.toLowerCase(), { stats, fetchedAt: Date.now() })
+      return stats
+    }
+
+    // 3. Fetch fresh data from API
     try {
       const posts = await arcticSearchPosts({
         subreddit,
@@ -107,35 +134,82 @@ export class RedditAdapter implements DataSourceAdapter {
         sort: 'desc', // Newest first
       })
 
-      if (posts.length < 2) {
-        return { count: posts.length, postsPerDay: 0.5 } // Very low activity default
+      const stats = this.calculateStatsFromPosts(posts, subreddit)
+
+      // Cache in memory
+      statsCache.set(subreddit.toLowerCase(), { stats, fetchedAt: Date.now() })
+
+      // Cache in Supabase for persistence across requests
+      if (posts.length > 0) {
+        await setCachedData(cacheKey, {
+          posts: posts.map(p => ({
+            id: p.id,
+            title: p.title,
+            body: p.selftext || '',
+            author: p.author,
+            subreddit: p.subreddit,
+            score: p.score,
+            numComments: p.num_comments,
+            createdUtc: p.created_utc,
+            permalink: p.permalink,
+            url: p.url,
+          })),
+          subreddits: [subreddit],
+        })
       }
 
-      // Calculate posting velocity from timestamp spread
-      const timestamps = posts.map(p => p.created_utc).sort((a, b) => b - a)
-      const newestTimestamp = timestamps[0]
-      const oldestTimestamp = timestamps[timestamps.length - 1]
-
-      // Calculate days spanned (minimum 1 day to avoid division issues)
-      const secondsSpanned = newestTimestamp - oldestTimestamp
-      const daysSpanned = Math.max(secondsSpanned / 86400, 1)
-
-      // Posts per day = count / days
-      const postsPerDay = posts.length / daysSpanned
-
-      console.log(`[RedditAdapter] r/${subreddit}: ${posts.length} posts over ${daysSpanned.toFixed(1)} days = ${postsPerDay.toFixed(1)} posts/day`)
-
-      return { count: posts.length, postsPerDay }
+      console.log(`[RedditAdapter] Fresh fetch for r/${subreddit}: ${posts.length} posts`)
+      return stats
     } catch {
       return { count: 0, postsPerDay: 1 } // Default to medium activity on error
     }
   }
 
   /**
-   * Get sample posts for preview
+   * Calculate stats from an array of posts
+   */
+  private calculateStatsFromPosts(posts: Array<{ created_utc?: number; createdUtc?: number }>, subreddit: string): PostStats {
+    if (posts.length < 2) {
+      return { count: posts.length, postsPerDay: 0.5 }
+    }
+
+    // Calculate posting velocity from timestamp spread
+    const timestamps = posts.map(p => p.created_utc ?? p.createdUtc ?? 0).sort((a, b) => b - a)
+    const newestTimestamp = timestamps[0]
+    const oldestTimestamp = timestamps[timestamps.length - 1]
+
+    // Calculate days spanned (minimum 1 day to avoid division issues)
+    const secondsSpanned = newestTimestamp - oldestTimestamp
+    const daysSpanned = Math.max(secondsSpanned / 86400, 1)
+
+    // Posts per day = count / days
+    const postsPerDay = posts.length / daysSpanned
+
+    console.log(`[RedditAdapter] r/${subreddit}: ${posts.length} posts over ${daysSpanned.toFixed(1)} days = ${postsPerDay.toFixed(1)} posts/day`)
+
+    return { count: posts.length, postsPerDay }
+  }
+
+  /**
+   * Get sample posts for preview (uses cache when available)
    */
   async getSamplePosts(subreddit: string, limit: number = 3): Promise<SamplePost[]> {
     try {
+      // Check Supabase cache first
+      const cacheKey = generateCacheKey([subreddit], [], undefined)
+      const cached = await getCachedData(cacheKey)
+
+      if (cached && cached.posts.length > 0 && !cached.isExpired) {
+        console.log(`[RedditAdapter] Sample posts cache HIT for r/${subreddit}`)
+        return cached.posts.slice(0, limit).map(p => ({
+          title: p.title,
+          subreddit: p.subreddit,
+          score: p.score,
+          permalink: p.permalink || `https://reddit.com/r/${p.subreddit}/comments/${p.id}`,
+        }))
+      }
+
+      // Fetch fresh if not cached
       const posts = await arcticSearchPosts({
         subreddit,
         limit: Math.min(limit, 10),
@@ -212,7 +286,7 @@ export class RedditAdapter implements DataSourceAdapter {
   }
 
   /**
-   * Legacy method: Get sample posts with keyword filtering
+   * Legacy method: Get sample posts with keyword filtering (uses cache when available)
    */
   async getSamplePostsWithKeywords(
     subreddit: string,
@@ -222,11 +296,35 @@ export class RedditAdapter implements DataSourceAdapter {
     try {
       const fetchLimit = keywords && keywords.length > 0 ? 100 : Math.min(limit, 10)
 
-      const posts = await arcticSearchPosts({
-        subreddit,
-        limit: fetchLimit,
-        sort: 'desc',
-      })
+      // Check Supabase cache first
+      const cacheKey = generateCacheKey([subreddit], [], undefined)
+      const cached = await getCachedData(cacheKey)
+
+      let posts: ArcticPost[]
+
+      if (cached && cached.posts.length >= fetchLimit && !cached.isExpired) {
+        console.log(`[RedditAdapter] getSamplePostsWithKeywords cache HIT for r/${subreddit}`)
+        // Convert cached posts to ArcticPost format for filtering
+        posts = cached.posts.map(p => ({
+          id: p.id,
+          title: p.title,
+          selftext: p.body,
+          author: p.author,
+          subreddit: p.subreddit,
+          score: p.score,
+          num_comments: p.numComments,
+          created_utc: p.createdUtc,
+          permalink: p.permalink,
+          url: p.url,
+        })) as unknown as ArcticPost[]
+      } else {
+        // Fetch fresh
+        posts = await arcticSearchPosts({
+          subreddit,
+          limit: fetchLimit,
+          sort: 'desc',
+        })
+      }
 
       let filteredPosts = posts
 
