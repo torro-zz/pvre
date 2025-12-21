@@ -29,12 +29,13 @@ interface ConversationalInputProps {
   showCoveragePreview?: boolean
 }
 
+// Structured examples with audience and problem separated for visual teaching
 const EXAMPLE_INPUTS = [
-  "Gym-goers who want to make friends but feel awkward approaching strangers",
-  "Parents overwhelmed by nightly meal planning decisions",
-  "Remote workers feeling isolated without office interactions",
-  "New freelancers struggling to land their first paying clients",
-  "9-to-5 employees stuck dreaming about starting a side business",
+  { audience: "Gym-goers", problem: "who want to make friends but feel awkward approaching strangers" },
+  { audience: "Parents", problem: "overwhelmed by nightly meal planning decisions" },
+  { audience: "Remote workers", problem: "feeling isolated without office interactions" },
+  { audience: "New freelancers", problem: "struggling to land their first paying clients" },
+  { audience: "9-to-5 employees", problem: "stuck dreaming about starting a side business" },
 ]
 
 // Audience indicator words
@@ -561,23 +562,38 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                 </div>
               )}
 
-              {/* Examples Section - Modern Cards */}
+              {/* Examples Section - Modern Cards with Visual Teaching */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Lightbulb className="h-4 w-4" />
-                  <span>Need inspiration? Try one of these:</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Lightbulb className="h-4 w-4" />
+                    <span>Need inspiration? Try one of these:</span>
+                  </div>
+                  {/* Legend */}
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      who
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      pain
+                    </span>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {EXAMPLE_INPUTS.slice(0, 4).map((example, idx) => (
                     <button
                       key={idx}
                       type="button"
-                      onClick={() => useExample(example)}
+                      onClick={() => useExample(`${example.audience} ${example.problem}`)}
                       disabled={isInterpreting || isLoading}
                       className="text-left p-4 rounded-xl border-2 border-transparent bg-muted/50 hover:bg-muted hover:border-muted-foreground/10 transition-all disabled:opacity-50 group"
                     >
-                      <p className="text-sm text-foreground group-hover:text-foreground leading-relaxed">
-                        {example}
+                      <p className="text-sm leading-relaxed">
+                        <span className="text-blue-600 dark:text-blue-400 font-medium">{example.audience}</span>
+                        {' '}
+                        <span className="text-amber-700 dark:text-amber-400">{example.problem}</span>
                       </p>
                     </button>
                   ))}
