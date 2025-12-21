@@ -169,15 +169,9 @@ export default function ResearchPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Hero Header */}
-      <div className="text-center mb-10 pt-4">
-        <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-primary/10 via-violet-500/10 to-blue-500/10 mb-4">
-          <Sparkles className="h-7 w-7 text-primary" />
-        </div>
-        <h1 className="text-4xl font-bold tracking-tight mb-2">New Research</h1>
-        <p className="text-muted-foreground text-lg max-w-md mx-auto">
-          Validate your business idea with real community data
-        </p>
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold tracking-tight">New Research</h1>
       </div>
 
       {/* How It Works Guide - dismissible */}
