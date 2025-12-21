@@ -30,6 +30,10 @@ const TECH_KEYWORDS = [
   'bootstrap', 'indie', 'maker', 'founder', 'entrepreneur', 'vc', 'funding',
   'devtools', 'developer tools', 'open source', 'cloud', 'infra', 'infrastructure',
   'b2b', 'enterprise', 'automation', 'workflow', 'productivity tool',
+  // Remote work is a major HN topic
+  'remote', 'remote work', 'work from home', 'wfh', 'distributed team',
+  'async', 'asynchronous', 'timezone', 'hybrid work', 'freelancer', 'freelance',
+  'digital nomad', 'coworking', 'home office',
 ]
 
 // Keywords that indicate Google Play should be included as a data source

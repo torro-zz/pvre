@@ -232,53 +232,57 @@ export async function POST(req: Request) {
       }
     }
 
-    // Always check app stores - users can toggle them on/off in the UI
-    // (Previously we only checked when mobile keywords were detected)
+    // Only check app stores when hypothesis mentions mobile apps/phones
+    // App reviews contain bug reports/feature complaints, not problem validation signals
+    // For non-app hypotheses (e.g., "remote workers feel isolated"), app reviews are noise
+    const includeAppStores = shouldIncludeGooglePlay(hypothesis)
     let googlePlayCoverage = null
     let appStoreCoverage = null
 
-    // Build app discovery context from structured hypothesis (if available)
-    // This enables smart LLM-based relevance scoring for apps
-    const appDiscoveryContext: AppDiscoveryContext | undefined = structuredHypothesis ? {
-      hypothesis,
-      audience: structuredHypothesis.audience,
-      problem: structuredHypothesis.problem,
-      // Extract domain keywords from the hypothesis interpretation
-      domainKeywords: keywords.slice(0, 5),
-      // These would come from interpret-hypothesis in the full flow
-      expectedCategories: undefined,
-      antiCategories: undefined,
-      competitorApps: undefined,
-    } : {
-      // Fallback: just pass hypothesis for basic scoring
-      hypothesis,
-      domainKeywords: keywords.slice(0, 5),
-    }
-
-    // Fetch both app stores in parallel - always include if data is available
-    const [gplayData, appStoreData] = await Promise.all([
-      checkGooglePlayCoverage(hypothesis, appDiscoveryContext),
-      checkAppStoreCoverage(hypothesis, appDiscoveryContext),
-    ])
-
-    if (gplayData.available && gplayData.estimatedPosts > 0) {
-      googlePlayCoverage = {
-        included: true,
-        estimatedPosts: gplayData.estimatedPosts,
-        samplePosts: gplayData.samplePosts,
-        apps: gplayData.apps,
+    if (includeAppStores) {
+      // Build app discovery context from structured hypothesis (if available)
+      // This enables smart LLM-based relevance scoring for apps
+      const appDiscoveryContext: AppDiscoveryContext | undefined = structuredHypothesis ? {
+        hypothesis,
+        audience: structuredHypothesis.audience,
+        problem: structuredHypothesis.problem,
+        // Extract domain keywords from the hypothesis interpretation
+        domainKeywords: keywords.slice(0, 5),
+        // These would come from interpret-hypothesis in the full flow
+        expectedCategories: undefined,
+        antiCategories: undefined,
+        competitorApps: undefined,
+      } : {
+        // Fallback: just pass hypothesis for basic scoring
+        hypothesis,
+        domainKeywords: keywords.slice(0, 5),
       }
-      dataSources.push('Google Play')
-    }
 
-    if (appStoreData.available && appStoreData.estimatedPosts > 0) {
-      appStoreCoverage = {
-        included: true,
-        estimatedPosts: appStoreData.estimatedPosts,
-        samplePosts: appStoreData.samplePosts,
-        apps: appStoreData.apps,
+      // Fetch both app stores in parallel
+      const [gplayData, appStoreData] = await Promise.all([
+        checkGooglePlayCoverage(hypothesis, appDiscoveryContext),
+        checkAppStoreCoverage(hypothesis, appDiscoveryContext),
+      ])
+
+      if (gplayData.available && gplayData.estimatedPosts > 0) {
+        googlePlayCoverage = {
+          included: true,
+          estimatedPosts: gplayData.estimatedPosts,
+          samplePosts: gplayData.samplePosts,
+          apps: gplayData.apps,
+        }
+        dataSources.push('Google Play')
       }
-      dataSources.push('App Store')
+
+      if (appStoreData.available && appStoreData.estimatedPosts > 0) {
+        appStoreCoverage = {
+          included: true,
+          estimatedPosts: appStoreData.estimatedPosts,
+          samplePosts: appStoreData.samplePosts,
+          apps: appStoreData.apps,
+        }
+        dataSources.push('App Store')
+      }
     }
 
     // Calculate total estimated posts from all sources
