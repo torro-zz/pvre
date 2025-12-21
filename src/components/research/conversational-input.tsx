@@ -52,7 +52,9 @@ const PROBLEM_WORDS = [
   'struggle', 'struggling', 'frustrated', 'frustrating', 'hate', 'tired', 'overwhelmed',
   'confused', 'stuck', 'can\'t', 'cannot', 'difficult', 'hard', 'problem', 'issue',
   'challenge', 'pain', 'annoying', 'stress', 'stressful', 'worried', 'anxious',
-  'fail', 'failing', 'waste', 'wasting', 'losing', 'missing', 'need', 'want'
+  'fail', 'failing', 'waste', 'wasting', 'losing', 'missing', 'need', 'want',
+  'lonely', 'loneliness', 'isolated', 'isolation', 'alone', 'disconnected', 'depressed',
+  'unhappy', 'miserable', 'helpless', 'hopeless', 'scared', 'afraid', 'nervous'
 ]
 
 function InputQualityIndicator({ input }: { input: string }) {
