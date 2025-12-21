@@ -309,8 +309,29 @@ Identify 3-7 themes, 5-10 customer language phrases, 3-5 key quotes, and 2-3 str
 
     return result
   } catch (error) {
+    // Log detailed error for debugging
     console.error('Theme extraction failed:', error)
-    // Throw error to trigger refund - don't silently fail with empty results
+
+    // Provide more specific error messages based on error type
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    // Check for common error patterns
+    if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+      throw new Error(
+        'Theme analysis rate limited. Your credit has been refunded. Please try again in a few minutes.'
+      )
+    } else if (errorMessage.includes('authentication') || errorMessage.includes('401')) {
+      throw new Error(
+        'Theme analysis authentication error. Please contact support.'
+      )
+    } else if (errorMessage.includes('Could not parse JSON')) {
+      throw new Error(
+        'Theme analysis parsing error. Your credit has been refunded. Please try again.'
+      )
+    }
+
+    // Generic fallback with original error details logged
+    console.error(`[Theme extraction] Original error: ${errorMessage}`)
     throw new Error(
       'Theme analysis failed. Your credit has been refunded. Please try again later.'
     )

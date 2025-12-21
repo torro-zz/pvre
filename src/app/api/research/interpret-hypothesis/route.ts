@@ -19,6 +19,13 @@ export interface HypothesisInterpretation {
   confidence: 'low' | 'medium' | 'high'
   ambiguities: string[]
   isTransitionHypothesis: boolean
+  // App discovery fields - for smart app store filtering
+  appDiscovery?: {
+    domainKeywords: string[]      // Core domain terms for search (e.g., ["expat", "international", "health insurance"])
+    expectedCategories: string[]   // App categories likely relevant (e.g., ["Medical", "Travel", "Finance"])
+    antiCategories: string[]       // Categories to filter out (e.g., ["Games", "Entertainment"])
+    competitorApps: string[]       // Known apps in this space (e.g., ["Cigna Global", "SafetyWing"])
+  }
 }
 
 export interface RefinementSuggestion {
@@ -111,6 +118,11 @@ Your task is to interpret this and extract:
 4. **Confidence**: How confident are you in this interpretation? (low/medium/high)
 5. **Ambiguities**: Any unclear aspects that could lead to irrelevant results.
 6. **Is Transition Hypothesis**: Is this about people transitioning FROM one state TO another (e.g., employees wanting to become freelancers)?
+7. **App Discovery** (for finding relevant mobile apps):
+   - **Domain Keywords**: 3-5 domain-specific terms that define this problem space (NOT generic words like "tool", "app", "help"). Prioritize unique, specific terms.
+   - **Expected Categories**: Mobile app store categories where relevant apps would be found (e.g., "Medical", "Finance", "Travel", "Business", "Productivity")
+   - **Anti-Categories**: Categories that are definitely NOT relevant (e.g., "Games", "Entertainment", "Social Networking" for a B2B hypothesis)
+   - **Competitor Apps**: Known apps that solve this or similar problems (if any come to mind)
 
 Also provide 2-3 refinement suggestions if the input is vague or could be more specific.
 
@@ -122,7 +134,13 @@ Respond in this exact JSON format:
     "searchPhrases": ["phrase 1", "phrase 2", "phrase 3"],
     "confidence": "low" | "medium" | "high",
     "ambiguities": ["unclear aspect 1", "unclear aspect 2"],
-    "isTransitionHypothesis": true | false
+    "isTransitionHypothesis": true | false,
+    "appDiscovery": {
+      "domainKeywords": ["specific term 1", "specific term 2", "specific term 3"],
+      "expectedCategories": ["Category1", "Category2"],
+      "antiCategories": ["Category3", "Category4"],
+      "competitorApps": ["App Name 1", "App Name 2"]
+    }
   },
   "refinementSuggestions": [
     {
@@ -140,7 +158,10 @@ Important guidelines:
 - If the input mentions a solution, focus on the underlying problem, not the solution itself
 - For transition hypotheses, emphasize the "stuck" feeling and desire for change
 - Keep audience specific but not overly narrow
-- Mark confidence as "low" if very vague, "high" if very clear and specific`
+- Mark confidence as "low" if very vague, "high" if very clear and specific
+- For domainKeywords, prioritize UNIQUE terms that distinguish this problem (e.g., "expat" not "insurance")
+- For expectedCategories, use standard app store categories: Health & Fitness, Medical, Finance, Business, Productivity, Travel, Education, Lifestyle, Shopping, Food & Drink, etc.
+- competitorApps can be empty array if no specific apps come to mind`
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -179,6 +200,21 @@ Important guidelines:
     parsed.interpretation.searchPhrases = parsed.interpretation.searchPhrases || []
     parsed.interpretation.ambiguities = parsed.interpretation.ambiguities || []
     parsed.refinementSuggestions = parsed.refinementSuggestions || []
+
+    // Ensure appDiscovery fields exist with sensible defaults
+    if (!parsed.interpretation.appDiscovery) {
+      parsed.interpretation.appDiscovery = {
+        domainKeywords: [],
+        expectedCategories: [],
+        antiCategories: [],
+        competitorApps: [],
+      }
+    } else {
+      parsed.interpretation.appDiscovery.domainKeywords = parsed.interpretation.appDiscovery.domainKeywords || []
+      parsed.interpretation.appDiscovery.expectedCategories = parsed.interpretation.appDiscovery.expectedCategories || []
+      parsed.interpretation.appDiscovery.antiCategories = parsed.interpretation.appDiscovery.antiCategories || []
+      parsed.interpretation.appDiscovery.competitorApps = parsed.interpretation.appDiscovery.competitorApps || []
+    }
 
     // Return with mode field for discriminated union
     const response: HypothesisResponse = {

@@ -267,26 +267,29 @@ export async function extractProblemDomain(
 
   const response = await anthropic.messages.create({
     model: 'claude-3-5-haiku-latest',
-    max_tokens: 150,
+    max_tokens: 200,
     messages: [{
       role: 'user',
       content: `Extract the PRIMARY PROBLEM DOMAIN from this business hypothesis.
 
 ${contextText}
 
-The domain should be 1-3 words describing what topic/category the PROBLEM is about.
-NOT the audience demographic - the actual problem category.
+The domain should be 2-4 words describing the SPECIFIC problem space.
 
-Examples:
-- "Men in 50s struggling with aging skin" → domain: "skincare" or "skin aging"
-- "Busy parents with picky eaters" → domain: "meal planning" or "child nutrition"
-- "Remote workers with back pain" → domain: "ergonomics" or "back pain"
+IMPORTANT: Include audience context when it's ESSENTIAL to defining the problem:
+- "Expats feeling lonely" → domain: "expat loneliness" or "expat social isolation" (NOT just "loneliness")
+- "New mothers struggling with sleep deprivation" → domain: "postpartum sleep" (NOT just "sleep")
+- "Remote workers with back pain" → domain: "work from home ergonomics" (NOT just "back pain")
+
+Only exclude audience when it's a pure demographic filter that doesn't change the problem:
+- "Men in 50s struggling with aging skin" → domain: "skin aging" (problem is same for all ages)
+- "Busy parents with picky eaters" → domain: "child nutrition" (problem is same for all parents)
 
 Also list 3-5 UNRELATED domains that might appear due to audience overlap but are NOT relevant.
 
 Return JSON only:
 {
-  "domain": "primary problem domain",
+  "domain": "specific problem domain (2-4 words)",
   "antiDomains": ["unrelated domain 1", "unrelated domain 2", ...]
 }`,
     }],
@@ -306,10 +309,12 @@ Return JSON only:
     const match = content.text.match(/\{[\s\S]*\}/)
     if (match) {
       const parsed = JSON.parse(match[0])
-      return {
+      const result = {
         domain: parsed.domain || '',
         antiDomains: parsed.antiDomains || [],
       }
+      console.log(`[extractProblemDomain] Extracted domain: "${result.domain}" (antiDomains: ${result.antiDomains.join(', ')})`)
+      return result
     }
   } catch {
     console.warn('[extractProblemDomain] Failed to parse response:', content.text)
@@ -321,12 +326,14 @@ Return JSON only:
 /**
  * Stage 1: Domain Gate - Fast AI filter using extracted domain
  * Asks simple question: "Is this post about [domain]?"
+ * @param lenientMode - Use more lenient filtering (for title-only posts with less context)
  */
 export async function domainGateFilter(
   posts: RedditPost[],
   domain: string,
   antiDomains: string[],
-  sendProgress?: (msg: string) => void
+  sendProgress?: (msg: string) => void,
+  lenientMode: boolean = false
 ): Promise<{ passed: RedditPost[]; filtered: RedditPost[]; decisions: RelevanceDecision[] }> {
   if (posts.length === 0 || !domain) {
     return { passed: posts, filtered: [], decisions: [] }
@@ -353,7 +360,57 @@ export async function domainGateFilter(
       ? `\nREJECT posts about: ${antiDomains.join(', ')}`
       : ''
 
-    const prompt = `DOMAIN CHECK: Is each post related to "${domain}"?
+    // Check if domain is compound (contains multiple concepts like "expat loneliness")
+    const isCompoundDomain = domain.includes(' ') && domain.split(' ').length >= 2
+
+    // For lenient mode (title-only posts), use broader matching for compound domains
+    const prompt = isCompoundDomain && !lenientMode
+      ? `COMPOUND DOMAIN CHECK: Is each post about "${domain}"?
+
+The domain has MULTIPLE PARTS - post must relate to BOTH concepts:
+- "${domain.split(' ')[0]}" context/audience AND
+- "${domain.split(' ').slice(1).join(' ')}" problem/topic
+${antiDomainList}
+
+Posts:
+${postSummaries}
+
+Rules:
+- Y = post discusses BOTH aspects (e.g., for "expat loneliness": must be about expats AND loneliness/isolation/social)
+- Y = post shows pain/frustration related to the COMBINED topic
+- N = post is about only ONE aspect (e.g., expat voting, or general loneliness)
+- N = post is clearly about something else entirely
+
+Example for "expat loneliness":
+- "I moved abroad and feel so isolated" → Y (expat + loneliness)
+- "How do expats vote?" → N (expat only, no loneliness)
+- "I'm lonely and have no friends" → N (loneliness only, no expat context)
+
+Respond with exactly ${batch.length} letters (Y or N):`
+      : isCompoundDomain && lenientMode
+      ? `LENIENT COMPOUND DOMAIN CHECK (title-only posts): "${domain}"
+
+These posts only have TITLES - be MORE INCLUSIVE since context is limited.
+The post should relate to "${domain.split(' ')[0]}" (primary context).
+${antiDomainList}
+
+Posts:
+${postSummaries}
+
+Rules - BE LENIENT (titles have limited context):
+- Y = post is about ${domain.split(' ')[0]} context (even if emotion/problem isn't explicit in title)
+- Y = title COULD be from someone experiencing ${domain.split(' ').slice(1).join(' ')}
+- Y = post shows ANY challenge/struggle in the ${domain.split(' ')[0]} context
+- N = post is clearly off-topic (spam, wrong language, completely unrelated)
+
+Example for "expat loneliness":
+- "Struggling with my first winter abroad" → Y (expat context, implies challenge)
+- "How to find friends as a new expat" → Y (expat + social need)
+- "Visa requirements for Germany" → Y (expat context, pass to next filter)
+- "Best pizza recipe" → N (completely unrelated)
+
+Respond with exactly ${batch.length} letters (Y or N):`
+      : `DOMAIN CHECK: Is each post related to "${domain}"?
 ${antiDomainList}
 
 Posts:
@@ -867,12 +924,13 @@ export async function filterRelevantPosts(
   if (stage3.titleOnly.length > 0) {
     sendProgress?.(`Including ${stage3.titleOnly.length} posts with [removed] bodies (title only)...`)
 
-    // Run domain gate on title-only posts
+    // Run domain gate on title-only posts with lenient mode (titles have less context)
     const titleOnlyDomain = await domainGateFilter(
       stage3.titleOnly as RedditPost[],
       domain,
       antiDomains,
-      (msg) => sendProgress?.(`[Title-only] ${msg}`)
+      (msg) => sendProgress?.(`[Title-only] ${msg}`),
+      true  // lenientMode for title-only posts
     )
 
     if (titleOnlyDomain.passed.length > 0) {
@@ -1098,12 +1156,24 @@ Respond with ${batch.length} letters (Y or N):`
 // QUALITY SAMPLING (for pre-research quality prediction)
 // ============================================================================
 
+export interface BroadeningSuggestion {
+  phrase: string           // The narrow phrase detected (e.g., "christmas and new years")
+  suggestion: string       // The suggestion text
+  broaderHypothesis?: string  // Optional: the hypothesis without this phrase
+}
+
 export interface QualitySampleResult {
   predictedRelevance: number  // 0-100 percentage
   predictedConfidence: 'very_low' | 'low' | 'medium' | 'high'
   qualityWarning: 'none' | 'caution' | 'strong_warning'
 
-  // Sample posts for user to see
+  // Actual sample size used for prediction (UI only shows subset)
+  sampleSize: number
+
+  // Rate of removed/unavailable posts in selected communities (0-100)
+  removedPostRate?: number
+
+  // Sample posts for user to see (subset of actual sample)
   sampleRelevant: Array<{
     title: string
     body_preview: string
@@ -1121,6 +1191,130 @@ export interface QualitySampleResult {
 
   // Suggestion if quality is low
   suggestion?: string
+
+  // Broadening suggestions when hypothesis is too narrow
+  broadenings?: BroadeningSuggestion[]
+}
+
+/**
+ * Detect narrow qualifiers in a hypothesis that could be removed to broaden the search
+ */
+function detectNarrowQualifiers(hypothesis: string): BroadeningSuggestion[] {
+  const suggestions: BroadeningSuggestion[] = []
+  const lowerHypothesis = hypothesis.toLowerCase()
+
+  // Temporal/seasonal patterns - order matters! More specific patterns should come first
+  const temporalPatterns: Array<{pattern: RegExp, suggestion: string, category: string}> = [
+    {
+      // MOST SPECIFIC: Catch "during major holidays (especially ...)" as a complete phrase
+      // Must come first so it captures the whole phrase, not just the parenthetical
+      pattern: /during\s+(major\s+)?holidays?\s*\((especially\s+)?(christmas(\s+(and|&)\s+new\s*year'?s?)?|new\s*year'?s?)\)/gi,
+      suggestion: 'Remove holiday timing to find year-round discussions',
+      category: 'seasonal'
+    },
+    {
+      // Catch full phrases like "especially during christmas and new years"
+      pattern: /\b(especially|particularly|specifically)?\s*(during)\s+(the\s+)?(christmas(\s+and\s+new\s*year'?s?)?|new\s*year'?s?(\s+and\s+christmas)?|holidays?|holiday\s+season|winter|summer|spring|fall|autumn)\b/gi,
+      suggestion: 'Remove seasonal timing to find year-round discussions',
+      category: 'seasonal'
+    },
+    {
+      // Catch Claude's rephrased versions like "major holidays like Christmas"
+      pattern: /\b(major\s+)?holidays?\s*(like|such as)\s+(christmas(\s+(and|&)\s+new\s*year'?s?)?|new\s*year'?s?)/gi,
+      suggestion: 'Remove holiday timing to find year-round discussions',
+      category: 'seasonal'
+    },
+    {
+      // Catch parenthetical holiday references from Claude's interpretations
+      // Matches: "(Christmas and New Year's)", "(especially Christmas and New Year's)"
+      pattern: /\((especially\s+)?(christmas(\s+(and|&)\s+new\s*year'?s?)?|new\s*year'?s?(\s+(and|&)\s+christmas)?)\)/gi,
+      suggestion: 'Remove holiday reference to find year-round discussions',
+      category: 'seasonal'
+    },
+    {
+      // Only match standalone holiday references if not caught above
+      pattern: /\b(thanksgiving|black friday|valentine'?s?\s+day|mother'?s?\s+day|father'?s?\s+day)\b/gi,
+      suggestion: 'Remove holiday reference to find year-round discussions',
+      category: 'holiday'
+    },
+    {
+      pattern: /\b(in the (morning|evening|night|afternoon)|at night|during (work|business) hours)\b/gi,
+      suggestion: 'Remove time-of-day constraint to broaden results',
+      category: 'time_of_day'
+    },
+    {
+      pattern: /\b(first\s+time|for the first time|when starting|just started|new to)\b/gi,
+      suggestion: 'Remove "first time" to include experienced users too',
+      category: 'experience'
+    },
+  ]
+
+  // Geographic/location patterns
+  const geoPatterns: Array<{pattern: RegExp, suggestion: string}> = [
+    {
+      pattern: /\b(in (europe|asia|america|africa|australia|canada|uk|us|usa))\b/gi,
+      suggestion: 'Remove geographic restriction to find global discussions',
+    },
+    {
+      pattern: /\b(moving to|relocating to|living in)\s+[A-Z][a-z]+/g,
+      suggestion: 'Remove specific destination to find broader relocation discussions',
+    },
+  ]
+
+  // Very specific demographic patterns
+  const demographicPatterns: Array<{pattern: RegExp, suggestion: string}> = [
+    {
+      pattern: /\b(in their\s+)?(20s|30s|40s|50s|60s|70s)\b/gi,
+      suggestion: 'Remove age range to find discussions from all ages',
+    },
+    {
+      pattern: /\b(who (work|works) (in|at|for)\s+[a-z]+)\b/gi,
+      suggestion: 'Remove specific job type to broaden audience',
+    },
+  ]
+
+  // Helper to escape regex special characters for use in new RegExp()
+  const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  // Check temporal patterns (with category deduplication)
+  const foundCategories = new Set<string>()
+  for (const {pattern, suggestion, category} of temporalPatterns) {
+    const match = lowerHypothesis.match(pattern)
+    if (match && !foundCategories.has(category)) {
+      foundCategories.add(category)
+      const phrase = match[0]
+      suggestions.push({
+        phrase,
+        suggestion,
+        broaderHypothesis: hypothesis.replace(new RegExp(escapeRegex(phrase), 'gi'), '').replace(/\s+/g, ' ').trim()
+      })
+    }
+  }
+
+  // Check geographic patterns
+  for (const {pattern, suggestion} of geoPatterns) {
+    const match = lowerHypothesis.match(pattern)
+    if (match) {
+      suggestions.push({
+        phrase: match[0],
+        suggestion,
+      })
+    }
+  }
+
+  // Check demographic patterns
+  for (const {pattern, suggestion} of demographicPatterns) {
+    const match = lowerHypothesis.match(pattern)
+    if (match) {
+      suggestions.push({
+        phrase: match[0],
+        suggestion,
+      })
+    }
+  }
+
+  // Return up to 3 suggestions
+  return suggestions.slice(0, 3)
 }
 
 /**
@@ -1144,6 +1338,7 @@ export async function sampleQualityCheck(
       predictedRelevance: 0,
       predictedConfidence: 'very_low',
       qualityWarning: 'strong_warning',
+      sampleSize: sample.length,
       sampleRelevant: [],
       sampleFiltered: [],
       filteredTopics: [],
@@ -1152,7 +1347,13 @@ export async function sampleQualityCheck(
   }
 
   // Stage 1: Quality gate (free, code-only)
-  const { passed: qualityPassed, decisions: qualityDecisions } = qualityGateFilter(sample)
+  const { passed: qualityPassed, filtered: qualityFiltered, titleOnly, decisions: qualityDecisions } = qualityGateFilter(sample)
+
+  // Calculate removed post rate (title-only + removed_deleted = unavailable content)
+  const removedCount = qualityDecisions.filter(d =>
+    d.reason === 'title_only' || d.reason === 'removed_deleted'
+  ).length
+  const removedPostRate = sample.length > 0 ? Math.round((removedCount / sample.length) * 100) : 0
 
   // Stage 2: Extract domain for gate filter
   const { domain, antiDomains } = await extractProblemDomain(hypothesis, structured)
@@ -1183,10 +1384,12 @@ export async function sampleQualityCheck(
   }
 
   // Determine warning level
+  // Note: Sample uses title-only posts, so actual relevance is typically higher
+  // Only show strong warning for very low relevance (< 8%)
   let qualityWarning: QualitySampleResult['qualityWarning'] = 'none'
-  if (predictedRelevance < 15) {
+  if (predictedRelevance < 8) {
     qualityWarning = 'strong_warning'
-  } else if (predictedRelevance < 25) {
+  } else if (predictedRelevance < 20) {
     qualityWarning = 'caution'
   }
 
@@ -1211,27 +1414,37 @@ export async function sampleQualityCheck(
   // Analyze filtered topics - group by apparent topic
   const filteredTopics = analyzeFilteredTopics(domainFiltered, domain)
 
+  // Detect narrow qualifiers that could be broadened
+  const broadenings = predictedRelevance < 30 ? detectNarrowQualifiers(hypothesis) : []
+
   // Generate suggestion based on results
+  // Only show suggestions for truly problematic relevance levels
   let suggestion: string | undefined
-  if (predictedRelevance < 15) {
-    if (filteredTopics.length > 0) {
-      const topTopic = filteredTopics[0].topic
-      suggestion = `Your audience talks more about "${topTopic}" than your hypothesis topic. Consider pivoting or narrowing your focus.`
+  if (removedPostRate >= 50) {
+    // High removed rate is a bigger issue than low relevance
+    suggestion = `${removedPostRate}% of posts in these communities have been removed by moderators. Consider trying different communities with more active discussions.`
+  } else if (predictedRelevance < 8) {
+    if (broadenings.length > 0) {
+      suggestion = `Your hypothesis may be too specific. Consider broadening to find more discussions.`
     } else {
-      suggestion = 'Try being more specific about the pain point, or explore different communities.'
+      suggestion = 'Very few matching posts found. Try different communities or broaden your hypothesis.'
     }
-  } else if (predictedRelevance < 25) {
-    suggestion = 'Consider narrowing your hypothesis for more focused results.'
+  } else if (predictedRelevance < 15 && broadenings.length > 0) {
+    suggestion = 'You can broaden your hypothesis to find more discussions.'
   }
+  // Don't show suggestions for 15%+ - that's actually normal/fine
 
   return {
     predictedRelevance,
     predictedConfidence,
     qualityWarning,
+    sampleSize: sample.length,
+    removedPostRate: removedPostRate > 0 ? removedPostRate : undefined,
     sampleRelevant,
     sampleFiltered,
     filteredTopics,
     suggestion,
+    broadenings: broadenings.length > 0 ? broadenings : undefined,
   }
 }
 
@@ -1268,8 +1481,9 @@ function analyzeFilteredTopics(
     }
   }
 
-  // Sort by count and return top 3
+  // Sort by count and return top 3, but only if count >= 3 (meaningful signal)
   return Array.from(topicCounts.entries())
+    .filter(([, count]) => count >= 3) // Require minimum 3 posts to be meaningful
     .map(([topic, count]) => ({ topic, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 3)

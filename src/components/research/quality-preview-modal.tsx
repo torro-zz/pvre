@@ -14,10 +14,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
+export interface BroadeningSuggestion {
+  phrase: string
+  suggestion: string
+  broaderHypothesis?: string
+}
+
 export interface QualityPreviewData {
   predictedRelevance: number
   predictedConfidence: 'very_low' | 'low' | 'medium' | 'high'
   qualityWarning: 'none' | 'caution' | 'strong_warning'
+  sampleSize: number  // Actual sample size used for prediction
+  removedPostRate?: number  // Rate of removed/unavailable posts (0-100)
   sampleRelevant: Array<{
     title: string
     body_preview: string
@@ -31,6 +39,7 @@ export interface QualityPreviewData {
   }>
   filteredTopics: Array<{ topic: string; count: number }>
   suggestion?: string
+  broadenings?: BroadeningSuggestion[]
 }
 
 interface QualityPreviewModalProps {
@@ -55,15 +64,20 @@ export function QualityPreviewModal({
     predictedRelevance,
     predictedConfidence,
     qualityWarning,
+    sampleSize,
+    removedPostRate,
     sampleRelevant,
     sampleFiltered,
     filteredTopics,
     suggestion,
+    broadenings,
   } = qualityData
 
   const isStrongWarning = qualityWarning === 'strong_warning'
   const isCaution = qualityWarning === 'caution'
-  const needsAcknowledgment = isStrongWarning || isCaution
+  // Only require acknowledgment for strong warnings (< 8% relevance)
+  // Caution (8-20%) is actually normal and doesn't need friction
+  const needsAcknowledgment = isStrongWarning
 
   const handleProceed = () => {
     if (needsAcknowledgment && !acknowledged) return
@@ -87,7 +101,7 @@ export function QualityPreviewModal({
             Expected Research Quality
           </DialogTitle>
           <DialogDescription>
-            Based on a sample of {sampleRelevant.length + sampleFiltered.length} posts from your selected communities
+            Based on analyzing {sampleSize} posts from your selected communities
           </DialogDescription>
         </DialogHeader>
 
@@ -116,11 +130,24 @@ export function QualityPreviewModal({
               isCaution && "text-amber-700 dark:text-amber-300",
               !needsAcknowledgment && "text-emerald-700 dark:text-emerald-300"
             )}>
-              {isStrongWarning && "Most posts are off-topic. Results may not be useful."}
-              {isCaution && "Many posts are off-topic. Consider refining your hypothesis."}
+              {isStrongWarning && "Very few matching posts found. Consider refining your search."}
+              {isCaution && "Moderate match rate. Research will focus on relevant discussions."}
               {!needsAcknowledgment && "Good relevance. Results should be useful."}
             </p>
           </div>
+
+          {/* Removed Post Rate Warning */}
+          {removedPostRate && removedPostRate >= 30 && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-amber-800 dark:text-amber-200">
+                <span className="font-medium">{removedPostRate}% of posts unavailable</span>
+                <span className="text-amber-700 dark:text-amber-300 ml-1">
+                  — many posts in these communities have been removed by moderators
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Sample Relevant Posts */}
           {sampleRelevant.length > 0 && (
@@ -191,6 +218,28 @@ export function QualityPreviewModal({
             </div>
           )}
 
+          {/* Broadening suggestions */}
+          {broadenings && broadenings.length > 0 && (
+            <div className="space-y-2 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+              <div className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-200">
+                <Search className="w-4 h-4" />
+                Try broadening your search:
+              </div>
+              <div className="space-y-2 pl-6">
+                {broadenings.map((b, i) => (
+                  <div key={i} className="text-sm">
+                    <span className="text-amber-700 dark:text-amber-300">
+                      Remove &ldquo;<span className="font-medium">{b.phrase}</span>&rdquo;
+                    </span>
+                    <span className="text-amber-600/80 dark:text-amber-400/80 ml-1">
+                      — {b.suggestion}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Acknowledgment checkbox for warnings */}
           {needsAcknowledgment && (
             <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border">
@@ -201,7 +250,7 @@ export function QualityPreviewModal({
                 className="mt-0.5"
               />
               <label htmlFor="acknowledge" className="text-sm text-muted-foreground cursor-pointer">
-                I understand that expected relevance is {isStrongWarning ? 'very ' : ''}low and results may {isStrongWarning ? 'not be useful' : 'require careful interpretation'}
+                I understand that very few matching posts were found and results may be limited
               </label>
             </div>
           )}

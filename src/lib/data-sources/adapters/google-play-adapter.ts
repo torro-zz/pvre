@@ -183,28 +183,88 @@ export class GooglePlayAdapter implements DataSourceAdapter {
   /**
    * Search for apps and return their details
    * Used by coverage check to show users which apps will be analyzed
+   * Now fetches more apps (10-15) for LLM scoring to filter
    */
-  async searchAppsWithDetails(query: string): Promise<{
+  async searchAppsWithDetails(query: string, options?: {
+    maxApps?: number
+    domainKeywords?: string[]
+    competitorApps?: string[]
+  }): Promise<{
     apps: AppDetails[]
     totalReviews: number
   }> {
-    const searchTerms = this.extractSearchTerms(query)
-    if (!searchTerms) return { apps: [], totalReviews: 0 }
+    const { maxApps = 10, domainKeywords, competitorApps } = options || {}
 
     try {
-      const searchResults = await gplay.search({
-        term: searchTerms,
-        num: 5,
-        lang: 'en',
-        country: 'us',
-      }) as PlayApp[]
+      // Multi-query strategy: run multiple searches in parallel
+      const searchQueries: string[] = []
 
-      if (!searchResults || searchResults.length === 0) {
+      // Query 1: Original hypothesis-based search
+      const primaryTerms = this.extractSearchTerms(query)
+      if (primaryTerms) {
+        searchQueries.push(primaryTerms)
+      }
+
+      // Query 2: Domain keywords (if provided)
+      if (domainKeywords && domainKeywords.length > 0) {
+        const domainQuery = domainKeywords.slice(0, 3).join(' ')
+        if (domainQuery && !searchQueries.includes(domainQuery)) {
+          searchQueries.push(domainQuery)
+        }
+      }
+
+      // Query 3: Competitor app names (if provided)
+      if (competitorApps && competitorApps.length > 0) {
+        for (const competitor of competitorApps.slice(0, 2)) {
+          if (competitor && !searchQueries.includes(competitor)) {
+            searchQueries.push(competitor)
+          }
+        }
+      }
+
+      if (searchQueries.length === 0) {
         return { apps: [], totalReviews: 0 }
       }
 
-      // Get full details for top 3 apps
-      const appDetailsPromises = searchResults.slice(0, 3).map(async (app) => {
+      console.log(`[GooglePlayAdapter] Running ${searchQueries.length} search queries:`, searchQueries)
+
+      // Run all searches in parallel
+      const searchPromises = searchQueries.map(term =>
+        gplay.search({
+          term,
+          num: 8, // Get more results per query
+          lang: 'en',
+          country: 'us',
+        }).catch(err => {
+          console.warn(`[GooglePlayAdapter] Search failed for "${term}":`, err)
+          return []
+        })
+      )
+
+      const searchResultsArrays = await Promise.all(searchPromises)
+
+      // Merge and dedupe results by appId
+      const seenAppIds = new Set<string>()
+      const uniqueApps: PlayApp[] = []
+
+      for (const results of searchResultsArrays) {
+        for (const app of (results as PlayApp[])) {
+          if (!seenAppIds.has(app.appId)) {
+            seenAppIds.add(app.appId)
+            uniqueApps.push(app)
+          }
+        }
+      }
+
+      console.log(`[GooglePlayAdapter] Found ${uniqueApps.length} unique apps from ${searchQueries.length} queries`)
+
+      if (uniqueApps.length === 0) {
+        return { apps: [], totalReviews: 0 }
+      }
+
+      // Get full details for top N apps (increased from 3 to maxApps)
+      const appsToFetch = uniqueApps.slice(0, maxApps)
+      const appDetailsPromises = appsToFetch.map(async (app) => {
         try {
           const details = await gplay.app({ appId: app.appId })
           return {

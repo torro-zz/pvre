@@ -814,7 +814,9 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
           id: post.id,
           subreddit: post.subreddit,
           author: post.author,
-          url: post.permalink
+          url: post.permalink?.startsWith('http')
+            ? post.permalink  // Already a full URL (e.g., app store)
+            : post.permalink
             ? `https://reddit.com${post.permalink}`
             : `https://reddit.com/r/${post.subreddit}/comments/${post.id}`,
           createdUtc: post.createdUtc,
@@ -858,7 +860,9 @@ export function analyzeComments(comments: RedditComment[]): PainSignal[] {
           id: comment.id,
           subreddit: comment.subreddit,
           author: comment.author,
-          url: comment.permalink
+          url: comment.permalink?.startsWith('http')
+            ? comment.permalink  // Already a full URL (e.g., app store)
+            : comment.permalink
             ? `https://reddit.com${comment.permalink}`
             : `https://reddit.com/r/${comment.subreddit}/comments/${postId}/_/${comment.id}`,
           createdUtc: comment.createdUtc,
