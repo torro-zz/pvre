@@ -108,6 +108,12 @@ export default async function ResearchDetailPage({
   const isAppAnalysis = researchJob.coverage_data?.mode === 'app-analysis'
   const appData = researchJob.coverage_data?.appData || null
 
+  // Extract structured hypothesis for cleaner display
+  const structuredHypothesis = researchJob.coverage_data?.structuredHypothesis as {
+    audience?: string
+    problem?: string
+  } | undefined
+
   // Fetch all research results for this job
   const { data: allResults, error: resultsError } = await supabase
     .from('research_results')
@@ -289,10 +295,29 @@ export default async function ResearchDetailPage({
             </Button>
           </Link>
 
+          {/* Clean Hypothesis Header */}
           <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold tracking-tight mb-2">{researchJob.hypothesis}</h1>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex-1 min-w-0">
+              {/* Show structured hypothesis if available, otherwise truncated raw hypothesis */}
+              {structuredHypothesis?.audience && structuredHypothesis?.problem ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Audience</span>
+                    <h1 className="text-xl font-semibold">{structuredHypothesis.audience}</h1>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Problem</span>
+                    <p className="text-base text-muted-foreground">{structuredHypothesis.problem}</p>
+                  </div>
+                </div>
+              ) : (
+                <h1 className="text-xl font-semibold leading-snug line-clamp-2" title={researchJob.hypothesis}>
+                  {researchJob.hypothesis.length > 120
+                    ? researchJob.hypothesis.slice(0, 120) + '...'
+                    : researchJob.hypothesis}
+                </h1>
+              )}
+              <div className="flex items-center gap-4 text-sm text-muted-foreground mt-3">
                 <span className="flex items-center gap-1.5">
                   <Calendar className="h-4 w-4" />
                   {formatDate(researchJob.created_at)}
@@ -305,7 +330,7 @@ export default async function ResearchDetailPage({
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-shrink-0">
               {(communityVoiceResult?.data || competitorResult?.data) && (
                 <PDFDownloadButton
                   reportData={{

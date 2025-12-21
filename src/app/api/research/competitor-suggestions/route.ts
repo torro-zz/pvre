@@ -177,15 +177,13 @@ export async function GET(request: NextRequest) {
     const response = await anthropic.messages.create({
       model: 'claude-3-haiku-20240307',
       max_tokens: 1024,
-      system: `You are a competitive intelligence analyst. Your task is to analyze mentions of alternatives, competitors, and solutions from community discussions and categorize them.
+      system: `You are a competitive intelligence analyst. Your task is to identify products/services that DIRECTLY compete with the hypothesis being tested.
 
-Focus on identifying:
-1. ACTUAL products/companies/services (not generic terms like "spreadsheets" or "manual tracking")
-2. The type of competition they represent
-3. User sentiment toward them
-4. Why they're relevant
+CRITICAL: Only suggest competitors that address the SPECIFIC PROBLEM in the hypothesis.
+- If the hypothesis is about "remote workers feeling isolated", competitors must be solutions for isolation/loneliness (like virtual coffee tools, team bonding apps, etc.)
+- Do NOT suggest unrelated products that the audience might use (like job management tools, banking apps, productivity software)
 
-Be conservative - only mark something as "isActualProduct: true" if you're confident it's a real product, company, or service.`,
+Be VERY strict about relevance. If a product doesn't directly solve the problem stated in the hypothesis, exclude it.`,
       messages: [
         {
           role: 'user',
@@ -196,7 +194,7 @@ Raw mentions from community discussions: ${JSON.stringify(rawMentions)}
 Sample discussion texts:
 ${relevantTexts}
 
-Based on the pain analysis themes and community discussions, analyze these mentions and return JSON:
+Based on the hypothesis, identify products/services that DIRECTLY address the problem. Return JSON:
 {
   "suggestions": [
     {
@@ -206,18 +204,18 @@ Based on the pain analysis themes and community discussions, analyze these menti
       "sentiment": "positive" | "negative" | "mixed" | "neutral",
       "context": "Brief explanation of what this is and why users mention it",
       "isActualProduct": true/false,
-      "whySuggested": "Why this competitor is relevant to analyze"
+      "whySuggested": "How this product addresses the PROBLEM in the hypothesis"
     }
   ]
 }
 
-Rules:
-- Return 5-10 suggestions maximum
-- Prioritize actual products/companies over generic terms
-- Direct competitors are products solving the same problem
-- Adjacent solutions are products in related spaces
-- Workarounds are makeshift solutions (spreadsheets, manual processes)
-- Only include workarounds if they're commonly mentioned`,
+STRICT RULES:
+- ONLY include products that directly address the problem in the hypothesis
+- Exclude products that are just "used by" the target audience but don't solve the stated problem
+- For "isolation" problems: include social/community/connection tools, exclude productivity/job/finance tools
+- Return 0 suggestions if none of the mentions are actually relevant
+- Return 5-10 suggestions maximum if relevant ones exist
+- Be conservative - when in doubt, exclude`,
         },
       ],
     })

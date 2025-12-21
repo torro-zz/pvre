@@ -25,16 +25,53 @@ const PROGRESS_PHASES = [
   { label: 'Packaging your insights', icon: Package, duration: 100 },
 ]
 
-// Inspirational quotes for founders
+// Inspirational quotes for founders (30+ to minimize repetition during 2-min wait)
 const FOUNDER_QUOTES = [
+  // Classic startup wisdom
   { text: "Fall in love with the problem, not the solution.", author: "Uri Levine" },
   { text: "Your most unhappy customers are your greatest source of learning.", author: "Bill Gates" },
   { text: "If you're not embarrassed by the first version, you've launched too late.", author: "Reid Hoffman" },
-  { text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb" },
   { text: "Don't find customers for your products, find products for your customers.", author: "Seth Godin" },
   { text: "Make something people want.", author: "Paul Graham" },
   { text: "Ideas are easy. Execution is everything.", author: "John Doerr" },
   { text: "Get out of the building.", author: "Steve Blank" },
+
+  // Customer & Market Focus
+  { text: "The customer rarely buys what the company thinks it's selling.", author: "Peter Drucker" },
+  { text: "People don't want a quarter-inch drill, they want a quarter-inch hole.", author: "Theodore Levitt" },
+  { text: "If you define the problem correctly, you almost have the solution.", author: "Steve Jobs" },
+  { text: "A problem well-stated is a problem half-solved.", author: "Charles Kettering" },
+  { text: "The goal is to not live forever; it's to create something that will.", author: "Chuck Palahniuk" },
+  { text: "The biggest risk is not taking any risk.", author: "Mark Zuckerberg" },
+
+  // Building & Iteration
+  { text: "Move fast and break things. Unless you are breaking stuff, you're not moving fast enough.", author: "Mark Zuckerberg" },
+  { text: "Done is better than perfect.", author: "Sheryl Sandberg" },
+  { text: "If you're offered a seat on a rocket ship, don't ask what seat. Just get on.", author: "Sheryl Sandberg" },
+  { text: "Stay hungry, stay foolish.", author: "Steve Jobs" },
+  { text: "Innovation distinguishes between a leader and a follower.", author: "Steve Jobs" },
+  { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+
+  // Persistence & Grit
+  { text: "It's fine to celebrate success but it is more important to heed the lessons of failure.", author: "Bill Gates" },
+  { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+  { text: "I have not failed. I've just found 10,000 ways that won't work.", author: "Thomas Edison" },
+  { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
+  { text: "Whether you think you can or you think you can't, you're right.", author: "Henry Ford" },
+
+  // Focus & Strategy
+  { text: "Strategy is about making choices, trade-offs; it's about deliberately choosing to be different.", author: "Michael Porter" },
+  { text: "The secret to successful hiring is this: look for the people who want to change the world.", author: "Marc Benioff" },
+  { text: "Your work is going to fill a large part of your life. The only way to be truly satisfied is to do great work.", author: "Steve Jobs" },
+  { text: "Price is what you pay. Value is what you get.", author: "Warren Buffett" },
+  { text: "In the middle of difficulty lies opportunity.", author: "Albert Einstein" },
+
+  // Growth & Scale
+  { text: "Chase the vision, not the money. The money will end up following you.", author: "Tony Hsieh" },
+  { text: "The way to get started is to quit talking and begin doing.", author: "Walt Disney" },
+  { text: "Life is too short to build something nobody wants.", author: "Ash Maurya" },
+  { text: "Startups don't starve; they drown.", author: "Shawn Carolan" },
+  { text: "There's no shortage of remarkable ideas, what's missing is the will to execute them.", author: "Seth Godin" },
 ]
 
 export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
