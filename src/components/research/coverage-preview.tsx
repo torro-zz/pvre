@@ -597,7 +597,7 @@ export function CoveragePreview({
                   )}
                 >
                   <span className="font-mono text-xs">r/{sub.name}</span>
-                  <span className={cn('text-xs', isSelected ? 'opacity-80' : 'opacity-50')}>{sub.estimatedPosts}</span>
+                  <span className={cn('text-xs', isSelected ? 'opacity-80' : 'opacity-50')}>{Math.min(sub.estimatedPosts, sampleSize)}</span>
                 </button>
               )
             })}
