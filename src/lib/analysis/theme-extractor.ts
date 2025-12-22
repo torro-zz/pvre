@@ -66,6 +66,7 @@ export interface ThemeAnalysis {
     quote: string
     source: string
     painScore: number
+    relevanceScore?: number  // Phase 0: How relevant is this quote to the hypothesis (0-10)
   }[]
   summary: string
   strategicRecommendations?: StrategicRecommendation[] // Actionable next steps
@@ -174,9 +175,33 @@ Focus on:
 - Extracting the exact language customers use
 - Finding mentions of existing solutions, alternatives, competitors, tools, products, or services (be thorough - these are critical for competitive analysis)
 - Identifying signals that people would pay for a solution
-- Selecting powerful quotes that illustrate key pain points
 - Providing 2-3 STRATEGIC RECOMMENDATIONS with specific, actionable tactics
 - Identifying a KEY OPPORTUNITY if there's a high-frequency, high-intensity signal
+
+CRITICAL: QUOTE SELECTION CRITERIA (Phase 0 Data Quality Fix)
+Select quotes that describe problems THE HYPOTHESIS SOLUTION could plausibly solve.
+DO NOT select quotes based only on emotional intensity - they must be RELEVANT.
+
+Quote Value Formula:
+- Hypothesis Relevance (60% weight): Does this quote describe a problem the hypothesis addresses?
+- Pain Specificity (25% weight): Is the pain specific and actionable (not generic complaining)?
+- First-Person Language (15% weight): Is this a firsthand experience ("I struggle with...") not observation?
+
+HARD EXCLUSIONS for quotes:
+- Generic complaints without specifics (e.g., "life is hard")
+- Problems UNRELATED to the hypothesis (e.g., "$18 to my name" for a meditation app)
+- Extreme emotional states unrelated to product category
+- Third-person observations (e.g., "People often struggle with...")
+
+GOOD quote examples for "freelancer invoicing tool":
+✓ "I spend hours every month chasing invoices" (relevant, specific, first-person)
+✓ "My clients pay 30-60 days late and it kills my cash flow" (relevant, specific)
+✓ "Tried Wave but it doesn't track time" (relevant, mentions competitor)
+
+BAD quote examples for "freelancer invoicing tool":
+✗ "I have $18 to my name" (high pain but NOT about invoicing)
+✗ "Freelancing is stressful" (generic, not specific to invoicing)
+✗ "Many freelancers struggle with finances" (third-person observation)
 
 When identifying alternatives/competitors:
 - Look for product names, tool names, app names, service names
@@ -215,9 +240,10 @@ Provide a structured analysis in JSON format:
   "overallPainScore": <0-10 assessment of overall pain intensity>,
   "keyQuotes": [
     {
-      "quote": "Powerful quote from the data (max 150 chars)",
+      "quote": "Quote that is RELEVANT to hypothesis (max 150 chars)",
       "source": "Reddit/Google Play/App Store - identify correctly based on source field",
-      "painScore": <pain score of this quote>
+      "painScore": <pain score of this quote>,
+      "relevanceScore": <0-10 how relevant is this to the hypothesis - MUST be 7+ to include>
     }
   ],
   "summary": "2-3 sentence executive summary of the key findings for this hypothesis",
@@ -400,7 +426,13 @@ BAD EXAMPLES (do NOT produce these):
 GOOD EXAMPLES:
 - "Difficulty finding reliable contractors"
 - "Time-consuming manual invoicing process"
-- "Lack of client communication tools"`
+- "Lack of client communication tools"
+
+QUOTE SELECTION: Select quotes RELEVANT to hypothesis (not just high pain).
+- Relevance (60%): Does the problem relate to the hypothesis solution?
+- Specificity (25%): Is it specific and actionable?
+- First-person (15%): Is it firsthand experience?
+EXCLUDE: generic complaints, unrelated problems, third-person observations.`
 
   const userPrompt = `Business Hypothesis: "${hypothesis}"
 
@@ -423,7 +455,7 @@ Return JSON:
   "alternativesMentioned": ["products/tools mentioned"],
   "willingnessToPaySignals": ["quotes showing payment intent"],
   "overallPainScore": <0-10>,
-  "keyQuotes": [{"quote": "...", "source": "r/sub", "painScore": <n>}],
+  "keyQuotes": [{"quote": "RELEVANT quote", "source": "r/sub", "painScore": <n>, "relevanceScore": <0-10, must be 7+>}],
   "summary": "2-3 sentence summary",
   "strategicRecommendations": [{"action": "Verb + tactic", "rationale": "Why based on data"}],
   "keyOpportunity": "Biggest opportunity if strong signal exists"

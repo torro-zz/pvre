@@ -23,6 +23,210 @@ const anthropic = new Anthropic()
 export type RelevanceTier = 'CORE' | 'RELATED' | 'N'
 
 // =============================================================================
+// FIRST-PERSON LANGUAGE DETECTION (Phase 0: Data Quality Initiative)
+// =============================================================================
+// Professional social listening tools add first-person pronouns to filter for
+// firsthand experiences rather than generic observations.
+//
+// "I can't get my clients to pay" = real pain signal ✓
+// "Freelancers often struggle with payments" = generic observation ✗
+
+const FIRST_PERSON_MARKERS = [
+  // Strong first-person (most valuable)
+  'I', 'me', 'my', 'mine', 'myself',
+  "I'm", "I've", "I'd", "I'll",
+  // Plural first-person (still valuable, group experience)
+  'we', 'our', 'us', 'ourselves',
+  "we're", "we've", "we'd", "we'll",
+]
+
+// Patterns that indicate firsthand experience even without pronouns
+const FIRSTHAND_EXPERIENCE_PATTERNS = [
+  /\b(my\s+experience|from\s+experience|personally|speaking\s+from)\b/i,
+  /\b(happened\s+to\s+me|this\s+happened|when\s+this\s+happened)\b/i,
+  /\b(as\s+a\s+\w+,?\s+I|being\s+a\s+\w+,?\s+I)\b/i,
+  /\b(just\s+happened|currently\s+dealing|struggling\s+with)\b/i,
+]
+
+// Patterns that indicate third-person observation (lower value)
+const THIRD_PERSON_OBSERVATION_PATTERNS = [
+  /\b(people\s+often|many\s+people|some\s+people|most\s+people)\b/i,
+  /\b(users\s+typically|customers\s+tend|freelancers\s+usually)\b/i,
+  /\b(it's\s+common\s+for|it\s+is\s+common\s+to|research\s+shows)\b/i,
+  /\b(according\s+to|studies\s+show|data\s+suggests)\b/i,
+]
+
+/**
+ * Check if text contains first-person language (indicating firsthand experience)
+ * @returns boolean - true if first-person language is detected
+ */
+export function hasFirstPersonLanguage(text: string): boolean {
+  if (!text || text.length < 10) return false
+
+  // Check for first-person markers with word boundaries
+  for (const marker of FIRST_PERSON_MARKERS) {
+    // For contractions, use case-sensitive check at word boundaries
+    if (marker.includes("'")) {
+      const escapedMarker = marker.replace(/'/g, "'")
+      const regex = new RegExp(`\\b${escapedMarker}\\b`, 'i')
+      if (regex.test(text)) return true
+    } else {
+      // For regular pronouns, check word boundaries
+      const regex = new RegExp(`\\b${marker}\\b`, 'i')
+      if (regex.test(text)) return true
+    }
+  }
+
+  // Check for firsthand experience patterns
+  for (const pattern of FIRSTHAND_EXPERIENCE_PATTERNS) {
+    if (pattern.test(text)) return true
+  }
+
+  return false
+}
+
+/**
+ * Check if text is primarily a third-person observation (lower signal value)
+ * @returns boolean - true if text appears to be generic observation, not personal experience
+ */
+export function isThirdPersonObservation(text: string): boolean {
+  if (!text || text.length < 20) return false
+
+  // If it has strong first-person language, it's not purely third-person
+  if (hasFirstPersonLanguage(text)) return false
+
+  // Check for third-person observation patterns
+  for (const pattern of THIRD_PERSON_OBSERVATION_PATTERNS) {
+    if (pattern.test(text)) return true
+  }
+
+  return false
+}
+
+/**
+ * Calculate first-person boost factor for pre-scoring
+ * @returns number - multiplier (1.0 = no boost, 1.3 = strong first-person boost)
+ */
+export function getFirstPersonBoost(text: string): number {
+  if (hasFirstPersonLanguage(text)) {
+    return 1.3  // 30% boost for firsthand experience
+  }
+  if (isThirdPersonObservation(text)) {
+    return 0.7  // 30% penalty for generic observations
+  }
+  return 1.0  // Neutral
+}
+
+// =============================================================================
+// PRE-SCORE CALCULATION (Phase 0: Two-Stage Filtering)
+// =============================================================================
+// Before spending Claude tokens on relevance filtering, rank posts by:
+// - Engagement (upvotes, comments) = community has validated this resonates
+// - First-person language = firsthand experience, not generic observation
+// - Recency = fresher posts are more relevant
+
+export interface PreScoreResult {
+  score: number         // 0-1 normalized score
+  hasFirstPerson: boolean
+  normalizedUpvotes: number
+  normalizedComments: number
+  recencyBonus: number
+}
+
+/**
+ * Calculate pre-score for a Reddit post to rank before AI filtering
+ * This is a FREE filter (no API calls) that helps select the best candidates
+ *
+ * Formula: preScore = (
+ *   normalizedUpvotes * 0.4 +
+ *   normalizedComments * 0.3 +
+ *   (hasFirstPerson ? 0.2 : 0) +
+ *   recencyBonus * 0.1
+ * )
+ */
+export function calculatePreScore(post: RedditPost): PreScoreResult {
+  const text = `${post.title} ${post.body || ''}`
+  const hasFirstPerson = hasFirstPersonLanguage(text)
+
+  // Normalize upvotes: logarithmic scale (1 upvote = 0.0, 1000+ = 1.0)
+  // Using log10: 1 → 0, 10 → 0.33, 100 → 0.67, 1000 → 1.0
+  const normalizedUpvotes = Math.min(1, Math.log10(Math.max(1, post.score + 1)) / 3)
+
+  // Normalize comments: logarithmic scale (0 comments = 0.0, 100+ = 1.0)
+  const normalizedComments = Math.min(1, Math.log10(Math.max(1, post.numComments + 1)) / 2)
+
+  // Recency bonus: posts from last 30 days get full bonus, decays over time
+  let recencyBonus = 0
+  if (post.createdUtc && post.createdUtc > 0) {
+    const nowSeconds = Date.now() / 1000
+    const ageInDays = (nowSeconds - post.createdUtc) / (60 * 60 * 24)
+
+    if (ageInDays <= 30) {
+      recencyBonus = 1.0  // Full bonus for recent posts
+    } else if (ageInDays <= 90) {
+      recencyBonus = 0.7  // Good bonus for somewhat recent
+    } else if (ageInDays <= 180) {
+      recencyBonus = 0.4  // Some bonus for moderately recent
+    } else if (ageInDays <= 365) {
+      recencyBonus = 0.2  // Small bonus for within a year
+    } else {
+      recencyBonus = 0    // No bonus for older posts
+    }
+  }
+
+  // Calculate weighted score
+  const score =
+    normalizedUpvotes * 0.4 +
+    normalizedComments * 0.3 +
+    (hasFirstPerson ? 0.2 : 0) +
+    recencyBonus * 0.1
+
+  return {
+    score,
+    hasFirstPerson,
+    normalizedUpvotes,
+    normalizedComments,
+    recencyBonus,
+  }
+}
+
+/**
+ * Pre-filter and rank posts by pre-score before AI filtering
+ * Takes a large pool of posts and returns the top N candidates for AI processing
+ *
+ * @param posts - All fetched posts
+ * @param maxCandidates - Maximum number to pass to AI filter (default 300)
+ * @returns Ranked posts (best candidates first) with pre-scores
+ */
+export function preFilterAndRank(
+  posts: RedditPost[],
+  maxCandidates: number = 300
+): { posts: RedditPost[]; preScores: Map<string, PreScoreResult> } {
+  // Calculate pre-scores for all posts
+  const postsWithScores = posts.map(post => ({
+    post,
+    preScore: calculatePreScore(post),
+  }))
+
+  // Sort by pre-score (highest first)
+  postsWithScores.sort((a, b) => b.preScore.score - a.preScore.score)
+
+  // Take top candidates
+  const topCandidates = postsWithScores.slice(0, maxCandidates)
+
+  // Build pre-score map for reference
+  const preScores = new Map<string, PreScoreResult>()
+  for (const { post, preScore } of topCandidates) {
+    preScores.set(post.id, preScore)
+  }
+
+  return {
+    posts: topCandidates.map(({ post }) => post),
+    preScores,
+  }
+}
+
+// =============================================================================
 // TRANSITION DETECTION (for audience-aware tiering)
 // =============================================================================
 
@@ -489,6 +693,9 @@ export interface TieredFilterResult {
  * CORE: Post discusses the PROBLEM within the PRIMARY CONTEXT (intersection)
  * RELATED: Post discusses PROBLEM but not context, OR context but not problem
  * N: No match to either domain
+ *
+ * Phase 0 Data Quality Initiative: Upgraded to Sonnet for better relevance judgment.
+ * Sonnet is significantly better at understanding nuanced hypothesis matching.
  */
 export async function problemMatchFilter(
   posts: RedditPost[],
@@ -500,7 +707,7 @@ export async function problemMatchFilter(
     return { core: [], related: [], filtered: [], decisions: [] }
   }
 
-  sendProgress?.(`Problem match: analyzing ${posts.length} posts with tiered relevance...`)
+  sendProgress?.(`Problem match: analyzing ${posts.length} posts with tiered relevance (using Sonnet)...`)
 
   const core: RedditPost[] = []
   const related: RedditPost[] = []
@@ -549,15 +756,17 @@ export async function problemMatchFilter(
     }
 
     try {
+      // Phase 0 Data Quality Initiative: Upgraded to Sonnet 3.5 for better relevance judgment
+      // Sonnet is much better at understanding nuanced hypothesis matching than Haiku
       const response = await anthropic.messages.create({
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-3-5-sonnet-20241022',
         max_tokens: 100,
         messages: [{ role: 'user', content: prompt }],
       })
 
       const tracker = getCurrentTracker()
       if (tracker && response.usage) {
-        trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
+        trackUsage(tracker, response.usage, 'claude-3-5-sonnet-20241022')
       }
 
       const content = response.content[0]
