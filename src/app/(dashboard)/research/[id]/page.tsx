@@ -420,7 +420,7 @@ export default async function ResearchDetailPage({
                       painScoreConfidence={painScoreInput.confidence}
                       totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
                       coreSignals={communityVoiceResult.data.metadata.filteringMetrics.coreSignals}
-                      relevanceRate={Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) || 0}
+                      relevanceRate={communityVoiceResult.data.metadata.filteringMetrics.postsFound > 0 ? Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) : 0}
                       dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
                       recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
                       dataSources={communityVoiceResult.data.metadata.dataSources}
@@ -741,7 +741,7 @@ export default async function ResearchDetailPage({
                         painScoreConfidence={painScoreInput.confidence}
                         totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
                         coreSignals={communityVoiceResult.data.metadata.filteringMetrics.coreSignals}
-                        relevanceRate={Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) || 0}
+                        relevanceRate={communityVoiceResult.data.metadata.filteringMetrics.postsFound > 0 ? Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) : 0}
                         dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
                         recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
                         dataSources={communityVoiceResult.data.metadata.dataSources}
@@ -758,7 +758,7 @@ export default async function ResearchDetailPage({
                         diagnostics={{
                           postsFound: communityVoiceResult.data.metadata.filteringMetrics.postsFound,
                           postsPassedFilter: communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed,
-                          relevanceRate: Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) || 0,
+                          relevanceRate: communityVoiceResult.data.metadata.filteringMetrics.postsFound > 0 ? Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) : 0,
                           coreSignals: communityVoiceResult.data.metadata.filteringMetrics.coreSignals,
                           confidence: communityVoiceResult.data.painSummary?.dataConfidence ?? 'low',
                           expansionAttempts: communityVoiceResult.data.metadata.filteringMetrics.expansionAttempts,
