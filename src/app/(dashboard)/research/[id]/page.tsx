@@ -28,7 +28,10 @@ import {
   CompetitionScoreInput,
   MarketScoreInput,
   TimingScoreInput,
+  TwoAxisInput,
 } from '@/lib/analysis/viability-calculator'
+import { SearchCoverageSection, createSourceCoverage } from '@/components/research/search-coverage-section'
+import { AdjacentOpportunitiesSection, extractAdjacentOpportunities } from '@/components/research/adjacent-opportunities'
 import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
 import { AppOverview } from '@/components/research/app-overview'
 import { UserFeedback } from '@/components/research/user-feedback'
@@ -243,11 +246,24 @@ export default async function ResearchDetailPage({
     }
   }
 
-  const viabilityVerdict = calculateViability(painScoreInput, competitionScoreInput, marketScoreInput, timingScoreInput)
+  // Prepare two-axis input for Report Redesign v6
+  const filteringMetrics = communityVoiceResult?.data?.metadata?.filteringMetrics
+  const twoAxisInput: TwoAxisInput | undefined = filteringMetrics ? {
+    filteringMetrics: {
+      coreSignals: filteringMetrics.coreSignals || 0,
+      relatedSignals: filteringMetrics.relatedSignals || 0,
+      postsAnalyzed: filteringMetrics.postsAnalyzed || 0,
+      sources: ['reddit'],  // Currently only Reddit
+    },
+    marketScore: marketScoreInput?.score,
+    timingScore: timingScoreInput?.score,
+    competitorCount: competitionScoreInput?.competitorCount,
+  } : undefined
+
+  const viabilityVerdict = calculateViability(painScoreInput, competitionScoreInput, marketScoreInput, timingScoreInput, twoAxisInput)
 
   // P1 FIX: Add additional red flags from filteringMetrics
   // Only show warnings when they indicate actual problems (not just normal filtering)
-  const filteringMetrics = communityVoiceResult?.data?.metadata?.filteringMetrics
   if (filteringMetrics) {
     // Initialize redFlags array if needed
     if (!viabilityVerdict.redFlags) {

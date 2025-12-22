@@ -38,6 +38,7 @@ import {
   SampleSizeLabel,
 } from '@/lib/analysis/viability-calculator'
 import { cn } from '@/lib/utils'
+import { DualVerdictDisplay } from './dual-verdict-display'
 
 interface ViabilityVerdictProps {
   verdict: ViabilityVerdict
@@ -199,8 +200,19 @@ export function ViabilityVerdictDisplay({
     }
   }
 
+  // Check if we have the new two-axis verdict system data
+  const hasTwoAxisData = verdict.hypothesisConfidence && verdict.marketOpportunity
+
   return (
     <div className="space-y-6">
+      {/* v6 Report Redesign: Two-Axis Verdict Display (when available) */}
+      {hasTwoAxisData && (
+        <DualVerdictDisplay
+          hypothesisConfidence={verdict.hypothesisConfidence!}
+          marketOpportunity={verdict.marketOpportunity!}
+        />
+      )}
+
       {/* Subtle Red Flags Alert - Collapsible */}
       {verdict.redFlags && verdict.redFlags.length > 0 && (
         <div className="rounded-xl border border-red-200/50 dark:border-red-900/50 bg-gradient-to-r from-red-50/50 to-transparent dark:from-red-950/30 dark:to-transparent overflow-hidden">

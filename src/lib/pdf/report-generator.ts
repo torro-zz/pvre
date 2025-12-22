@@ -201,6 +201,96 @@ export function generatePDFReport(data: ReportData): jsPDF {
   doc.text(descLines.slice(0, 2), margin + 10, y);
   y += 25;
 
+  // === TWO-AXIS VERDICT (Report Redesign v6) ===
+  if (data.viability.hypothesisConfidence && data.viability.marketOpportunity) {
+    const hypoConf = data.viability.hypothesisConfidence;
+    const mktOpp = data.viability.marketOpportunity;
+
+    checkNewPage(70);
+    y += 5;
+
+    // Section header
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.darkGray);
+    doc.text('Two-Axis Assessment', margin, y);
+    y += 8;
+
+    const boxWidth = (contentWidth - 10) / 2;
+    const boxHeight = 55;
+
+    // Hypothesis Confidence box
+    const hypoColor = hypoConf.level === 'high' ? COLORS.success :
+                      hypoConf.level === 'partial' ? COLORS.warning : COLORS.danger;
+    doc.setFillColor(250, 251, 252);
+    doc.setDrawColor(...hypoColor);
+    doc.setLineWidth(1.5);
+    doc.roundedRect(margin, y, boxWidth, boxHeight, 4, 4, 'FD');
+
+    // Hypothesis Confidence content
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.gray);
+    doc.text('HYPOTHESIS CONFIDENCE', margin + 8, y + 10);
+
+    doc.setFontSize(24);
+    doc.setTextColor(...hypoColor);
+    doc.text(`${hypoConf.score.toFixed(1)}`, margin + 8, y + 28);
+
+    doc.setFontSize(10);
+    doc.text(`/10`, margin + 32, y + 28);
+
+    // Level badge
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(hypoConf.level.toUpperCase(), margin + 50, y + 25);
+
+    // Description
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.gray);
+    const hypoDesc = hypoConf.level === 'high' ? 'Strong evidence for your hypothesis' :
+                     hypoConf.level === 'partial' ? 'Some signals found, explore adjacent' :
+                     'Consider adjacent opportunities';
+    doc.text(hypoDesc, margin + 8, y + 45);
+
+    // Market Opportunity box
+    const mktColor = mktOpp.level === 'strong' ? COLORS.success :
+                     mktOpp.level === 'moderate' ? COLORS.warning : COLORS.danger;
+    doc.setDrawColor(...mktColor);
+    doc.roundedRect(margin + boxWidth + 10, y, boxWidth, boxHeight, 4, 4, 'FD');
+
+    // Market Opportunity content
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.gray);
+    doc.text('MARKET OPPORTUNITY', margin + boxWidth + 18, y + 10);
+
+    doc.setFontSize(24);
+    doc.setTextColor(...mktColor);
+    doc.text(`${mktOpp.score.toFixed(1)}`, margin + boxWidth + 18, y + 28);
+
+    doc.setFontSize(10);
+    doc.text(`/10`, margin + boxWidth + 42, y + 28);
+
+    // Level badge
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(mktOpp.level.toUpperCase(), margin + boxWidth + 60, y + 25);
+
+    // Description
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.gray);
+    const mktDesc = mktOpp.level === 'strong' ? 'Active market with validated demand' :
+                    mktOpp.level === 'moderate' ? 'Market exists, consider positioning' :
+                    'Limited market signals found';
+    doc.text(mktDesc, margin + boxWidth + 18, y + 45);
+
+    y += boxHeight + 15;
+    doc.setTextColor(0);
+  }
+
   // Dimension scores grid
   y += 5;
   doc.setFontSize(11);

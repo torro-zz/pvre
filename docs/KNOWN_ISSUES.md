@@ -1,6 +1,6 @@
 # Known Issues
 
-Last updated: December 21, 2025
+Last updated: December 22, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
@@ -37,6 +37,30 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 - Different data source priorities for hypothesis vs app search
 
 **Reference:** Full brief in `docs/DATA_QUALITY_BRIEF.md`
+
+### Report Redesign — Two-Axis Verdict System (Dec 22, 2025)
+**Status:** ✅ Implemented — Phase A+B Complete
+
+**Problem Solved:** Single viability score conflated "market opportunity" with "hypothesis fit". Users paying £14 for a report showing "7.6/10 STRONG SIGNAL" but only 11% hypothesis relevance felt confused and cheated.
+
+**Solution Implemented:**
+- **Two-Axis Scoring:** Separate `hypothesisConfidence` (0-10) from `marketOpportunity` (0-10)
+- **DualVerdictDisplay component:** Side-by-side score cards with gauges
+- **Backward Compatibility:** Old results show single-axis, new results show both
+
+**Key Components Added:**
+- `src/lib/analysis/viability-calculator.ts` — `calculateHypothesisConfidence()`, `calculateMarketOpportunity()`
+- `src/components/research/dual-verdict-display.tsx` — Two-axis UI
+- `src/components/research/search-coverage-section.tsx` — "What We Searched" transparency
+- `src/components/research/adjacent-opportunities.tsx` — Pivot suggestions
+- PDF generator updated with two-axis section
+
+**Not Yet Implemented (Phase C/D/E):**
+- Customer Language Bank section
+- Tailored Next Steps based on confidence level
+- Additional data sources (Hacker News, G2, Product Hunt)
+
+**Reference:** `docs/report-redesign/REPORT_REDESIGN_BRIEF.md`, `REPORT_STRUCTURE_TEMPLATE.md`
 
 ---
 

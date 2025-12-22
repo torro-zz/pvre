@@ -61,6 +61,63 @@ export interface ViabilityVerdict {
   }
   // v5: Red flags for critical issues (shown prominently before score)
   redFlags?: RedFlag[]
+  // v6: Two-axis verdict system (Phase 0.5 Report Redesign)
+  hypothesisConfidence?: HypothesisConfidence
+  marketOpportunity?: MarketOpportunity
+}
+
+// =============================================================================
+// TWO-AXIS VERDICT SYSTEM (v6 - Report Redesign)
+// =============================================================================
+
+export type HypothesisConfidenceLevel = 'high' | 'partial' | 'low'
+export type MarketOpportunityLevel = 'strong' | 'moderate' | 'weak'
+
+/**
+ * Hypothesis Confidence Score
+ * Measures: "Did we find YOUR specific hypothesis?"
+ *
+ * Components (weighted):
+ * - Direct signal % (CORE signals / total) - 50%
+ * - Signal volume - 25%
+ * - Multi-source confirmation - 25%
+ */
+export interface HypothesisConfidence {
+  score: number                        // 0-10
+  level: HypothesisConfidenceLevel     // high (>6), partial (3-6), low (<3)
+  directSignalPercent: number          // % of signals that are CORE tier
+  signalVolume: number                 // Total signals found
+  multiSourceConfirmation: boolean     // Multiple data sources confirm
+  factors: {
+    directSignalScore: number          // 0-10 contribution
+    volumeScore: number                // 0-10 contribution
+    multiSourceScore: number           // 0-10 contribution
+  }
+}
+
+/**
+ * Market Opportunity Score
+ * Measures: "Is there a viable market here?"
+ *
+ * Components (weighted):
+ * - Market size viability - 30%
+ * - Timing score - 25%
+ * - Discussion activity level - 25%
+ * - Competitor presence (validated market) - 20%
+ */
+export interface MarketOpportunity {
+  score: number                        // 0-10
+  level: MarketOpportunityLevel        // strong (>7), moderate (5-7), weak (<5)
+  marketSizeScore: number              // From market-sizing analysis
+  timingScore: number                  // From timing analysis
+  activityScore: number                // Based on posts found and engagement
+  competitorPresence: boolean          // Competitors exist = validated market
+  factors: {
+    marketSizeContribution: number     // 0-10 contribution
+    timingContribution: number         // 0-10 contribution
+    activityContribution: number       // 0-10 contribution
+    competitorContribution: number     // 0-10 contribution
+  }
 }
 
 export interface PainScoreInput {
@@ -590,12 +647,174 @@ function applyCompetitionCap(
 }
 
 // =============================================================================
+// TWO-AXIS VERDICT CALCULATORS (v6 - Report Redesign)
+// =============================================================================
+
+/**
+ * Input for hypothesis confidence calculation
+ * Contains filtering metrics from relevance-filter.ts
+ */
+export interface HypothesisConfidenceInput {
+  coreSignals: number        // CORE tier signals (direct hypothesis match)
+  relatedSignals: number     // RELATED tier signals (adjacent/broader)
+  totalSignals: number       // Total signals detected
+  postsAnalyzed: number      // Posts that passed filtering
+  sources: string[]          // Data sources used (e.g., ['reddit', 'google_play'])
+}
+
+/**
+ * Calculate Hypothesis Confidence Score
+ *
+ * Measures: "Did we find YOUR specific hypothesis?"
+ *
+ * Scoring:
+ * - Direct signal % (CORE / total) - 50% weight
+ * - Signal volume - 25% weight
+ * - Multi-source confirmation - 25% weight
+ */
+export function calculateHypothesisConfidence(
+  input: HypothesisConfidenceInput | null
+): HypothesisConfidence | null {
+  if (!input) return null
+
+  const { coreSignals, totalSignals, sources } = input
+
+  // Direct signal % (50% weight)
+  // CORE signals are direct hypothesis matches
+  const directSignalPercent = totalSignals > 0
+    ? (coreSignals / totalSignals) * 100
+    : 0
+  // Scale: 100% CORE = 10, 0% CORE = 0
+  const directSignalScore = Math.min(10, directSignalPercent / 10)
+
+  // Signal volume (25% weight)
+  // More signals = higher confidence, caps at 100 signals = 10
+  const volumeScore = Math.min(10, totalSignals / 10)
+
+  // Multi-source confirmation (25% weight)
+  // Multiple sources confirming = higher confidence
+  const uniqueSources = new Set(sources)
+  const multiSourceScore = uniqueSources.size >= 3 ? 10
+    : uniqueSources.size === 2 ? 7
+    : uniqueSources.size === 1 ? 4
+    : 0
+
+  // Weighted sum
+  const score = (directSignalScore * 0.5) + (volumeScore * 0.25) + (multiSourceScore * 0.25)
+
+  // Determine level based on score
+  const level: HypothesisConfidenceLevel = score >= 6 ? 'high'
+    : score >= 3 ? 'partial'
+    : 'low'
+
+  return {
+    score: Math.round(score * 10) / 10,
+    level,
+    directSignalPercent: Math.round(directSignalPercent * 10) / 10,
+    signalVolume: totalSignals,
+    multiSourceConfirmation: uniqueSources.size >= 2,
+    factors: {
+      directSignalScore: Math.round(directSignalScore * 10) / 10,
+      volumeScore: Math.round(volumeScore * 10) / 10,
+      multiSourceScore: Math.round(multiSourceScore * 10) / 10,
+    }
+  }
+}
+
+/**
+ * Calculate Market Opportunity Score
+ *
+ * Measures: "Is there a viable market here?"
+ *
+ * Scoring:
+ * - Market size viability - 30% weight
+ * - Timing score - 25% weight
+ * - Discussion activity level - 25% weight
+ * - Competitor presence (validated market) - 20% weight
+ */
+export function calculateMarketOpportunity(
+  marketScore: { score: number } | null,
+  timingScore: { score: number } | null,
+  activityMetrics: { postsAnalyzed: number; totalSignals: number } | null,
+  competitorCount: number
+): MarketOpportunity {
+  // Market size (30% weight) - default to 5 if not available
+  const marketSizeScore = marketScore?.score ?? 5
+  const marketSizeContribution = marketSizeScore * 0.3
+
+  // Timing (25% weight) - default to 5 if not available
+  const timingScoreValue = timingScore?.score ?? 5
+  const timingContribution = timingScoreValue * 0.25
+
+  // Activity level (25% weight)
+  // Based on posts analyzed and signals found
+  // 50+ posts analyzed = 10, scaled down from there
+  const postsAnalyzed = activityMetrics?.postsAnalyzed ?? 0
+  const totalSignals = activityMetrics?.totalSignals ?? 0
+  const activityRaw = Math.min(10, (postsAnalyzed / 50) * 10)
+  // Bonus for high signal count
+  const signalBonus = totalSignals > 50 ? 2 : totalSignals > 20 ? 1 : 0
+  const activityScore = Math.min(10, activityRaw + signalBonus)
+  const activityContribution = activityScore * 0.25
+
+  // Competitor presence (20% weight)
+  // Competitors existing = validated market (good sign)
+  // 5+ competitors = 10, 3-4 = 8, 1-2 = 6, 0 = 3
+  const competitorScore = competitorCount >= 5 ? 10
+    : competitorCount >= 3 ? 8
+    : competitorCount >= 1 ? 6
+    : 3  // No competitors = unvalidated but not necessarily bad
+  const competitorContribution = competitorScore * 0.2
+
+  // Total score
+  const score = marketSizeContribution + timingContribution + activityContribution + competitorContribution
+
+  // Determine level
+  const level: MarketOpportunityLevel = score >= 7 ? 'strong'
+    : score >= 5 ? 'moderate'
+    : 'weak'
+
+  return {
+    score: Math.round(score * 10) / 10,
+    level,
+    marketSizeScore,
+    timingScore: timingScoreValue,
+    activityScore: Math.round(activityScore * 10) / 10,
+    competitorPresence: competitorCount > 0,
+    factors: {
+      marketSizeContribution: Math.round(marketSizeContribution * 10) / 10,
+      timingContribution: Math.round(timingContribution * 10) / 10,
+      activityContribution: Math.round(activityContribution * 10) / 10,
+      competitorContribution: Math.round(competitorContribution * 10) / 10,
+    }
+  }
+}
+
+// =============================================================================
 // MAIN CALCULATOR
 // =============================================================================
 
+/**
+ * Optional input for two-axis verdict system (Report Redesign v6)
+ * Pass filteringMetrics to enable HypothesisConfidence and MarketOpportunity scores
+ */
+export interface TwoAxisInput {
+  filteringMetrics?: {
+    coreSignals: number
+    relatedSignals: number
+    postsAnalyzed: number
+    sources?: string[]  // e.g., ['reddit', 'google_play']
+  }
+  // For market opportunity calculation
+  marketScore?: number | null
+  timingScore?: number | null
+  competitorCount?: number
+}
+
 export function calculateMVPViability(
   painScore: PainScoreInput | null,
-  competitionScore: CompetitionScoreInput | null
+  competitionScore: CompetitionScoreInput | null,
+  twoAxisInput?: TwoAxisInput
 ): ViabilityVerdict {
   const dimensions: DimensionScore[] = []
   const dealbreakers: string[] = []
@@ -719,6 +938,30 @@ export function calculateMVPViability(
   const calibratedVerdictLabel = getCalibratedVerdictLabel(verdict, sampleSize)
   const scoreRange = getScoreRange(calibratedScore, sampleSize)
 
+  // Calculate two-axis scores if filtering metrics are provided (v6 Report Redesign)
+  let hypothesisConfidence: HypothesisConfidence | null = null
+  let marketOpportunity: MarketOpportunity | null = null
+
+  if (twoAxisInput?.filteringMetrics) {
+    const { filteringMetrics } = twoAxisInput
+    const totalSignals = painScore?.totalSignals || 0
+
+    hypothesisConfidence = calculateHypothesisConfidence({
+      coreSignals: filteringMetrics.coreSignals,
+      relatedSignals: filteringMetrics.relatedSignals,
+      totalSignals,
+      postsAnalyzed: filteringMetrics.postsAnalyzed,
+      sources: filteringMetrics.sources || ['reddit'],  // Default to Reddit
+    })
+
+    marketOpportunity = calculateMarketOpportunity(
+      twoAxisInput.marketScore != null ? { score: twoAxisInput.marketScore } : null,
+      twoAxisInput.timingScore != null ? { score: twoAxisInput.timingScore } : null,
+      { postsAnalyzed: filteringMetrics.postsAnalyzed, totalSignals },
+      twoAxisInput.competitorCount || competitionScore?.competitorCount || 0
+    )
+  }
+
   return {
     overallScore: calibratedScore,
     rawScore,
@@ -738,6 +981,9 @@ export function calculateMVPViability(
     dataSufficiency,
     dataSufficiencyReason,
     sampleSize,
+    // v6: Two-axis verdict system (optional, for backward compatibility)
+    hypothesisConfidence: hypothesisConfidence || undefined,
+    marketOpportunity: marketOpportunity || undefined,
   }
 }
 
@@ -752,7 +998,8 @@ export function calculateViability(
   painScore: PainScoreInput | null,
   competitionScore: CompetitionScoreInput | null,
   marketScore: MarketScoreInput | null = null,
-  timingScore: TimingScoreInput | null = null
+  timingScore: TimingScoreInput | null = null,
+  twoAxisInput?: TwoAxisInput
 ): ViabilityVerdict {
   const dimensions: DimensionScore[] = []
   const dealbreakers: string[] = []
@@ -979,6 +1226,34 @@ export function calculateViability(
   const calibratedVerdictLabel = getCalibratedVerdictLabel(verdict, sampleSize)
   const scoreRange = getScoreRange(calibratedScore, sampleSize)
 
+  // Calculate two-axis scores if filtering metrics are provided (v6 Report Redesign)
+  let hypothesisConfidence: HypothesisConfidence | null = null
+  let marketOpportunity: MarketOpportunity | null = null
+
+  if (twoAxisInput?.filteringMetrics) {
+    const { filteringMetrics } = twoAxisInput
+    const totalSignals = painScore?.totalSignals || 0
+
+    hypothesisConfidence = calculateHypothesisConfidence({
+      coreSignals: filteringMetrics.coreSignals,
+      relatedSignals: filteringMetrics.relatedSignals,
+      totalSignals,
+      postsAnalyzed: filteringMetrics.postsAnalyzed,
+      sources: filteringMetrics.sources || ['reddit'],  // Default to Reddit
+    })
+
+    // For full version, use actual market/timing scores from dimensions
+    const actualMarketScore = marketScore?.score ?? twoAxisInput.marketScore ?? null
+    const actualTimingScore = timingScore?.score ?? twoAxisInput.timingScore ?? null
+
+    marketOpportunity = calculateMarketOpportunity(
+      actualMarketScore != null ? { score: actualMarketScore } : null,
+      actualTimingScore != null ? { score: actualTimingScore } : null,
+      { postsAnalyzed: filteringMetrics.postsAnalyzed, totalSignals },
+      twoAxisInput.competitorCount || competitionScore?.competitorCount || 0
+    )
+  }
+
   return {
     overallScore: calibratedScore,
     rawScore,
@@ -999,6 +1274,9 @@ export function calculateViability(
     dataSufficiencyReason,
     sampleSize,
     redFlags: redFlags.length > 0 ? redFlags : undefined,
+    // v6: Two-axis verdict system (optional, for backward compatibility)
+    hypothesisConfidence: hypothesisConfidence || undefined,
+    marketOpportunity: marketOpportunity || undefined,
   }
 }
 
