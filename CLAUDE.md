@@ -61,13 +61,22 @@ This project uses **LemonSqueezy** (not Stripe). See `docs/KNOWN_ISSUES.md`.
 
 **The 64% Problem:** Testing revealed 64% of detected pain signals were completely irrelevant to business hypotheses, with 0% directly relevant.
 
+**Root Causes (Dec 2025 Analysis):**
+1. **Quote selection by pain intensity, not relevance** - High-pain quotes may be unrelated to hypothesis
+2. **No first-person language filtering** - Generic observations mixed with real experiences
+3. **Reddit-only WTP signals** - People don't say "I'd pay $X" on Reddit
+
+**Full Brief:** `docs/DATA_QUALITY_BRIEF.md` contains comprehensive analysis and solutions
+
 When working on Community Voice or pain detection:
 - The relevance filter in `src/app/api/research/community-voice/route.ts` (lines 64-247) is critical
-- Claude Haiku rates each post Y/N for relevance before analysis
-- Changes to this code require extra scrutiny
+- Quote selection in `src/lib/analysis/theme-extractor.ts` (lines 517-524) needs relevance weighting
+- Consider first-person language as a signal boost
+- App reviews are better for WTP than Reddit
 
 When reviewing research output quality:
 - Check: "Does this pain signal actually relate to the hypothesis?"
+- Check: "Is this a firsthand experience or generic observation?"
 - Tally relevant vs irrelevant signals
 - Target: >70% relevance rate
 

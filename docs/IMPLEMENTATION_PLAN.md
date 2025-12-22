@@ -20,6 +20,235 @@ Master roadmap for PVRE development. For active bugs, see `KNOWN_ISSUES.md`.
 
 ---
 
+## Phase 0: Data Quality Initiative (Priority: CRITICAL)
+
+*Added December 22, 2025 based on professional social listening tool analysis*
+
+### Context: The 64% Problem
+Testing revealed critical issues with research output quality:
+- 64% of detected pain signals were irrelevant to business hypotheses
+- Data confidence consistently shows "very low" / "low"
+- WTP signals nearly absent (2-3 per research)
+
+**Full analysis:** `docs/DATA_QUALITY_BRIEF.md`
+
+### 0.1 Pronoun Detection (Firsthand Experience Filter)
+**Priority:** P0
+**Effort:** Low
+**Impact:** Filters generic observations, keeps real pain signals
+
+**The Insight:** Professional tools add first-person pronouns to filter for firsthand experiences.
+
+**Why it works:**
+- "I can't get my clients to pay" = real pain signal ✓
+- "Freelancers often struggle with payments" = generic observation ✗
+
+**Implementation:**
+```typescript
+// In relevance-filter.ts or as new pre-filter
+const FIRST_PERSON_MARKERS = [
+  'I', 'me', 'my', 'mine', 'we', 'our', "I'm", "I've", "I'd"
+];
+
+function hasFirstPersonLanguage(text: string): boolean {
+  return FIRST_PERSON_MARKERS.some(marker =>
+    new RegExp(`\\b${marker}\\b`, 'i').test(text)
+  );
+}
+
+// Apply as boost factor (1.3x) not hard filter
+```
+
+### 0.2 Two-Stage Filtering with Model Upgrade
+**Priority:** P0
+**Effort:** Medium
+**Impact:** 3-5x more data processed, higher quality filtering, similar or lower cost
+
+**Current Flow (expensive per signal):**
+```
+Reddit API → 500 posts → Haiku filters all → ~75-100 survive → Analysis
+Cost: Haiku processes 500 posts
+```
+
+**Proposed Flow (cheap pre-filter, smart AI filter):**
+```
+Reddit API → 2000+ posts → Boolean pre-filter → Top 300 → Sonnet filters → ~120-150 survive → Analysis
+Cost: Boolean = $0, Sonnet processes 300 posts (better model, fewer calls)
+```
+
+**Why this works economically:**
+- Boolean filter processes unlimited posts at $0
+- Sonnet on 300 high-quality candidates ≈ Haiku on 500 random posts (cost)
+- But Sonnet = much better relevance judgment
+- Net result: More data in, better quality out, similar spend
+
+**Pre-Score Formula (Stage 1 - $0):**
+```typescript
+preScore = (
+  normalizedUpvotes * 0.4 +
+  normalizedComments * 0.3 +
+  (hasFirstPerson ? 0.2 : 0) +
+  recencyBonus * 0.1
+);
+// Rank all posts, take top 300 for Sonnet
+```
+
+**AI Filter (Stage 2 - Sonnet):**
+- Upgrade from Haiku to Sonnet for relevance filtering
+- Sonnet better understands nuanced hypothesis matching
+- Fewer false positives/negatives = higher signal quality
+
+### 0.3 Quote Selection by Relevance
+**Priority:** P0
+**Effort:** Low
+**Impact:** Directly fixes the "$18 to my name" problem
+
+**Current (Broken):**
+```
+Select quotes showing most intense pain
+```
+
+**Proposed:**
+```
+Select quotes that describe problems the hypothesis solution could plausibly solve
+```
+
+**New Scoring Formula:**
+```
+Quote Value = (Hypothesis Relevance × 0.6) + (Pain Specificity × 0.25) + (First-Person × 0.15)
+```
+
+**Hard Exclusions:**
+- Generic complaints without specifics
+- Problems unrelated to hypothesis
+- Extreme emotional states unrelated to product category
+
+### 0.4 Hypothesis vs App Search Differentiation
+**Priority:** P1
+**Effort:** Medium
+**Impact:** Right data sources for each use case
+
+**Hypothesis Search (e.g., "Freelancer invoicing tool"):**
+- Primary: Reddit (pain discovery)
+- Secondary: Hacker News (tech pain), Indie Hackers
+- WTP Confidence: LOW (be honest in display)
+- Quote Priority: First-person pain descriptions
+
+**App Search (e.g., "Headspace competitor analysis"):**
+- Primary: App Store reviews (actual customers)
+- Secondary: Reddit (deeper context)
+- WTP Confidence: HIGH (reviewers are paying customers)
+- Quote Priority: Feature complaints, price sensitivity
+
+### 0.5 Data Confidence Scoring Fix
+**Priority:** P1
+**Effort:** Low
+**Impact:** User trust - explain confidence meaningfully
+
+**Current:** Just shows "Low confidence" (feels like failure)
+
+**Proposed:** Show actionable context:
+```
+Based on 21 signals from 5 communities
+Confidence improves with: app store data, more search terms
+```
+
+**New Confidence Factors:**
+| Factor | Weight | Measurement |
+|--------|--------|-------------|
+| Sample size | 30% | Posts analyzed vs found |
+| Source diversity | 20% | Unique sources |
+| Engagement validation | 20% | Avg upvotes of analyzed |
+| Signal consistency | 15% | Theme repetition |
+| Recency | 15% | % from last 6 months |
+
+### 0.6 Grounded Competitor Discovery
+**Priority:** P0
+**Effort:** Medium
+**Impact:** Eliminates hallucinated/irrelevant competitor suggestions
+
+**Current Problem:**
+- Competitor suggestions come from Claude's general knowledge
+- Results are often generic, outdated, or wrong category
+- Example: Asking about "freelancer invoicing" gets suggestions for enterprise ERP systems
+
+**Root Cause:** Claude invents competitors rather than discovering them from data.
+
+**Proposed Solution: Data-First Competitor Discovery**
+
+**For App-Centric Searches:**
+```typescript
+// 1. Search app stores for similar apps (real data)
+const googlePlayResults = await googlePlayAdapter.search(appCategory, { num: 20 });
+const appStoreResults = await appStoreAdapter.search(appCategory, { num: 20 });
+
+// 2. Extract competitor signals from Reddit
+const redditMentions = extractCompetitorMentions(posts, [
+  'alternative to', 'vs', 'compared to', 'switched from',
+  'better than', 'instead of', 'competitor'
+]);
+
+// 3. Claude synthesizes (not invents)
+const competitors = await claude.synthesize({
+  appStoreData: [...googlePlayResults, ...appStoreResults],
+  redditMentions: redditMentions,
+  instruction: "Identify top competitors based on this REAL market data"
+});
+```
+
+**For Hypothesis Searches:**
+```typescript
+// 1. Extract solution mentions from Reddit posts
+const solutionMentions = extractSolutionMentions(posts, [
+  'I use', 'we switched to', 'tried', 'recommend',
+  'works great', 'using X for this'
+]);
+
+// 2. Search app stores if applicable
+const appResults = hypothesis.includesAppCategory
+  ? await searchAppStores(hypothesis.keywords)
+  : [];
+
+// 3. Claude synthesizes from real mentions
+const competitors = await claude.synthesize({
+  userMentions: solutionMentions,
+  appData: appResults,
+  instruction: "Based on what users ACTUALLY mention using, who are the competitors?"
+});
+```
+
+**Key Principle:** Claude should synthesize and analyze competitor data, not generate it from training data.
+
+**Data Sources for Competitors:**
+| Source | What We Extract |
+|--------|-----------------|
+| Google Play | Apps in category, ratings, install counts, pricing |
+| App Store | iOS apps, ratings, pricing, update frequency |
+| Reddit posts | "I use X", "switched to Y", "X vs Y" mentions |
+| Hacker News | "Show HN" launches, "Ask HN" recommendations |
+
+**Competitor Output Should Include:**
+- Name + actual app store link (if applicable)
+- Real ratings and download counts
+- Pricing (verified from store, not guessed)
+- User sentiment from reviews/Reddit
+- Specific gaps mentioned by users
+
+---
+
+### Implementation Priority
+
+| Fix | Effort | Impact | Target |
+|-----|--------|--------|--------|
+| Quote selection by relevance | Low | High | This week |
+| Pronoun detection | Low | Medium | This week |
+| Two-stage filter + Sonnet upgrade | Medium | High | This week |
+| Grounded competitor discovery | Medium | High | Next sprint |
+| Hypothesis vs App differentiation | Medium | High | Next sprint |
+| Confidence scoring | Low | Medium | With above |
+
+---
+
 ## Phase 1: Data Quality Fixes (Current Sprint)
 
 ### 1.1 Signal Tiering System

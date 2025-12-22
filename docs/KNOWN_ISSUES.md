@@ -8,7 +8,35 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 
 ## P0 — Critical
 
-*No open P0 issues*
+### Data Quality Initiative (Dec 22, 2025)
+**Status:** Open — Planning Complete
+**Impact:** Core value proposition at risk - 64% relevance issue + low data confidence
+
+**Three Problems Identified:**
+
+1. **Over-Filtering**
+   - Current: ~75-85% of posts filtered out before analysis
+   - Issue: Building insights on potentially unrepresentative sample
+   - Metric: Data confidence flags "very low" / "low" frequently
+
+2. **Wrong Quote Selection Criteria**
+   - Current: Quotes selected by emotional pain intensity (score 0-10)
+   - Issue: High-pain quotes may be completely irrelevant to hypothesis
+   - Example: "$18 to my name" scored 10/10 for meditation app search
+
+3. **Weak WTP Signal Sources**
+   - Current: Reddit used for willingness-to-pay signals
+   - Issue: People don't say "I'd pay $X" on Reddit
+   - App reviews ARE WTP signals (actual customers) but not prioritized
+
+**Solutions (See IMPLEMENTATION_PLAN.md Phase 0 for specs):**
+- Two-stage filtering: Boolean pre-filter → Sonnet (fetch 3-5x more data, better model)
+- Pronoun detection (first-person language boost)
+- Quote selection by hypothesis relevance, not pain intensity
+- Grounded competitor discovery (from app stores + Reddit mentions, not Claude invention)
+- Different data source priorities for hypothesis vs app search
+
+**Reference:** Full brief in `docs/DATA_QUALITY_BRIEF.md`
 
 ---
 
