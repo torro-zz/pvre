@@ -66,7 +66,7 @@ This project uses **LemonSqueezy** (not Stripe). See `docs/KNOWN_ISSUES.md`.
 2. **No first-person language filtering** - Generic observations mixed with real experiences
 3. **Reddit-only WTP signals** - People don't say "I'd pay $X" on Reddit
 
-**Full Brief:** `docs/DATA_QUALITY_BRIEF.md` contains comprehensive analysis and solutions
+**Full Brief:** `docs/data-quality/DATA_QUALITY_BRIEF.md` contains comprehensive analysis and solutions
 
 When working on Community Voice or pain detection:
 - The relevance filter in `src/app/api/research/community-voice/route.ts` (lines 64-247) is critical

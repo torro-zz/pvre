@@ -30,7 +30,7 @@ Testing revealed critical issues with research output quality:
 - Data confidence consistently shows "very low" / "low"
 - WTP signals nearly absent (2-3 per research)
 
-**Full analysis:** `docs/DATA_QUALITY_BRIEF.md`
+**Full analysis:** `docs/data-quality/DATA_QUALITY_BRIEF.md`
 
 ### 0.1 Pronoun Detection (Firsthand Experience Filter)
 **Priority:** P0
