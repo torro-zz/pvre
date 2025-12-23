@@ -62,9 +62,13 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 - `src/lib/utils/coverage-helpers.ts` — Server-safe utility functions
 - PDF generator updated with two-axis section, Customer Language Bank, Adjacent Opportunities
 
-**Not Yet Implemented (Phase E):**
-- Tailored Next Steps based on confidence level
-- Additional data sources (Hacker News, G2, Product Hunt)
+**Phase E (Tailored Next Steps):** ✅ Implemented (Dec 23, 2025)
+- Dynamic recommendations based on confidence level (PROCEED/EXPLORE/PIVOT)
+- TailoredNextSteps component with interview tips and action steps
+- PDF report includes "Your Next Steps" page
+
+**Remaining Data Sources:**
+- Additional data sources (G2, Product Hunt) — deferred to Q1 2026
 
 **Reference:** `docs/report-redesign/REPORT_REDESIGN_BRIEF.md`, `REPORT_STRUCTURE_TEMPLATE.md`
 
