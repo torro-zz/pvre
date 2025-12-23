@@ -142,7 +142,17 @@ The current credit model (1 credit = 1 research) may need rethinking:
 
 ## P1 — Important
 
-*All P1 issues from user testing have been resolved. See Completed Issues section below.*
+### Deprecated Model Name in Relevance Filter (Dec 23, 2025)
+**Status:** Open
+**Impact:** Server errors during research - relevance filter may fail
+
+**Problem:** The relevance filter uses model name `claude-3-5-sonnet-20241022` which is deprecated. Anthropic API returns "model not found" error.
+
+**Location:** `src/app/api/research/community-voice/route.ts` (relevance filter section)
+
+**Solution:** Update model name to `claude-sonnet-4-20250514` to match the current model used elsewhere in the codebase.
+
+**Workaround:** Research may still complete if the error is caught gracefully, but with degraded relevance filtering.
 
 ---
 
@@ -154,7 +164,29 @@ The current credit model (1 credit = 1 research) may need rethinking:
 
 ## P3 — Future Enhancements
 
-*No open P3 issues*
+### AI vs Code Audit (Dec 23, 2025)
+**Status:** Open — Track for post-launch review
+**Impact:** Non-determinism in AI calls can cause inconsistent results
+
+**Problem:** Several features use AI where deterministic code might work better. AI calls are:
+- Non-deterministic (same input → different output)
+- Slower and costlier than code
+- Harder to debug and reproduce
+
+**Current AI usages to audit:**
+1. **Google Trends keyword extraction** (`extractTrendKeywordsWithAI`) — Uses AI to extract problem-focused keywords. ✅ Now cached for 7 days per hypothesis for deterministic results.
+2. **Hypothesis interpretation** — Extracts audience/problem/search phrases
+3. **Theme extraction** — Groups pain signals into themes
+4. **Relevance filtering** — Determines if posts match hypothesis
+
+**Recommended approach:**
+- Audit each AI usage after MVP stabilizes
+- For each: Can rules achieve 80%+ of the quality?
+- Prefer code when determinism matters (search, scoring)
+- Use AI when semantic understanding is essential (interpretation, summarization)
+- Cache AI results when possible to ensure consistency per hypothesis
+
+**Decision:** Defer until post-launch when usage patterns are clearer.
 
 ---
 

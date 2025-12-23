@@ -11,7 +11,7 @@ import { parseClaudeJSON } from "../json-parse";
 import {
   TrendResult,
   getCachedTrendData,
-  extractTrendKeywords,
+  extractTrendKeywordsWithAI,
 } from "../data-sources/google-trends";
 
 export interface TimingInput {
@@ -50,7 +50,8 @@ export async function analyzeTiming(
   });
 
   // Step 1: Try to get real Google Trends data
-  const keywords = extractTrendKeywords(input.hypothesis);
+  // Use AI to extract problem-focused keywords (not demographics like "professionals")
+  const keywords = await extractTrendKeywordsWithAI(input.hypothesis);
   let trendData: TrendResult | null = null;
 
   if (keywords.length > 0) {

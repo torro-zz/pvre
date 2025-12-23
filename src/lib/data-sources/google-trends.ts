@@ -3,11 +3,16 @@
  *
  * Fetches real trend data from Google Trends API.
  * Falls back gracefully if the API fails or rate limits.
+ * Uses AI to extract problem-focused keywords (not demographics).
  */
 
 // Type declarations for google-trends-api (no @types package available)
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const googleTrends = require('google-trends-api');
+
+import { anthropic, getCurrentTracker } from "../anthropic";
+import { trackUsage } from "../analysis/token-tracker";
+import { parseClaudeJSON } from "../json-parse";
 
 export interface TrendDataPoint {
   time: string;
@@ -178,6 +183,110 @@ export function extractTrendKeywords(hypothesis: string): string[] {
   ].slice(0, 5);
 
   return result;
+}
+
+/**
+ * Cache for AI-extracted keywords to ensure deterministic results.
+ * Same hypothesis always gets the same keywords.
+ */
+const keywordCache = new Map<string, { keywords: string[]; timestamp: number }>();
+const KEYWORD_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days (longer than trend data cache)
+
+/**
+ * Normalize hypothesis for cache key (lowercase, trim, collapse whitespace)
+ */
+function normalizeHypothesis(hypothesis: string): string {
+  return hypothesis.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Extract keywords using AI to focus on the PROBLEM domain, not demographics.
+ *
+ * This is important because hypotheses often contain both:
+ * - WHO has the problem (professionals, students, parents) - NOT useful for trends
+ * - WHAT the problem is (stress management, invoicing) - USEFUL for trends
+ *
+ * Results are cached for 7 days to ensure deterministic results for the same hypothesis.
+ *
+ * @param hypothesis - The business hypothesis
+ * @returns Array of 3-5 keywords focused on the problem/solution domain
+ */
+export async function extractTrendKeywordsWithAI(hypothesis: string): Promise<string[]> {
+  // Check cache first for deterministic results
+  const cacheKey = normalizeHypothesis(hypothesis);
+  const cached = keywordCache.get(cacheKey);
+
+  if (cached && Date.now() - cached.timestamp < KEYWORD_CACHE_TTL) {
+    console.log('[GoogleTrends] Using cached AI keywords for hypothesis');
+    return cached.keywords;
+  }
+
+  const prompt = `Extract 3-5 Google Trends search keywords from this business hypothesis.
+
+HYPOTHESIS: "${hypothesis}"
+
+IMPORTANT RULES:
+1. Focus on the PROBLEM or SOLUTION domain - what people search for when they have this need
+2. AVOID demographic terms (professionals, students, parents, individuals, users, customers)
+3. AVOID generic business terms (tool, app, platform, software, service, solution)
+4. Keywords should be terms people actually type into Google when researching this problem
+5. Prefer 2-3 word phrases over single words when they're commonly searched
+6. Think: "What would someone Google if they had this problem?"
+
+EXAMPLES:
+- Hypothesis about freelancers struggling with invoicing → ["freelance invoicing", "invoice templates", "client billing"]
+- Hypothesis about stressed professionals → ["stress management", "work anxiety", "burnout recovery"]
+- Hypothesis about parents tracking kids' screen time → ["screen time kids", "parental controls", "digital wellness"]
+
+Respond with ONLY a JSON array of 3-5 keyword strings:
+["keyword1", "keyword2", "keyword3"]`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 200,
+      messages: [{ role: "user", content: prompt }]
+    });
+
+    // Track token usage
+    const tracker = getCurrentTracker();
+    if (tracker && response.usage) {
+      trackUsage(tracker, response.usage, "claude-sonnet-4-20250514");
+    }
+
+    const content = response.content[0];
+    if (content.type !== "text") {
+      throw new Error("Unexpected response type");
+    }
+
+    const keywords = parseClaudeJSON<string[]>(content.text, 'trend keywords');
+
+    // Validate and clean
+    if (!Array.isArray(keywords) || keywords.length === 0) {
+      throw new Error("Invalid keywords array");
+    }
+
+    // Filter to valid strings, max 5
+    const validKeywords = keywords
+      .filter((k): k is string => typeof k === 'string' && k.length > 0 && k.length <= 50)
+      .slice(0, 5);
+
+    if (validKeywords.length === 0) {
+      throw new Error("No valid keywords extracted");
+    }
+
+    // Cache the results for deterministic behavior
+    keywordCache.set(cacheKey, { keywords: validKeywords, timestamp: Date.now() });
+    console.log('[GoogleTrends] AI extracted keywords (cached):', validKeywords);
+    return validKeywords;
+
+  } catch (error) {
+    console.warn('[GoogleTrends] AI keyword extraction failed, falling back to simple extraction:', error);
+    // Fall back to simple extraction - also cache the fallback result
+    const fallbackKeywords = extractTrendKeywords(hypothesis);
+    keywordCache.set(cacheKey, { keywords: fallbackKeywords, timestamp: Date.now() });
+    return fallbackKeywords;
+  }
 }
 
 /**
