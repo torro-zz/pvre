@@ -5,6 +5,8 @@ import { ResearchHeroStats } from '@/components/research/research-hero-stats'
 import { CompetitorResults } from '@/components/research/competitor-results'
 import { CompetitorRunner } from '@/components/research/competitor-runner'
 import { ViabilityVerdictDisplay } from '@/components/research/viability-verdict'
+import { VerdictHero } from '@/components/research/verdict-hero'
+import { TrustBadge } from '@/components/ui/trust-badge'
 import { CompetitorPromptModal, CompetitorPromptBanner } from '@/components/research/competitor-prompt-modal'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -439,6 +441,7 @@ export default async function ResearchDetailPage({
                       painScoreConfidence={painScoreInput.confidence}
                       totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
                       coreSignals={communityVoiceResult.data.metadata.filteringMetrics.coreSignals}
+                      wtpCount={communityVoiceResult.data.painSummary?.willingnessToPayCount ?? 0}
                       relevanceRate={communityVoiceResult.data.metadata.filteringMetrics.postsFound > 0 ? Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) : 0}
                       dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
                       recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
@@ -612,6 +615,15 @@ export default async function ResearchDetailPage({
               />
             )}
 
+            {/* Quick Verdict - Two-axis display above tabs */}
+            {viabilityVerdict.availableDimensions > 0 && (
+              <VerdictHero
+                verdict={viabilityVerdict}
+                hypothesis={researchJob.hypothesis}
+                className="mb-6"
+              />
+            )}
+
             <ControlledTabs className="space-y-6">
             {/* App-Centric Tabs */}
             {isAppAnalysis ? (
@@ -779,6 +791,7 @@ export default async function ResearchDetailPage({
                         painScoreConfidence={painScoreInput.confidence}
                         totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
                         coreSignals={communityVoiceResult.data.metadata.filteringMetrics.coreSignals}
+                        wtpCount={communityVoiceResult.data.painSummary?.willingnessToPayCount ?? 0}
                         relevanceRate={communityVoiceResult.data.metadata.filteringMetrics.postsFound > 0 ? Math.round((communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed / communityVoiceResult.data.metadata.filteringMetrics.postsFound) * 100) : 0}
                         dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
                         recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
@@ -1077,6 +1090,44 @@ export default async function ResearchDetailPage({
                       </div>
                     </div>
                     <CardContent className="pt-6">
+                      {/* Google Trends Data (if available) */}
+                      {timingData.trendData?.dataAvailable && (
+                        <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800 mb-6">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <TrendingUp className="h-4 w-4 text-blue-600" />
+                              <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Google Trends Data</span>
+                            </div>
+                            <TrustBadge level="verified" size="sm" tooltip="Real data from Google Trends API" />
+                          </div>
+                          <div className="flex items-baseline gap-2">
+                            <span className={`text-2xl font-bold ${
+                              timingData.trendData.percentageChange > 0
+                                ? 'text-emerald-600'
+                                : timingData.trendData.percentageChange < 0
+                                ? 'text-red-600'
+                                : 'text-blue-600'
+                            }`}>
+                              {timingData.trendData.percentageChange > 0 ? '+' : ''}{timingData.trendData.percentageChange}%
+                            </span>
+                            <span className="text-sm text-muted-foreground">over past year</span>
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            Keywords analyzed: {timingData.trendData.keywords.join(', ')}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* AI Analysis Notice (when no trends data) */}
+                      {!timingData.trendData?.dataAvailable && (
+                        <div className="flex items-center gap-2 mb-4 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                          <TrustBadge level="ai-estimate" size="sm" />
+                          <span className="text-xs text-amber-700 dark:text-amber-400">
+                            Trend data based on AI analysis. Real-time Google Trends data unavailable.
+                          </span>
+                        </div>
+                      )}
+
                       {/* Timing Window */}
                       <div className="p-4 bg-muted/50 rounded-xl border mb-6">
                         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Timing Window</div>

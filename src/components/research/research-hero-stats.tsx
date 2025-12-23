@@ -1,16 +1,18 @@
 'use client'
 
-import { Database, Calendar, Clock, Users, Zap, Info } from 'lucide-react'
+import { Database, Calendar, Clock, Users, Zap, Info, DollarSign } from 'lucide-react'
 import { ScoreGauge } from '@/components/ui/score-gauge'
 import { StatBlock } from '@/components/ui/stat-card'
 import { MetricRow, StatusBadge } from '@/components/ui/metric-row'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { TrustBadge } from '@/components/ui/trust-badge'
 
 interface ResearchHeroStatsProps {
   painScore: number
   painScoreConfidence: 'very_low' | 'low' | 'medium' | 'high'
   totalSignals: number
   coreSignals?: number
+  wtpCount?: number
   relevanceRate: number
   dataConfidence: 'very_low' | 'low' | 'medium' | 'high'
   recencyScore?: number
@@ -29,6 +31,7 @@ export function ResearchHeroStats({
   painScoreConfidence,
   totalSignals,
   coreSignals,
+  wtpCount = 0,
   relevanceRate,
   dataConfidence,
   recencyScore,
@@ -41,6 +44,15 @@ export function ResearchHeroStats({
   commentsAnalyzed,
   processingTimeMs,
 }: ResearchHeroStatsProps) {
+
+  // Determine WTP strength for visual indicator
+  const getWtpStrength = (count: number): 'none' | 'weak' | 'moderate' | 'strong' => {
+    if (count === 0) return 'none'
+    if (count <= 3) return 'weak'
+    if (count <= 8) return 'moderate'
+    return 'strong'
+  }
+  const wtpStrength = getWtpStrength(wtpCount)
 
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -57,11 +69,31 @@ export function ResearchHeroStats({
 
           {/* Right: Key stats */}
           <div className="flex-1 flex items-center justify-around">
+            {/* WTP - Most important signal, shown first */}
+            <div className="relative">
+              <StatBlock
+                label="WTP Signals"
+                value={wtpCount}
+                subValue={wtpStrength === 'none' ? 'No payment intent' : wtpStrength === 'weak' ? 'Weak' : wtpStrength === 'moderate' ? 'Moderate' : 'Strong'}
+                accent={wtpCount > 0}
+              />
+              {wtpCount === 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center cursor-help">
+                      <span className="text-[10px] text-white font-bold">!</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[200px]">
+                    No one mentioned paying for a solution. This is a critical validation gap.
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             <StatBlock
               label="Signals"
               value={totalSignals}
               subValue={coreSignals !== undefined ? `${coreSignals} core` : undefined}
-              accent
             />
             <StatBlock
               label="Analyzed"

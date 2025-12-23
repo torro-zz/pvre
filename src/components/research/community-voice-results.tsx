@@ -30,6 +30,7 @@ import Link from 'next/link'
 import { useResearchTabs } from './research-tabs-context'
 import { PainScoreCard, PainScoreCardCompact } from './pain-score-card'
 import { PainScoreDisplay } from './pain-score-display'
+import { QuoteCard, QuoteList, WtpQuoteCard, QuoteData } from '@/components/ui/quote-card'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
 
@@ -477,46 +478,47 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
         </TabsContent>
 
         {/* Key Quotes Tab */}
-        <TabsContent value="quotes" className="space-y-4">
-          <div className="space-y-4">
-            {results.themeAnalysis.keyQuotes.map((quote, index) => (
-              <Card key={index}>
-                <CardContent className="pt-4">
-                  <div className="flex items-start gap-3">
-                    <Quote className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-1" />
-                    <div className="flex-1">
-                      <p className="text-lg italic">"{quote.quote}"</p>
-                      <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
-                        <span>{quote.source}</span>
-                        <Badge variant="outline">Score: {quote.painScore}</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+        <TabsContent value="quotes" className="space-y-6">
+          {/* Key Pain Quotes */}
+          <div>
+            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+              Key Pain Quotes
+            </h4>
+            <QuoteList
+              quotes={results.themeAnalysis.keyQuotes.map(q => ({
+                quote: q.quote,
+                source: q.source,
+                painScore: q.painScore,
+                relevanceScore: q.relevanceScore,
+              }))}
+              trustLevel="verified"
+              variant="default"
+              showRelevance={true}
+            />
           </div>
 
           {/* Willingness to Pay Signals */}
           {results.themeAnalysis.willingnessToPaySignals.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-green-500" />
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <DollarSign className="h-4 w-4 text-green-500" />
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                   Willingness to Pay Signals
-                </CardTitle>
-                <CardDescription>
-                  Evidence that customers would pay for a solution
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
+                </h4>
+                <span className="text-xs text-muted-foreground">
+                  ({results.themeAnalysis.willingnessToPaySignals.length} signals)
+                </span>
+              </div>
+              <div className="space-y-3">
                 {results.themeAnalysis.willingnessToPaySignals.map((signal, i) => (
-                  <p key={i} className="text-sm border-l-2 border-green-500 pl-3">
-                    "{signal}"
-                  </p>
+                  <WtpQuoteCard
+                    key={i}
+                    quote={signal}
+                    source="Community"
+                  />
                 ))}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
         </TabsContent>
 

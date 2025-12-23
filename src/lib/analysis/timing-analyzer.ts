@@ -1,12 +1,18 @@
 /**
  * Timing Analyzer Module
  * Uses Claude to identify market timing signals (tailwinds/headwinds).
+ * Now enhanced with real Google Trends data for verified trend direction.
  * Part of the Viability Verdict scoring system (15% weight in full formula).
  */
 
 import { anthropic, getCurrentTracker } from "../anthropic";
 import { trackUsage } from "./token-tracker";
 import { parseClaudeJSON } from "../json-parse";
+import {
+  TrendResult,
+  getCachedTrendData,
+  extractTrendKeywords,
+} from "../data-sources/google-trends";
 
 export interface TimingInput {
   hypothesis: string;
@@ -27,6 +33,12 @@ export interface TimingResult {
   timingWindow: string; // e.g., "12-18 months"
   verdict: string;
   trend: 'rising' | 'stable' | 'falling';
+  // Google Trends data (null if API failed)
+  trendData: {
+    keywords: string[];
+    percentageChange: number;
+    dataAvailable: boolean;
+  } | null;
 }
 
 export async function analyzeTiming(
@@ -37,11 +49,33 @@ export async function analyzeTiming(
     year: 'numeric'
   });
 
+  // Step 1: Try to get real Google Trends data
+  const keywords = extractTrendKeywords(input.hypothesis);
+  let trendData: TrendResult | null = null;
+
+  if (keywords.length > 0) {
+    console.log('[Timing] Fetching Google Trends for:', keywords);
+    trendData = await getCachedTrendData(keywords);
+  }
+
+  // Build trend context for AI prompt
+  const trendContext = trendData
+    ? `
+REAL GOOGLE TRENDS DATA (verified):
+- Keywords analyzed: ${trendData.keywords.join(', ')}
+- Trend direction: ${trendData.trend.toUpperCase()} (${trendData.percentageChange > 0 ? '+' : ''}${trendData.percentageChange}% over past year)
+- This is REAL data from Google Trends. Your trend assessment should align with this data.
+`
+    : `
+NOTE: Google Trends data unavailable. Provide your best estimate for trend direction.
+`;
+
   const prompt = `You are a market timing analyst. Assess whether NOW is a good time to launch this business.
 
 HYPOTHESIS: "${input.hypothesis}"
 ${input.industry ? `INDUSTRY: ${input.industry}` : ''}
 CURRENT DATE: ${currentDate}
+${trendContext}
 
 Analyze the timing by identifying:
 
@@ -65,6 +99,7 @@ Analyze the timing by identifying:
 
 4. TREND DIRECTION
    - Is interest/demand for this type of solution rising, stable, or falling?
+   ${trendData ? '- USE THE GOOGLE TRENDS DATA ABOVE to inform your assessment.' : ''}
 
 SCORING GUIDE for timing_score (0-10):
 - Strong tailwinds, few headwinds, clear window → 8-10
@@ -124,6 +159,9 @@ Respond with ONLY valid JSON:
     trend: 'rising' | 'stable' | 'falling';
   }>(content.text, 'timing analysis');
 
+  // Use Google Trends trend if available (more reliable than AI estimate)
+  const finalTrend = trendData ? trendData.trend : data.trend;
+
   return {
     score: data.timing_score,
     confidence: data.confidence,
@@ -131,6 +169,13 @@ Respond with ONLY valid JSON:
     headwinds: data.headwinds || [],
     timingWindow: data.timing_window,
     verdict: data.verdict,
-    trend: data.trend
+    trend: finalTrend,
+    trendData: trendData
+      ? {
+          keywords: trendData.keywords,
+          percentageChange: trendData.percentageChange,
+          dataAvailable: true,
+        }
+      : null,
   };
 }
