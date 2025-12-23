@@ -92,18 +92,18 @@ export function generatePDFReport(data: ReportData): jsPDF {
     doc.roundedRect(x, barY, fillWidth, height, 2, 2, 'F');
   };
 
-  // Add section header
+  // Add section header (compact design)
   const addSectionHeader = (title: string, icon?: string) => {
-    checkNewPage(50);
-    y += 5;
+    checkNewPage(40);
+    y += 3;
     doc.setFillColor(...COLORS.lightGray);
-    doc.rect(margin - 5, y - 5, contentWidth + 10, 12, 'F');
-    doc.setFontSize(13);
+    doc.rect(margin - 5, y - 4, contentWidth + 10, 10, 'F');
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...COLORS.darkGray);
-    doc.text(icon ? `${icon}  ${title}` : title, margin, y + 3);
+    doc.text(icon ? `${icon}  ${title}` : title, margin, y + 2);
     doc.setTextColor(0);
-    y += 15;
+    y += 12;
   };
 
   // === PAGE 1: Executive Summary ===
@@ -423,12 +423,12 @@ export function generatePDFReport(data: ReportData): jsPDF {
     });
     y += 5;
 
-    // Themes
+    // Themes (condensed to top 3)
     if (data.communityVoice.themeAnalysis?.themes) {
       addSectionHeader('Top Pain Themes');
       doc.setFontSize(9);
-      data.communityVoice.themeAnalysis.themes.slice(0, 4).forEach(theme => {
-        checkNewPage(30);
+      data.communityVoice.themeAnalysis.themes.slice(0, 3).forEach(theme => {
+        checkNewPage(25);
         doc.setFont('helvetica', 'bold');
         const intensityColor = theme.intensity === 'high' ? COLORS.danger :
                               theme.intensity === 'medium' ? COLORS.warning : COLORS.gray;
@@ -436,11 +436,11 @@ export function generatePDFReport(data: ReportData): jsPDF {
         doc.text(`[${theme.intensity.toUpperCase()}]`, margin, y);
         doc.setTextColor(0);
         doc.text(theme.name, margin + 25, y);
-        y += 6;
+        y += 5;
         doc.setFont('helvetica', 'normal');
         const descLines = doc.splitTextToSize(theme.description, contentWidth);
         doc.text(descLines.slice(0, 2), margin, y);
-        y += descLines.slice(0, 2).length * 4 + 6;
+        y += descLines.slice(0, 2).length * 4 + 4;
       });
     }
 
@@ -465,6 +465,112 @@ export function generatePDFReport(data: ReportData): jsPDF {
         doc.setFontSize(9);
         y += 22;
       });
+    }
+
+    // Customer Language Bank
+    const customerLanguage = data.communityVoice.themeAnalysis?.customerLanguage;
+    const alternativesMentioned = data.communityVoice.themeAnalysis?.alternativesMentioned;
+    if ((customerLanguage && customerLanguage.length > 0) || (alternativesMentioned && alternativesMentioned.length > 0)) {
+      checkNewPage(60);
+      addSectionHeader('Customer Language Bank');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...COLORS.gray);
+      doc.text('Use these exact phrases in your marketing, landing pages, and customer interviews', margin, y);
+      y += 8;
+
+      // Problem phrases
+      if (customerLanguage && customerLanguage.length > 0) {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...COLORS.darkGray);
+        doc.text('How They Describe The Problem:', margin, y);
+        y += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0);
+        const phrases = customerLanguage.slice(0, 6).map(p => `"${p}"`).join('  •  ');
+        const phraseLines = doc.splitTextToSize(phrases, contentWidth);
+        doc.text(phraseLines.slice(0, 3), margin, y);
+        y += phraseLines.slice(0, 3).length * 4 + 6;
+      }
+
+      // Tools mentioned
+      if (alternativesMentioned && alternativesMentioned.length > 0) {
+        checkNewPage(20);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...COLORS.darkGray);
+        doc.text('Tools & Alternatives Mentioned:', margin, y);
+        y += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0);
+        const tools = alternativesMentioned.slice(0, 8).join('  •  ');
+        const toolLines = doc.splitTextToSize(tools, contentWidth);
+        doc.text(toolLines.slice(0, 2), margin, y);
+        y += toolLines.slice(0, 2).length * 4 + 6;
+      }
+      y += 5;
+    }
+
+    // Adjacent Opportunities (shown when hypothesis confidence is low or partial)
+    if (data.viability.hypothesisConfidence &&
+        (data.viability.hypothesisConfidence.level === 'low' || data.viability.hypothesisConfidence.level === 'partial') &&
+        data.communityVoice.themeAnalysis?.themes) {
+      // Find contextual themes (non-core) as pivot candidates
+      const contextualThemes = data.communityVoice.themeAnalysis.themes
+        .filter((t: { tier?: string }) => t.tier === 'contextual')
+        .slice(0, 3);
+
+      if (contextualThemes.length > 0) {
+        checkNewPage(80);
+        addSectionHeader('Adjacent Opportunities');
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...COLORS.gray);
+        doc.text('Your specific hypothesis wasn\'t the most prominent topic. Consider these pivot candidates:', margin, y);
+        y += 10;
+
+        contextualThemes.forEach((theme: { name: string; description: string; frequency: number; intensity: string }, i: number) => {
+          checkNewPage(30);
+          doc.setFillColor(248, 250, 252);
+          doc.roundedRect(margin, y - 3, contentWidth, 22, 2, 2, 'F');
+
+          // Intensity indicator
+          const intensityColor = theme.intensity === 'high' ? COLORS.danger :
+                                theme.intensity === 'medium' ? COLORS.warning : COLORS.gray;
+          doc.setFillColor(...intensityColor);
+          doc.rect(margin, y - 3, 3, 22, 'F');
+
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...COLORS.darkGray);
+          doc.text(`${i + 1}. ${theme.name}`, margin + 8, y + 5);
+
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...COLORS.gray);
+          doc.text(`${theme.frequency} signals`, margin + contentWidth - 40, y + 5);
+
+          doc.setTextColor(0);
+          const descLines = doc.splitTextToSize(theme.description, contentWidth - 20);
+          doc.text(descLines.slice(0, 1), margin + 8, y + 14);
+
+          y += 28;
+        });
+
+        // Pivot suggestion
+        doc.setFillColor(236, 253, 245);
+        doc.roundedRect(margin, y, contentWidth, 15, 2, 2, 'F');
+        y += 10;
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...COLORS.success);
+        doc.text('TIP:', margin + 5, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Interview users about these adjacent problems - your original hypothesis may emerge naturally.', margin + 20, y);
+        doc.setTextColor(0);
+        y += 15;
+      }
     }
 
     // Market Sizing

@@ -10,64 +10,12 @@ import {
   LayoutGrid,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-export interface AdjacentOpportunity {
-  name: string
-  description: string
-  signalCount: number
-  sources: string[]
-  representativeQuote?: string
-  quoteSource?: string
-  pivotAngle?: string  // How this connects to original hypothesis
-  intensity: 'low' | 'medium' | 'high'
-}
+import type { AdjacentOpportunityData } from '@/lib/utils/coverage-helpers'
 
 interface AdjacentOpportunitiesSectionProps {
-  opportunities: AdjacentOpportunity[]
+  opportunities: AdjacentOpportunityData[]
   originalHypothesis?: string
   className?: string
-}
-
-// Helper to extract adjacent opportunities from theme data
-export function extractAdjacentOpportunities(
-  themes: Array<{
-    name: string
-    description: string
-    frequency: number
-    intensity: 'low' | 'medium' | 'high'
-    tier?: 'core' | 'contextual'
-    sources?: string[]
-    examples?: string[]
-  }>,
-  keyQuotes?: Array<{
-    quote: string
-    source: string
-    painScore: number
-  }>
-): AdjacentOpportunity[] {
-  // Get contextual (non-core) themes, sorted by frequency
-  const contextualThemes = themes
-    .filter(t => t.tier === 'contextual')
-    .sort((a, b) => b.frequency - a.frequency)
-    .slice(0, 3)  // Top 3
-
-  return contextualThemes.map(theme => {
-    // Try to find a relevant quote for this theme
-    const relevantQuote = keyQuotes?.find(q =>
-      q.quote.toLowerCase().includes(theme.name.toLowerCase().split(' ')[0]) ||
-      theme.examples?.some(ex => q.quote.includes(ex))
-    )
-
-    return {
-      name: theme.name,
-      description: theme.description,
-      signalCount: theme.frequency,
-      sources: theme.sources || ['reddit'],
-      representativeQuote: relevantQuote?.quote || theme.examples?.[0],
-      quoteSource: relevantQuote?.source,
-      intensity: theme.intensity,
-    }
-  })
 }
 
 // Generate a pivot angle suggestion based on theme and original hypothesis

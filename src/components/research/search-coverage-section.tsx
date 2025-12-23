@@ -11,86 +11,23 @@ import {
   FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-interface SourceCoverage {
-  name: string
-  icon: React.ElementType
-  scope: string  // e.g., "8 communities", "5 apps"
-  volume: string  // e.g., "692 posts", "250 reviews"
-  signals: number
-}
+import type { SourceCoverageData } from '@/lib/utils/coverage-helpers'
 
 interface SearchCoverageSectionProps {
-  sources: SourceCoverage[]
+  sources: SourceCoverageData[]
   totalAnalyzed: number
   className?: string
 }
 
 // Icon mapping for data sources
-const sourceIcons: Record<string, React.ElementType> = {
+const sourceIcons: Record<SourceCoverageData['iconType'], React.ElementType> = {
   reddit: MessageSquare,
-  'google_play': Smartphone,
-  'app_store': Smartphone,
-  'hacker_news': Globe,
-  'g2': Database,
-  'capterra': Database,
+  google_play: Smartphone,
+  app_store: Smartphone,
+  hacker_news: Globe,
+  g2: Database,
+  capterra: Database,
   default: FileText,
-}
-
-// Helper to create coverage data from filtering metrics
-export function createSourceCoverage(
-  filteringMetrics: {
-    postsFound?: number
-    postsAnalyzed?: number
-    coreSignals?: number
-    relatedSignals?: number
-    communitiesSearched?: string[]
-    sources?: string[]
-  },
-  totalSignals: number
-): SourceCoverage[] {
-  const sources: SourceCoverage[] = []
-
-  // Reddit is always included if we have posts
-  if (filteringMetrics.postsAnalyzed && filteringMetrics.postsAnalyzed > 0) {
-    const communityCount = filteringMetrics.communitiesSearched?.length || 0
-    sources.push({
-      name: 'Reddit',
-      icon: MessageSquare,
-      scope: `${communityCount} ${communityCount === 1 ? 'community' : 'communities'}`,
-      volume: `${filteringMetrics.postsFound || filteringMetrics.postsAnalyzed} posts`,
-      signals: filteringMetrics.coreSignals || 0,
-    })
-  }
-
-  // Add other sources if available
-  if (filteringMetrics.sources) {
-    for (const source of filteringMetrics.sources) {
-      if (source !== 'reddit' && source !== 'Reddit') {
-        sources.push({
-          name: formatSourceName(source),
-          icon: sourceIcons[source.toLowerCase()] || sourceIcons.default,
-          scope: '—',
-          volume: '—',
-          signals: 0,  // Would need per-source breakdown
-        })
-      }
-    }
-  }
-
-  return sources
-}
-
-function formatSourceName(source: string): string {
-  const names: Record<string, string> = {
-    reddit: 'Reddit',
-    google_play: 'Google Play',
-    app_store: 'App Store',
-    hacker_news: 'Hacker News',
-    g2: 'G2 Reviews',
-    capterra: 'Capterra',
-  }
-  return names[source.toLowerCase()] || source
 }
 
 export function SearchCoverageSection({
@@ -126,7 +63,7 @@ export function SearchCoverageSection({
               </thead>
               <tbody className="divide-y">
                 {sources.map((source, i) => {
-                  const Icon = source.icon
+                  const Icon = sourceIcons[source.iconType]
                   return (
                     <tr key={i} className="hover:bg-muted/20 transition-colors">
                       <td className="px-3 py-2">

@@ -30,8 +30,10 @@ import {
   TimingScoreInput,
   TwoAxisInput,
 } from '@/lib/analysis/viability-calculator'
-import { SearchCoverageSection, createSourceCoverage } from '@/components/research/search-coverage-section'
-import { AdjacentOpportunitiesSection, extractAdjacentOpportunities } from '@/components/research/adjacent-opportunities'
+import { SearchCoverageSection } from '@/components/research/search-coverage-section'
+import { AdjacentOpportunitiesSection } from '@/components/research/adjacent-opportunities'
+import { CustomerLanguageBank } from '@/components/research/customer-language-bank'
+import { createSourceCoverageData, extractEmotionalTerms, extractAdjacentOpportunitiesData } from '@/lib/utils/coverage-helpers'
 import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
 import { AppOverview } from '@/components/research/app-overview'
 import { UserFeedback } from '@/components/research/user-feedback'
@@ -587,6 +589,25 @@ export default async function ResearchDetailPage({
               <CompetitorPromptModal
                 jobId={id}
                 hypothesis={researchJob.hypothesis}
+              />
+            )}
+
+            {/* Search Coverage Section - "What We Searched" transparency */}
+            {communityVoiceResult?.data?.metadata?.filteringMetrics && (
+              <SearchCoverageSection
+                sources={createSourceCoverageData(
+                  {
+                    postsFound: communityVoiceResult.data.metadata.filteringMetrics.postsFound,
+                    postsAnalyzed: communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed,
+                    coreSignals: communityVoiceResult.data.metadata.filteringMetrics.coreSignals,
+                    relatedSignals: communityVoiceResult.data.metadata.filteringMetrics.relatedSignals,
+                    communitiesSearched: communityVoiceResult.data.subreddits?.analyzed,
+                    sources: communityVoiceResult.data.metadata.dataSources,
+                  },
+                  communityVoiceResult.data.painSummary?.totalSignals || 0
+                )}
+                totalAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.postsFound || 0}
+                className="mb-6"
               />
             )}
 
@@ -1165,6 +1186,35 @@ export default async function ResearchDetailPage({
                   />
                 </div>
               )}
+
+              {/* Adjacent Opportunities - shown when hypothesis confidence is low/partial */}
+              {viabilityVerdict.hypothesisConfidence &&
+               (viabilityVerdict.hypothesisConfidence.level === 'low' || viabilityVerdict.hypothesisConfidence.level === 'partial') &&
+               communityVoiceResult?.data?.themeAnalysis?.themes && (
+                <AdjacentOpportunitiesSection
+                  opportunities={extractAdjacentOpportunitiesData(
+                    communityVoiceResult.data.themeAnalysis.themes.map(t => ({
+                      ...t,
+                      tier: (t as { tier?: 'core' | 'contextual' }).tier || 'contextual',
+                      sources: (t as { sources?: string[] }).sources,
+                    })),
+                    communityVoiceResult.data.themeAnalysis.keyQuotes
+                  )}
+                  originalHypothesis={researchJob.hypothesis}
+                  className="mb-6"
+                />
+              )}
+
+              {/* Customer Language Bank - real phrases for marketing */}
+              {communityVoiceResult?.data?.themeAnalysis && (
+                <CustomerLanguageBank
+                  problemPhrases={communityVoiceResult.data.themeAnalysis.customerLanguage || []}
+                  emotionalLanguage={extractEmotionalTerms(communityVoiceResult.data.painSignals || [])}
+                  toolsMentioned={communityVoiceResult.data.themeAnalysis.alternativesMentioned || []}
+                  className="mb-6"
+                />
+              )}
+
               <ViabilityVerdictDisplay
                 verdict={viabilityVerdict}
                 hypothesis={researchJob.hypothesis}
