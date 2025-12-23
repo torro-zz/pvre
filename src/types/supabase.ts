@@ -97,6 +97,56 @@ export type Database = {
         }
         Relationships: []
       }
+      api_costs: {
+        Row: {
+          action_type: string
+          cost_usd: number
+          created_at: string | null
+          endpoint: string | null
+          id: string
+          input_tokens: number
+          job_id: string | null
+          metadata: Json | null
+          model: string
+          output_tokens: number
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          cost_usd: number
+          created_at?: string | null
+          endpoint?: string | null
+          id?: string
+          input_tokens: number
+          job_id?: string | null
+          metadata?: Json | null
+          model: string
+          output_tokens: number
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          cost_usd?: number
+          created_at?: string | null
+          endpoint?: string | null
+          id?: string
+          input_tokens?: number
+          job_id?: string | null
+          metadata?: Json | null
+          model?: string
+          output_tokens?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_costs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "research_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           created_at: string | null
@@ -134,6 +184,102 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "api_keys_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_discovery_events: {
+        Row: {
+          app_category: string | null
+          app_id: string
+          app_name: string
+          app_rating: number | null
+          app_review_count: number | null
+          app_store: string
+          core_signal_count: number | null
+          created_at: string | null
+          discovery_method: string | null
+          hypothesis_audience: string | null
+          hypothesis_domain: string | null
+          id: string
+          job_id: string | null
+          llm_relevance_reason: string | null
+          llm_relevance_score: number | null
+          related_signal_count: number | null
+          research_completed: boolean | null
+          search_query: string | null
+          signals_from_app: number | null
+          updated_at: string | null
+          user_id: string
+          user_kept_selected: boolean | null
+          user_manually_added: boolean | null
+          was_auto_selected: boolean | null
+        }
+        Insert: {
+          app_category?: string | null
+          app_id: string
+          app_name: string
+          app_rating?: number | null
+          app_review_count?: number | null
+          app_store: string
+          core_signal_count?: number | null
+          created_at?: string | null
+          discovery_method?: string | null
+          hypothesis_audience?: string | null
+          hypothesis_domain?: string | null
+          id?: string
+          job_id?: string | null
+          llm_relevance_reason?: string | null
+          llm_relevance_score?: number | null
+          related_signal_count?: number | null
+          research_completed?: boolean | null
+          search_query?: string | null
+          signals_from_app?: number | null
+          updated_at?: string | null
+          user_id: string
+          user_kept_selected?: boolean | null
+          user_manually_added?: boolean | null
+          was_auto_selected?: boolean | null
+        }
+        Update: {
+          app_category?: string | null
+          app_id?: string
+          app_name?: string
+          app_rating?: number | null
+          app_review_count?: number | null
+          app_store?: string
+          core_signal_count?: number | null
+          created_at?: string | null
+          discovery_method?: string | null
+          hypothesis_audience?: string | null
+          hypothesis_domain?: string | null
+          id?: string
+          job_id?: string | null
+          llm_relevance_reason?: string | null
+          llm_relevance_score?: number | null
+          related_signal_count?: number | null
+          research_completed?: boolean | null
+          search_query?: string | null
+          signals_from_app?: number | null
+          updated_at?: string | null
+          user_id?: string
+          user_kept_selected?: boolean | null
+          user_manually_added?: boolean | null
+          was_auto_selected?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_discovery_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "research_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_discovery_events_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -353,6 +499,41 @@ export type Database = {
           },
         ]
       }
+      presearch_attempts: {
+        Row: {
+          converted_to_job_id: string | null
+          created_at: string | null
+          hypothesis: string
+          id: string
+          session_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          converted_to_job_id?: string | null
+          created_at?: string | null
+          hypothesis: string
+          id?: string
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          converted_to_job_id?: string | null
+          created_at?: string | null
+          hypothesis?: string
+          id?: string
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presearch_attempts_converted_to_job_id_fkey"
+            columns: ["converted_to_job_id"]
+            isOneToOne: false
+            referencedRelation: "research_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -534,6 +715,7 @@ export type Database = {
       }
       research_jobs: {
         Row: {
+          chat_count: number | null
           competitors: Json | null
           coverage_data: Json | null
           created_at: string | null
@@ -552,6 +734,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          chat_count?: number | null
           competitors?: Json | null
           coverage_data?: Json | null
           created_at?: string | null
@@ -570,6 +753,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          chat_count?: number | null
           competitors?: Json | null
           coverage_data?: Json | null
           created_at?: string | null
@@ -663,6 +847,7 @@ export type Database = {
         Returns: number
       }
       add_credits:
+        | { Args: { p_credits: number; p_user_id: string }; Returns: undefined }
         | {
             Args: {
               p_credits: number
@@ -671,13 +856,20 @@ export type Database = {
             }
             Returns: number
           }
-        | { Args: { p_credits: number; p_user_id: string }; Returns: undefined }
+      check_presearch_limit: {
+        Args: { p_session_id: string; p_user_id: string }
+        Returns: {
+          attempt_count: number
+          can_continue: boolean
+        }[]
+      }
       cleanup_expired_cache: { Args: never; Returns: number }
       cleanup_expired_reddit_cache: { Args: never; Returns: undefined }
       deduct_credit: {
         Args: { p_job_id: string; p_user_id: string }
         Returns: boolean
       }
+      increment_chat_count: { Args: { p_job_id: string }; Returns: number }
       refund_credit: {
         Args: { p_job_id: string; p_user_id: string }
         Returns: boolean

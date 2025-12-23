@@ -6,16 +6,11 @@
  * - free_presearch: Hypothesis validation (free to user)
  * - free_chat: Chat within 2-message limit (free to user)
  * - paid_chat: Chat beyond limit (uses credits - future)
- *
- * IMPORTANT: Before using, run migration 008_api_cost_tracking.sql
- * Then regenerate types: npx supabase gen types typescript --project-id PROJECT_ID > src/types/supabase.ts
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { calculateCallCost } from '@/lib/analysis/token-tracker'
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnySupabaseClient = any
+import type { Json } from '@/types/supabase'
 
 export type ActionType = 'paid_search' | 'free_presearch' | 'free_chat' | 'paid_chat'
 
@@ -32,10 +27,9 @@ export interface RecordCostParams {
 
 /**
  * Record an API cost to the database
- * Note: Uses type assertion until migration is run and types are regenerated
  */
 export async function recordApiCost(params: RecordCostParams): Promise<void> {
-  const supabase = createAdminClient() as AnySupabaseClient as AnySupabaseClient
+  const supabase = createAdminClient()
   const costUsd = calculateCallCost(params.inputTokens, params.outputTokens, params.model)
 
   const { error } = await supabase.from('api_costs').insert({
@@ -47,7 +41,7 @@ export async function recordApiCost(params: RecordCostParams): Promise<void> {
     output_tokens: params.outputTokens,
     cost_usd: costUsd,
     endpoint: params.endpoint,
-    metadata: params.metadata || null,
+    metadata: (params.metadata || null) as Json,
   })
 
   if (error) {
@@ -64,7 +58,7 @@ export async function recordApiCostsBatch(
 ): Promise<void> {
   if (costs.length === 0) return
 
-  const supabase = createAdminClient() as AnySupabaseClient as AnySupabaseClient
+  const supabase = createAdminClient()
   const records = costs.map((params) => ({
     user_id: params.userId,
     job_id: params.jobId || null,
@@ -74,7 +68,7 @@ export async function recordApiCostsBatch(
     output_tokens: params.outputTokens,
     cost_usd: calculateCallCost(params.inputTokens, params.outputTokens, params.model),
     endpoint: params.endpoint,
-    metadata: params.metadata || null,
+    metadata: (params.metadata || null) as Json,
   }))
 
   const { error } = await supabase.from('api_costs').insert(records)
@@ -97,8 +91,7 @@ const FREE_CHAT_LIMIT = 2
  * Returns { chatNumber, isFree } where isFree is true for first 2 chats
  */
 export async function checkChatLimit(jobId: string): Promise<ChatLimitResult> {
-  const supabase = createAdminClient() as AnySupabaseClient as AnySupabaseClient
-
+  const supabase = createAdminClient()
   const { data: newCount, error } = await supabase.rpc('increment_chat_count', {
     p_job_id: jobId,
   })
@@ -123,8 +116,7 @@ export async function checkChatLimit(jobId: string): Promise<ChatLimitResult> {
  * Get current chat count without incrementing (for UI display)
  */
 export async function getChatCount(jobId: string): Promise<number> {
-  const supabase = createAdminClient() as AnySupabaseClient as AnySupabaseClient
-
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('research_jobs')
     .select('chat_count')
@@ -154,8 +146,7 @@ export async function checkPresearchLimit(
   userId: string,
   sessionId: string
 ): Promise<PresearchLimitResult> {
-  const supabase = createAdminClient() as AnySupabaseClient as AnySupabaseClient
-
+  const supabase = createAdminClient()
   const { data, error } = await supabase.rpc('check_presearch_limit', {
     p_user_id: userId,
     p_session_id: sessionId,
@@ -190,8 +181,7 @@ export async function recordPresearchAttempt(
   hypothesis: string,
   sessionId: string
 ): Promise<void> {
-  const supabase = createAdminClient() as AnySupabaseClient as AnySupabaseClient
-
+  const supabase = createAdminClient()
   const { error } = await supabase.from('presearch_attempts').insert({
     user_id: userId,
     hypothesis,
@@ -210,8 +200,7 @@ export async function markPresearchConverted(
   sessionId: string,
   jobId: string
 ): Promise<void> {
-  const supabase = createAdminClient() as AnySupabaseClient as AnySupabaseClient
-
+  const supabase = createAdminClient()
   const { error } = await supabase
     .from('presearch_attempts')
     .update({ converted_to_job_id: jobId })
@@ -241,7 +230,7 @@ export async function getCostSummaryByAction(
   startDate?: Date,
   endDate?: Date
 ): Promise<CostSummary[]> {
-  const supabase = createAdminClient() as AnySupabaseClient
+  const supabase = createAdminClient()
 
   let query = supabase
     .from('api_costs')
@@ -292,7 +281,7 @@ export async function getJobCost(jobId: string): Promise<{
   callCount: number
   breakdown: { endpoint: string; costUsd: number; callCount: number }[]
 }> {
-  const supabase = createAdminClient() as AnySupabaseClient
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('api_costs')
@@ -337,7 +326,7 @@ export async function getAverageCostPerUser(
   totalCostUsd: number
   avgCostPerUser: number
 }> {
-  const supabase = createAdminClient() as AnySupabaseClient
+  const supabase = createAdminClient()
 
   let query = supabase.from('api_costs').select('user_id, cost_usd')
 
@@ -354,10 +343,8 @@ export async function getAverageCostPerUser(
     return { uniqueUsers: 0, totalCostUsd: 0, avgCostPerUser: 0 }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const uniqueUsers = new Set(data.map((r: any) => r.user_id)).size
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const totalCostUsd = data.reduce((sum: number, r: any) => sum + Number(r.cost_usd), 0)
+  const uniqueUsers = new Set(data.map((r) => r.user_id)).size
+  const totalCostUsd = data.reduce((sum, r) => sum + Number(r.cost_usd), 0)
 
   return {
     uniqueUsers,
