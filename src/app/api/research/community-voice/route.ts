@@ -44,7 +44,9 @@ import {
 import {
   startTokenTracking,
   endTokenTracking,
+  getCurrentTracker,
 } from '@/lib/anthropic'
+import { recordApiCostsBatch, RecordCostParams } from '@/lib/api-costs'
 import { saveResearchResult } from '@/lib/research/save-result'
 import {
   filterRelevantPosts,
@@ -758,8 +760,29 @@ export async function POST(request: NextRequest) {
 
     const processingTimeMs = Date.now() - startTime
 
+    // Get current tracker before ending session (so we can record individual calls)
+    const tracker = getCurrentTracker()
+
     // End token tracking and get usage summary
     const tokenUsage = endTokenTracking()
+
+    // Record API costs to database if we have a jobId and tracker data
+    if (jobId && tracker && tracker.calls.length > 0) {
+      const costRecords: RecordCostParams[] = tracker.calls.map((call, index) => ({
+        userId: user.id,
+        jobId,
+        actionType: 'paid_search' as const,
+        model: call.model,
+        inputTokens: call.inputTokens,
+        outputTokens: call.outputTokens,
+        endpoint: '/api/research/community-voice',
+        metadata: { callIndex: index, totalCalls: tracker.calls.length },
+      }))
+      // Fire and forget - don't block on cost recording
+      recordApiCostsBatch(costRecords).catch((err) => {
+        console.error('Failed to record API costs:', err)
+      })
+    }
 
     // Build result
     const result: CommunityVoiceResult = {

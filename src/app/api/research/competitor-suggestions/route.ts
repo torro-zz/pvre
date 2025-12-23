@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { anthropic } from '@/lib/anthropic'
 import { CompetitorInsight } from '@/lib/analysis/theme-extractor'
+import { recordApiCost } from '@/lib/api-costs'
+
+const ANALYSIS_MODEL = 'claude-3-haiku-20240307'
 
 export interface CompetitorSuggestion {
   name: string
@@ -175,7 +178,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: ANALYSIS_MODEL,
       max_tokens: 1024,
       system: `You are a competitive intelligence analyst. Your task is to identify products/services that DIRECTLY compete with the hypothesis being tested.
 
@@ -218,6 +221,17 @@ STRICT RULES:
 - Be conservative - when in doubt, exclude`,
         },
       ],
+    })
+
+    // Record API cost (this is part of the paid search flow since it uses saved data)
+    await recordApiCost({
+      userId: user.id,
+      jobId,
+      actionType: 'paid_search',
+      model: ANALYSIS_MODEL,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      endpoint: '/api/research/competitor-suggestions',
     })
 
     const textContent = response.content.find(c => c.type === 'text')

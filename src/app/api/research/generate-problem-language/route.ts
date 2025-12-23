@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
+import { createClient } from '@/lib/supabase/server'
+import { recordApiCost } from '@/lib/api-costs'
+
+const PRESEARCH_MODEL = 'claude-3-haiku-20240307'
 
 export interface GenerateProblemLanguageResult {
   phrases: string[]
@@ -8,6 +12,10 @@ export interface GenerateProblemLanguageResult {
 
 export async function POST(request: NextRequest) {
   try {
+    // Optional auth - track if logged in, allow if not
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
     const body = await request.json()
     const { audience, problem } = body as {
       audience: string
@@ -30,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: PRESEARCH_MODEL,
       max_tokens: 256,
       system: `You generate authentic Reddit search phrases based on a target audience and their problem.
 
@@ -68,6 +76,18 @@ Return JSON only:
         },
       ],
     })
+
+    // Record API cost if user is logged in
+    if (user) {
+      await recordApiCost({
+        userId: user.id,
+        actionType: 'free_presearch',
+        model: PRESEARCH_MODEL,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        endpoint: '/api/research/generate-problem-language',
+      })
+    }
 
     const textContent = response.content.find(c => c.type === 'text')
     if (!textContent || textContent.type !== 'text') {

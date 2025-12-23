@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCostSummaryByAction, getAverageCostPerUser } from '@/lib/api-costs'
 
 // GET - Fetch all research jobs with their results for debugging
 export async function GET() {
@@ -101,9 +102,40 @@ export async function GET() {
 
     stats.averageScore = scoreCount > 0 ? totalScore / scoreCount : 0
 
+    // Fetch API cost analytics (last 30 days)
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const [costByAction, avgCostPerUser] = await Promise.all([
+      getCostSummaryByAction(thirtyDaysAgo).catch(() => []),
+      getAverageCostPerUser(thirtyDaysAgo).catch(() => ({
+        uniqueUsers: 0,
+        totalCostUsd: 0,
+        avgCostPerUser: 0,
+      })),
+    ])
+
+    // Calculate cost analytics
+    const costAnalytics = {
+      last30Days: {
+        byAction: costByAction,
+        totalCostUsd: costByAction.reduce((sum, c) => sum + c.totalCostUsd, 0),
+        totalCalls: costByAction.reduce((sum, c) => sum + c.callCount, 0),
+        uniqueUsers: avgCostPerUser.uniqueUsers,
+        avgCostPerUser: avgCostPerUser.avgCostPerUser,
+      },
+      breakdown: {
+        paidSearch: costByAction.find((c) => c.actionType === 'paid_search') || null,
+        freePresearch: costByAction.find((c) => c.actionType === 'free_presearch') || null,
+        freeChat: costByAction.find((c) => c.actionType === 'free_chat') || null,
+        paidChat: costByAction.find((c) => c.actionType === 'paid_chat') || null,
+      },
+    }
+
     return NextResponse.json({
       jobs: jobsWithResults,
       stats,
+      costAnalytics,
     })
   } catch (error) {
     console.error('Admin debug API error:', error)

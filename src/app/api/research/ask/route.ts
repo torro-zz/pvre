@@ -3,12 +3,21 @@ import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { CommunityVoiceResult } from '../community-voice/route'
 import { CompetitorIntelligenceResult } from '../competitor-intelligence/route'
+import { checkChatLimit, recordApiCost } from '@/lib/api-costs'
 
 const anthropic = new Anthropic()
+
+const CHAT_MODEL = 'claude-sonnet-4-20250514'
 
 export interface AskResearchRequest {
   jobId: string
   question: string
+}
+
+export interface ChatStatus {
+  chatNumber: number
+  remainingFree: number
+  isFree: boolean
 }
 
 export interface AskResearchResponse {
@@ -18,6 +27,7 @@ export interface AskResearchResponse {
     text: string
     attribution?: string
   }[]
+  chatStatus?: ChatStatus
 }
 
 // Build context from community voice results
@@ -237,6 +247,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
+    // Check and increment chat count
+    const chatStatus = await checkChatLimit(jobId)
+
+    // For now, we allow chats beyond the limit but track them differently
+    // Future: Could require credits for paid_chat
+    if (chatStatus.requiresCredits) {
+      // TODO: Implement credit check for paid chats
+      // For now, still allow but flag for tracking
+      console.log(`User ${user.id} using paid chat #${chatStatus.chatNumber} on job ${jobId}`)
+    }
+
     // Fetch all research results
     const { data: results, error: resultsError } = await supabase
       .from('research_results')
@@ -279,7 +300,7 @@ export async function POST(request: Request) {
 
     // Query Claude with the research context
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: CHAT_MODEL,
       max_tokens: 1024,
       system: `You are a research analyst assistant helping entrepreneurs understand their market validation research results.
 
@@ -307,9 +328,26 @@ Keep answers concise but informative. Use bullet points when listing multiple it
     const textContent = response.content.find(c => c.type === 'text')
     const answer = textContent?.text || 'Unable to generate response'
 
+    // Record API cost
+    await recordApiCost({
+      userId: user.id,
+      jobId,
+      actionType: chatStatus.isFree ? 'free_chat' : 'paid_chat',
+      model: CHAT_MODEL,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      endpoint: '/api/research/ask',
+      metadata: { chatNumber: chatStatus.chatNumber, question: question.substring(0, 100) },
+    })
+
     return NextResponse.json({
       answer,
-      sources: [] // TODO: Could parse response for quotes/references
+      sources: [], // TODO: Could parse response for quotes/references
+      chatStatus: {
+        chatNumber: chatStatus.chatNumber,
+        remainingFree: Math.max(0, 2 - chatStatus.chatNumber),
+        isFree: chatStatus.isFree,
+      },
     } as AskResearchResponse)
 
   } catch (error) {

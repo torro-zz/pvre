@@ -5,8 +5,10 @@ import { isAppStoreUrl, extractAppId } from '@/lib/data-sources/app-url-utils'
 import { googlePlayAdapter } from '@/lib/data-sources/adapters/google-play-adapter'
 import { appStoreAdapter } from '@/lib/data-sources/adapters/app-store-adapter'
 import type { AppDetails } from '@/lib/data-sources/types'
+import { recordApiCost } from '@/lib/api-costs'
 
 const anthropic = new Anthropic()
+const PRESEARCH_MODEL = 'claude-sonnet-4-20250514'
 
 // =============================================================================
 // HYPOTHESIS MODE TYPES (existing)
@@ -97,7 +99,7 @@ export async function POST(request: NextRequest) {
     // APP-CENTRIC MODE: Detect app store URLs and route to app analysis
     // ==========================================================================
     if (isAppStoreUrl(trimmedInput)) {
-      return handleAppAnalysis(trimmedInput)
+      return handleAppAnalysis(trimmedInput, user.id)
     }
 
     // ==========================================================================
@@ -164,11 +166,22 @@ Important guidelines:
 - competitorApps can be empty array if no specific apps come to mind`
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: PRESEARCH_MODEL,
       max_tokens: 1024,
       messages: [
         { role: 'user', content: prompt }
       ],
+    })
+
+    // Record API cost for pre-search
+    await recordApiCost({
+      userId: user.id,
+      actionType: 'free_presearch',
+      model: PRESEARCH_MODEL,
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+      endpoint: '/api/research/interpret-hypothesis',
+      metadata: { mode: 'hypothesis', inputLength: trimmedInput.length },
     })
 
     const content = message.content[0]
@@ -239,7 +252,7 @@ Important guidelines:
 // APP ANALYSIS HANDLER
 // =============================================================================
 
-async function handleAppAnalysis(url: string): Promise<NextResponse> {
+async function handleAppAnalysis(url: string, userId: string): Promise<NextResponse> {
   try {
     // 1. Parse the URL to determine which store
     const parsed = extractAppId(url)
@@ -314,11 +327,22 @@ Respond in this exact JSON format:
 }`
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: PRESEARCH_MODEL,
       max_tokens: 1024,
       messages: [
         { role: 'user', content: prompt }
       ],
+    })
+
+    // Record API cost for pre-search (app analysis mode)
+    await recordApiCost({
+      userId,
+      actionType: 'free_presearch',
+      model: PRESEARCH_MODEL,
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+      endpoint: '/api/research/interpret-hypothesis',
+      metadata: { mode: 'app-analysis', appName: appData.name },
     })
 
     const content = message.content[0]
