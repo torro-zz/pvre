@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isAdmin } from '@/lib/admin'
 import { NextRequest, NextResponse } from 'next/server'
+import { getCostSummaryByAction, getAverageCostPerUser, type CostSummary } from '@/lib/api-costs'
 
 export async function GET(request: NextRequest) {
   // Get optional resetAt timestamp for filtering API costs
@@ -250,6 +251,29 @@ export async function GET(request: NextRequest) {
       ? (totalApiCost / researchWithCostTracking) * totalResearchRuns
       : 0
 
+    // Fetch granular API costs from the new api_costs table (last 30 days)
+    const costByActionType = await getCostSummaryByAction(thirtyDaysAgo).catch(() => [] as CostSummary[])
+
+    // Calculate chat and presearch cost summaries
+    const freeChat = costByActionType.find(c => c.actionType === 'free_chat')
+    const paidChat = costByActionType.find(c => c.actionType === 'paid_chat')
+    const freePresearch = costByActionType.find(c => c.actionType === 'free_presearch')
+
+    const chatCosts = {
+      totalFreeChats: freeChat?.callCount || 0,
+      totalPaidChats: paidChat?.callCount || 0,
+      freeChatCostUsd: freeChat?.totalCostUsd || 0,
+      paidChatCostUsd: paidChat?.totalCostUsd || 0,
+    }
+
+    const presearchCosts = {
+      totalPresearches: freePresearch?.callCount || 0,
+      totalCostUsd: freePresearch?.totalCostUsd || 0,
+      avgCostPerPresearch: freePresearch && freePresearch.callCount > 0
+        ? freePresearch.totalCostUsd / freePresearch.callCount
+        : 0,
+    }
+
     return NextResponse.json({
       // Overview
       overview: {
@@ -310,6 +334,25 @@ export async function GET(request: NextRequest) {
           avgCostPerCredit: Math.round(avgCostPerCredit * 1000) / 1000,
           grossMarginPercent: Math.round(grossMargin * 10) / 10,
           netProfitPerCredit: Math.round((avgRevenuePerCredit - avgCostPerCredit) * 100) / 100,
+        },
+        // Granular tracking from api_costs table (last 30 days)
+        byActionType: costByActionType.map(c => ({
+          actionType: c.actionType,
+          callCount: c.callCount,
+          totalInputTokens: c.totalInputTokens,
+          totalOutputTokens: c.totalOutputTokens,
+          totalCostUsd: Math.round(c.totalCostUsd * 1000) / 1000,
+        })),
+        chatCosts: {
+          totalFreeChats: chatCosts.totalFreeChats,
+          totalPaidChats: chatCosts.totalPaidChats,
+          freeChatCostUsd: Math.round(chatCosts.freeChatCostUsd * 1000) / 1000,
+          paidChatCostUsd: Math.round(chatCosts.paidChatCostUsd * 1000) / 1000,
+        },
+        presearchCosts: {
+          totalPresearches: presearchCosts.totalPresearches,
+          totalCostUsd: Math.round(presearchCosts.totalCostUsd * 1000) / 1000,
+          avgCostPerPresearch: Math.round(presearchCosts.avgCostPerPresearch * 10000) / 10000,
         },
       },
 

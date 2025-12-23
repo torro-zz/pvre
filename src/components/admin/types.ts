@@ -19,6 +19,14 @@ export interface WaitlistEntry {
   created_at: string
 }
 
+export interface CostByActionType {
+  actionType: 'paid_search' | 'free_presearch' | 'free_chat' | 'paid_chat'
+  callCount: number
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalCostUsd: number
+}
+
 export interface AnalyticsData {
   overview: {
     totalUsers: number
@@ -56,6 +64,19 @@ export interface AnalyticsData {
       avgCostPerCredit: number
       grossMarginPercent: number
       netProfitPerCredit: number
+    }
+    // New granular tracking from api_costs table
+    byActionType?: CostByActionType[]
+    chatCosts?: {
+      totalFreeChats: number
+      totalPaidChats: number
+      freeChatCostUsd: number
+      paidChatCostUsd: number
+    }
+    presearchCosts?: {
+      totalPresearches: number
+      totalCostUsd: number
+      avgCostPerPresearch: number
     }
   }
   topUsers: { email: string; runs: number; credits: number; purchased: number }[]

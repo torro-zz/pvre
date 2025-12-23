@@ -62,10 +62,40 @@ export async function GET() {
     }
 
     // Combine jobs with their results
-    const jobsWithResults = jobs?.map((job) => ({
-      ...job,
-      results: results.filter((r) => r.job_id === job.id),
-    })) || []
+    // Strip large coverage_data to prevent huge payloads
+    const jobsWithResults = jobs?.map((job) => {
+      // Remove coverage_data if too large (it can contain full app descriptions)
+      const cleanedJob = { ...job }
+      if (cleanedJob.coverage_data) {
+        const coverageData = cleanedJob.coverage_data as Record<string, unknown>
+        // Keep only essential fields, drop the full app descriptions
+        if (coverageData.appStore && typeof coverageData.appStore === 'object') {
+          const appStore = coverageData.appStore as { apps?: Array<Record<string, unknown>> }
+          if (appStore.apps) {
+            appStore.apps = appStore.apps.map(app => ({
+              name: app.name,
+              appId: app.appId,
+              rating: app.rating,
+              reviewCount: app.reviewCount,
+              category: app.category,
+              developer: app.developer,
+              // Strip description to first 200 chars
+              description: typeof app.description === 'string' ? app.description.slice(0, 200) + '...' : undefined,
+            }))
+          }
+        }
+        if (coverageData.appData && typeof coverageData.appData === 'object') {
+          const appData = coverageData.appData as Record<string, unknown>
+          if (typeof appData.description === 'string') {
+            appData.description = appData.description.slice(0, 200) + '...'
+          }
+        }
+      }
+      return {
+        ...cleanedJob,
+        results: results.filter((r) => r.job_id === job.id),
+      }
+    }) || []
 
     // Calculate aggregate stats
     const stats = {

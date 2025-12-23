@@ -284,6 +284,28 @@ export function AnalyticsTab({ analytics, loading, onFetch, onResetApiCosts, onC
                   </div>
                 </div>
               )}
+
+              {/* New: Cost by Action Type */}
+              {analytics.apiCosts.byActionType && analytics.apiCosts.byActionType.length > 0 && (
+                <div className="border-t pt-4">
+                  <div className="text-sm font-medium mb-2">Cost by Action Type (30d)</div>
+                  <div className="space-y-2">
+                    {analytics.apiCosts.byActionType.map((action) => (
+                      <div key={action.actionType} className="flex justify-between text-sm">
+                        <span className={`${
+                          action.actionType === 'paid_search' ? 'text-green-600' :
+                          action.actionType === 'free_presearch' ? 'text-blue-600' :
+                          action.actionType === 'free_chat' ? 'text-purple-600' :
+                          'text-orange-600'
+                        }`}>
+                          {action.actionType.replace('_', ' ')}
+                        </span>
+                        <span className="font-mono">${action.totalCostUsd.toFixed(3)} ({action.callCount} calls)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -346,6 +368,87 @@ export function AnalyticsTab({ analytics, loading, onFetch, onResetApiCosts, onC
           </CardContent>
         </Card>
       </div>
+
+      {/* Chat & Pre-search Cost Details (from api_costs table) */}
+      {(analytics.apiCosts.chatCosts || analytics.apiCosts.presearchCosts) && (
+        <div className="grid md:grid-cols-2 gap-6">
+          {analytics.apiCosts.chatCosts && (analytics.apiCosts.chatCosts.totalFreeChats > 0 || analytics.apiCosts.chatCosts.totalPaidChats > 0) && (
+            <Card className="border-purple-200">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-purple-500" />
+                  Chat Costs (30d)
+                </CardTitle>
+                <CardDescription>Free vs paid chat API usage</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-purple-50 rounded-lg">
+                      <div className="text-sm text-purple-600">Free Chats</div>
+                      <div className="text-xl font-bold text-purple-700">
+                        {analytics.apiCosts.chatCosts.totalFreeChats}
+                      </div>
+                      <div className="text-xs text-purple-500">
+                        ${analytics.apiCosts.chatCosts.freeChatCostUsd.toFixed(3)} cost
+                      </div>
+                    </div>
+                    <div className="p-3 bg-orange-50 rounded-lg">
+                      <div className="text-sm text-orange-600">Paid Chats</div>
+                      <div className="text-xl font-bold text-orange-700">
+                        {analytics.apiCosts.chatCosts.totalPaidChats}
+                      </div>
+                      <div className="text-xs text-orange-500">
+                        ${analytics.apiCosts.chatCosts.paidChatCostUsd.toFixed(3)} cost
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    First 2 chats per job are free. Beyond that counts as paid.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {analytics.apiCosts.presearchCosts && analytics.apiCosts.presearchCosts.totalPresearches > 0 && (
+            <Card className="border-blue-200">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-blue-500" />
+                  Pre-search Costs (30d)
+                </CardTitle>
+                <CardDescription>Hypothesis validation (free to users)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <div className="text-sm text-blue-600">Total Presearches</div>
+                      <div className="text-xl font-bold text-blue-700">
+                        {analytics.apiCosts.presearchCosts.totalPresearches}
+                      </div>
+                    </div>
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <div className="text-sm text-blue-600">Total Cost</div>
+                      <div className="text-xl font-bold text-blue-700">
+                        ${analytics.apiCosts.presearchCosts.totalCostUsd.toFixed(3)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-gray-500">Avg cost per presearch: </span>
+                    <span className="font-mono">${analytics.apiCosts.presearchCosts.avgCostPerPresearch.toFixed(4)}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Pre-search helps users refine hypotheses before using credits.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Top Users */}
       <Card>
