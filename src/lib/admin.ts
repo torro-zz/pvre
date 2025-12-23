@@ -9,6 +9,11 @@
  * Check if an email address has admin access
  */
 export function isAdmin(email: string | null | undefined): boolean {
+  // In development, allow the dev test user to access admin
+  if (process.env.NODE_ENV !== 'production' && email === 'test-user@pvre-dev.local') {
+    return true
+  }
+
   const adminEmail = process.env.ADMIN_EMAIL
   if (!adminEmail) {
     console.warn('ADMIN_EMAIL environment variable is not set')
