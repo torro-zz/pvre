@@ -12,6 +12,10 @@ export const CLAUDE_PRICING = {
     inputPer1M: 3.00,   // $3.00 per 1M input tokens
     outputPer1M: 15.00, // $15.00 per 1M output tokens
   },
+  'claude-3-5-sonnet-20241022': {
+    inputPer1M: 3.00,   // Same as claude-3-5-sonnet-latest
+    outputPer1M: 15.00,
+  },
   'claude-sonnet-4-20250514': {
     inputPer1M: 3.00,
     outputPer1M: 15.00,

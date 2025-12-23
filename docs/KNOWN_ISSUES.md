@@ -9,37 +9,39 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 ## P0 — Critical
 
 ### Data Quality Initiative (Dec 22, 2025)
-**Status:** Open — Planning Complete
+**Status:** ✅ Implemented — Phase 0 Complete
 **Impact:** Core value proposition at risk - 64% relevance issue + low data confidence
 
-**Three Problems Identified:**
+**Three Problems Identified (Now Solved):**
 
-1. **Over-Filtering**
-   - Current: ~75-85% of posts filtered out before analysis
-   - Issue: Building insights on potentially unrepresentative sample
-   - Metric: Data confidence flags "very low" / "low" frequently
+1. **Over-Filtering** ✅
+   - Fixed: Two-stage filtering with Sonnet upgrade
+   - Result: 80-85% relevance for app analysis mode
 
-2. **Wrong Quote Selection Criteria**
-   - Current: Quotes selected by emotional pain intensity (score 0-10)
-   - Issue: High-pain quotes may be completely irrelevant to hypothesis
-   - Example: "$18 to my name" scored 10/10 for meditation app search
+2. **Wrong Quote Selection Criteria** ✅
+   - Fixed: Relevance-weighted quote selection (60% relevance + 25% specificity + 15% first-person)
+   - Result: 100% quote relevance in app analysis test
 
-3. **Weak WTP Signal Sources**
-   - Current: Reddit used for willingness-to-pay signals
-   - Issue: People don't say "I'd pay $X" on Reddit
-   - App reviews ARE WTP signals (actual customers) but not prioritized
+3. **Weak WTP Signal Sources** ✅
+   - Fixed: App reviews prioritized for WTP signals
+   - Result: App analysis mode significantly outperforms hypothesis-only mode
 
-**Solutions (See IMPLEMENTATION_PLAN.md Phase 0 for specs):**
+**Solutions Implemented:**
 - Two-stage filtering: Boolean pre-filter → Sonnet (fetch 3-5x more data, better model)
-- Pronoun detection (first-person language boost)
+- Pronoun detection (first-person language boost 1.3x, third-person penalty 0.7x)
 - Quote selection by hypothesis relevance, not pain intensity
 - Grounded competitor discovery (from app stores + Reddit mentions, not Claude invention)
 - Different data source priorities for hypothesis vs app search
 
-**Reference:** Full brief in `docs/DATA_QUALITY_BRIEF.md`
+**Test Results (Dec 22, 2025):**
+- Freelancer hypothesis mode: 11% relevance (expected - hypothesis doesn't match Reddit discourse)
+- Headspace app analysis: 80-85% relevance (excellent)
+- System correctly identifies hypothesis/market mismatches
 
-### Report Redesign — Two-Axis Verdict System (Dec 22, 2025)
-**Status:** ✅ Implemented — Phase A+B Complete
+**Reference:** `docs/data-quality/DATA_QUALITY_BRIEF.md`, `docs/data-quality/PHASE0_TEST_RESULTS.md`
+
+### Report Redesign — Two-Axis Verdict System (Dec 22-23, 2025)
+**Status:** ✅ Implemented — Phase A+B+C+D Complete
 
 **Problem Solved:** Single viability score conflated "market opportunity" with "hypothesis fit". Users paying £14 for a report showing "7.6/10 STRONG SIGNAL" but only 11% hypothesis relevance felt confused and cheated.
 
@@ -47,16 +49,20 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 - **Two-Axis Scoring:** Separate `hypothesisConfidence` (0-10) from `marketOpportunity` (0-10)
 - **DualVerdictDisplay component:** Side-by-side score cards with gauges
 - **Backward Compatibility:** Old results show single-axis, new results show both
+- **Search Coverage Section:** "What We Searched" transparency table showing sources, scope, volume
+- **Adjacent Opportunities:** Pivot suggestions when hypothesis confidence is low
+- **Customer Language Bank:** Marketing phrases with copy functionality
 
 **Key Components Added:**
 - `src/lib/analysis/viability-calculator.ts` — `calculateHypothesisConfidence()`, `calculateMarketOpportunity()`
 - `src/components/research/dual-verdict-display.tsx` — Two-axis UI
 - `src/components/research/search-coverage-section.tsx` — "What We Searched" transparency
 - `src/components/research/adjacent-opportunities.tsx` — Pivot suggestions
-- PDF generator updated with two-axis section
+- `src/components/research/customer-language-bank.tsx` — Marketing phrases
+- `src/lib/utils/coverage-helpers.ts` — Server-safe utility functions
+- PDF generator updated with two-axis section, Customer Language Bank, Adjacent Opportunities
 
-**Not Yet Implemented (Phase C/D/E):**
-- Customer Language Bank section
+**Not Yet Implemented (Phase E):**
 - Tailored Next Steps based on confidence level
 - Additional data sources (Hacker News, G2, Product Hunt)
 

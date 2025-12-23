@@ -34,6 +34,7 @@ import { SearchCoverageSection } from '@/components/research/search-coverage-sec
 import { AdjacentOpportunitiesSection } from '@/components/research/adjacent-opportunities'
 import { CustomerLanguageBank } from '@/components/research/customer-language-bank'
 import { createSourceCoverageData, extractEmotionalTerms, extractAdjacentOpportunitiesData } from '@/lib/utils/coverage-helpers'
+import { TailoredNextSteps } from '@/components/research/tailored-next-steps'
 import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
 import { AppOverview } from '@/components/research/app-overview'
 import { UserFeedback } from '@/components/research/user-feedback'
@@ -1211,6 +1212,22 @@ export default async function ResearchDetailPage({
                   problemPhrases={communityVoiceResult.data.themeAnalysis.customerLanguage || []}
                   emotionalLanguage={extractEmotionalTerms(communityVoiceResult.data.painSignals || [])}
                   toolsMentioned={communityVoiceResult.data.themeAnalysis.alternativesMentioned || []}
+                  className="mb-6"
+                />
+              )}
+
+              {/* Tailored Next Steps - dynamic recommendations based on confidence */}
+              {viabilityVerdict.hypothesisConfidence && (
+                <TailoredNextSteps
+                  confidenceLevel={viabilityVerdict.hypothesisConfidence.level}
+                  hypothesisConfidenceScore={viabilityVerdict.hypothesisConfidence.score}
+                  adjacentThemes={
+                    communityVoiceResult?.data?.themeAnalysis?.themes
+                      ?.filter(t => (t as { tier?: string }).tier === 'contextual')
+                      .map(t => t.name)
+                      .slice(0, 3) || []
+                  }
+                  hypothesis={researchJob.hypothesis}
                   className="mb-6"
                 />
               )}

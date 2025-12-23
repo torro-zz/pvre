@@ -854,6 +854,156 @@ export function generatePDFReport(data: ReportData): jsPDF {
     }
   }
 
+  // === PAGE: Your Next Steps ===
+  if (data.viability.hypothesisConfidence) {
+    addPageFooter();
+    doc.addPage();
+    pageNumber++;
+    y = 30;
+    addPageHeader();
+
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.primary);
+    doc.text('Your Next Steps', margin, y);
+    y += 15;
+
+    const confidence = data.viability.hypothesisConfidence;
+    const level = confidence.level;
+
+    // Status badge and title based on confidence level
+    let statusColor: [number, number, number];
+    let statusText: string;
+    let title: string;
+    let subtitle: string;
+    let steps: { action: string; detail: string }[];
+    let interviewTip: string;
+
+    if (level === 'high') {
+      statusColor = COLORS.success;
+      statusText = 'PROCEED';
+      title = 'Proceed to Customer Interviews';
+      subtitle = 'Strong evidence supports your hypothesis. Time to validate with real conversations.';
+      steps = [
+        { action: '1. Schedule 5-10 interviews', detail: 'Target your identified audience in communities where they gather' },
+        { action: '2. Use the interview questions provided', detail: 'Focus on past behavior, not hypothetical future willingness' },
+        { action: '3. Probe for current solutions', detail: 'What are they using today? What do they hate about it?' },
+        { action: '4. Look for willingness-to-pay signals', detail: 'Have they spent money solving this? Would they pay for better?' },
+      ];
+      interviewTip = 'Focus questions on the specific problem you hypothesized. Probe for past behavior and spending.';
+    } else if (level === 'partial') {
+      statusColor = COLORS.warning;
+      statusText = 'EXPLORE';
+      title = 'Interview with Exploration';
+      subtitle = 'Your hypothesis has some support, but adjacent problems may be stronger.';
+
+      // Get adjacent themes for the detail
+      const adjacentThemes = data.communityVoice?.themeAnalysis?.themes
+        ?.filter((t: { tier?: string }) => t.tier === 'contextual')
+        .map((t: { name: string }) => t.name)
+        .slice(0, 2) || [];
+
+      steps = [
+        {
+          action: '1. Interview about your hypothesis AND adjacent themes',
+          detail: adjacentThemes.length > 0 ? `Explore: ${adjacentThemes.join(', ')}` : 'Let conversations reveal which problems are most pressing'
+        },
+        { action: '2. Use open-ended discovery questions', detail: '"Walk me through a typical day..." and listen for pain points' },
+        { action: '3. Be ready to pivot mid-interview', detail: 'If adjacent problems resonate more, explore them deeper' },
+        { action: '4. Consider re-running research', detail: 'Try different keywords or a narrower audience definition' },
+      ];
+      interviewTip = 'Start with open discovery, then introduce your hypothesis. See if they bring up the problem naturally.';
+    } else {
+      statusColor = COLORS.danger;
+      statusText = 'PIVOT';
+      title = 'Consider Pivoting';
+      subtitle = 'Your specific hypothesis wasn\'t prominent, but we found valuable adjacent insights.';
+
+      const adjacentThemes = data.communityVoice?.themeAnalysis?.themes
+        ?.filter((t: { tier?: string }) => t.tier === 'contextual')
+        .map((t: { name: string }) => t.name)
+        .slice(0, 3) || [];
+
+      steps = [
+        {
+          action: '1. Review the adjacent opportunities',
+          detail: adjacentThemes.length > 0 ? `Strong signals found for: ${adjacentThemes.join(', ')}` : 'Check the themes section for what IS being discussed'
+        },
+        { action: '2. Interview about what we FOUND', detail: 'Your original idea may emerge naturally in conversation' },
+        { action: '3. Reframe your hypothesis', detail: 'Pivot the problem definition based on actual market signals' },
+        { action: '4. Run a new search with the pivot', detail: 'Test the reframed hypothesis with fresh research' },
+      ];
+      interviewTip = 'Don\'t mention your original hypothesis. Ask broadly about challenges and see what emerges.';
+    }
+
+    // Status badge box
+    doc.setFillColor(...statusColor);
+    doc.roundedRect(margin, y, 60, 12, 3, 3, 'F');
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text(statusText, margin + 30, y + 8, { align: 'center' });
+    doc.setTextColor(0);
+    y += 20;
+
+    // Title and subtitle
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.darkGray);
+    doc.text(title, margin, y);
+    y += 8;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.gray);
+    doc.text(subtitle, margin, y);
+    doc.setTextColor(0);
+    y += 15;
+
+    // Steps
+    steps.forEach(step => {
+      checkNewPage(25);
+
+      // Step number circle
+      doc.setFillColor(240, 245, 255);
+      doc.circle(margin + 8, y + 2, 6, 'F');
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...COLORS.primary);
+      doc.text(step.action.charAt(0), margin + 5.5, y + 5);
+
+      // Action text
+      doc.setTextColor(...COLORS.darkGray);
+      doc.text(step.action.substring(3), margin + 18, y + 4);
+      y += 7;
+
+      // Detail text
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...COLORS.gray);
+      const detailLines = doc.splitTextToSize(step.detail, contentWidth - 18);
+      doc.text(detailLines.slice(0, 2), margin + 18, y);
+      doc.setTextColor(0);
+      y += detailLines.slice(0, 2).length * 4 + 8;
+    });
+
+    // Interview tip box
+    checkNewPage(30);
+    y += 5;
+    doc.setFillColor(240, 253, 244);
+    doc.roundedRect(margin, y, contentWidth, 25, 3, 3, 'F');
+    y += 10;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.success);
+    doc.text('INTERVIEW TIP', margin + 5, y);
+    y += 7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(0);
+    const tipLines = doc.splitTextToSize(interviewTip, contentWidth - 10);
+    doc.text(tipLines.slice(0, 2), margin + 5, y);
+  }
+
   // Final footer
   addPageFooter();
 
