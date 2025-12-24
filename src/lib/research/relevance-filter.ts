@@ -756,17 +756,17 @@ export async function problemMatchFilter(
     }
 
     try {
-      // Phase 0 Data Quality Initiative: Upgraded to Sonnet 3.5 for better relevance judgment
+      // Phase 0 Data Quality Initiative: Upgraded to Sonnet for better relevance judgment
       // Sonnet is much better at understanding nuanced hypothesis matching than Haiku
       const response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 100,
         messages: [{ role: 'user', content: prompt }],
       })
 
       const tracker = getCurrentTracker()
       if (tracker && response.usage) {
-        trackUsage(tracker, response.usage, 'claude-3-5-sonnet-20241022')
+        trackUsage(tracker, response.usage, 'claude-sonnet-4-20250514')
       }
 
       const content = response.content[0]

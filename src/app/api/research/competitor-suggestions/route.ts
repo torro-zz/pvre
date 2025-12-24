@@ -4,7 +4,7 @@ import { anthropic } from '@/lib/anthropic'
 import { CompetitorInsight } from '@/lib/analysis/theme-extractor'
 import { recordApiCost } from '@/lib/api-costs'
 
-const ANALYSIS_MODEL = 'claude-3-haiku-20240307'
+const ANALYSIS_MODEL = 'claude-3-5-haiku-latest'
 
 export interface CompetitorSuggestion {
   name: string

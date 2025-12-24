@@ -242,8 +242,9 @@ Respond with ONLY a JSON array of 3-5 keyword strings:
 ["keyword1", "keyword2", "keyword3"]`;
 
   try {
+    // Use Haiku for simple keyword extraction (3x cheaper than Sonnet)
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-3-5-haiku-latest",
       max_tokens: 200,
       messages: [{ role: "user", content: prompt }]
     });
@@ -251,7 +252,7 @@ Respond with ONLY a JSON array of 3-5 keyword strings:
     // Track token usage
     const tracker = getCurrentTracker();
     if (tracker && response.usage) {
-      trackUsage(tracker, response.usage, "claude-sonnet-4-20250514");
+      trackUsage(tracker, response.usage, "claude-3-5-haiku-latest");
     }
 
     const content = response.content[0];

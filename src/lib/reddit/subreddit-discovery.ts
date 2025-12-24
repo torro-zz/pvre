@@ -189,7 +189,7 @@ What is the PROBLEM DOMAIN (not the audience)?
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: 'claude-3-5-haiku-latest',
       max_tokens: 512,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt,
@@ -197,7 +197,7 @@ What is the PROBLEM DOMAIN (not the audience)?
 
     const tracker = getCurrentTracker()
     if (tracker && response.usage) {
-      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+      trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
     }
 
     const textContent = response.content.find((c) => c.type === 'text')
@@ -345,7 +345,7 @@ Example for skincare hypothesis:
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: 'claude-3-5-haiku-latest',
       max_tokens: 1500,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt,
@@ -353,7 +353,7 @@ Example for skincare hypothesis:
 
     const tracker = getCurrentTracker()
     if (tracker && response.usage) {
-      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+      trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
     }
 
     const textContent = response.content.find((c) => c.type === 'text')
@@ -480,7 +480,7 @@ Only include subreddits where the problem would be ON-TOPIC. Reject aggressively
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: 'claude-3-5-haiku-latest',
       max_tokens: 1500,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt,
@@ -488,7 +488,7 @@ Only include subreddits where the problem would be ON-TOPIC. Reject aggressively
 
     const tracker = getCurrentTracker()
     if (tracker && response.usage) {
-      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+      trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
     }
 
     const textContent = response.content.find((c) => c.type === 'text')

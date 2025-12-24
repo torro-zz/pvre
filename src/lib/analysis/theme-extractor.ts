@@ -260,7 +260,7 @@ Identify 3-7 themes, 5-10 customer language phrases, 3-5 key quotes, and 2-3 str
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: 'claude-3-5-haiku-latest',
       max_tokens: 2048,
       messages: [
         {
@@ -274,7 +274,7 @@ Identify 3-7 themes, 5-10 customer language phrases, 3-5 key quotes, and 2-3 str
     // Track token usage
     const tracker = getCurrentTracker()
     if (tracker && response.usage) {
-      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+      trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
     }
 
     // Extract text content from response
@@ -463,7 +463,7 @@ Return JSON:
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: 'claude-3-5-haiku-latest',
       max_tokens: 2048,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt,
@@ -471,7 +471,7 @@ Return JSON:
 
     const tracker = getCurrentTracker()
     if (tracker && response.usage) {
-      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+      trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
     }
 
     const textContent = response.content.find((c) => c.type === 'text')
@@ -626,7 +626,7 @@ Questions should directly relate to the themes and use customer language where a
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: 'claude-3-5-haiku-latest',
       max_tokens: 1024,
       messages: [
         {
@@ -640,7 +640,7 @@ Questions should directly relate to the themes and use customer language where a
     // Track token usage
     const tracker = getCurrentTracker()
     if (tracker && response.usage) {
-      trackUsage(tracker, response.usage, 'claude-3-haiku-20240307')
+      trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
     }
 
     const textContent = response.content.find((c) => c.type === 'text')

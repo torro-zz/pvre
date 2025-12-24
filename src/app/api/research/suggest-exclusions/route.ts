@@ -3,7 +3,7 @@ import { anthropic } from '@/lib/anthropic'
 import { createClient } from '@/lib/supabase/server'
 import { recordApiCost } from '@/lib/api-costs'
 
-const PRESEARCH_MODEL = 'claude-3-haiku-20240307'
+const PRESEARCH_MODEL = 'claude-3-5-haiku-latest'
 
 export interface ExclusionSuggestion {
   term: string
