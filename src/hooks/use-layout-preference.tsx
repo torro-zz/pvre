@@ -31,9 +31,12 @@ const LayoutPreferenceContext = createContext<LayoutPreferenceContextType | null
 // Provider
 // ============================================================================
 
+// Default layout for new users (Phase 3: scroll is now the default)
+const DEFAULT_LAYOUT: LayoutType = 'scroll'
+
 export function LayoutPreferenceProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams()
-  const [layout, setLayoutState] = useState<LayoutType>('tabbed')
+  const [layout, setLayoutState] = useState<LayoutType>(DEFAULT_LAYOUT)
   const [isLoaded, setIsLoaded] = useState(false)
 
   // Initialize from URL param or localStorage
@@ -98,7 +101,7 @@ export function useLayoutPreference() {
 
   // If not in provider, create standalone state (for backwards compatibility)
   const searchParams = useSearchParams()
-  const [standaloneLayout, setStandaloneLayoutState] = useState<LayoutType>('tabbed')
+  const [standaloneLayout, setStandaloneLayoutState] = useState<LayoutType>(DEFAULT_LAYOUT)
   const [standaloneIsLoaded, setStandaloneIsLoaded] = useState(false)
 
   useEffect(() => {

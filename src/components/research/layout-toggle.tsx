@@ -2,7 +2,6 @@
 
 import { LayoutGrid, ScrollText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { useLayoutPreference } from '@/hooks/use-layout-preference'
 import { cn } from '@/lib/utils'
 
@@ -49,9 +48,6 @@ export function LayoutToggle({ className }: LayoutToggleProps) {
         >
           <ScrollText className="h-3.5 w-3.5 mr-1.5" />
           <span className="text-xs">Scroll</span>
-          <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-600">
-            Beta
-          </Badge>
         </Button>
       </div>
     </div>
