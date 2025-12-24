@@ -142,6 +142,36 @@ When research fails, `error_source` in `research_jobs` shows where:
 - Fetch by subreddit + time range only; Claude relevance filter handles filtering
 - See `src/lib/data-sources/arctic-shift.ts`
 
+### Filtering Pipeline (CRITICAL for costs)
+**Full docs:** `docs/TECHNICAL_OVERVIEW.md` → "Filtering Pipeline Architecture"
+
+The filtering pipeline controls AI costs. Bugs here cause cost overruns.
+
+**Key Files:**
+- `src/lib/research/relevance-filter.ts` - All filter functions
+- `src/app/api/research/community-voice/route.ts` - Pipeline orchestration
+
+**Two Parallel Pipelines:**
+| Pipeline | Pre-Filter Max | Function |
+|----------|---------------|----------|
+| Posts | 150 | `filterRelevantPosts()` |
+| Comments | 200 | `filterRelevantComments()` |
+
+**When modifying filters:**
+1. Check BOTH `filterRelevantPosts()` AND `filterRelevantComments()`
+2. Run test and verify logs show expected counts at each stage
+3. Math check: Input - Filtered - Skipped = SentToAI
+
+**Dec 2025 Bug:** `preFilterAndRank()` was only wired into posts, not comments. Comments sent 400+ to AI instead of 200. Cost increased 30%.
+
+### Data Source Auto-Triggers
+When adding auto-trigger logic for data sources (like Trustpilot):
+- **DO:** Trigger based on what user wants to research
+- **DON'T:** Trigger based on keywords that happen to appear
+- **Test:** With hypothesis containing trigger keyword but doesn't need the source
+
+Example: "Freelancers struggle with invoicing" should NOT trigger Trustpilot (no product research), even though it contains "invoice".
+
 ---
 
 ## Slash Commands
