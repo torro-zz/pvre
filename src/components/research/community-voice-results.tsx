@@ -155,7 +155,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
             <span className="text-sm text-muted-foreground">Sources analyzed:</span>
             {/* Show Reddit subreddits */}
             {results.subreddits.analyzed.filter(s =>
-              s !== 'google_play' && s !== 'app_store' &&
+              s !== 'google_play' && s !== 'app_store' && s !== 'trustpilot' &&
               s.toLowerCase() !== 'hackernews' && s.toLowerCase() !== 'askhn' && s.toLowerCase() !== 'showhn'
             ).map((sub) => (
               <Badge key={sub} variant="outline">
@@ -166,6 +166,12 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
             {painSignals.some(s => ['hackernews', 'askhn', 'showhn'].includes(s.source.subreddit.toLowerCase())) && (
               <Badge variant="outline" className="bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-400">
                 🔶 Hacker News
+              </Badge>
+            )}
+            {/* Show Trustpilot if signals came from it */}
+            {painSignals.some(s => s.source.subreddit.toLowerCase() === 'trustpilot') && (
+              <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
+                ⭐ Trustpilot
               </Badge>
             )}
             {/* Show App Store sources if signals came from them */}
@@ -255,10 +261,14 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                         <Badge
                           key={source}
                           variant="outline"
-                          className={`text-xs font-normal ${source === 'hacker_news' ? 'bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-400' : ''}`}
+                          className={`text-xs font-normal ${
+                            source === 'hacker_news' ? 'bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-400' :
+                            source === 'trustpilot' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : ''
+                          }`}
                         >
                           {source === 'reddit' && '💬 Reddit'}
                           {source === 'hacker_news' && '🔶 Hacker News'}
+                          {source === 'trustpilot' && '⭐ Trustpilot'}
                           {source === 'google_play' && '🤖 Google Play'}
                           {source === 'app_store' && '🍎 App Store'}
                         </Badge>

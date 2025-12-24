@@ -16,11 +16,12 @@ export interface QuoteData {
 }
 
 // Detect source type from source string
-function getSourceType(source: string): 'reddit' | 'hackernews' | 'google_play' | 'app_store' {
+function getSourceType(source: string): 'reddit' | 'hackernews' | 'google_play' | 'app_store' | 'trustpilot' {
   const lower = source.toLowerCase()
   if (lower === 'hackernews' || lower === 'askhn' || lower === 'showhn' || lower === 'hacker news') return 'hackernews'
   if (lower === 'google_play' || lower === 'google play') return 'google_play'
   if (lower === 'app_store' || lower === 'app store') return 'app_store'
+  if (lower === 'trustpilot') return 'trustpilot'
   return 'reddit'
 }
 
@@ -35,6 +36,7 @@ function formatSourceName(source: string): string {
   }
   if (sourceType === 'google_play') return 'Google Play'
   if (sourceType === 'app_store') return 'App Store'
+  if (sourceType === 'trustpilot') return 'Trustpilot'
   // Remove r/ prefix if present, then add it back
   return `r/${source.replace(/^r\//, '')}`
 }
@@ -45,6 +47,7 @@ function getSourceTextClass(source: string): string {
   if (sourceType === 'hackernews') return 'text-orange-600 dark:text-orange-400'
   if (sourceType === 'google_play') return 'text-green-600 dark:text-green-400'
   if (sourceType === 'app_store') return 'text-blue-600 dark:text-blue-400'
+  if (sourceType === 'trustpilot') return 'text-emerald-600 dark:text-emerald-400'
   return ''
 }
 

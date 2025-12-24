@@ -15,11 +15,12 @@ interface PainScoreCardProps {
 }
 
 // Detect source type from subreddit name
-function getSourceType(subreddit: string): 'reddit' | 'hackernews' | 'google_play' | 'app_store' {
+function getSourceType(subreddit: string): 'reddit' | 'hackernews' | 'google_play' | 'app_store' | 'trustpilot' {
   const lower = subreddit.toLowerCase()
   if (lower === 'hackernews' || lower === 'askhn' || lower === 'showhn') return 'hackernews'
   if (lower === 'google_play') return 'google_play'
   if (lower === 'app_store') return 'app_store'
+  if (lower === 'trustpilot') return 'trustpilot'
   return 'reddit'
 }
 
@@ -33,6 +34,7 @@ function formatSourceName(subreddit: string): string {
   }
   if (sourceType === 'google_play') return 'Google Play'
   if (sourceType === 'app_store') return 'App Store'
+  if (sourceType === 'trustpilot') return 'Trustpilot'
   return `r/${subreddit}`
 }
 
@@ -42,6 +44,7 @@ function getSourceLinkText(subreddit: string): string {
   if (sourceType === 'hackernews') return 'View on HN'
   if (sourceType === 'google_play') return 'View on Play Store'
   if (sourceType === 'app_store') return 'View on App Store'
+  if (sourceType === 'trustpilot') return 'View on Trustpilot'
   return 'View on Reddit'
 }
 
@@ -51,6 +54,7 @@ function getSourceBadgeClass(subreddit: string): string {
   if (sourceType === 'hackernews') return 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950/50 dark:text-orange-400 dark:border-orange-800'
   if (sourceType === 'google_play') return 'bg-green-100 text-green-700 border-green-300 dark:bg-green-950/50 dark:text-green-400 dark:border-green-800'
   if (sourceType === 'app_store') return 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800'
+  if (sourceType === 'trustpilot') return 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-800'
   return ''
 }
 
@@ -178,7 +182,10 @@ export function PainScoreCardCompact({ signal }: PainScoreCardProps) {
           <Badge variant={getScoreBadgeVariant(signal.score)} className="text-xs">
             {signal.score}
           </Badge>
-          <span className={cn("text-xs", getSourceType(signal.source.subreddit) === 'hackernews' ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground')}>
+          <span className={cn("text-xs",
+            getSourceType(signal.source.subreddit) === 'hackernews' ? 'text-orange-600 dark:text-orange-400' :
+            getSourceType(signal.source.subreddit) === 'trustpilot' ? 'text-emerald-600 dark:text-emerald-400' :
+            'text-muted-foreground')}>
             {formatSourceName(signal.source.subreddit)}
           </span>
         </div>

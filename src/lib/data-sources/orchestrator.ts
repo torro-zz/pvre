@@ -22,6 +22,7 @@ import { RedditAdapter, redditAdapter } from './adapters/reddit-adapter'
 import { HackerNewsAdapter, hackerNewsAdapter } from './adapters/hacker-news-adapter'
 import { GooglePlayAdapter, googlePlayAdapter } from './adapters/google-play-adapter'
 import { AppStoreAdapter, appStoreAdapter } from './adapters/app-store-adapter'
+import { TrustpilotAdapter, trustpilotAdapter } from './adapters/trustpilot-adapter'
 
 // Keywords that indicate HN should be included as a data source
 const TECH_KEYWORDS = [
@@ -49,6 +50,26 @@ const MOBILE_APP_KEYWORDS = [
   'shopping app', 'delivery app', 'food ordering', 'ride-sharing',
 ]
 
+// Keywords that indicate Trustpilot should be included as a data source
+// Best for B2B services, SaaS, and consumer services where reviews matter
+const TRUSTPILOT_KEYWORDS = [
+  // B2B / SaaS
+  'software', 'crm', 'erp', 'saas', 'accounting', 'payroll', 'invoicing',
+  'booking system', 'scheduling software', 'email marketing', 'hosting',
+  'cloud service', 'subscription', 'platform',
+  // Professional services
+  'agency', 'consulting', 'legal service', 'insurance', 'financial service',
+  'banking', 'loan', 'mortgage', 'investment',
+  // Consumer services
+  'delivery service', 'shipping', 'ecommerce', 'online store', 'marketplace',
+  'telecom', 'internet provider', 'utility', 'energy provider',
+  'travel', 'booking', 'hotel', 'airline', 'car rental',
+  // Healthcare & wellness
+  'pharmacy', 'healthcare', 'dental', 'optical', 'clinic',
+  // Home services
+  'moving', 'cleaning service', 'home repair', 'contractor',
+]
+
 /**
  * Check if hypothesis should include Hacker News as a source
  */
@@ -63,6 +84,14 @@ export function shouldIncludeHN(hypothesis: string): boolean {
 export function shouldIncludeGooglePlay(hypothesis: string): boolean {
   const lowerHypothesis = hypothesis.toLowerCase()
   return MOBILE_APP_KEYWORDS.some(keyword => lowerHypothesis.includes(keyword))
+}
+
+/**
+ * Check if hypothesis should include Trustpilot as a source
+ */
+export function shouldIncludeTrustpilot(hypothesis: string): boolean {
+  const lowerHypothesis = hypothesis.toLowerCase()
+  return TRUSTPILOT_KEYWORDS.some(keyword => lowerHypothesis.includes(keyword))
 }
 
 /**
@@ -88,6 +117,7 @@ export class DataSourceOrchestrator {
     this.registerAdapter(hackerNewsAdapter)
     this.registerAdapter(googlePlayAdapter)
     this.registerAdapter(appStoreAdapter)
+    this.registerAdapter(trustpilotAdapter)
   }
 
   /**
@@ -218,8 +248,9 @@ export class DataSourceOrchestrator {
       sources.push('app_store')
     }
 
-    // Future: Add more source recommendations based on domain
-    // if (isConsumerProduct(hypothesis)) sources.push('tiktok', 'youtube')
+    if (shouldIncludeTrustpilot(hypothesis)) {
+      sources.push('trustpilot')
+    }
 
     return sources
   }
@@ -229,8 +260,9 @@ export class DataSourceOrchestrator {
 export const orchestrator = new DataSourceOrchestrator()
 
 // Re-export adapters for direct access when needed
-export { redditAdapter, hackerNewsAdapter, googlePlayAdapter, appStoreAdapter }
+export { redditAdapter, hackerNewsAdapter, googlePlayAdapter, appStoreAdapter, trustpilotAdapter }
 export { RedditAdapter } from './adapters/reddit-adapter'
 export { HackerNewsAdapter } from './adapters/hacker-news-adapter'
 export { GooglePlayAdapter } from './adapters/google-play-adapter'
 export { AppStoreAdapter } from './adapters/app-store-adapter'
+export { TrustpilotAdapter } from './adapters/trustpilot-adapter'

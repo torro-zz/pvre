@@ -6,7 +6,7 @@
 // All adapters normalize their data to this format
 // =============================================================================
 
-export type SourceType = 'reddit' | 'hacker_news' | 'youtube' | 'google_play' | 'app_store' | 'tiktok'
+export type SourceType = 'reddit' | 'hacker_news' | 'youtube' | 'google_play' | 'app_store' | 'tiktok' | 'trustpilot'
 export type SignalType = 'discussion' | 'review' | 'video' | 'comment'
 
 export interface UnifiedSignal {
