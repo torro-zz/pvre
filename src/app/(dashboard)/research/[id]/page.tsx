@@ -36,6 +36,7 @@ import { fetchResearchData, formatDate } from '@/lib/research/fetch-research-dat
 import { ResearchDataProvider } from '@/components/research/research-data-provider'
 import { ResultsLayout } from '@/components/research/layouts'
 import { LayoutToggle } from '@/components/research/layout-toggle'
+import { LayoutPreferenceWrapper } from '@/components/research/layout-preference-wrapper'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,6 +85,7 @@ export default async function ResearchDetailPage({
   const result = communityVoiceResult
 
   return (
+    <LayoutPreferenceWrapper>
     <div className="flex gap-6 max-w-7xl mx-auto">
       {/* Main Content */}
       <div className={showSidebar ? "flex-1 min-w-0" : "max-w-4xl mx-auto w-full"}>
@@ -412,5 +414,6 @@ export default async function ResearchDetailPage({
         </div>
       )}
     </div>
+    </LayoutPreferenceWrapper>
   )
 }
