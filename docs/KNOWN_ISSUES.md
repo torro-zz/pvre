@@ -142,17 +142,7 @@ The current credit model (1 credit = 1 research) may need rethinking:
 
 ## P1 — Important
 
-### Deprecated Model Name in Relevance Filter (Dec 23, 2025)
-**Status:** Open
-**Impact:** Server errors during research - relevance filter may fail
-
-**Problem:** The relevance filter uses model name `claude-3-5-sonnet-20241022` which is deprecated. Anthropic API returns "model not found" error.
-
-**Location:** `src/app/api/research/community-voice/route.ts` (relevance filter section)
-
-**Solution:** Update model name to `claude-sonnet-4-20250514` to match the current model used elsewhere in the codebase.
-
-**Workaround:** Research may still complete if the error is caught gracefully, but with degraded relevance filtering.
+*No current P1 issues.*
 
 ---
 
@@ -191,6 +181,11 @@ The current credit model (1 credit = 1 research) may need rethinking:
 ---
 
 ## Completed Issues
+
+### December 24, 2025 (Model Updates + Cost Optimization)
+- ✅ **[P1] Deprecated Model in Relevance Filter** — Updated from `claude-3-5-sonnet-20241022` to `claude-sonnet-4-20250514` in relevance-filter.ts
+- ✅ **Cost Optimization** — Downgraded Google Trends keyword extraction from Sonnet ($3/M) to Haiku ($0.80/M) - 3x cheaper
+- ✅ **Model Standardization** — Updated 7 locations from old `claude-3-haiku-20240307` to `claude-3-5-haiku-latest`
 
 ### December 21, 2025 (User Testing Fixes - Session 2)
 - ✅ **[P2] Hacker News for Remote Work** — Added remote work keywords ("remote", "wfh", "distributed team", "digital nomad", "freelancer", etc.) to TECH_KEYWORDS so Hacker News appears as a data source for remote work hypotheses.
