@@ -50,25 +50,26 @@ const MOBILE_APP_KEYWORDS = [
   'shopping app', 'delivery app', 'food ordering', 'ride-sharing',
 ]
 
-// Keywords that indicate Trustpilot should be included as a data source
-// Best for B2B services, SaaS, and consumer services where reviews matter
-const TRUSTPILOT_KEYWORDS = [
-  // B2B / SaaS
-  'software', 'crm', 'erp', 'saas', 'accounting', 'payroll', 'invoicing',
-  'booking system', 'scheduling software', 'email marketing', 'hosting',
-  'cloud service', 'subscription', 'platform',
-  // Professional services
-  'agency', 'consulting', 'legal service', 'insurance', 'financial service',
-  'banking', 'loan', 'mortgage', 'investment',
-  // Consumer services
-  'delivery service', 'shipping', 'ecommerce', 'online store', 'marketplace',
-  'telecom', 'internet provider', 'utility', 'energy provider',
-  'travel', 'booking', 'hotel', 'airline', 'car rental',
-  // Healthcare & wellness
-  'pharmacy', 'healthcare', 'dental', 'optical', 'clinic',
-  // Home services
-  'moving', 'cleaning service', 'home repair', 'contractor',
+// Patterns that indicate competitor/product research (Trustpilot is useful)
+// These patterns suggest the user wants to research a specific product/company
+const PRODUCT_RESEARCH_PATTERNS = [
+  // Explicit product mentions
+  /\b(users? of|customers? of|alternative to|competitor to|vs\.?|versus)\s+\w+/i,
+  // Product review intent
+  /\b(review|reviews|feedback|opinions? on|experience with)\s+\w+/i,
+  // Specific company patterns (capitalized proper nouns followed by context)
+  /\b[A-Z][a-z]+(?:\.com|\.io|\.ai|\.co)?\s+(users?|customers?|problems?|issues?)/,
 ]
+
+// Known product/company names to detect (expand as needed)
+const KNOWN_PRODUCTS = new Set([
+  'quickbooks', 'freshbooks', 'wave', 'xero', 'stripe', 'paypal', 'square',
+  'salesforce', 'hubspot', 'mailchimp', 'slack', 'zoom', 'asana', 'trello',
+  'notion', 'airtable', 'monday', 'clickup', 'jira', 'zendesk', 'intercom',
+  'shopify', 'woocommerce', 'squarespace', 'wix', 'webflow',
+  'dropbox', 'google drive', 'onedrive', 'box',
+  'calendly', 'docusign', 'pandadoc', 'hellosign',
+])
 
 /**
  * Check if hypothesis should include Hacker News as a source
@@ -88,10 +89,36 @@ export function shouldIncludeGooglePlay(hypothesis: string): boolean {
 
 /**
  * Check if hypothesis should include Trustpilot as a source
+ *
+ * IMPORTANT: Trustpilot is only useful for:
+ * - Competitor intelligence (researching specific products/companies)
+ * - Understanding pain points with existing solutions
+ *
+ * NOT useful for:
+ * - General problem validation ("do freelancers struggle with X?")
+ * - Keyword matches like "invoicing" without a specific product
+ *
+ * To force Trustpilot, user must explicitly select it in the UI.
  */
 export function shouldIncludeTrustpilot(hypothesis: string): boolean {
   const lowerHypothesis = hypothesis.toLowerCase()
-  return TRUSTPILOT_KEYWORDS.some(keyword => lowerHypothesis.includes(keyword))
+
+  // Check for known product names
+  const words = lowerHypothesis.split(/\s+/)
+  const hasKnownProduct = words.some(word => KNOWN_PRODUCTS.has(word.replace(/[^a-z]/g, '')))
+  if (hasKnownProduct) {
+    return true
+  }
+
+  // Check for product research patterns (e.g., "users of X", "alternative to Y")
+  const hasResearchPattern = PRODUCT_RESEARCH_PATTERNS.some(pattern => pattern.test(hypothesis))
+  if (hasResearchPattern) {
+    return true
+  }
+
+  // Default: don't auto-include Trustpilot for general hypothesis validation
+  // User can explicitly enable it via data source selection
+  return false
 }
 
 /**

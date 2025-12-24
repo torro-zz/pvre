@@ -200,6 +200,14 @@ The current credit model (1 credit = 1 research) may need rethinking:
 - ✅ **Cost Optimization** — Downgraded Google Trends keyword extraction from Sonnet ($3/M) to Haiku ($0.80/M) - 3x cheaper
 - ✅ **Model Standardization** — Updated 7 locations from old `claude-3-haiku-20240307` to `claude-3-5-haiku-latest`
 
+### December 24, 2025 (CEO Review Fixes)
+- ✅ **[P0] PDF Interview Questions Bug** — Fixed `[object Object]` rendering in PDF interview questions. Root cause: AI sometimes returns `{purpose, question}` objects instead of plain strings. Fix: Added defensive type handling in report-generator.ts line 732.
+- ✅ **[P0] preFilterAndRank() Wired In** — The first-person pronoun filter infrastructure existed but was not connected to the pipeline. Now integrated between quality gate and domain gate filter. Posts are ranked by pre-score (first-person language + engagement + recency) and only top 150 candidates sent to AI. Expected cost savings: ~$0.02-0.03 per search (15-25%).
+- ✅ **[P1] AutoModerator Filter** — Added `bot_content` filter reason in quality gate to skip AutoModerator and [deleted] author posts before AI processing. Saves unnecessary Haiku calls on bot messages.
+- ✅ **[P1] Data Sources Display Fix** — Fixed "Reddit, Trustpilot" showing in coverage display even when Trustpilot returned 0 signals. Coverage helper now only shows sources that actually contributed data.
+- ✅ **[P1] Trustpilot Auto-Trigger Fix** — Disabled naive keyword-based auto-triggering (e.g., hypothesis containing "invoice" triggering Trustpilot). Now Trustpilot only auto-triggers when: (1) hypothesis mentions a known product name (QuickBooks, FreshBooks, etc.), or (2) hypothesis uses product research patterns ("users of X", "alternative to Y"). For general problem validation, user must explicitly select Trustpilot. Prevents wasting API calls fetching irrelevant product reviews for hypothesis searches.
+- ✅ **[P1] Comment Pre-Filter Added** — Comments were bypassing preFilterAndRank, causing ~600 comments to hit AI when only ~200 were quality candidates. Added `preFilterAndRankComments()` function that ranks by first-person language (40%), engagement (40%), and recency (20%). Now limits to top 200 before AI processing. **Result: 67% reduction in comments sent to AI, 30% fewer Haiku calls, ~17% cost reduction.**
+
 ### December 21, 2025 (User Testing Fixes - Session 2)
 - ✅ **[P2] Hacker News for Remote Work** — Added remote work keywords ("remote", "wfh", "distributed team", "digital nomad", "freelancer", etc.) to TECH_KEYWORDS so Hacker News appears as a data source for remote work hypotheses.
 - ✅ **[P2] App Stores Only for App Hypotheses** — App stores (Google Play, App Store) now only appear when hypothesis mentions mobile apps. For non-app hypotheses (e.g., "remote workers feeling isolated"), app stores are hidden since app reviews contain bug complaints, not problem validation signals.

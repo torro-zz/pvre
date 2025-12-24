@@ -90,6 +90,8 @@ export interface FilteringMetrics {
   relatedSignals: number    // RELATED: single-domain match (broader context)
   // Title-only posts (recovered from [removed] content)
   titleOnlyPosts: number    // Posts analyzed by title only (body was removed)
+  // Pre-filter ranking (first-person language + engagement)
+  preFilterSkipped?: number  // Low-quality posts skipped before AI processing
   // P0 FIX: Stage 2 (problem-specific) filter metrics
   stage2FilterRate?: number  // % of Stage 1 passes that failed Stage 2
   narrowProblemWarning?: boolean  // True if >50% of Stage 1 passes failed Stage 2
@@ -560,8 +562,23 @@ export async function POST(request: NextRequest) {
     const posts = postFilterResult.items
     const comments = commentFilterResult.items
 
-    console.log(`Filtered to ${posts.length} relevant posts (from ${rawPosts.length}, ${postFilterResult.metrics.filterRate.toFixed(1)}% filtered)`)
-    console.log(`Filtered to ${comments.length} relevant comments (from ${rawComments.length}, ${commentFilterResult.metrics.filterRate.toFixed(1)}% filtered)`)
+    // Detailed filter pipeline logging for cost analysis
+    console.log(`\n=== POST FILTER PIPELINE ===`)
+    console.log(`  Input: ${postFilterResult.metrics.before} posts`)
+    console.log(`  Stage 3 (Quality Gate - FREE): ${postFilterResult.metrics.stage3Filtered} filtered`)
+    console.log(`  PreFilter (Rank - FREE): ${postFilterResult.metrics.preFilterSkipped} skipped (low engagement/no first-person)`)
+    console.log(`  → Sent to AI: ${postFilterResult.metrics.before - postFilterResult.metrics.stage3Filtered - postFilterResult.metrics.preFilterSkipped}`)
+    console.log(`  Stage 1 (Domain Gate - Haiku): ${postFilterResult.metrics.stage1Filtered} filtered`)
+    console.log(`  Stage 2 (Problem Match - Haiku): ${postFilterResult.metrics.stage2Filtered} filtered`)
+    console.log(`  Output: ${posts.length} relevant posts (${postFilterResult.metrics.filterRate.toFixed(1)}% total filtered)`)
+
+    console.log(`\n=== COMMENT FILTER PIPELINE ===`)
+    console.log(`  Input: ${commentFilterResult.metrics.before} comments`)
+    console.log(`  Stage 3 (Quality Gate - FREE): ${commentFilterResult.metrics.stage3Filtered} filtered`)
+    console.log(`  PreFilter (Rank - FREE): ${commentFilterResult.metrics.preFilterSkipped} skipped (low engagement/no first-person)`)
+    console.log(`  → Sent to AI: ${commentFilterResult.metrics.before - commentFilterResult.metrics.stage3Filtered - commentFilterResult.metrics.preFilterSkipped}`)
+    console.log(`  Stage 2 (Problem Match - Haiku): ${commentFilterResult.metrics.stage2Filtered} filtered`)
+    console.log(`  Output: ${comments.length} relevant comments (${commentFilterResult.metrics.filterRate.toFixed(1)}% total filtered)\n`)
 
     // Track expansion attempts for adaptive fetching
     const expansionAttempts: ExpansionAttempt[] = []
@@ -582,6 +599,8 @@ export async function POST(request: NextRequest) {
       relatedSignals: postFilterResult.metrics.relatedSignals,
       // Title-only posts (recovered from [removed] content)
       titleOnlyPosts: postFilterResult.metrics.titleOnlyPosts,
+      // Pre-filter ranking (first-person language + engagement)
+      preFilterSkipped: postFilterResult.metrics.preFilterSkipped,
       // P0 FIX: Include Stage 2 filter metrics
       stage2FilterRate: postFilterResult.metrics.stage2FilterRate,
       narrowProblemWarning: postFilterResult.metrics.narrowProblemWarning,
@@ -592,6 +611,9 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Data quality level: ${filteringMetrics.qualityLevel}`)
+    if (filteringMetrics.preFilterSkipped && filteringMetrics.preFilterSkipped > 0) {
+      console.log(`Pre-filter: ${filteringMetrics.preFilterSkipped} low-quality posts skipped before AI`)
+    }
     if (filteringMetrics.narrowProblemWarning) {
       console.log(`⚠️ NARROW PROBLEM WARNING: ${filteringMetrics.stage2FilterRate?.toFixed(1)}% of domain-relevant posts failed problem-specific filter`)
     }

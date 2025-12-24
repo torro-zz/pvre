@@ -63,20 +63,8 @@ export function createSourceCoverageData(
     })
   }
 
-  // Add other sources if available
-  if (filteringMetrics.sources) {
-    for (const source of filteringMetrics.sources) {
-      if (source !== 'reddit' && source !== 'Reddit') {
-        sources.push({
-          name: formatSourceName(source),
-          iconType: getIconType(source),
-          scope: '—',
-          volume: '—',
-          signals: 0,  // Would need per-source breakdown
-        })
-      }
-    }
-  }
+  // Note: We no longer add sources with 0 signals - only show sources that actually returned data
+  // The sources list from filteringMetrics may include sources that were queried but returned nothing
 
   return sources
 }

@@ -226,6 +226,82 @@ export function preFilterAndRank(
   }
 }
 
+/**
+ * Calculate pre-score for a Reddit comment to rank before AI filtering
+ * Similar to posts but without title/numComments
+ */
+export function calculateCommentPreScore(comment: RedditComment): PreScoreResult {
+  const text = comment.body || ''
+  const hasFirstPerson = hasFirstPersonLanguage(text)
+
+  // Normalize upvotes: logarithmic scale (1 upvote = 0.0, 1000+ = 1.0)
+  const normalizedUpvotes = Math.min(1, Math.log10(Math.max(1, comment.score + 1)) / 3)
+
+  // Recency bonus: comments from last 30 days get full bonus
+  let recencyBonus = 0
+  if (comment.createdUtc && comment.createdUtc > 0) {
+    const nowSeconds = Date.now() / 1000
+    const ageInDays = (nowSeconds - comment.createdUtc) / (60 * 60 * 24)
+
+    if (ageInDays <= 30) {
+      recencyBonus = 1.0
+    } else if (ageInDays <= 90) {
+      recencyBonus = 0.7
+    } else if (ageInDays <= 180) {
+      recencyBonus = 0.4
+    } else if (ageInDays <= 365) {
+      recencyBonus = 0.2
+    }
+  }
+
+  // Calculate weighted score (comments don't have numComments field)
+  // Increase weight of first-person language for comments since they're personal
+  const score =
+    normalizedUpvotes * 0.4 +
+    (hasFirstPerson ? 0.4 : 0) +  // Higher weight for first-person in comments
+    recencyBonus * 0.2
+
+  return {
+    score,
+    hasFirstPerson,
+    normalizedUpvotes,
+    normalizedComments: 0,  // Not applicable for comments
+    recencyBonus,
+  }
+}
+
+/**
+ * Pre-filter and rank comments by pre-score before AI filtering
+ * Takes a large pool of comments and returns the top N candidates for AI processing
+ */
+export function preFilterAndRankComments(
+  comments: RedditComment[],
+  maxCandidates: number = 200
+): { comments: RedditComment[]; preScores: Map<string, PreScoreResult> } {
+  // Calculate pre-scores for all comments
+  const commentsWithScores = comments.map(comment => ({
+    comment,
+    preScore: calculateCommentPreScore(comment),
+  }))
+
+  // Sort by pre-score (highest first)
+  commentsWithScores.sort((a, b) => b.preScore.score - a.preScore.score)
+
+  // Take top candidates
+  const topCandidates = commentsWithScores.slice(0, maxCandidates)
+
+  // Build pre-score map for reference
+  const preScores = new Map<string, PreScoreResult>()
+  for (const { comment, preScore } of topCandidates) {
+    preScores.set(comment.id, preScore)
+  }
+
+  return {
+    comments: topCandidates.map(({ comment }) => comment),
+    preScores,
+  }
+}
+
 // =============================================================================
 // TRANSITION DETECTION (for audience-aware tiering)
 // =============================================================================
@@ -292,6 +368,7 @@ export interface FilterMetrics {
   after: number
   filteredOut: number
   filterRate: number
+  preFilterSkipped: number  // Low-quality posts skipped before AI processing
   stage3Filtered: number  // Quality gate
   stage1Filtered: number  // Domain gate
   stage2Filtered: number  // Problem match
@@ -402,8 +479,12 @@ export function qualityGateFilter<T extends RedditPost | RedditComment>(
 
     let filterReason: string | null = null
 
+    // Check 0: AutoModerator and bot content (skip AI processing for bot messages)
+    if (item.author === 'AutoModerator' || item.author === '[deleted]') {
+      filterReason = 'bot_content'
+    }
     // Check 1: Removed/deleted content
-    if (isRemovedOrDeleted(body)) {
+    else if (isRemovedOrDeleted(body)) {
       // For posts with substantive titles, analyze by title only
       if (isPost && hasSubstantiveTitle(title)) {
         titleOnly.push(item)
@@ -1066,6 +1147,7 @@ export async function filterRelevantPosts(
     after: 0,
     filteredOut: 0,
     filterRate: 0,
+    preFilterSkipped: 0,
     stage3Filtered: 0,
     stage1Filtered: 0,
     stage2Filtered: 0,
@@ -1097,12 +1179,22 @@ export async function filterRelevantPosts(
     return { items: [], coreItems: [], relatedItems: [], metrics, decisions: allDecisions }
   }
 
+  // PRE-FILTER: Rank posts by pre-score before AI processing
+  // This prioritizes first-person language, engagement, and recency
+  // Reduces AI costs by only sending top candidates to domain gate
+  const MAX_CANDIDATES_FOR_AI = 150
+  const { posts: rankedPosts } = preFilterAndRank(stage3.passed, MAX_CANDIDATES_FOR_AI)
+  metrics.preFilterSkipped = stage3.passed.length - rankedPosts.length
+  if (metrics.preFilterSkipped > 0) {
+    sendProgress?.(`Pre-filter: ranked ${stage3.passed.length} posts, sending top ${rankedPosts.length} to AI (${metrics.preFilterSkipped} low-quality skipped)`)
+  }
+
   // STAGE 1: Domain Gate (fast, cheap AI filter)
   const { domain, antiDomains } = await extractProblemDomain(hypothesis, structured)
   sendProgress?.(`Extracted problem domain: "${domain}"`)
 
   const stage1 = await domainGateFilter(
-    stage3.passed,
+    rankedPosts,
     domain,
     antiDomains,
     sendProgress
@@ -1250,6 +1342,7 @@ export async function filterRelevantComments(
     after: 0,
     filteredOut: 0,
     filterRate: 0,
+    preFilterSkipped: 0,  // Low-quality comments skipped before AI processing
     stage3Filtered: 0,
     stage1Filtered: 0,
     stage2Filtered: 0,
@@ -1274,13 +1367,20 @@ export async function filterRelevantComments(
     return { items: [], metrics, decisions: allDecisions }
   }
 
+  // PRE-FILTER: Rank comments by pre-score before AI processing
+  // This prioritizes first-person language and engagement
+  // Reduces AI costs by only sending top candidates
+  const MAX_COMMENT_CANDIDATES_FOR_AI = 200
+  const { comments: rankedComments } = preFilterAndRankComments(stage3.passed, MAX_COMMENT_CANDIDATES_FOR_AI)
+  metrics.preFilterSkipped = stage3.passed.length - rankedComments.length
+
   // Stage 2 directly (skip domain gate for comments)
   const passed: RedditComment[] = []
   const filtered: RedditComment[] = []
   const batchSize = 25
 
-  for (let i = 0; i < stage3.passed.length; i += batchSize) {
-    const batch = stage3.passed.slice(i, i + batchSize)
+  for (let i = 0; i < rankedComments.length; i += batchSize) {
+    const batch = rankedComments.slice(i, i + batchSize)
 
     const summaries = batch.map((c, idx) => `[${idx + 1}] ${c.body.slice(0, 200)}`).join('\n\n')
 

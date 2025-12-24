@@ -1,6 +1,27 @@
-# Resume Point - December 24, 2025
+# Resume Point - December 24, 2025 (Evening)
 
 ## What Was Just Completed
+
+### CEO Review Fixes (Dec 24, Evening)
+
+Fixed 4 bugs identified in the CEO Review Analysis:
+
+| Priority | Bug | Status |
+|----------|-----|--------|
+| **P0** | PDF interview questions showing `[object Object]` | ✅ Fixed |
+| **P0** | `preFilterAndRank()` not wired into pipeline | ✅ Fixed |
+| **P1** | AutoModerator messages going to AI | ✅ Fixed |
+| **P1** | Trustpilot showing in sources when 0 signals | ✅ Fixed |
+| **P1** | Trustpilot triggering on keyword match (e.g., "invoice") | ✅ Fixed |
+| **P1** | Comments bypassing preFilter (all 600+ to AI) | ✅ Fixed |
+
+**Key Changes:**
+1. `src/lib/pdf/report-generator.ts:732` — Defensive type handling for interview questions
+2. `src/lib/research/relevance-filter.ts:1102-1110` — `preFilterAndRank()` now wired between quality gate and domain gate (top 150 candidates to AI)
+3. `src/lib/research/relevance-filter.ts:406-408` — `bot_content` filter for AutoModerator and [deleted] authors
+4. `src/lib/utils/coverage-helpers.ts:66-68` — Only show sources with actual data
+5. `src/lib/data-sources/orchestrator.ts:55-122` — Trustpilot only triggers for product names or research patterns
+6. `src/lib/research/relevance-filter.ts:229-303` — Added `preFilterAndRankComments()` for comment pre-filtering
 
 ### 🎉 PVRE REDESIGN COMPLETE - All 4 Phases Finished
 
@@ -85,6 +106,58 @@ The full 4-phase redesign is now **COMPLETE and VALIDATED**. Next steps are post
 
 ## User Notes
 None
+
+## Filtering Pipeline (Reference)
+
+### Posts Pipeline
+```
+Arctic Shift API → 677 posts
+    ↓
+┌──────────────────────────────────────────────────┐
+│ PRE-FILTER (Code-only, FREE)                     │
+├──────────────────────────────────────────────────┤
+│ 1. preFilterByExcludeKeywords                    │
+│ 2. qualityGateFilter → 107 filtered (bot, short) │
+│ 3. preFilterAndRank → 185 skipped (low quality)  │
+└──────────────────────────────────────────────────┘
+    ↓ 385 sent to AI (43% reduction)
+┌──────────────────────────────────────────────────┐
+│ STAGE 1: Domain Gate (Haiku) → 87 filtered       │
+│ STAGE 2: Problem Match (Haiku) → 56 filtered     │
+└──────────────────────────────────────────────────┘
+    ↓
+17 relevant posts
+```
+
+### Comments Pipeline (NEW: Dec 24)
+```
+Arctic Shift API → 698 comments
+    ↓
+┌──────────────────────────────────────────────────┐
+│ PRE-FILTER (Code-only, FREE)                     │
+├──────────────────────────────────────────────────┤
+│ 1. qualityGateFilter → 316 filtered              │
+│ 2. preFilterAndRankComments ← NEW                │
+│    → First-person language (40%)                 │
+│    → Engagement scoring (40%)                    │
+│    → Recency bonus (20%)                         │
+│    → Top 200 candidates to AI                    │
+│    → 182 skipped (low engagement/no first-person)│
+└──────────────────────────────────────────────────┘
+    ↓ 200 sent to AI (71% reduction!)
+┌──────────────────────────────────────────────────┐
+│ STAGE 2: Problem Match (Haiku) → 174 filtered    │
+└──────────────────────────────────────────────────┘
+    ↓
+26 relevant comments
+```
+
+### Cost Impact
+| Metric | Before | After | Savings |
+|--------|--------|-------|---------|
+| Comments to AI | ~600 | 200 | 67% |
+| Haiku calls | 61 | 43 | 30% |
+| Total cost | $0.15 | $0.125 | 17% |
 
 ## Key Files Reference
 

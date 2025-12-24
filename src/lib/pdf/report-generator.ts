@@ -728,7 +728,9 @@ export function generatePDFReport(data: ReportData): jsPDF {
         doc.setTextColor(0);
         section.questions.forEach((q, i) => {
           checkNewPage(15);
-          const lines = doc.splitTextToSize(`${i + 1}. ${q}`, contentWidth - 10);
+          // Handle both string and object formats (AI sometimes returns {purpose, question} objects)
+          const questionText = typeof q === 'string' ? q : (q as { question?: string }).question || String(q);
+          const lines = doc.splitTextToSize(`${i + 1}. ${questionText}`, contentWidth - 10);
           doc.text(lines, margin + 5, y);
           y += lines.length * 4 + 4;
         });
