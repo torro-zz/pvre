@@ -211,12 +211,14 @@ export async function POST(request: NextRequest) {
           : shouldIncludeHN(hypothesis) // Fallback to auto-detection
         const includesGooglePlay = selectedDataSources?.includes('Google Play') ?? false
         const includesAppStore = selectedDataSources?.includes('App Store') ?? false
+        const includesTrustpilot = selectedDataSources?.includes('Trustpilot') ?? undefined // undefined = auto-detect
 
         const sourceDescription = [
           `${subredditsToSearch.length} subreddits`,
           includesHN ? 'Hacker News' : null,
           includesGooglePlay ? 'Google Play' : null,
           includesAppStore ? 'App Store' : null,
+          includesTrustpilot === true ? 'Trustpilot' : null,
         ].filter(Boolean).join(' + ')
         send('fetching', `Searching ${sourceDescription} for discussions...`)
 
@@ -227,7 +229,7 @@ export async function POST(request: NextRequest) {
           timeRange: {
             after: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), // Last 12 months (prioritize recent)
           },
-        }, hypothesis, includesHN, includesGooglePlay, includesAppStore)
+        }, hypothesis, includesHN, includesGooglePlay, includesAppStore, includesTrustpilot)
         const rawPosts = multiSourceData.posts
         const rawComments = multiSourceData.comments
         send('fetching', `Found ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || 'Reddit'}`, {

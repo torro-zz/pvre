@@ -23,6 +23,7 @@ import { RedditAdapter, redditAdapter } from './adapters/reddit-adapter'
 import { HackerNewsAdapter, hackerNewsAdapter } from './adapters/hacker-news-adapter'
 import { googlePlayAdapter } from './adapters/google-play-adapter'
 import { appStoreAdapter } from './adapters/app-store-adapter'
+import { trustpilotAdapter } from './adapters/trustpilot-adapter'
 import { PullPushSource } from './pullpush'
 import { getCachedData, setCachedData, generateCacheKey } from './cache'
 import Anthropic from '@anthropic-ai/sdk'
@@ -190,7 +191,7 @@ Respond ONLY with a JSON array (no markdown, no explanation):
 }
 
 // Re-export the orchestrator and adapters
-export { orchestrator, shouldIncludeHN, shouldIncludeGooglePlay } from './orchestrator'
+export { orchestrator, shouldIncludeHN, shouldIncludeGooglePlay, shouldIncludeTrustpilot } from './orchestrator'
 export { RedditAdapter, redditAdapter } from './adapters/reddit-adapter'
 export { HackerNewsAdapter, hackerNewsAdapter } from './adapters/hacker-news-adapter'
 export { googlePlayAdapter } from './adapters/google-play-adapter'
@@ -570,17 +571,41 @@ export async function fetchAppStoreData(
 }
 
 /**
+ * Fetch Trustpilot reviews for B2B/SaaS validation
+ * Uses the TrustpilotAdapter's legacy method for pipeline compatibility
+ */
+export async function fetchTrustpilotData(
+  keywords: string[]
+): Promise<{ posts: RedditPost[] }> {
+  try {
+    if (!(await trustpilotAdapter.healthCheck())) {
+      console.log('Trustpilot adapter unavailable')
+      return { posts: [] }
+    }
+
+    const posts = await trustpilotAdapter.searchReviewsLegacy(keywords, { limit: 50 })
+    console.log(`Trustpilot: Found ${posts.length} reviews`)
+    return { posts }
+  } catch (error) {
+    console.error('Failed to fetch Trustpilot data:', error)
+    return { posts: [] }
+  }
+}
+
+/**
  * Fetch data from all relevant sources based on hypothesis
  * @param includeHN - Optional explicit control for HN inclusion
  * @param includeGooglePlay - Optional explicit control for Google Play inclusion
  * @param includeAppStore - Optional explicit control for App Store inclusion
+ * @param includeTrustpilot - Optional explicit control for Trustpilot inclusion
  */
 export async function fetchMultiSourceData(
   params: SearchParams,
   hypothesis: string,
   includeHN?: boolean,
   includeGooglePlay?: boolean,
-  includeAppStore?: boolean
+  includeAppStore?: boolean,
+  includeTrustpilot?: boolean
 ): Promise<SearchResult & { sources: string[] }> {
   const { shouldIncludeHN } = await import('./orchestrator')
   const sourcesUsed: string[] = []
@@ -630,6 +655,19 @@ export async function fetchMultiSourceData(
       allPosts = [...allPosts, ...appStoreData.posts]
       sourcesUsed.push('App Store')
       console.log(`Added ${appStoreData.posts.length} App Store reviews to analysis`)
+    }
+  }
+
+  // Add Trustpilot data if explicitly requested or auto-detected for B2B/SaaS
+  const { shouldIncludeTrustpilot } = await import('./orchestrator')
+  const shouldFetchTrustpilot = includeTrustpilot !== undefined ? includeTrustpilot : shouldIncludeTrustpilot(hypothesis)
+  if (shouldFetchTrustpilot) {
+    const trustpilotData = await fetchTrustpilotData(keywords)
+
+    if (trustpilotData.posts.length > 0) {
+      allPosts = [...allPosts, ...trustpilotData.posts]
+      sourcesUsed.push('Trustpilot')
+      console.log(`Added ${trustpilotData.posts.length} Trustpilot reviews to analysis`)
     }
   }
 
