@@ -154,11 +154,20 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
           <div className="flex flex-wrap gap-2 pt-2">
             <span className="text-sm text-muted-foreground">Sources analyzed:</span>
             {/* Show Reddit subreddits */}
-            {results.subreddits.analyzed.filter(s => s !== 'google_play' && s !== 'app_store').map((sub) => (
+            {results.subreddits.analyzed.filter(s =>
+              s !== 'google_play' && s !== 'app_store' &&
+              s.toLowerCase() !== 'hackernews' && s.toLowerCase() !== 'askhn' && s.toLowerCase() !== 'showhn'
+            ).map((sub) => (
               <Badge key={sub} variant="outline">
                 r/{sub}
               </Badge>
             ))}
+            {/* Show Hacker News if signals came from it */}
+            {painSignals.some(s => ['hackernews', 'askhn', 'showhn'].includes(s.source.subreddit.toLowerCase())) && (
+              <Badge variant="outline" className="bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-400">
+                🔶 Hacker News
+              </Badge>
+            )}
             {/* Show App Store sources if signals came from them */}
             {painSignals.some(s => s.source.subreddit === 'google_play') && (
               <Badge variant="outline" className="bg-green-500/10 border-green-500/30">
@@ -246,9 +255,10 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                         <Badge
                           key={source}
                           variant="outline"
-                          className="text-xs font-normal"
+                          className={`text-xs font-normal ${source === 'hacker_news' ? 'bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-400' : ''}`}
                         >
                           {source === 'reddit' && '💬 Reddit'}
+                          {source === 'hacker_news' && '🔶 Hacker News'}
                           {source === 'google_play' && '🤖 Google Play'}
                           {source === 'app_store' && '🍎 App Store'}
                         </Badge>

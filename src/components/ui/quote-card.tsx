@@ -15,6 +15,39 @@ export interface QuoteData {
   timestamp?: string
 }
 
+// Detect source type from source string
+function getSourceType(source: string): 'reddit' | 'hackernews' | 'google_play' | 'app_store' {
+  const lower = source.toLowerCase()
+  if (lower === 'hackernews' || lower === 'askhn' || lower === 'showhn' || lower === 'hacker news') return 'hackernews'
+  if (lower === 'google_play' || lower === 'google play') return 'google_play'
+  if (lower === 'app_store' || lower === 'app store') return 'app_store'
+  return 'reddit'
+}
+
+// Format source display name
+function formatSourceName(source: string): string {
+  const sourceType = getSourceType(source)
+  if (sourceType === 'hackernews') {
+    const lower = source.toLowerCase()
+    if (lower === 'askhn') return 'Ask HN'
+    if (lower === 'showhn') return 'Show HN'
+    return 'Hacker News'
+  }
+  if (sourceType === 'google_play') return 'Google Play'
+  if (sourceType === 'app_store') return 'App Store'
+  // Remove r/ prefix if present, then add it back
+  return `r/${source.replace(/^r\//, '')}`
+}
+
+// Get source-specific styling class
+function getSourceTextClass(source: string): string {
+  const sourceType = getSourceType(source)
+  if (sourceType === 'hackernews') return 'text-orange-600 dark:text-orange-400'
+  if (sourceType === 'google_play') return 'text-green-600 dark:text-green-400'
+  if (sourceType === 'app_store') return 'text-blue-600 dark:text-blue-400'
+  return ''
+}
+
 interface QuoteCardProps {
   data: QuoteData
   trustLevel?: TrustLevel
@@ -63,7 +96,7 @@ export function QuoteCard({
         <div className="flex-1 min-w-0">
           <p className="text-sm italic leading-relaxed line-clamp-2">"{data.quote}"</p>
           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-            <span>r/{data.source.replace(/^r\//, '')}</span>
+            <span className={getSourceTextClass(data.source)}>{formatSourceName(data.source)}</span>
             {data.isWtp && (
               <Badge variant="outline" className="h-5 text-[10px] bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
                 <DollarSign className="h-2.5 w-2.5 mr-0.5" />
@@ -112,7 +145,7 @@ export function QuoteCard({
         {/* Source and metadata */}
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">r/{data.source.replace(/^r\//, '')}</span>
+            <span className={cn("font-medium text-foreground", getSourceTextClass(data.source))}>{formatSourceName(data.source)}</span>
             {data.timestamp && <span>{data.timestamp}</span>}
           </div>
           {data.url && (
@@ -162,7 +195,7 @@ export function QuoteCard({
       {/* Header with source and badges */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">r/{data.source.replace(/^r\//, '')}</span>
+          <span className={cn("text-sm font-medium", getSourceTextClass(data.source))}>{formatSourceName(data.source)}</span>
           <TrustBadge level={trustLevel} size="sm" />
         </div>
         <div className="flex items-center gap-2">

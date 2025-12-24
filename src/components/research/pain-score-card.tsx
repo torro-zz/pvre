@@ -8,9 +8,50 @@ import {
 } from '@/components/ui/card'
 import { ExternalLink, MessageCircle, ThumbsUp, Calendar } from 'lucide-react'
 import { PainSignal } from '@/lib/analysis/pain-detector'
+import { cn } from '@/lib/utils'
 
 interface PainScoreCardProps {
   signal: PainSignal
+}
+
+// Detect source type from subreddit name
+function getSourceType(subreddit: string): 'reddit' | 'hackernews' | 'google_play' | 'app_store' {
+  const lower = subreddit.toLowerCase()
+  if (lower === 'hackernews' || lower === 'askhn' || lower === 'showhn') return 'hackernews'
+  if (lower === 'google_play') return 'google_play'
+  if (lower === 'app_store') return 'app_store'
+  return 'reddit'
+}
+
+// Format source display name
+function formatSourceName(subreddit: string): string {
+  const sourceType = getSourceType(subreddit)
+  if (sourceType === 'hackernews') {
+    if (subreddit.toLowerCase() === 'askhn') return 'Ask HN'
+    if (subreddit.toLowerCase() === 'showhn') return 'Show HN'
+    return 'Hacker News'
+  }
+  if (sourceType === 'google_play') return 'Google Play'
+  if (sourceType === 'app_store') return 'App Store'
+  return `r/${subreddit}`
+}
+
+// Get source link text
+function getSourceLinkText(subreddit: string): string {
+  const sourceType = getSourceType(subreddit)
+  if (sourceType === 'hackernews') return 'View on HN'
+  if (sourceType === 'google_play') return 'View on Play Store'
+  if (sourceType === 'app_store') return 'View on App Store'
+  return 'View on Reddit'
+}
+
+// Get source badge styling
+function getSourceBadgeClass(subreddit: string): string {
+  const sourceType = getSourceType(subreddit)
+  if (sourceType === 'hackernews') return 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950/50 dark:text-orange-400 dark:border-orange-800'
+  if (sourceType === 'google_play') return 'bg-green-100 text-green-700 border-green-300 dark:bg-green-950/50 dark:text-green-400 dark:border-green-800'
+  if (sourceType === 'app_store') return 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800'
+  return ''
 }
 
 function getScoreColor(score: number): string {
@@ -50,8 +91,8 @@ export function PainScoreCard({ signal }: PainScoreCardProps) {
             <Badge variant={getScoreBadgeVariant(signal.score)}>
               Score: {signal.score}
             </Badge>
-            <Badge variant="outline" className="text-xs">
-              r/{signal.source.subreddit}
+            <Badge variant="outline" className={cn("text-xs", getSourceBadgeClass(signal.source.subreddit))}>
+              {formatSourceName(signal.source.subreddit)}
             </Badge>
             {signal.solutionSeeking && (
               <Badge variant="secondary" className="text-xs">
@@ -120,7 +161,7 @@ export function PainScoreCard({ signal }: PainScoreCardProps) {
           rel="noopener noreferrer"
           className="flex items-center gap-1 hover:text-foreground transition-colors"
         >
-          View on Reddit
+          {getSourceLinkText(signal.source.subreddit)}
           <ExternalLink className="h-3 w-3" />
         </a>
       </CardFooter>
@@ -137,8 +178,8 @@ export function PainScoreCardCompact({ signal }: PainScoreCardProps) {
           <Badge variant={getScoreBadgeVariant(signal.score)} className="text-xs">
             {signal.score}
           </Badge>
-          <span className="text-xs text-muted-foreground">
-            r/{signal.source.subreddit}
+          <span className={cn("text-xs", getSourceType(signal.source.subreddit) === 'hackernews' ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground')}>
+            {formatSourceName(signal.source.subreddit)}
           </span>
         </div>
         <a
