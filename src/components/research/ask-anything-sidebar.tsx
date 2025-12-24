@@ -130,7 +130,7 @@ export function AskAnythingSidebar({ jobId, hypothesis }: AskAnythingSidebarProp
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" role="log" aria-live="polite" aria-atomic="false">
         {messages.length === 0 ? (
           <div className="text-center text-muted-foreground text-sm py-8">
             <Sparkles className="h-8 w-8 mx-auto mb-3 opacity-30" />
@@ -170,7 +170,7 @@ export function AskAnythingSidebar({ jobId, hypothesis }: AskAnythingSidebarProp
           ))
         )}
         {isLoading && (
-          <div className="flex gap-2 justify-start">
+          <div className="flex gap-2 justify-start" role="status" aria-label="Processing your question">
             <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Sparkles className="h-3 w-3 text-primary" />
             </div>
@@ -192,12 +192,14 @@ export function AskAnythingSidebar({ jobId, hypothesis }: AskAnythingSidebarProp
             onKeyDown={handleKeyDown}
             disabled={isLoading}
             className="flex-1 text-sm"
+            aria-label="Ask a question about your research"
           />
           <Button
             onClick={() => handleSubmit(input)}
             disabled={!input.trim() || isLoading}
             size="icon"
             className="shrink-0"
+            aria-label={isLoading ? "Sending message" : "Send message"}
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />

@@ -149,7 +149,7 @@ export function VerdictHero({
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex items-center gap-2">
             <Target className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold">Quick Verdict</h3>
+            <h2 className="font-semibold text-base">Quick Verdict</h2>
             <TrustBadge level="calculated" size="sm" />
           </div>
           {hasRedFlags && (
