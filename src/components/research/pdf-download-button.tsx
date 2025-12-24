@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Download, Loader2 } from 'lucide-react'
-import { downloadPDFReport, ReportData } from '@/lib/pdf/report-generator'
+import type { ReportData } from '@/lib/pdf/report-generator'
 
 interface PDFDownloadButtonProps {
   reportData: ReportData
@@ -16,8 +16,8 @@ export function PDFDownloadButton({ reportData, className }: PDFDownloadButtonPr
   const handleDownload = async () => {
     setIsGenerating(true)
     try {
-      // Small delay to show loading state
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Dynamic import - jsPDF (~300KB) only loads when user clicks download
+      const { downloadPDFReport } = await import('@/lib/pdf/report-generator')
       downloadPDFReport(reportData)
     } catch (error) {
       console.error('Failed to generate PDF:', error)
