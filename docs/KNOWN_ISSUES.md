@@ -1,6 +1,6 @@
 # Known Issues
 
-Last updated: December 22, 2025
+Last updated: December 24, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
@@ -181,6 +181,19 @@ The current credit model (1 credit = 1 research) may need rethinking:
 ---
 
 ## Completed Issues
+
+### December 24, 2025 (Redesign Complete + Full UI/UX Test)
+- ✅ **[P0] PVRE Redesign Complete** — All 4 phases of UI/UX redesign finished:
+  - Phase 1: Trust badges, WTP hero, two-axis verdict, Google Trends
+  - Phase 2: Dual-layout infrastructure, HN integration, layout toggle
+  - Phase 3: Scroll layout default, Trustpilot adapter
+  - Phase 4: Accessibility (skip-to-content, ARIA labels), jsPDF dynamic import (~300KB savings)
+- ✅ **Full UI/UX Validation Test** — Comprehensive testing matching phase0-test-results methodology:
+  - Test 1 (Freelancer Invoicing): Conf 4.1, Opp 5.9 - correctly identifies hypothesis/market mismatch
+  - Test 2 (Headspace App): Conf 8.4, Opp 8.0 - validates problem space with high confidence
+  - All 5 critical UI issues from ui-analysis.md confirmed FIXED
+  - Time to verdict: <5 sec (was 30+), Clicks to WTP: 0 (was 3-4)
+- ✅ **Test artifacts saved** — Raw JSON + PDFs for both tests saved to Downloads folder
 
 ### December 24, 2025 (Model Updates + Cost Optimization)
 - ✅ **[P1] Deprecated Model in Relevance Filter** — Updated from `claude-3-5-sonnet-20241022` to `claude-sonnet-4-20250514` in relevance-filter.ts
