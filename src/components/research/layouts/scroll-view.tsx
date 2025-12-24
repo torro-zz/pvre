@@ -16,7 +16,7 @@ import { useResearchData } from '@/components/research/research-data-provider'
 import { VerdictHero } from '@/components/research/verdict-hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { TrendingUp, Lightbulb, BarChart3, Construction } from 'lucide-react'
+import { TrendingUp, Lightbulb, BarChart3 } from 'lucide-react'
 
 export function ScrollView() {
   const data = useResearchData()
@@ -33,22 +33,6 @@ export function ScrollView() {
           />
         </div>
       )}
-
-      {/* Beta Notice */}
-      <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
-        <CardContent className="py-4">
-          <div className="flex items-center gap-3">
-            <Construction className="h-5 w-5 text-amber-600" />
-            <div>
-              <p className="font-medium text-amber-900 dark:text-amber-100">Scroll View Beta</p>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
-                This is a preview of the new single-scroll layout. More sections coming soon.
-              </p>
-            </div>
-            <Badge variant="outline" className="ml-auto border-amber-500 text-amber-600">Beta</Badge>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Section 1: Evidence */}
       <section>
