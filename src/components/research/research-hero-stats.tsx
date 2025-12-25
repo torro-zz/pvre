@@ -1,9 +1,9 @@
 'use client'
 
-import { Database, Calendar, Clock, Users, Zap, Info, DollarSign } from 'lucide-react'
+import { Database, Calendar, Clock, Users, Info, DollarSign } from 'lucide-react'
 import { ScoreGauge } from '@/components/ui/score-gauge'
 import { StatBlock } from '@/components/ui/stat-card'
-import { MetricRow, StatusBadge } from '@/components/ui/metric-row'
+import { StatusBadge } from '@/components/ui/metric-row'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { TrustBadge } from '@/components/ui/trust-badge'
 
@@ -96,9 +96,8 @@ export function ResearchHeroStats({
               subValue={coreSignals !== undefined ? `${coreSignals} core` : undefined}
             />
             <StatBlock
-              label="Analyzed"
+              label="Posts Scanned"
               value={postsAnalyzed}
-              subValue={`of ${totalPostsFound.toLocaleString()}`}
             />
             {commentsAnalyzed !== undefined && commentsAnalyzed > 0 && (
               <StatBlock
@@ -111,21 +110,6 @@ export function ResearchHeroStats({
 
         {/* Quality metrics row */}
         <div className="mt-6 pt-5 border-t flex flex-wrap items-center gap-6">
-          {/* Relevance */}
-          <div className="flex-1 min-w-[200px]">
-            <div className="flex items-center gap-1.5">
-              <MetricRow label="Relevance" value={relevanceRate} icon={Zap} />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[200px]">
-                  Percentage of posts that directly relate to your hypothesis. Higher = more focused data.
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
-
           {/* Confidence */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">

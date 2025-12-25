@@ -331,7 +331,8 @@ function getVerdictLabel(verdict: VerdictLevel): string {
     case 'mixed':
       return 'MIXED SIGNAL'
     case 'weak':
-      return 'WEAK SIGNAL'
+      // Phase 1 UI redesign: constructive framing
+      return 'EMERGING SIGNAL'
     case 'none':
       // P1 FIX: Clear "stop" signal for bad ideas
       return 'DO NOT PURSUE'

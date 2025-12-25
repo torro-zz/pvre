@@ -20,18 +20,30 @@ interface CompetitorPromptModalProps {
 
 export function CompetitorPromptModal({ jobId, hypothesis }: CompetitorPromptModalProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [hasTriggered, setHasTriggered] = useState(false)
   const { setActiveTab } = useResearchTabs()
   const storageKey = `competitor-prompt-dismissed-${jobId}`
 
   useEffect(() => {
     // Check if user has already dismissed this prompt
     const dismissed = localStorage.getItem(storageKey)
-    if (!dismissed) {
-      // Small delay to let page load first
-      const timer = setTimeout(() => setIsOpen(true), 1500)
-      return () => clearTimeout(timer)
+    if (dismissed || hasTriggered) return
+
+    // Scroll-based trigger: show modal when user scrolls past 50% of page
+    const handleScroll = () => {
+      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight
+      if (scrollHeight <= 0) return // No scroll needed
+
+      const scrollPercentage = window.scrollY / scrollHeight
+      if (scrollPercentage > 0.5 && !hasTriggered) {
+        setIsOpen(true)
+        setHasTriggered(true)
+      }
     }
-  }, [storageKey])
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [storageKey, hasTriggered])
 
   const handleDismiss = () => {
     localStorage.setItem(storageKey, 'true')

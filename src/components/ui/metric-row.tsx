@@ -115,8 +115,21 @@ const statusStyles: Record<string, string> = {
   pending: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-500/20 dark:text-zinc-400',
 }
 
+// Constructive label mapping for confidence levels
+const labelMap: Record<string, string> = {
+  very_low: 'Needs Validation',
+  low: 'Limited Evidence',
+  medium: 'Solid Foundation',
+  high: 'Strong Signal',
+  success: 'Success',
+  warning: 'Warning',
+  error: 'Error',
+  pending: 'Pending',
+}
+
 export function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
   const sizeClass = size === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'
+  const label = labelMap[status] || status.replace('_', ' ')
 
   return (
     <span className={cn(
@@ -124,7 +137,7 @@ export function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
       sizeClass,
       statusStyles[status] || statusStyles.pending
     )}>
-      {status.replace('_', ' ')}
+      {label}
     </span>
   )
 }

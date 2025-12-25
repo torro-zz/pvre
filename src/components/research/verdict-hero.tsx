@@ -17,6 +17,7 @@ import {
   MarketOpportunity,
   ViabilityVerdict,
 } from '@/lib/analysis/viability-calculator'
+import { RecommendationBanner } from './recommendation-banner'
 
 interface VerdictHeroProps {
   verdict: ViabilityVerdict
@@ -114,6 +115,21 @@ export function VerdictHero({
     }
   }
 
+  // Constructive sublabels based on score (not scary labels)
+  const getConfidenceSublabel = (score: number) => {
+    if (score >= 8) return 'Strong problem-market fit'
+    if (score >= 6) return 'Good foundation to build on'
+    if (score >= 4) return 'Some evidence, needs validation'
+    return 'Your angle needs refinement'
+  }
+
+  const getOpportunitySublabel = (score: number) => {
+    if (score >= 8) return 'Clear market opportunity'
+    if (score >= 6) return 'Solid market indicators'
+    if (score >= 4) return 'Opportunity exists, explore further'
+    return 'Market signals are limited'
+  }
+
   const getOverallMessage = () => {
     if (!hasTwoAxisData) {
       return verdict.verdictDescription
@@ -166,13 +182,13 @@ export function VerdictHero({
             <CompactGauge
               score={verdict.hypothesisConfidence!.score}
               label="Hypothesis Confidence"
-              sublabel={`${verdict.hypothesisConfidence!.level.toUpperCase()} - Is YOUR problem real?`}
+              sublabel={getConfidenceSublabel(verdict.hypothesisConfidence!.score)}
               colorClass={getConfidenceColor(verdict.hypothesisConfidence!.level)}
             />
             <CompactGauge
               score={verdict.marketOpportunity!.score}
               label="Market Opportunity"
-              sublabel={`${verdict.marketOpportunity!.level.toUpperCase()} - Is there a market?`}
+              sublabel={getOpportunitySublabel(verdict.marketOpportunity!.score)}
               colorClass={getOpportunityColor(verdict.marketOpportunity!.level)}
             />
           </div>
@@ -192,30 +208,12 @@ export function VerdictHero({
           </div>
         )}
 
-        {/* Bottom line message */}
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/30">
-          {verdict.overallScore >= 6 ? (
-            <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-          ) : verdict.overallScore >= 4 ? (
-            <HelpCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-          ) : (
-            <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-          )}
-          <p className="text-sm text-muted-foreground flex-1">
-            {getOverallMessage()}
-          </p>
-        </div>
-
-        {/* View details link */}
-        {onViewDetails && (
-          <button
-            onClick={onViewDetails}
-            className="mt-3 text-xs text-primary hover:underline flex items-center gap-1"
-          >
-            View full verdict breakdown
-            <ChevronRight className="h-3 w-3" />
-          </button>
-        )}
+        {/* Recommendation Banner - prominent action guidance */}
+        <RecommendationBanner
+          verdict={verdict.verdict}
+          verdictDescription={getOverallMessage()}
+          onViewDetails={onViewDetails}
+        />
       </div>
     </div>
   )

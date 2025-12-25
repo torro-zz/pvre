@@ -143,7 +143,7 @@ describe('Viability Calculator', () => {
         )
 
         expect(result.verdict).toBe('weak')
-        expect(result.verdictLabel).toBe('WEAK SIGNAL')
+        expect(result.verdictLabel).toBe('EMERGING SIGNAL')
       })
 
       it('should return NONE verdict for very low scores (<4.0)', () => {
