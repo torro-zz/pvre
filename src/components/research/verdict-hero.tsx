@@ -1,5 +1,6 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TrustBadge } from '@/components/ui/trust-badge'
 import { Badge } from '@/components/ui/badge'
@@ -18,71 +19,17 @@ import {
   ViabilityVerdict,
 } from '@/lib/analysis/viability-calculator'
 import { RecommendationBanner } from './recommendation-banner'
+import {
+  AnimatedGauge,
+  AnimatedCard,
+  AnimatedBadge,
+} from '@/components/ui/animated-components'
 
 interface VerdictHeroProps {
   verdict: ViabilityVerdict
   hypothesis: string
   className?: string
   onViewDetails?: () => void
-}
-
-// Compact gauge for hero display
-function CompactGauge({
-  score,
-  label,
-  sublabel,
-  colorClass,
-  size = 'md',
-}: {
-  score: number
-  label: string
-  sublabel: string
-  colorClass: string
-  size?: 'sm' | 'md'
-}) {
-  const percentage = (score / 10) * 100
-  const gaugeSize = size === 'sm' ? 56 : 72
-  const strokeWidth = size === 'sm' ? 5 : 6
-  const radius = (gaugeSize - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const strokeDashoffset = circumference - (percentage / 100) * circumference
-
-  return (
-    <div className="flex items-center gap-3">
-      <div className="relative" style={{ width: gaugeSize, height: gaugeSize }}>
-        <svg className="w-full h-full -rotate-90" viewBox={`0 0 ${gaugeSize} ${gaugeSize}`}>
-          <circle
-            cx={gaugeSize / 2}
-            cy={gaugeSize / 2}
-            r={radius}
-            fill="none"
-            strokeWidth={strokeWidth}
-            className="stroke-muted/20"
-          />
-          <circle
-            cx={gaugeSize / 2}
-            cy={gaugeSize / 2}
-            r={radius}
-            fill="none"
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            className={colorClass}
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className={cn('font-bold', size === 'sm' ? 'text-lg' : 'text-xl')}>
-            {score.toFixed(1)}
-          </span>
-        </div>
-      </div>
-      <div>
-        <div className="text-sm font-medium">{label}</div>
-        <div className="text-xs text-muted-foreground">{sublabel}</div>
-      </div>
-    </div>
-  )
 }
 
 export function VerdictHero({
@@ -156,45 +103,63 @@ export function VerdictHero({
   const hasRedFlags = verdict.redFlags && verdict.redFlags.length > 0
 
   return (
-    <div className={cn(
-      'rounded-xl border bg-gradient-to-br from-card to-muted/20 overflow-hidden',
-      className
-    )}>
+    <AnimatedCard
+      className={cn(
+        'rounded-xl border bg-gradient-to-br from-card to-muted/20 overflow-hidden',
+        className
+      )}
+      delay={0}
+    >
       <div className="p-4 sm:p-6">
         {/* Header row */}
-        <div className="flex items-start justify-between gap-4 mb-4">
+        <motion.div
+          className="flex items-start justify-between gap-4 mb-4"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+        >
           <div className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-primary" />
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ duration: 0.5, delay: 0.2, type: 'spring', stiffness: 200 }}
+            >
+              <Target className="h-5 w-5 text-primary" />
+            </motion.div>
             <h2 className="font-semibold text-base">Quick Verdict</h2>
             <TrustBadge level="calculated" size="sm" />
           </div>
           {hasRedFlags && (
-            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800">
-              <AlertTriangle className="h-3 w-3 mr-1" />
-              {verdict.redFlags!.length} warning{verdict.redFlags!.length > 1 ? 's' : ''}
-            </Badge>
+            <AnimatedBadge delay={0.6}>
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                {verdict.redFlags!.length} warning{verdict.redFlags!.length > 1 ? 's' : ''}
+              </Badge>
+            </AnimatedBadge>
           )}
-        </div>
+        </motion.div>
 
-        {/* Two-axis scores */}
+        {/* Two-axis scores with staggered animation */}
         {hasTwoAxisData ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4">
-            <CompactGauge
+            <AnimatedGauge
               score={verdict.hypothesisConfidence!.score}
               label="Hypothesis Confidence"
               sublabel={getConfidenceSublabel(verdict.hypothesisConfidence!.score)}
               colorClass={getConfidenceColor(verdict.hypothesisConfidence!.level)}
+              delay={0.2}
             />
-            <CompactGauge
+            <AnimatedGauge
               score={verdict.marketOpportunity!.score}
               label="Market Opportunity"
               sublabel={getOpportunitySublabel(verdict.marketOpportunity!.score)}
               colorClass={getOpportunityColor(verdict.marketOpportunity!.level)}
+              delay={0.4}
             />
           </div>
         ) : (
           <div className="flex justify-center mb-4">
-            <CompactGauge
+            <AnimatedGauge
               score={verdict.overallScore}
               label="Viability Score"
               sublabel={verdict.confidence.toUpperCase()}
@@ -204,17 +169,24 @@ export function VerdictHero({
                 'stroke-red-500'
               }
               size="md"
+              delay={0.2}
             />
           </div>
         )}
 
         {/* Recommendation Banner - prominent action guidance */}
-        <RecommendationBanner
-          verdict={verdict.verdict}
-          verdictDescription={getOverallMessage()}
-          onViewDetails={onViewDetails}
-        />
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.8 }}
+        >
+          <RecommendationBanner
+            verdict={verdict.verdict}
+            verdictDescription={getOverallMessage()}
+            onViewDetails={onViewDetails}
+          />
+        </motion.div>
       </div>
-    </div>
+    </AnimatedCard>
   )
 }

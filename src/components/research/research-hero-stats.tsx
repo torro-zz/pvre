@@ -1,11 +1,13 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import { Database, Calendar, Clock, Users, Info, DollarSign } from 'lucide-react'
 import { ScoreGauge } from '@/components/ui/score-gauge'
 import { StatBlock } from '@/components/ui/stat-card'
 import { StatusBadge } from '@/components/ui/metric-row'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { TrustBadge } from '@/components/ui/trust-badge'
+import { AnimatedCard, AnimatedNumber } from '@/components/ui/animated-components'
 
 interface ResearchHeroStatsProps {
   painScore: number
@@ -54,23 +56,59 @@ export function ResearchHeroStats({
   }
   const wtpStrength = getWtpStrength(wtpCount)
 
+  // Staggered animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2,
+      },
+    },
+  }
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] as const },
+    },
+  }
+
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <AnimatedCard className="rounded-xl border bg-card shadow-sm overflow-hidden">
       {/* Main content */}
       <div className="p-6">
         <div className="flex items-center gap-8">
-          {/* Left: Score gauge */}
-          <div className="flex-shrink-0">
+          {/* Left: Score gauge with animation */}
+          <motion.div
+            className="flex-shrink-0"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5, type: 'spring', stiffness: 200 }}
+          >
             <ScoreGauge score={painScore} label="Pain Score" />
-          </div>
+          </motion.div>
 
           {/* Divider */}
-          <div className="w-px h-24 bg-border" />
+          <motion.div
+            className="w-px h-24 bg-border"
+            initial={{ scaleY: 0 }}
+            animate={{ scaleY: 1 }}
+            transition={{ duration: 0.4, delay: 0.3 }}
+          />
 
-          {/* Right: Key stats */}
-          <div className="flex-1 flex items-center justify-around">
+          {/* Right: Key stats with stagger */}
+          <motion.div
+            className="flex-1 flex items-center justify-around"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
             {/* WTP - Most important signal, shown first */}
-            <div className="relative">
+            <motion.div className="relative" variants={itemVariants}>
               <StatBlock
                 label="WTP Signals"
                 value={wtpCount}
@@ -80,36 +118,52 @@ export function ResearchHeroStats({
               {wtpCount === 0 && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center cursor-help">
+                    <motion.div
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center cursor-help"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.6, type: 'spring', stiffness: 400 }}
+                    >
                       <span className="text-[10px] text-white font-bold">!</span>
-                    </div>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-[200px]">
                     No one mentioned paying for a solution. This is a critical validation gap.
                   </TooltipContent>
                 </Tooltip>
               )}
-            </div>
-            <StatBlock
-              label="Signals"
-              value={totalSignals}
-              subValue={coreSignals !== undefined ? `${coreSignals} core` : undefined}
-            />
-            <StatBlock
-              label="Posts Scanned"
-              value={postsAnalyzed}
-            />
-            {commentsAnalyzed !== undefined && commentsAnalyzed > 0 && (
+            </motion.div>
+            <motion.div variants={itemVariants}>
               <StatBlock
-                label="Comments"
-                value={commentsAnalyzed}
+                label="Signals"
+                value={totalSignals}
+                subValue={coreSignals !== undefined ? `${coreSignals} core` : undefined}
               />
+            </motion.div>
+            <motion.div variants={itemVariants}>
+              <StatBlock
+                label="Posts Scanned"
+                value={postsAnalyzed}
+              />
+            </motion.div>
+            {commentsAnalyzed !== undefined && commentsAnalyzed > 0 && (
+              <motion.div variants={itemVariants}>
+                <StatBlock
+                  label="Comments"
+                  value={commentsAnalyzed}
+                />
+              </motion.div>
             )}
-          </div>
+          </motion.div>
         </div>
 
         {/* Quality metrics row */}
-        <div className="mt-6 pt-5 border-t flex flex-wrap items-center gap-6">
+        <motion.div
+          className="mt-6 pt-5 border-t flex flex-wrap items-center gap-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, delay: 0.6 }}
+        >
           {/* Confidence */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
@@ -149,11 +203,16 @@ export function ResearchHeroStats({
               </span>
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
 
-      {/* Footer */}
-      <div className="px-6 py-3 bg-muted/30 border-t flex flex-wrap items-center gap-5 text-xs text-muted-foreground">
+      {/* Footer with slide-up animation */}
+      <motion.div
+        className="px-6 py-3 bg-muted/30 border-t flex flex-wrap items-center gap-5 text-xs text-muted-foreground"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.7 }}
+      >
         {dataSources.length > 0 && (
           <div className="flex items-center gap-1.5">
             <Database className="w-3.5 h-3.5" />
@@ -179,7 +238,7 @@ export function ResearchHeroStats({
             <span>{(processingTimeMs / 1000).toFixed(1)}s</span>
           </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </AnimatedCard>
   )
 }

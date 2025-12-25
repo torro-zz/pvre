@@ -1,5 +1,6 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { RefreshCw, CheckCircle2, Pause, XCircle, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -73,6 +74,13 @@ export function RecommendationBanner({
   const config = recommendationConfig[verdict]
   const Icon = config.icon
 
+  // Subtle icon animation based on verdict type
+  const iconAnimation = verdict === 'strong'
+    ? { scale: [1, 1.1, 1], transition: { duration: 0.5, delay: 0.3 } }
+    : verdict === 'mixed'
+    ? { rotate: [0, 180, 360], transition: { duration: 0.8, delay: 0.3 } }
+    : {}
+
   return (
     <div className={cn(
       'rounded-lg border p-4',
@@ -81,26 +89,54 @@ export function RecommendationBanner({
       className
     )}>
       <div className="flex items-start gap-3">
-        <div className={cn('mt-0.5', config.iconClass)}>
+        <motion.div
+          className={cn('mt-0.5', config.iconClass)}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1, ...iconAnimation }}
+          transition={{ duration: 0.3, type: 'spring', stiffness: 300 }}
+        >
           <Icon className="h-5 w-5" />
-        </div>
+        </motion.div>
         <div className="flex-1 min-w-0">
-          <h3 className={cn('font-semibold text-sm', config.textClass)}>
+          <motion.h3
+            className={cn('font-semibold text-sm', config.textClass)}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
             {config.title}
-          </h3>
-          <p className={cn('text-sm mt-0.5 opacity-80', config.textClass)}>
+          </motion.h3>
+          <motion.p
+            className={cn('text-sm mt-0.5 opacity-80', config.textClass)}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
+          >
             {verdictDescription || config.description}
-          </p>
+          </motion.p>
           {onViewDetails && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onViewDetails}
-              className={cn('mt-2 -ml-2 h-7 text-xs', config.iconClass, 'hover:bg-transparent hover:underline')}
+            <motion.div
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.4 }}
             >
-              {config.ctaText}
-              <ChevronRight className="h-3 w-3 ml-1" />
-            </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onViewDetails}
+                className={cn('mt-2 -ml-2 h-7 text-xs group', config.iconClass, 'hover:bg-transparent hover:underline')}
+              >
+                {config.ctaText}
+                <motion.span
+                  className="inline-block ml-1"
+                  initial={{ x: 0 }}
+                  whileHover={{ x: 3 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChevronRight className="h-3 w-3" />
+                </motion.span>
+              </Button>
+            </motion.div>
           )}
         </div>
       </div>
