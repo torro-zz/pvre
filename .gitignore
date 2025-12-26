@@ -50,3 +50,4 @@ docs/
 
 # stray build artifacts
 .next */
+.mcp.json

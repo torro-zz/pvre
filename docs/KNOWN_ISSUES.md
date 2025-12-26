@@ -142,7 +142,47 @@ The current credit model (1 credit = 1 research) may need rethinking:
 
 ## P1 — Important
 
-*No current P1 issues.*
+### Direct API Calls Don't Persist to Database (Dec 25, 2025)
+**Status:** Open — Affects testing and debugging
+**Impact:** Tests run via direct curl to `/api/research/community-voice` don't save to database, making it impossible to retrieve results later or verify fixes with historical data.
+
+**Problem:** When calling `/api/research/community-voice` directly without a `jobId`:
+1. Code generates a random UUID (line 248: `crypto.randomUUID()`)
+2. Credits are deducted using that UUID as `reference_id` in `credit_transactions`
+3. API returns full results to the caller
+4. **But NO job is created** in `research_jobs` table
+5. **And NO results saved** to `research_results` table
+
+This caused confusion during Dec 25 comparison testing:
+- 4 credits were deducted (transactions exist with reference_ids)
+- 0 jobs exist from Dec 25
+- Tests appeared to run but data was lost
+
+**Root Cause:** The `/api/research/community-voice` endpoint expects a pre-existing job. The normal flow is:
+1. POST `/api/research/jobs` → creates job in DB, returns `jobId`
+2. POST `/api/research/community-voice` with `jobId` → processes and saves results
+
+Direct API calls bypass step 1, so results are never persisted.
+
+**Workaround:** Always create job first:
+```bash
+# Step 1: Create job
+JOB=$(curl -s -X POST http://localhost:3000/api/research/jobs \
+  -b /tmp/pvre-cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{"hypothesis":"Your hypothesis here"}')
+JOB_ID=$(echo $JOB | jq -r '.id')
+
+# Step 2: Run research with job ID
+curl -s -X POST http://localhost:3000/api/research/community-voice \
+  -b /tmp/pvre-cookies.txt \
+  -H "Content-Type: application/json" \
+  -d "{\"hypothesis\":\"Your hypothesis here\",\"jobId\":\"$JOB_ID\"}"
+```
+
+**Potential Fix:** Make `/api/research/community-voice` auto-create a job when `jobId` is not provided, OR document this behavior clearly in CLAUDE.md test commands.
+
+**Reference:** Discovered during Dec 25 comparison testing session. Fresh test data saved to `/tmp/freelancer-fresh-dec25.json` but not in database.
 
 ---
 

@@ -56,6 +56,60 @@ const THIRD_PERSON_OBSERVATION_PATTERNS = [
   /\b(according\s+to|studies\s+show|data\s+suggests)\b/i,
 ]
 
+// =============================================================================
+// PAIN LANGUAGE DETECTION (Part 2: Signal Quality Enhancement)
+// =============================================================================
+// Posts expressing frustration, struggle, or actively seeking solutions
+// are more valuable signals than neutral discussions or curiosity questions.
+
+const PAIN_MARKERS = [
+  // Frustration
+  'frustrated', 'frustrating', 'annoying', 'annoyed', 'hate', 'hating',
+  // Struggle
+  'struggling', 'struggle', 'difficult', 'hard time', "can't figure",
+  // Failure
+  'failing', 'failed', 'broken', "doesn't work", 'not working',
+  // Desperation
+  'help me', 'please help', 'desperate', "at my wit's end",
+  // Intensity
+  'driving me crazy', 'killing me', 'nightmare', 'impossible', 'stuck',
+  // Solution seeking
+  'looking for', 'need a solution', 'any recommendations', 'what do you use',
+  // Pain language
+  'pain', 'painful', 'exhausted', 'overwhelmed', 'burned out', 'burnout',
+]
+
+const CURIOSITY_MARKERS = [
+  // Questions without pain
+  'what do you think', 'opinions on', 'thoughts on', 'curious about',
+  'wondering if', 'does anyone know', "what's the difference",
+  // Polls/surveys
+  'poll:', 'survey:', "what's your favorite", 'rank these',
+  // General questions
+  'how does', 'what is', 'eli5', 'explain like',
+]
+
+/**
+ * Calculate pain language boost factor for pre-scoring
+ * @returns number - multiplier (0.7 = curiosity penalty, 1.0 = neutral, 1.2-1.5 = pain boost)
+ */
+export function getPainLanguageBoost(text: string): number {
+  const lowerText = text.toLowerCase()
+
+  // Check for curiosity markers (reduce priority)
+  const hasCuriosity = CURIOSITY_MARKERS.some(marker => lowerText.includes(marker))
+  if (hasCuriosity && !PAIN_MARKERS.some(marker => lowerText.includes(marker))) {
+    return 0.7  // Curiosity without pain = lower priority
+  }
+
+  // Count pain markers
+  const painCount = PAIN_MARKERS.filter(marker => lowerText.includes(marker)).length
+
+  if (painCount >= 3) return 1.5  // High pain expression
+  if (painCount >= 1) return 1.2  // Some pain expression
+  return 1.0  // Neutral
+}
+
 /**
  * Check if text contains first-person language (indicating firsthand experience)
  * @returns boolean - true if first-person language is detected
@@ -137,12 +191,14 @@ export interface PreScoreResult {
  * Calculate pre-score for a Reddit post to rank before AI filtering
  * This is a FREE filter (no API calls) that helps select the best candidates
  *
- * Formula: preScore = (
- *   normalizedUpvotes * 0.4 +
- *   normalizedComments * 0.3 +
- *   (hasFirstPerson ? 0.2 : 0) +
- *   recencyBonus * 0.1
+ * Formula: preScore = baseScore * painBoost
+ * where baseScore = (
+ *   normalizedUpvotes * 0.35 +
+ *   normalizedComments * 0.25 +
+ *   (hasFirstPerson ? 0.25 : 0) +
+ *   recencyBonus * 0.15
  * )
+ * and painBoost = 0.7 (curiosity) to 1.5 (high pain)
  */
 export function calculatePreScore(post: RedditPost): PreScoreResult {
   const text = `${post.title} ${post.body || ''}`
@@ -174,12 +230,16 @@ export function calculatePreScore(post: RedditPost): PreScoreResult {
     }
   }
 
-  // Calculate weighted score
-  const score =
-    normalizedUpvotes * 0.4 +
-    normalizedComments * 0.3 +
-    (hasFirstPerson ? 0.2 : 0) +
-    recencyBonus * 0.1
+  // Calculate base score (weighted sum of factors)
+  const baseScore =
+    normalizedUpvotes * 0.35 +
+    normalizedComments * 0.25 +
+    (hasFirstPerson ? 0.25 : 0) +
+    recencyBonus * 0.15
+
+  // Apply pain language boost (0.7 - 1.5 multiplier)
+  const painBoost = getPainLanguageBoost(text)
+  const score = baseScore * painBoost
 
   return {
     score,
@@ -229,6 +289,7 @@ export function preFilterAndRank(
 /**
  * Calculate pre-score for a Reddit comment to rank before AI filtering
  * Similar to posts but without title/numComments
+ * Includes pain language boost for better signal quality
  */
 export function calculateCommentPreScore(comment: RedditComment): PreScoreResult {
   const text = comment.body || ''
@@ -254,12 +315,16 @@ export function calculateCommentPreScore(comment: RedditComment): PreScoreResult
     }
   }
 
-  // Calculate weighted score (comments don't have numComments field)
+  // Calculate base score (comments don't have numComments field)
   // Increase weight of first-person language for comments since they're personal
-  const score =
-    normalizedUpvotes * 0.4 +
-    (hasFirstPerson ? 0.4 : 0) +  // Higher weight for first-person in comments
+  const baseScore =
+    normalizedUpvotes * 0.35 +
+    (hasFirstPerson ? 0.45 : 0) +  // Higher weight for first-person in comments
     recencyBonus * 0.2
+
+  // Apply pain language boost (0.7 - 1.5 multiplier)
+  const painBoost = getPainLanguageBoost(text)
+  const score = baseScore * painBoost
 
   return {
     score,
@@ -1061,8 +1126,8 @@ Respond with exactly ${batchLength} letters (C, R, or N):`
  * Build standard prompt for single-domain hypotheses
  * Returns Y or N (all passes become CORE)
  *
- * P1 FIX: Balanced - strict enough to filter noise, lenient enough to capture valuable signals.
- * Posts about the same problem domain with pain points should generally pass.
+ * P0 FIX (Dec 25): Tightened criteria - CORE requires firsthand experience + explicit problem match.
+ * General discussions about the domain are now filtered out to improve signal quality.
  */
 function buildStandardPrompt(
   problem: string,
@@ -1074,39 +1139,53 @@ function buildStandardPrompt(
   // Extract the core problem action/experience for clearer matching
   const specificProblem = structured?.problem || problem
 
-  return `PROBLEM RELEVANCE CHECK: Does the post relate to this problem?
+  return `STRICT PROBLEM RELEVANCE CHECK: Does this post show someone EXPERIENCING the specific problem?
 
-THE PROBLEM TO MATCH:
+THE SPECIFIC PROBLEM TO MATCH:
 "${specificProblem}"
 
 TARGET AUDIENCE: ${audience}${structured?.problemLanguage ? `
 PHRASES THAT INDICATE A MATCH: ${structured.problemLanguage}` : ''}${structured?.excludeTopics ? `
 EXCLUDE POSTS ABOUT: ${structured.excludeTopics}` : ''}
 
-DECISION RULES - Balance precision with coverage:
+Y (CORE) REQUIRES ALL OF:
+1. First-person experience - Uses "I", "we", "my" to describe their own situation
+2. EXPLICIT expression of THIS SPECIFIC PROBLEM (not just the domain)
+3. Evidence of pain, frustration, struggle, or active solution-seeking
 
-Y = Post is RELEVANT to understanding this problem:
-- Someone experiencing THIS problem or a closely related challenge
-- Discussions about pain points, frustrations, or needs in this domain
-- Posts seeking solutions to related issues (indicates unmet need)
-- Comparative discussions that reveal what people want
+Y IS NOT:
+- General questions about the topic domain ("What do you think about X?")
+- Discussions or opinions about the space without personal experience
+- Tangential experiences that mention keywords but different problem
+- Curiosity or "what should I do" without pain expression
+- Third-party observations ("people say...", "users report...")
+- Meta-discussions about the industry
 
-N = Post is CLEARLY IRRELEVANT:
-- Completely different problem in the same space (e.g., "taste" vs "forgetting")
-- Pure product reviews without pain signals
-- Off-topic discussions that won't help understand the problem
-- Demographics that EXPLICITLY conflict with "${audience}"
+When in doubt, classify as N. Y should be reserved for posts where someone is CLEARLY EXPERIENCING the hypothesis problem.
 
-EXAMPLES (for "forgetting to drink water during busy workdays"):
-- "I get so absorbed in work I realize at 5pm I haven't had water all day" → Y (exact problem)
-- "How do you remember to drink water when you're in meetings all day?" → Y (exact problem)
-- "I know I should drink more water but I always forget" → Y (related challenge)
-- "Any tips for staying hydrated at work?" → Y (related need)
-- "I don't like the taste of plain water" → N (taste, NOT forgetting)
-- "Best water bottle recommendations?" → N (shopping, no pain signal)
-- "Water filter vs bottled water?" → N (water quality, NOT forgetting)
+EXAMPLES (for hypothesis "SaaS founders struggling with customer churn"):
+Y examples:
+- "I'm losing 10% of customers monthly and can't figure out why they leave" → Y (firsthand, specific problem, pain)
+- "We just got feedback that users are churning because onboarding is confusing" → Y (firsthand, specific problem)
+- "How do you identify why customers cancel? I'm seeing high churn and need help" → Y (firsthand, seeking solution)
 
-When in doubt, say Y - better to include a borderline post than miss valuable insights.
+N examples:
+- "How do you slow the PM brain over holidays?" → N (different problem - work-life balance)
+- "My SaaS failed because I didn't validate before building" → N (different problem - validation)
+- "Here's how I think about SaaS metrics" → N (opinion piece, not experiencing problem)
+- "What's the best churn rate for a B2B SaaS?" → N (curiosity question, no pain)
+- "If I took over a SaaS, this is how I'd stop churn" → N (hypothetical advice, not experiencing)
+
+EXAMPLES (for hypothesis "language learning app users struggling to stay motivated"):
+Y examples:
+- "I keep starting Duolingo but quit after 2 weeks every time, so frustrated" → Y (firsthand, specific problem, pain)
+- "How do you stay consistent with language learning? I always lose motivation" → Y (firsthand, seeking solution)
+
+N examples:
+- "What language should I learn?" → N (curiosity, not motivation problem)
+- "I hate my mother for not raising me bilingual" → N (emotional, different problem)
+- "Duolingo just added a new feature" → N (news, not personal experience)
+- "Is Duolingo or Babbel better?" → N (comparison shopping, no pain signal)
 
 POSTS:
 ${postSummaries}

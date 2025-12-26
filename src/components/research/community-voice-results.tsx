@@ -85,6 +85,11 @@ export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep
       })
     : { score: 0, confidence: 'very_low' as const, reasoning: '' }
 
+  // Helper to extract question text - AI sometimes returns {purpose, question} objects instead of strings
+  const getQuestionText = (q: string | { question?: string; purpose?: string }): string => {
+    return typeof q === 'string' ? q : (q.question || String(q))
+  }
+
   const copyToClipboard = async (text: string, section: string) => {
     await navigator.clipboard.writeText(text)
     setCopiedSection(section)
@@ -98,13 +103,13 @@ export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep
     return `# Interview Guide for: ${results.hypothesis}
 
 ## Context Questions
-${contextQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+${contextQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
 
 ## Problem Exploration
-${problemQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+${problemQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
 
 ## Solution Testing
-${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
 `
   }
 
@@ -587,7 +592,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                       <span className="absolute left-0 text-muted-foreground">
                         {i + 1}.
                       </span>
-                      {q}
+                      {getQuestionText(q)}
                     </li>
                   ))}
                 </ol>
@@ -604,7 +609,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                       <span className="absolute left-0 text-muted-foreground">
                         {i + 1}.
                       </span>
-                      {q}
+                      {getQuestionText(q)}
                     </li>
                   ))}
                 </ol>
@@ -621,7 +626,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
                       <span className="absolute left-0 text-muted-foreground">
                         {i + 1}.
                       </span>
-                      {q}
+                      {getQuestionText(q)}
                     </li>
                   ))}
                 </ol>
