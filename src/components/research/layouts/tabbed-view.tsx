@@ -1,27 +1,26 @@
 'use client'
 
 /**
- * TabbedView - The original tabbed results layout.
+ * TabbedView - Research results in a tabbed interface.
  *
- * This component renders research results in a tabbed interface with:
- * - Community Voice tab
- * - Market tab
- * - Timing tab
- * - Competitors tab
- * - Verdict tab
+ * Phase 4 Redesign - New Tab Structure:
+ * - Summary: Key insights, data quality, quick actions
+ * - Evidence: Pain signals, quotes, themes (was Community)
+ * - Market: Sizing, timing, competitors (combined)
+ * - Action: Next steps, interview guide
  *
  * Uses ResearchDataContext for all data.
  */
 
 import { useResearchData } from '@/components/research/research-data-provider'
 import { CommunityVoiceResults } from '@/components/research/community-voice-results'
-import { ResearchHeroStats } from '@/components/research/research-hero-stats'
+import { InvestorMetricsHero } from '@/components/research/investor-metrics-hero'
+import { SummaryTab } from '@/components/research/summary-tab'
+import { ActionTab } from '@/components/research/action-tab'
 import { CompetitorResults } from '@/components/research/competitor-results'
 import { CompetitorRunner } from '@/components/research/competitor-runner'
-import { ViabilityVerdictDisplay } from '@/components/research/viability-verdict'
-import { VerdictHero } from '@/components/research/verdict-hero'
 import { TrustBadge } from '@/components/ui/trust-badge'
-import { CompetitorPromptModal, CompetitorPromptBanner } from '@/components/research/competitor-prompt-modal'
+import { CompetitorPromptModal } from '@/components/research/competitor-prompt-modal'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,12 +28,9 @@ import { TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ResearchTabsProvider } from '@/components/research/research-tabs-context'
 import { ControlledTabs } from '@/components/research/controlled-tabs'
 import Link from 'next/link'
-import { TrendingUp, Shield, Target, PieChart, Timer, Smartphone, MessageSquare, Sparkles } from 'lucide-react'
+import { TrendingUp, Shield, Target, PieChart, Timer, Smartphone, MessageSquare, Sparkles, BarChart3, CheckCircle2 } from 'lucide-react'
 import { SearchCoverageSection } from '@/components/research/search-coverage-section'
-import { AdjacentOpportunitiesSection } from '@/components/research/adjacent-opportunities'
-import { CustomerLanguageBank } from '@/components/research/customer-language-bank'
-import { createSourceCoverageData, extractEmotionalTerms, extractAdjacentOpportunitiesData } from '@/lib/utils/coverage-helpers'
-import { TailoredNextSteps } from '@/components/research/tailored-next-steps'
+import { createSourceCoverageData } from '@/lib/utils/coverage-helpers'
 import { AppOverview } from '@/components/research/app-overview'
 import { UserFeedback } from '@/components/research/user-feedback'
 import { Opportunities } from '@/components/research/opportunities'
@@ -56,7 +52,7 @@ export function TabbedView() {
   } = data
 
   return (
-    <ResearchTabsProvider defaultTab={isAppAnalysis ? 'app-overview' : 'community'}>
+    <ResearchTabsProvider defaultTab={isAppAnalysis ? 'app-overview' : 'summary'}>
       {/* Competitor Prompt Modal - shows when Community Voice is done but no competitors */}
       {communityVoiceResult?.data && !competitorResult?.data && !isAppAnalysis && (
         <CompetitorPromptModal
@@ -84,11 +80,24 @@ export function TabbedView() {
         />
       )}
 
-      {/* Quick Verdict - Two-axis display above tabs */}
-      {viabilityVerdict.availableDimensions > 0 && (
-        <VerdictHero
+      {/* Investor Metrics Hero - Unified display above tabs */}
+      {communityVoiceResult?.data && (
+        <InvestorMetricsHero
+          painScore={painScoreInput?.overallScore ?? 0}
+          painScoreConfidence={painScoreInput?.confidence ?? 'low'}
+          hypothesisConfidence={viabilityVerdict.hypothesisConfidence}
+          marketOpportunity={viabilityVerdict.marketOpportunity}
+          totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
+          coreSignals={filteringMetrics?.coreSignals}
+          wtpCount={communityVoiceResult.data.painSummary?.willingnessToPayCount ?? 0}
+          dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
+          relevanceRate={filteringMetrics?.postsFound ? Math.round((filteringMetrics.postsAnalyzed / filteringMetrics.postsFound) * 100) : 0}
+          recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
+          postsAnalyzed={communityVoiceResult.data.metadata?.postsAnalyzed ?? 0}
+          communitiesCount={communityVoiceResult.data.subreddits?.analyzed?.length ?? 0}
+          dataSources={communityVoiceResult.data.metadata?.dataSources ?? []}
           verdict={viabilityVerdict}
-          hypothesis={job.hypothesis}
+          redFlags={viabilityVerdict.redFlags}
           className="mb-6"
         />
       )}
@@ -128,36 +137,30 @@ export function TabbedView() {
             </TabsTrigger>
           </TabsList>
         ) : (
-          /* Regular Hypothesis Tabs */
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="community" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              <span className="hidden sm:inline">Community</span>
+          /* Regular Hypothesis Tabs - Phase 4 Redesign */
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="summary" className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">Summary</span>
               {communityVoiceResult?.data && <span className="w-2 h-2 rounded-full bg-green-500" />}
             </TabsTrigger>
-            <TabsTrigger value="market" className="flex items-center gap-2">
-              <PieChart className="h-4 w-4" />
-              <span className="hidden sm:inline">Market</span>
-              {marketData && <span className="w-2 h-2 rounded-full bg-green-500" />}
-            </TabsTrigger>
-            <TabsTrigger value="timing" className="flex items-center gap-2">
-              <Timer className="h-4 w-4" />
-              <span className="hidden sm:inline">Timing</span>
-              {timingData && <span className="w-2 h-2 rounded-full bg-green-500" />}
-            </TabsTrigger>
-            <TabsTrigger value="competitors" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              <span className="hidden sm:inline">Competitors</span>
-              {competitorResult?.data && <span className="w-2 h-2 rounded-full bg-green-500" />}
-            </TabsTrigger>
-            <TabsTrigger value="verdict" className="flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              <span className="hidden sm:inline">Verdict</span>
-              {viabilityVerdict.availableDimensions > 0 && (
-                <Badge variant="secondary" className="ml-1">
-                  {viabilityVerdict.overallScore.toFixed(1)}
+            <TabsTrigger value="evidence" className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              <span className="hidden sm:inline">Evidence</span>
+              {communityVoiceResult?.data?.painSummary?.totalSignals && (
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  {communityVoiceResult.data.painSummary.totalSignals}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="market" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Market</span>
+              {(marketData || timingData || competitorResult?.data) && <span className="w-2 h-2 rounded-full bg-green-500" />}
+            </TabsTrigger>
+            <TabsTrigger value="action" className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Action</span>
             </TabsTrigger>
           </TabsList>
         )}
@@ -223,43 +226,57 @@ export function TabbedView() {
           </>
         )}
 
-        {/* Community Voice Tab */}
-        <TabsContent value="community">
+        {/* Summary Tab - Key insights and quick verdict */}
+        <TabsContent value="summary">
+          {communityVoiceResult?.data ? (
+            <SummaryTab
+              communityVoiceResult={communityVoiceResult.data}
+              competitorResult={competitorResult?.data}
+              verdict={viabilityVerdict}
+              hypothesis={job.hypothesis}
+              marketData={marketData ?? undefined}
+              timingData={timingData ?? undefined}
+              filteringMetrics={filteringMetrics ?? undefined}
+            />
+          ) : (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Research Not Complete</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Run Community Voice analysis to get your summary and insights.
+                  </p>
+                  <Link href={`/research?hypothesis=${encodeURIComponent(job.hypothesis)}`}>
+                    <Button>
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      Start Research
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Evidence Tab - Pain signals, quotes, themes */}
+        <TabsContent value="evidence">
           {communityVoiceResult?.data ? (
             <div className="space-y-6">
-              {filteringMetrics && painScoreInput && (
-                <>
-                  <ResearchHeroStats
-                    painScore={painScoreInput.overallScore}
-                    painScoreConfidence={painScoreInput.confidence}
-                    totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
-                    coreSignals={filteringMetrics.coreSignals}
-                    wtpCount={communityVoiceResult.data.painSummary?.willingnessToPayCount ?? 0}
-                    relevanceRate={filteringMetrics.postsFound > 0 ? Math.round((filteringMetrics.postsAnalyzed / filteringMetrics.postsFound) * 100) : 0}
-                    dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
-                    recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
-                    dataSources={communityVoiceResult.data.metadata.dataSources}
-                    communitiesCount={communityVoiceResult.data.subreddits?.analyzed?.length ?? 0}
-                    communityNames={communityVoiceResult.data.subreddits?.analyzed}
-                    dateRange={communityVoiceResult.data.painSummary?.dateRange}
-                    postsAnalyzed={communityVoiceResult.data.metadata.postsAnalyzed}
-                    totalPostsFound={filteringMetrics.postsFound}
-                    commentsAnalyzed={communityVoiceResult.data.metadata.commentsAnalyzed}
-                    processingTimeMs={communityVoiceResult.data.metadata.processingTimeMs}
-                  />
-                  <DataQualityInsights
-                    diagnostics={{
-                      postsFound: filteringMetrics.postsFound,
-                      postsPassedFilter: filteringMetrics.postsAnalyzed,
-                      relevanceRate: filteringMetrics.postsFound > 0 ? Math.round((filteringMetrics.postsAnalyzed / filteringMetrics.postsFound) * 100) : 0,
-                      coreSignals: filteringMetrics.coreSignals,
-                      confidence: communityVoiceResult.data.painSummary?.dataConfidence ?? 'low',
-                      expansionAttempts: filteringMetrics.expansionAttempts,
-                      communitiesSearched: filteringMetrics.communitiesSearched || communityVoiceResult.data.subreddits?.analyzed,
-                      timeRangeMonths: filteringMetrics.timeRangeMonths,
-                    }}
-                  />
-                </>
+              {/* Data Quality Insights - detailed breakdown */}
+              {filteringMetrics && (
+                <DataQualityInsights
+                  diagnostics={{
+                    postsFound: filteringMetrics.postsFound,
+                    postsPassedFilter: filteringMetrics.postsAnalyzed,
+                    relevanceRate: filteringMetrics.postsFound > 0 ? Math.round((filteringMetrics.postsAnalyzed / filteringMetrics.postsFound) * 100) : 0,
+                    coreSignals: filteringMetrics.coreSignals,
+                    confidence: communityVoiceResult.data.painSummary?.dataConfidence ?? 'low',
+                    expansionAttempts: filteringMetrics.expansionAttempts,
+                    communitiesSearched: filteringMetrics.communitiesSearched || communityVoiceResult.data.subreddits?.analyzed,
+                    timeRangeMonths: filteringMetrics.timeRangeMonths,
+                  }}
+                />
               )}
               <CommunityVoiceResults
                 results={communityVoiceResult.data}
@@ -272,15 +289,15 @@ export function TabbedView() {
             <Card>
               <CardContent className="py-12">
                 <div className="text-center">
-                  <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Community Voice Not Run</h3>
+                  <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Evidence Not Available</h3>
                   <p className="text-muted-foreground mb-4">
-                    Run Community Voice analysis to discover pain points and market signals.
+                    Run Community Voice analysis to discover pain signals and quotes.
                   </p>
                   <Link href={`/research?hypothesis=${encodeURIComponent(job.hypothesis)}`}>
                     <Button>
                       <TrendingUp className="h-4 w-4 mr-2" />
-                      Run Community Voice
+                      Start Research
                     </Button>
                   </Link>
                 </div>
@@ -289,122 +306,90 @@ export function TabbedView() {
           )}
         </TabsContent>
 
-        {/* Market Tab */}
+        {/* Market Tab - Combines sizing, timing, and competitors */}
         <TabsContent value="market">
-          {marketData ? (
-            <MarketTabContent marketData={marketData} hypothesis={job.hypothesis} />
-          ) : (
-            <Card>
-              <CardContent className="py-12">
-                <div className="text-center">
-                  <PieChart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Market Sizing Not Available</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Market sizing is automatically generated when you run Community Voice analysis.
-                  </p>
-                  <Link href={`/research?hypothesis=${encodeURIComponent(job.hypothesis)}`}>
-                    <Button>
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      Run Community Voice
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+          <div className="space-y-8">
+            {/* Market Sizing Section */}
+            {marketData ? (
+              <MarketTabContent marketData={marketData} hypothesis={job.hypothesis} />
+            ) : (
+              <Card>
+                <CardContent className="py-8">
+                  <div className="text-center">
+                    <PieChart className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                    <h3 className="font-semibold mb-1">Market Sizing</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Automatically generated when research completes.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-        {/* Timing Tab */}
-        <TabsContent value="timing">
-          {timingData ? (
-            <TimingTabContent timingData={timingData} hypothesis={job.hypothesis} />
-          ) : (
-            <Card>
-              <CardContent className="py-12">
-                <div className="text-center">
-                  <Timer className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Timing Analysis Not Available</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Timing analysis is automatically generated when you run Community Voice analysis.
-                  </p>
-                  <Link href={`/research?hypothesis=${encodeURIComponent(job.hypothesis)}`}>
-                    <Button>
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      Run Community Voice
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+            {/* Timing Section */}
+            {timingData ? (
+              <TimingTabContent timingData={timingData} hypothesis={job.hypothesis} />
+            ) : (
+              <Card>
+                <CardContent className="py-8">
+                  <div className="text-center">
+                    <Timer className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                    <h3 className="font-semibold mb-1">Market Timing</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Tailwinds and headwinds analysis will appear here.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-        {/* Competitors Tab */}
-        <TabsContent value="competitors">
-          {competitorResult?.data ? (
-            <CompetitorResults results={competitorResult.data} />
-          ) : (
-            <CompetitorRunner jobId={job.id} hypothesis={job.hypothesis} />
-          )}
-        </TabsContent>
-
-        {/* Verdict Tab */}
-        <TabsContent value="verdict">
-          {communityVoiceResult?.data && !competitorResult?.data && (
-            <div className="mb-6">
-              <CompetitorPromptBanner
-                jobId={job.id}
-                hypothesis={job.hypothesis}
-              />
-            </div>
-          )}
-
-          {viabilityVerdict.hypothesisConfidence &&
-           (viabilityVerdict.hypothesisConfidence.level === 'low' || viabilityVerdict.hypothesisConfidence.level === 'partial') &&
-           communityVoiceResult?.data?.themeAnalysis?.themes && (
-            <AdjacentOpportunitiesSection
-              opportunities={extractAdjacentOpportunitiesData(
-                communityVoiceResult.data.themeAnalysis.themes.map(t => ({
-                  ...t,
-                  tier: (t as { tier?: 'core' | 'contextual' }).tier || 'contextual',
-                  sources: (t as { sources?: string[] }).sources,
-                })),
-                communityVoiceResult.data.themeAnalysis.keyQuotes
+            {/* Competitors Section */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Shield className="h-5 w-5 text-muted-foreground" />
+                <h2 className="text-lg font-semibold">Competition</h2>
+                {competitorResult?.data && (
+                  <Badge variant="secondary">
+                    {competitorResult.data.metadata?.competitorsAnalyzed || 0} analyzed
+                  </Badge>
+                )}
+              </div>
+              {competitorResult?.data ? (
+                <CompetitorResults results={competitorResult.data} />
+              ) : (
+                <CompetitorRunner jobId={job.id} hypothesis={job.hypothesis} />
               )}
-              originalHypothesis={job.hypothesis}
-              className="mb-6"
-            />
-          )}
+            </div>
+          </div>
+        </TabsContent>
 
-          {communityVoiceResult?.data?.themeAnalysis && (
-            <CustomerLanguageBank
-              problemPhrases={communityVoiceResult.data.themeAnalysis.customerLanguage || []}
-              emotionalLanguage={extractEmotionalTerms(communityVoiceResult.data.painSignals || [])}
-              toolsMentioned={communityVoiceResult.data.themeAnalysis.alternativesMentioned || []}
-              className="mb-6"
-            />
-          )}
-
-          {viabilityVerdict.hypothesisConfidence && (
-            <TailoredNextSteps
-              confidenceLevel={viabilityVerdict.hypothesisConfidence.level}
-              hypothesisConfidenceScore={viabilityVerdict.hypothesisConfidence.score}
-              adjacentThemes={
-                communityVoiceResult?.data?.themeAnalysis?.themes
-                  ?.filter(t => (t as { tier?: string }).tier === 'contextual')
-                  .map(t => t.name)
-                  .slice(0, 3) || []
-              }
+        {/* Action Tab - Next steps and interview guide */}
+        <TabsContent value="action">
+          {communityVoiceResult?.data ? (
+            <ActionTab
+              communityVoiceResult={communityVoiceResult.data}
+              verdict={viabilityVerdict}
               hypothesis={job.hypothesis}
-              className="mb-6"
             />
+          ) : (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <CheckCircle2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Action Plan Not Available</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Complete research to get personalized next steps.
+                  </p>
+                  <Link href={`/research?hypothesis=${encodeURIComponent(job.hypothesis)}`}>
+                    <Button>
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      Start Research
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
           )}
-
-          <ViabilityVerdictDisplay
-            verdict={viabilityVerdict}
-            hypothesis={job.hypothesis}
-            jobId={job.id}
-          />
         </TabsContent>
       </ControlledTabs>
     </ResearchTabsProvider>

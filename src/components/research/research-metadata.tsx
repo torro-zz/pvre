@@ -26,24 +26,24 @@ interface ResearchMetadataProps {
 
 const confidenceConfig = {
   high: {
-    color: 'text-green-500',
-    bg: 'bg-green-500/20',
-    label: 'HIGH',
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-500/20',
+    label: 'Strong Signal',
   },
   medium: {
-    color: 'text-blue-500',
+    color: 'text-blue-600',
     bg: 'bg-blue-500/20',
-    label: 'MEDIUM',
+    label: 'Solid Foundation',
   },
   low: {
-    color: 'text-yellow-500',
-    bg: 'bg-yellow-500/20',
-    label: 'LOW',
+    color: 'text-amber-600',
+    bg: 'bg-amber-500/20',
+    label: 'Limited Evidence',
   },
   very_low: {
-    color: 'text-red-500',
-    bg: 'bg-red-500/20',
-    label: 'VERY LOW',
+    color: 'text-orange-600',
+    bg: 'bg-orange-500/20',
+    label: 'Needs Validation',
   },
 }
 

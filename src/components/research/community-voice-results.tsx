@@ -710,7 +710,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
                 <Button
                   size="lg"
                   className="w-full md:w-auto gap-2 text-base px-6"
-                  onClick={() => setActiveTab('competitors')}
+                  onClick={() => setActiveTab('market')}
                 >
                   <Building2 className="h-5 w-5" />
                   Run Competitor Analysis

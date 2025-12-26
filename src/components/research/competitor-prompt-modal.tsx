@@ -21,21 +21,47 @@ interface CompetitorPromptModalProps {
 export function CompetitorPromptModal({ jobId, hypothesis }: CompetitorPromptModalProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [hasTriggered, setHasTriggered] = useState(false)
+  const [canTrigger, setCanTrigger] = useState(false)
   const { setActiveTab } = useResearchTabs()
   const storageKey = `competitor-prompt-dismissed-${jobId}`
+
+  // Minimum time on page before showing modal (10 seconds)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCanTrigger(true)
+    }, 10000) // 10 second minimum on page
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Alternative trigger: show after 30 seconds regardless of scroll
+  useEffect(() => {
+    const dismissed = localStorage.getItem(storageKey)
+    if (dismissed || hasTriggered) return
+
+    const timer = setTimeout(() => {
+      if (!hasTriggered && canTrigger) {
+        setIsOpen(true)
+        setHasTriggered(true)
+      }
+    }, 30000) // 30 second alternative trigger
+
+    return () => clearTimeout(timer)
+  }, [storageKey, hasTriggered, canTrigger])
 
   useEffect(() => {
     // Check if user has already dismissed this prompt
     const dismissed = localStorage.getItem(storageKey)
     if (dismissed || hasTriggered) return
 
-    // Scroll-based trigger: show modal when user scrolls past 50% of page
+    // Scroll-based trigger: show modal when user scrolls past 80% of page
     const handleScroll = () => {
+      if (!canTrigger) return // Must be on page for minimum time
+
       const scrollHeight = document.documentElement.scrollHeight - window.innerHeight
       if (scrollHeight <= 0) return // No scroll needed
 
       const scrollPercentage = window.scrollY / scrollHeight
-      if (scrollPercentage > 0.5 && !hasTriggered) {
+      if (scrollPercentage > 0.8 && !hasTriggered) {
         setIsOpen(true)
         setHasTriggered(true)
       }
@@ -43,7 +69,7 @@ export function CompetitorPromptModal({ jobId, hypothesis }: CompetitorPromptMod
 
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [storageKey, hasTriggered])
+  }, [storageKey, hasTriggered, canTrigger])
 
   const handleDismiss = () => {
     localStorage.setItem(storageKey, 'true')
@@ -52,7 +78,7 @@ export function CompetitorPromptModal({ jobId, hypothesis }: CompetitorPromptMod
 
   const handleRunCompetitors = () => {
     handleDismiss()
-    setActiveTab('competitors')
+    setActiveTab('market')
   }
 
   return (
@@ -132,7 +158,7 @@ export function CompetitorPromptBanner({ jobId, hypothesis }: CompetitorPromptBa
         size="sm"
         variant="outline"
         className="border-amber-300 hover:bg-amber-100"
-        onClick={() => setActiveTab('competitors')}
+        onClick={() => setActiveTab('market')}
       >
         <Shield className="h-4 w-4 mr-2" />
         Add Competitors

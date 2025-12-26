@@ -453,7 +453,7 @@ export function ViabilityVerdictDisplay({
                       variant="outline"
                       size="sm"
                       className="h-7 text-xs"
-                      onClick={() => setActiveTab('competitors')}
+                      onClick={() => setActiveTab('market')}
                     >
                       <Shield className="h-3 w-3 mr-1" />
                       Competitors

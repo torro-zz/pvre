@@ -15,9 +15,10 @@ import { ResearchTabsProvider } from '@/components/research/research-tabs-contex
 import { ControlledTabs } from '@/components/research/controlled-tabs'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, Clock, AlertCircle, TrendingUp, Shield, Target, PieChart, Timer } from 'lucide-react'
-import { PDFDownloadButton } from '@/components/research/pdf-download-button'
+import { ExportDropdown } from '@/components/research/export-dropdown'
 import { ReportProblem } from '@/components/research/report-problem'
 import { AskAnythingSidebar } from '@/components/research/ask-anything-sidebar'
+import { CollapsibleText } from '@/components/ui/collapsible-section'
 import { StatusPoller } from '@/components/research/status-poller'
 import { ResearchTrigger } from '@/components/research/research-trigger'
 import { PartialResultsContainer } from '@/components/research/partial-results-container'
@@ -35,8 +36,6 @@ import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
 import { fetchResearchData, formatDate } from '@/lib/research/fetch-research-data'
 import { ResearchDataProvider } from '@/components/research/research-data-provider'
 import { ResultsLayout } from '@/components/research/layouts'
-import { LayoutToggle } from '@/components/research/layout-toggle'
-import { LayoutPreferenceWrapper } from '@/components/research/layout-preference-wrapper'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,7 +84,6 @@ export default async function ResearchDetailPage({
   const result = communityVoiceResult
 
   return (
-    <LayoutPreferenceWrapper>
     <div className="flex gap-6 max-w-7xl mx-auto">
       {/* Main Content */}
       <div className={showSidebar ? "flex-1 min-w-0" : "max-w-4xl mx-auto w-full"}>
@@ -114,10 +112,8 @@ export default async function ResearchDetailPage({
                   </div>
                 </div>
               ) : (
-                <h1 className="text-xl font-semibold leading-snug line-clamp-2" title={researchJob.hypothesis}>
-                  {researchJob.hypothesis.length > 120
-                    ? researchJob.hypothesis.slice(0, 120) + '...'
-                    : researchJob.hypothesis}
+                <h1 className="text-xl font-semibold leading-snug">
+                  <CollapsibleText text={researchJob.hypothesis} maxLength={100} />
                 </h1>
               )}
               <div className="flex items-center gap-4 text-sm text-muted-foreground mt-3">
@@ -134,12 +130,9 @@ export default async function ResearchDetailPage({
               </div>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              {/* Layout Toggle - only show for completed results */}
-              {researchJob.status === 'completed' && (communityVoiceResult?.data || competitorResult?.data) && (
-                <LayoutToggle />
-              )}
               {(communityVoiceResult?.data || competitorResult?.data) && (
-                <PDFDownloadButton
+                <ExportDropdown
+                  jobId={id}
                   reportData={{
                     hypothesis: researchJob.hypothesis,
                     createdAt: formatDate(researchJob.created_at),
@@ -414,6 +407,5 @@ export default async function ResearchDetailPage({
         </div>
       )}
     </div>
-    </LayoutPreferenceWrapper>
   )
 }

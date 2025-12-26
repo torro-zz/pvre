@@ -6,8 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useMemo } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { CreditCard, User as UserIcon, Settings, LogOut, ChevronDown, Shield } from 'lucide-react'
+import { CreditCard, User as UserIcon, Settings, LogOut, ChevronDown, Shield, Menu } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { useSidebar } from '@/contexts/sidebar-context'
 
 // Check if user is admin (client-side)
 function isAdminEmail(email: string | null | undefined): boolean {
@@ -22,6 +23,14 @@ export function Header() {
   const [mounted, setMounted] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const router = useRouter()
+
+  // Sidebar context for mobile hamburger - wrapped in try/catch for pages without sidebar
+  let sidebarContext: { setMobileOpen: (open: boolean) => void } | null = null
+  try {
+    sidebarContext = useSidebar()
+  } catch {
+    // Not in sidebar context (e.g., landing page)
+  }
 
   const supabase = useMemo(() => {
     if (typeof window !== 'undefined') {
@@ -94,17 +103,30 @@ export function Header() {
 
   return (
     <header className="border-b bg-background">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href="/" className="text-xl font-bold">
-          PVRE
-        </Link>
+      <div className="flex h-16 items-center justify-between px-4">
+        {/* Left side - Hamburger menu for mobile */}
+        <div className="flex items-center gap-3">
+          {sidebarContext && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => sidebarContext?.setMobileOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Open menu</span>
+            </Button>
+          )}
+          {/* Show logo only on mobile (sidebar has logo on desktop) */}
+          <Link href="/dashboard" className="text-xl font-bold md:hidden">
+            PVRE
+          </Link>
+        </div>
+
         <nav className="flex items-center gap-4">
           <ThemeToggle />
           {mounted && user ? (
             <>
-              <Link href="/dashboard">
-                <Button variant="ghost">Dashboard</Button>
-              </Link>
 
               {/* Credits Badge with warning states */}
               <Link

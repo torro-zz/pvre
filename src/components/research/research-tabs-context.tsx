@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, ReactNode, useCallback } from 'react'
 
-type TabValue = 'community' | 'market' | 'timing' | 'competitors' | 'verdict' | 'app-overview' | 'user-feedback' | 'opportunities'
+type TabValue = 'summary' | 'evidence' | 'market' | 'action' | 'community' | 'app-overview' | 'user-feedback' | 'opportunities' | 'verdict'
 type CommunitySubTab = 'themes' | 'signals' | 'quotes' | 'interview'
 
 interface ResearchTabsContextType {
@@ -27,7 +27,7 @@ interface ResearchTabsProviderProps {
   defaultTab?: TabValue
 }
 
-export function ResearchTabsProvider({ children, defaultTab = 'community' }: ResearchTabsProviderProps) {
+export function ResearchTabsProvider({ children, defaultTab = 'summary' }: ResearchTabsProviderProps) {
   const [activeTab, setActiveTabState] = useState<TabValue>(defaultTab)
   const [communitySubTab, setCommunitySubTabState] = useState<CommunitySubTab>('themes')
 

@@ -250,3 +250,77 @@ export async function PATCH(request: NextRequest) {
     )
   }
 }
+
+// DELETE - Delete a research job and its associated results
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const searchParams = request.nextUrl.searchParams
+    const jobId = searchParams.get('id')
+
+    if (!jobId) {
+      return NextResponse.json(
+        { error: 'Job ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // First verify the user owns this job
+    const { data: job, error: fetchError } = await supabase
+      .from('research_jobs')
+      .select('id')
+      .eq('id', jobId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (fetchError || !job) {
+      return NextResponse.json(
+        { error: 'Job not found or unauthorized' },
+        { status: 404 }
+      )
+    }
+
+    // Delete associated research results first (cascade delete)
+    const { error: resultsDeleteError } = await supabase
+      .from('research_results')
+      .delete()
+      .eq('job_id', jobId)
+
+    if (resultsDeleteError) {
+      console.error('Failed to delete research results:', resultsDeleteError)
+      // Continue anyway - the results table might have RLS that blocks this
+    }
+
+    // Delete the job
+    const { error: deleteError } = await supabase
+      .from('research_jobs')
+      .delete()
+      .eq('id', jobId)
+      .eq('user_id', user.id)
+
+    if (deleteError) {
+      console.error('Failed to delete research job:', deleteError)
+      return NextResponse.json(
+        { error: 'Failed to delete research job' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Research jobs DELETE error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
