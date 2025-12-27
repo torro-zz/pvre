@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -8,7 +8,7 @@ import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Clock, ArrowRight, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, BarChart3, MoreVertical, Copy, Trash2, ChevronDown, ChevronUp, FolderInput, FolderPlus } from 'lucide-react'
+import { Clock, ArrowRight, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, BarChart3, Copy, Trash2, ChevronDown, ChevronUp, FolderInput, FolderPlus } from 'lucide-react'
 import { FolderSelector, FolderDialog } from '@/components/folders'
 import { StepStatusMap, DEFAULT_STEP_STATUS } from '@/types/database'
 import { cn } from '@/lib/utils'
@@ -197,171 +197,319 @@ function MiniMetrics({ painScore, marketScore, timingScore }: {
   )
 }
 
-// Card context menu (kebab menu) - uses Portal to escape stacking context
-function CardMenu({
-  jobId,
-  hypothesis,
-  folderId,
+// Swipe action button widths
+const ACTION_BUTTON_WIDTH = 64 // Each action button width in pixels
+const TOTAL_ACTIONS_WIDTH = ACTION_BUTTON_WIDTH * 3 // 3 buttons: Duplicate, Move, Delete
+const SWIPE_THRESHOLD = 50 // Minimum swipe distance to trigger reveal
+
+// Swipeable job card with iOS-style action reveal
+function SwipeableJobCard({
+  job,
+  index,
+  isActionsOpen,
+  onToggleActions,
+  onCloseActions,
   onDelete,
   onMoveToFolder,
+  compareMode,
+  isComparable,
+  isSelected,
+  onToggleSelect,
+  jobFolderId,
+  children,
 }: {
-  jobId: string
-  hypothesis: string
-  folderId: string | null
+  job: ResearchJobWithVerdict
+  index: number
+  isActionsOpen: boolean
+  onToggleActions: () => void
+  onCloseActions: () => void
   onDelete: (id: string) => void
   onMoveToFolder: (jobId: string, folderId: string | null) => void
+  compareMode: boolean
+  isComparable: boolean
+  isSelected: boolean
+  onToggleSelect: () => void
+  jobFolderId: string | null
+  children: React.ReactNode
 }) {
-  const [isOpen, setIsOpen] = useState(false)
+  const router = useRouter()
+  const [translateX, setTranslateX] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showFolderSelector, setShowFolderSelector] = useState(false)
   const [showCreateFolder, setShowCreateFolder] = useState(false)
-  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 })
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const router = useRouter()
 
-  // Calculate menu position when opened
+  const touchStartX = useRef(0)
+  const touchStartY = useRef(0)
+  const startTranslateX = useRef(0)
+  const isHorizontalSwipe = useRef<boolean | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  // Update translateX when actions state changes externally
   useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect()
-      setMenuPosition({
-        top: rect.bottom + 4,
-        right: window.innerWidth - rect.right,
-      })
+    if (!isActionsOpen && !isDragging) {
+      setTranslateX(0)
+    } else if (isActionsOpen && !isDragging) {
+      setTranslateX(-TOTAL_ACTIONS_WIDTH)
     }
-  }, [isOpen])
+  }, [isActionsOpen, isDragging])
 
   // Close on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsOpen(false)
+      if (e.key === 'Escape' && isActionsOpen) {
+        onCloseActions()
         setShowFolderSelector(false)
       }
     }
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape)
-      return () => document.removeEventListener('keydown', handleEscape)
-    }
-  }, [isOpen])
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isActionsOpen, onCloseActions])
 
-  const handleDuplicate = () => {
-    router.push(`/research?hypothesis=${encodeURIComponent(hypothesis)}`)
-    setIsOpen(false)
+  // Touch handlers for swipe
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (compareMode) return
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+    startTranslateX.current = translateX
+    isHorizontalSwipe.current = null
+    setIsDragging(true)
+  }, [compareMode, translateX])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (compareMode || !isDragging) return
+
+    const currentX = e.touches[0].clientX
+    const currentY = e.touches[0].clientY
+    const diffX = touchStartX.current - currentX
+    const diffY = touchStartY.current - currentY
+
+    // Determine swipe direction on first significant movement
+    if (isHorizontalSwipe.current === null) {
+      if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
+        isHorizontalSwipe.current = Math.abs(diffX) > Math.abs(diffY)
+      }
+    }
+
+    // Only handle horizontal swipes
+    if (isHorizontalSwipe.current) {
+      e.preventDefault()
+      let newTranslate = startTranslateX.current - diffX
+
+      // Clamp the translation
+      newTranslate = Math.max(-TOTAL_ACTIONS_WIDTH, Math.min(0, newTranslate))
+
+      setTranslateX(newTranslate)
+    }
+  }, [compareMode, isDragging])
+
+  const handleTouchEnd = useCallback(() => {
+    if (compareMode || !isDragging) return
+    setIsDragging(false)
+    isHorizontalSwipe.current = null
+
+    // Snap to open or closed based on position and velocity
+    const shouldOpen = translateX < -SWIPE_THRESHOLD
+
+    if (shouldOpen && !isActionsOpen) {
+      onToggleActions()
+    } else if (!shouldOpen && isActionsOpen) {
+      onCloseActions()
+    } else {
+      // Snap back to current state
+      setTranslateX(isActionsOpen ? -TOTAL_ACTIONS_WIDTH : 0)
+    }
+  }, [compareMode, isDragging, translateX, isActionsOpen, onToggleActions, onCloseActions])
+
+  // Mouse handlers for desktop drag support
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (compareMode) return
+    // Only start drag on the card content, not on buttons/links
+    if ((e.target as HTMLElement).closest('a, button')) return
+
+    touchStartX.current = e.clientX
+    touchStartY.current = e.clientY
+    startTranslateX.current = translateX
+    isHorizontalSwipe.current = null
+    setIsDragging(true)
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const diffX = touchStartX.current - moveEvent.clientX
+      const diffY = touchStartY.current - moveEvent.clientY
+
+      if (isHorizontalSwipe.current === null) {
+        if (Math.abs(diffX) > 5 || Math.abs(diffY) > 5) {
+          isHorizontalSwipe.current = Math.abs(diffX) > Math.abs(diffY)
+        }
+      }
+
+      if (isHorizontalSwipe.current) {
+        let newTranslate = startTranslateX.current - diffX
+        newTranslate = Math.max(-TOTAL_ACTIONS_WIDTH, Math.min(0, newTranslate))
+        setTranslateX(newTranslate)
+      }
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+      isHorizontalSwipe.current = null
+
+      const shouldOpen = translateX < -SWIPE_THRESHOLD
+
+      if (shouldOpen && !isActionsOpen) {
+        onToggleActions()
+      } else if (!shouldOpen && isActionsOpen) {
+        onCloseActions()
+      } else {
+        setTranslateX(isActionsOpen ? -TOTAL_ACTIONS_WIDTH : 0)
+      }
+
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [compareMode, translateX, isActionsOpen, onToggleActions, onCloseActions])
+
+  // Action handlers
+  const handleDuplicate = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    router.push(`/research?hypothesis=${encodeURIComponent(job.hypothesis)}`)
+    onCloseActions()
   }
 
-  const handleDelete = () => {
+  const handleMoveClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setShowFolderSelector(true)
+  }
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
     setShowDeleteConfirm(true)
-    setIsOpen(false)
   }
 
   const confirmDelete = () => {
-    onDelete(jobId)
+    onDelete(job.id)
     setShowDeleteConfirm(false)
+    onCloseActions()
   }
 
   const handleFolderSelect = (newFolderId: string | null) => {
-    onMoveToFolder(jobId, newFolderId)
+    onMoveToFolder(job.id, newFolderId)
     setShowFolderSelector(false)
-    setIsOpen(false)
+    onCloseActions()
   }
 
   const handleCreateFolderSuccess = (createdFolder?: { id: string; name: string }) => {
     setShowCreateFolder(false)
-
-    // Auto-move this research into the newly created folder
     if (createdFolder) {
-      onMoveToFolder(jobId, createdFolder.id)
+      onMoveToFolder(job.id, createdFolder.id)
     }
-
-    // Small delay to ensure DB writes complete, then refresh folder lists
     setTimeout(() => {
       window.dispatchEvent(new Event('folders-updated'))
     }, 200)
-  }
-
-  const closeAll = () => {
-    setIsOpen(false)
-    setShowFolderSelector(false)
+    onCloseActions()
   }
 
   return (
     <>
-      <button
-        ref={buttonRef}
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setIsOpen(!isOpen)
-          setShowFolderSelector(false)
-        }}
-        className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-        title="More options"
+      <motion.div
+        ref={cardRef}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: index * 0.05 }}
+        className={cn(
+          'relative overflow-hidden rounded-xl border bg-card shadow-sm',
+          'transition-shadow duration-300 ease-out',
+          isSelected
+            ? 'bg-primary/5 border-primary/50 shadow-md'
+            : 'hover:shadow-md hover:border-border/80',
+          compareMode && !isComparable && 'opacity-50'
+        )}
       >
-        <MoreVertical className="h-4 w-4" />
-      </button>
-
-      {/* Menu rendered in portal to escape stacking context */}
-      {isOpen && typeof document !== 'undefined' && createPortal(
-        <>
-          {/* Backdrop - click to close */}
-          <div
-            className="fixed inset-0 z-[100]"
-            onClick={closeAll}
-          />
-          {/* Main dropdown menu */}
-          <div
-            className="fixed w-48 bg-popover rounded-lg shadow-xl border py-1 z-[101]"
-            style={{ top: menuPosition.top, right: menuPosition.right }}
+        {/* Action buttons background layer */}
+        <div className="absolute inset-y-0 right-0 flex">
+          <button
+            onClick={handleDuplicate}
+            className="w-16 flex flex-col items-center justify-center gap-1 bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+            title="Duplicate"
           >
+            <Copy className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Duplicate</span>
+          </button>
+          <button
+            onClick={handleMoveClick}
+            className="w-16 flex flex-col items-center justify-center gap-1 bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+            title="Move to Folder"
+          >
+            <FolderInput className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Move</span>
+          </button>
+          <button
+            onClick={handleDeleteClick}
+            className="w-16 flex flex-col items-center justify-center gap-1 bg-red-500 text-white hover:bg-red-600 transition-colors"
+            title="Delete"
+          >
+            <Trash2 className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Delete</span>
+          </button>
+        </div>
+
+        {/* Card content layer that slides */}
+        <div
+          className={cn(
+            'relative flex items-start sm:items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-card',
+            isDragging ? '' : 'transition-transform duration-300 ease-out',
+            !compareMode && 'cursor-grab active:cursor-grabbing'
+          )}
+          style={{ transform: `translateX(${translateX}px)` }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onMouseDown={handleMouseDown}
+        >
+          {/* Checkbox (only in compare mode) */}
+          {compareMode && (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onToggleSelect}
+              disabled={!isComparable || (!isSelected && false)} // removed size limit check for simplicity
+              className="shrink-0 mt-1 sm:mt-0"
+            />
+          )}
+
+          {children}
+        </div>
+      </motion.div>
+
+      {/* Folder selector modal */}
+      {showFolderSelector && typeof document !== 'undefined' && createPortal(
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-[200]"
+            onClick={() => setShowFolderSelector(false)}
+          />
+          <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background rounded-xl shadow-xl border p-4 z-[201] w-full max-w-sm max-h-[80vh] overflow-y-auto">
+            <h3 className="font-semibold text-lg mb-3">Move to Folder</h3>
+            <FolderSelector
+              currentFolderId={jobFolderId}
+              onSelect={handleFolderSelect}
+              onClose={() => setShowFolderSelector(false)}
+            />
+            <hr className="my-2 border-border" />
             <button
-              onClick={handleDuplicate}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-muted w-full text-left"
+              onClick={() => {
+                setShowFolderSelector(false)
+                setShowCreateFolder(true)
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-muted w-full text-left rounded-md"
             >
-              <Copy className="h-4 w-4" />
-              Duplicate
-            </button>
-
-            {/* Move to Folder with inline submenu */}
-            <div className="relative">
-              <button
-                onClick={() => setShowFolderSelector(!showFolderSelector)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-muted w-full text-left"
-              >
-                <FolderInput className="h-4 w-4" />
-                <span className="flex-1">Move to Folder</span>
-                <ChevronDown className={cn("h-3 w-3 transition-transform", showFolderSelector && "rotate-180")} />
-              </button>
-
-              {/* Folder selector as expandable submenu */}
-              {showFolderSelector && (
-                <div className="border-t border-b bg-muted/30">
-                  <FolderSelector
-                    currentFolderId={folderId}
-                    onSelect={handleFolderSelect}
-                    onClose={() => setShowFolderSelector(false)}
-                  />
-                  <hr className="border-border" />
-                  <button
-                    onClick={() => {
-                      setShowCreateFolder(true)
-                      setIsOpen(false)
-                    }}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-muted w-full text-left"
-                  >
-                    <FolderPlus className="h-4 w-4" />
-                    Create New Folder
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <hr className="my-1 border-border" />
-            <button
-              onClick={handleDelete}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 w-full text-left"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
+              <FolderPlus className="h-4 w-4" />
+              Create New Folder
             </button>
           </div>
         </>,
@@ -423,6 +571,8 @@ export function ResearchJobList({ jobs }: ResearchJobListProps) {
   const [deletedJobs, setDeletedJobs] = useState<Set<string>>(new Set())
   const [showAll, setShowAll] = useState(false)
   const [jobFolders, setJobFolders] = useState<Map<string, string | null>>(new Map())
+  // Track which job has swipe actions open (only one at a time)
+  const [openActionsJobId, setOpenActionsJobId] = useState<string | null>(null)
 
   // Handle moving job to folder
   const handleMoveToFolder = async (jobId: string, folderId: string | null) => {
@@ -585,31 +735,21 @@ export function ResearchJobList({ jobs }: ResearchJobListProps) {
         }
 
         return (
-          <motion.div
+          <SwipeableJobCard
             key={job.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.05 }}
-            whileHover={!compareMode ? { y: -2 } : undefined}
-            className={cn(
-              'flex items-start sm:items-center gap-2 sm:gap-3 p-3 sm:p-4 rounded-xl border bg-card shadow-sm',
-              'transition-all duration-300 ease-out',
-              isSelected
-                ? 'bg-primary/5 border-primary/50 shadow-md'
-                : 'hover:shadow-md hover:border-border/80',
-              compareMode && !isComparable && 'opacity-50'
-            )}
+            job={job}
+            index={index}
+            isActionsOpen={openActionsJobId === job.id}
+            onToggleActions={() => setOpenActionsJobId(openActionsJobId === job.id ? null : job.id)}
+            onCloseActions={() => setOpenActionsJobId(null)}
+            onDelete={handleDeleteJob}
+            onMoveToFolder={handleMoveToFolder}
+            compareMode={compareMode}
+            isComparable={isComparable}
+            isSelected={isSelected}
+            onToggleSelect={() => toggleJob(job.id)}
+            jobFolderId={jobFolders.get(job.id) ?? job.folder_id}
           >
-            {/* Checkbox (only in compare mode) */}
-            {compareMode && (
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={() => toggleJob(job.id)}
-                disabled={!isComparable || (!isSelected && selectedJobs.size >= 4)}
-                className="shrink-0 mt-1 sm:mt-0"
-              />
-            )}
-
             {/* Verdict dot for completed jobs */}
             {job.verdictData && (
               <div className="shrink-0">
@@ -666,18 +806,7 @@ export function ResearchJobList({ jobs }: ResearchJobListProps) {
                 )}
               </div>
             </Link>
-
-            {/* Context menu (only when not in compare mode) */}
-            {!compareMode && (
-              <CardMenu
-                jobId={job.id}
-                hypothesis={job.hypothesis}
-                folderId={jobFolders.get(job.id) ?? job.folder_id}
-                onDelete={handleDeleteJob}
-                onMoveToFolder={handleMoveToFolder}
-              />
-            )}
-          </motion.div>
+          </SwipeableJobCard>
         )
       })}
 
