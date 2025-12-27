@@ -402,33 +402,29 @@ function JobCard({
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute inset-y-0 right-0 left-0 sm:left-1/3 flex items-stretch bg-gradient-to-r from-background/95 via-background to-background"
+              className="absolute inset-y-0 right-0 left-0 sm:left-auto sm:w-auto flex items-stretch bg-background border-l shadow-lg"
             >
-              {/* Close button / backdrop on left side */}
-              <button
-                onClick={onCloseActions}
-                className="flex-1 sm:w-12 flex items-center justify-center hover:bg-muted/50 transition-colors border-r"
-                title="Close"
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-
-              {/* Action buttons */}
+              {/* Action buttons - compact */}
               <button
                 onClick={handleMoveClick}
-                className="w-20 sm:w-24 flex flex-col items-center justify-center gap-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors border-r"
+                className="w-10 sm:w-11 flex items-center justify-center text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/20 transition-colors"
                 title="Move to Folder"
               >
-                <FolderInput className="h-5 w-5" />
-                <span className="text-[10px] sm:text-xs font-medium">Move</span>
+                <FolderInput className="h-4 w-4" />
               </button>
               <button
                 onClick={handleDeleteClick}
-                className="w-20 sm:w-24 flex flex-col items-center justify-center gap-1 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                className="w-10 sm:w-11 flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/20 transition-colors"
                 title="Delete"
               >
-                <Trash2 className="h-5 w-5" />
-                <span className="text-[10px] sm:text-xs font-medium">Delete</span>
+                <Trash2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={onCloseActions}
+                className="w-10 sm:w-11 flex items-center justify-center hover:bg-muted/50 transition-colors"
+                title="Close"
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
               </button>
             </motion.div>
           )}
