@@ -1,89 +1,95 @@
-# Resume Point - December 27, 2025
+# Resume Point - December 27, 2025 (Evening)
 
-## Current Status & Notes
+## Next Session: Evidence Tab - Themes Sub-tab Fixes
 
-### Landing Page Copy - NEEDS REWORK
-The landing page copy changes were a low-effort first attempt. The current changes (adding "or analyze app store gaps" to the hero, etc.) are **not satisfactory** and need to be discussed with Claude for a proper rewrite. The messaging should be more compelling and better integrated, not just tacked on.
+**IMPORTANT:** Use FRONTEND-DESIGN SKILL for all UI improvements below.
 
-### Research Page Layout - STILL INCOMPLETE
-The "Redesign Research Page Layout" is **not fully done**. While we made Sources Covered collapsible and InvestorMetricsHero more compact, the core request was NOT addressed:
-- **Need:** A floating/adaptable grid layout for research information
-- **Current state:** Everything still displays in a single vertical column
-- **Goal:** Information blocks should be arranged side-by-side where appropriate, using space more efficiently
+### P1 - High Priority (Do First)
 
-This requires a more significant redesign of the research results layout, not just compacting existing components.
+| # | Fix | Problem | Solution |
+|---|-----|---------|----------|
+| 1 | Consolidate Theme Card Badges | 3 badges per card is noisy: `[Most resonance] [high] 6 mentions` | Reduce to 2 max. Use "High/Medium/Low" labels |
+| 2 | Fix Inconsistent Badge Labels | "Most resonance" vs "Med resonance" inconsistent | Use "High/Medium/Low" consistently |
+| 3 | Make Sub-tabs Sticky | Sub-tabs hidden below Executive Summary | Add `position: sticky; top: 0; z-index: 10;` |
+| 4 | Rename "Alternatives Mentioned" | Lists platforms (Product Hunt) not alternatives | Rename to "Platforms Mentioned" |
+
+### P2 - Polish (After P1)
+
+| # | Fix | Problem | Solution |
+|---|-----|---------|----------|
+| 5 | Copy Button for Customer Language | Phrases hard to copy for marketing | Add "Copy All" button + toast |
+| 6 | Collapsible Theme Cards | 4 expanded cards = lots of scrolling | Card 1 expanded, cards 2-4 collapsed by default |
+| 7 | Strategic Recommendations Readability | Explanation text too small (12px) | Increase to 14px, better contrast |
+| 8 | Verify Mention Count Math | 6+4+3+3=16 but 15 signals total | Add note about overlap OR fix counting |
+
+### Key Files to Modify
+
+```
+src/components/research/evidence-tab.tsx     - Sub-tabs, theme cards
+src/components/research/theme-card.tsx       - Badge consolidation
+src/components/research/summary-tab.tsx      - Strategic Recommendations
+```
 
 ---
 
-## What Was Just Completed
+## What Was Just Completed (Dec 27 Late Evening)
 
-### Session 2 (Dec 27 Late Afternoon)
+### Session 4: Summary Screen Polish - Round 2
 
-1. **Decluttered Dashboard**
-   - Removed "Completed" and "Success Rate" stat cards
-   - Dashboard now shows only "Total Research" and "This Week" (2 stats)
+1. **Interpretive Labels on Investor Metrics** (DONE)
+   - Added labels: Strong/Moderate/Low/Minimal for Pain
+   - Added labels: Rising/Stable/Uncertain/Declining for Timing
+   - Added labels: Strong Signal/Solid Foundation/Mixed Signal/Needs Rethinking for Verdict
+   - Added "found" label for Signals, "💰 found" for WTP
 
-2. **Updated Landing Page Content**
-   - Added app gap analysis to hero subheadline
-   - Updated "How it works" steps to mention both hypothesis validation and app analysis
-   - Added "App Gap Analysis" feature card with Smartphone icon
-   - Updated Community Voice description to include app store reviews
+2. **Made /10 Suffix Larger** (DONE)
+   - Changed from `text-xs` to `text-sm font-medium`
+   - Color-coded to match the score
 
-3. **Redesigned Research Page Layout**
-   - Renamed "What We Searched" to "Sources Covered"
-   - Made Sources Covered collapsible (collapsed by default, compact single-line summary)
-   - Made InvestorMetricsHero more compact by removing large circular score gauges
-   - Quick Metrics Row now serves as primary score display
+3. **Limited Data Banner → "Edit & Re-run"** (DONE)
+   - Changed button from "View Details" to "Edit & Re-run"
+   - Button links to `/research?hypothesis=...`
 
-### Session 1 (Dec 27 Afternoon)
+4. **Hypothesis Pre-fill on Research Page** (DONE)
+   - Research page reads `?hypothesis=` query parameter
+   - Pre-fills the ConversationalInput with the hypothesis
+   - Added Suspense wrapper for useSearchParams
 
-1. **Fixed MCP Configuration** - Removed playwright, fixed browser-tools package name
-2. **Fixed Collapsible Hypothesis Bug** - CollapsibleText applied to structured hypothesis
-3. **Improved Export Functionality** - 1-page Executive Summary PDF + Interview Guide PDF
-4. **Implemented Chat Side Drawer** - Floating button, backdrop blur, premium UI
+### Commit: `6e6c528`
+```
+feat: Add interpretive labels to metrics + Edit & Re-run pre-fill
+```
+
+---
+
+## Previous Sessions (Dec 27)
+
+### Session 3 (Evening)
+- Research Page Floating Grid Layout
+- Landing Page Copy Rewrite
+
+### Session 2 (Late Afternoon)
+- Decluttered Dashboard
+- Redesigned Research Page Layout (compact metrics, collapsible sources)
+
+### Session 1 (Afternoon)
+- Fixed MCP Configuration
+- Fixed Collapsible Hypothesis Bug
+- Improved Export Functionality (PDFs)
+- Implemented Chat Side Drawer
+
+---
 
 ## Build & Test Status
+
 - **Build:** Passing
-- **Dev Server:** Running on :3000
+- **Last Commit:** `6e6c528` - feat: Add interpretive labels to metrics + Edit & Re-run pre-fill
+- **Branch:** main
 
-## CEO Review Summary
-
-**Completed (11 items):**
-- ✅ Dashboard kebab menu overlay issue
-- ✅ Remove 'P' icon from collapsible panel
-- ✅ Reposition 'Start New Research' button
-- ✅ Display All Research on Dashboard
-- ✅ Add Folder Organization for Research
-- ✅ Remove Gimmicky Star Icons
-- ✅ Duplicate Kebab Menu Item
-- ✅ Fix Collapsible Hypothesis Feature
-- ✅ Improve Share and Export Functionality
-- ✅ Make "Chat with your data" Window Collapsible
-- ✅ Declutter Dashboard
-
-**Partial / Needs Rework (2 items):**
-- ⚠️ Update Landing Page Content — Copy is low-effort, needs proper rewrite
-- ⚠️ Redesign Research Page Layout — Compacted some components but still single column, need floating grid
-
-**Remaining (4 items):**
-| Priority | Issue | Notes |
-|----------|-------|-------|
-| MED | Landing Page Copy | Low-effort attempt, discuss with Claude |
-| MED | Research Grid Layout | Need floating/adaptable grid, not single column |
-| LOW | Connect Help to Canny | External service configuration needed |
-| LOW | Clarify Purpose of API Keys | Document or remove feature |
-| LOW | Investigate Two-Panel Section | Need clarification on what this refers to |
-| P1 | Direct API Calls Don't Persist | From Known Issues |
-
-## Key Files Modified (Session 2)
-| File | Change |
-|------|--------|
-| `src/components/dashboard/quick-stats.tsx` | Removed Completed/Success Rate stats |
-| `src/app/page.tsx` | Added app gap analysis, new feature card |
-| `src/components/research/search-coverage-section.tsx` | Made collapsible, renamed to Sources Covered |
-| `src/components/research/investor-metrics-hero.tsx` | Removed large circular gauges |
+---
 
 ## Quick Start Commands
+
 ```bash
 cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine PVRE"
 npm run dev
@@ -93,4 +99,12 @@ open http://localhost:3000/dashboard
 
 ---
 
-*Last updated: December 27, 2025*
+## Reference Documents
+
+- **Full Issue List:** `docs/KNOWN_ISSUES.md` (Section: "12-27: Evidence Tab - Themes Sub-tab Fixes")
+- **Original Instructions:** `/Users/julientorriani/Downloads/CEO Review Instructions.md`
+- **Design Guidance:** Use FRONTEND-DESIGN SKILL before implementing visual changes
+
+---
+
+*Last updated: December 27, 2025 (Late Evening)*

@@ -4,6 +4,67 @@ Last updated: December 27, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
+# 12-27: Evidence Tab - Themes Sub-tab Fixes
+
+**Note:** Use FRONTEND-DESIGN SKILL for all UI improvements below.
+
+## P1 - High Priority
+
+### Fix 1: Consolidate Theme Card Badges
+**Status:** Open
+**Screen:** Evidence Tab → Themes Sub-tab
+**Problem:** Each theme card has 3 separate indicators which is noisy: `[Most resonance] [high] 6 mentions`
+**Solution:** Reduce to 2 indicators max. Use consistent labels: "High" / "Medium" / "Low" (not "Most resonance" / "Med resonance"). Remove the duplicate severity badge since resonance already conveys this.
+
+### Fix 2: Fix Inconsistent Badge Labels
+**Status:** Open
+**Screen:** Evidence Tab → Themes Sub-tab
+**Problem:** Badge labels are inconsistent: "Most resonance" (superlative) vs "Med resonance" (abbreviated)
+**Solution:** Use consistent scale: "High resonance" / "Medium resonance" / "Low resonance" — or shorter: "High" / "Medium" / "Low"
+
+### Fix 3: Make Sub-tabs Sticky or More Visible
+**Status:** Open
+**Screen:** Evidence Tab
+**Problem:** User must scroll past Executive Summary, Key Opportunity, and Strategic Recommendations before seeing sub-tabs (Themes, Pain Signals, Key Quotes, Interview Guide). Hidden below fold.
+**Solution Options:**
+- **Option A (Recommended):** Make sub-tab row sticky with `position: sticky; top: 0; z-index: 10;`
+- **Option B:** Move sub-tabs to top of Evidence section (before Executive Summary)
+- **Option C:** Add "Overview" sub-tab containing Executive Summary + Recommendations, separate from evidence tabs
+
+### Fix 4: Rename "Alternatives Mentioned"
+**Status:** Open
+**Screen:** Evidence Tab → Themes Sub-tab
+**Problem:** Section shows "Alternatives Mentioned" but lists platforms (Product Hunt, BetaList) not actual product alternatives. Confusing.
+**Solution:** Rename to "Platforms Mentioned" or "Communities & Platforms Referenced". If some items ARE actual products, split into "Platforms Mentioned" and "Tools Mentioned".
+
+## P2 - Polish
+
+### Fix 5: Add Copy Button to Customer Language
+**Status:** Open
+**Screen:** Evidence Tab → Themes Sub-tab
+**Problem:** Customer Language phrases in pill format are hard to copy for marketing use.
+**Solution:** Add "Copy All" button that copies all phrases as bulleted list. Show toast "6 phrases copied to clipboard". Optional: hover copy icon on each phrase.
+
+### Fix 6: Make Theme Cards Collapsible
+**Status:** Open
+**Screen:** Evidence Tab → Themes Sub-tab
+**Problem:** 4 fully-expanded theme cards = lots of scrolling. User may just want to scan themes.
+**Solution:** Make cards collapsible. Card 1 expanded by default (most important), cards 2-4 collapsed. Click header to toggle. Add "Expand All" / "Collapse All" link at top.
+
+### Fix 7: Increase Strategic Recommendations Readability
+**Status:** Open
+**Screen:** Evidence Tab
+**Problem:** Explanation text under each Strategic Recommendation is small (12px) and low contrast gray.
+**Solution:** Increase font size to 14px, improve contrast, add more line height. Or make expandable with "Why this matters" detail.
+
+### Fix 8: Verify Mention Count Math
+**Status:** Open
+**Screen:** Evidence Tab → Themes Sub-tab
+**Problem:** Theme mentions (6+4+3+3=16) may not match total signals (15). Could be overlap or counting error.
+**Solution:** If overlap intentional, add note "Some signals relate to multiple themes". If error, fix counting logic. Display: "4 themes identified from 15 signals (some signals relate to multiple themes)"
+
+---
+
 # 12-26 Meeting: CEO Review - UI/UX Feedback
 
 ## Remaining Items (Still To Do)
