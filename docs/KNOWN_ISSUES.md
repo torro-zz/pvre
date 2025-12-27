@@ -1,90 +1,90 @@
 # Known Issues
 
-Last updated: December 26, 2025
+Last updated: December 27, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
 # 12-26 Meeting: CEO Review - UI/UX Feedback
-### In the Dashboard the kebap menu
-**Source:** CEO review
-**Issue:**  duplicate, has no reason to be there. this funtion is not useful 
-**Proposed:** Remove it
 
-### In the Dashboard the kebap menu 
-**Source:** CEO review
-**Issue:**  after pressing on the Kebap menu, the action window overlays on the other hypothesis and it seems to malfunction
-**Proposed:** Fix it with the Frontend-Design skill and make it usable 
-
-
-### Remove 'P' Icon from Collapsible Panel
-**Source:** CEO review
-**Issue:** There is a 'P' icon in a square next to the "PVRE" text on the top left of the collapsible panel. This icon serves no purpose and is unnecessary.
-**Proposed:** Remove the 'P' icon completely from the collapsible panel.
-
-### Declutter Dashboard
-**Source:** CEO review
-**Issue:** The dashboard contains several unnecessary elements: the "continue your research" section, the "completed" and "success rate" tabs, and the "status distribution" donut chart. These elements clutter the interface without adding value.
-**Proposed:** Remove the "continue your research" section, the "completed" and "success rate" tabs, and the "status distribution" donut chart from the dashboard.
-
-### Reposition "Start New Research" Button
-**Source:** CEO review
-**Issue:** The "Start new research" button is not prominently located.
-**Proposed:** Move the "Start new research" button to the space currently occupied by the "status distribution" chart, placing it higher up on the page, possibly next to the "activity last 14 days" waveform.
-
-### Add Folder Organization for Research
-**Source:** CEO review
-**Issue:** There is no way to organize research projects, making them difficult to manage. The "All research" button incorrectly navigates to settings.
-**Proposed:** Implement a folder system within the collapsible menu. Add a "Create new folder" option, allowing users to name folders and organize their research hypotheses by dragging and dropping them or using a kebab menu. Also, ensure the main "All research" view displays all projects from the dashboard, not a settings page.
-
-### Display All Research on Dashboard
-**Source:** CEO review
-**Issue:** The dashboard only shows 10 research items, while the settings area shows that 20 exist. Users cannot access all their research directly from the dashboard.
-**Proposed:** Modify the dashboard to display all 20 research items. Initially show five items, and add a "show more" button to progressively reveal the rest.
+## Remaining Items (Still To Do)
 
 ### Connect Help Button to Canny
 **Source:** CEO review
+**Status:** Open — Deferred (external service configuration)
 **Issue:** The "Help" button in the settings section leads to an unconnected Canny site, rendering it non-functional.
 **Proposed:** Prioritize connecting the application to the Canny service to ensure the "Help" button functions as intended.
 
 ### Clarify Purpose of API Keys
 **Source:** CEO review
+**Status:** Open
 **Issue:** The "API Keys" section in the settings is unclear. Its purpose, use case, and value are not understood.
 **Proposed:** Provide a clear explanation of what the API keys are for, how they can be used, and their benefits. Based on this information, a decision can be made on whether to keep or remove the feature.
 
 ### Investigate Two-Panel Section
 **Source:** CEO review
+**Status:** Open
 **Issue:** A previously discussed "two-panel section" for displaying research cannot be found in the current application. All research is presented in a single vertical column.
 **Proposed:** Clarify what the "two-panel section" refers to. Provide a visual example or demonstration (e.g., using Playwright) to show where it is or how it's intended to work.
 
-### Fix Collapsible Hypothesis Feature
-**Source:** CEO review
-**Issue:** The "collapsible hypothesis" feature is not working anywhere in the app.
-**Proposed:** Investigate and fix the bug preventing the collapsible hypothesis feature from functioning correctly.
+---
 
-### Improve Share and Export Functionality
-**Source:** CEO review
-**Issue:** The "Share and export" feature does not generate a concise one-page summary. Additionally, interview questions are presented as plain text, which is not user-friendly.
-**Proposed:** Redesign the export feature to generate a clear, one-page summary containing all essential information. For interview questions, export them as a formatted PDF and include additional hints based on "The Mom Test" to help users conduct better interviews.
+## CEO Review - Completed Items (December 27, 2025)
 
-### Remove Gimmicky Star Icons
+### ✅ Declutter Dashboard
 **Source:** CEO review
-**Issue:** Star icons appear next to various elements like "Chat with your data," "Investor metrics," and "Start new research." They seem gimmicky and serve no clear purpose.
-**Proposed:** Remove all star icons from the UI unless a specific, functional reason for their existence is identified.
+**Fixed:** Removed "Completed" and "Success Rate" stat cards from QuickStats. Dashboard now shows only "Total Research" and "This Week" (2 stats instead of 4).
 
-### Make "Chat with your data" Window Collapsible
+### ⚠️ Update Landing Page Content - NEEDS REWORK
 **Source:** CEO review
-**Issue:** The "Chat with your data" window is always visible on the right side, taking up valuable screen space even when not in use. This is particularly problematic on mobile.
-**Proposed:** Make the chat window collapsible or a minimized floating element. This would allow users to hide it when not needed. Ensure the layout gracefully adapts when the chat is expanded or collapsed, especially for mobile users.
+**Status:** Partial — Copy is low-effort, needs proper rewrite
+**What was done:** Added app gap analysis mentions to hero, steps, and feature cards.
+**Issue:** The copy changes are not satisfactory. Simply adding "or analyze app store gaps" is not compelling enough. Needs discussion with Claude for a proper messaging rewrite that integrates app analysis naturally.
 
-### Update Landing Page Content
+### ⚠️ Redesign Research Page Layout - INCOMPLETE
 **Source:** CEO review
-**Issue:** The current landing page only describes the hypothesis validation feature and fails to mention other key capabilities, such as the app gap analysis.
-**Proposed:** Update the landing page content to provide a comprehensive overview of all the app's features, including the app gap analysis, to better inform potential users.
+**Status:** Partial — Compacted components but core grid layout NOT done
+**What was done:** Made "Sources Covered" collapsible, made InvestorMetricsHero compact.
+**Still needed:** A floating/adaptable grid layout for research information. Currently everything is still in a single vertical column. The goal is to arrange information blocks side-by-side where appropriate, using space more efficiently (like a bento grid).
 
-### Redesign Research Page Layout
+### ✅ Dashboard Kebab Menu Overlay Issue
 **Source:** CEO review
-**Issue:** The current research page layout is inefficient. The "Hypothesis" and "What we searched" sections consume excessive vertical space, pushing important navigation tabs (e.g., "Summary," "Evidence") below the fold, even on large screens. This makes navigation unintuitive for new users.
-**Proposed:** Redesign the research page using a flowing grid layout. The "Hypothesis" section should remain at the top. The "What we searched" section should be renamed to "Sources covered" and made significantly smaller. The main navigation tabs must be moved up to be visible within the first fold of the page. Arrange information blocks next to each other to use space more efficiently and improve scannability.
+**Fixed:** Action menu now uses 1/4 width sliding overlay with iOS-style buttons. Z-index issues resolved.
+
+### ✅ Remove 'P' Icon from Collapsible Panel
+**Source:** CEO review
+**Fixed:** Changed to stacked "PV/RE" text logo in collapsed state.
+
+### ✅ Reposition "Start New Research" Button
+**Source:** CEO review
+**Fixed:** Button repositioned for prominence.
+
+### ✅ Display All Research on Dashboard
+**Source:** CEO review
+**Fixed:** Dashboard now shows all research with "Show more" pagination.
+
+### ✅ Add Folder Organization for Research
+**Source:** CEO review
+**Fixed:** Full folder system implemented with CRUD API, folder filtering, and kebab menu organization.
+
+### ✅ Remove Gimmicky Star Icons
+**Source:** CEO review
+**Fixed:** Sparkles/star icons removed from UI.
+
+### ✅ Duplicate Kebab Menu Item
+**Source:** CEO review
+**Fixed:** Removed redundant 'View Details' option.
+
+### ✅ Fix Collapsible Hypothesis Feature
+**Source:** CEO review
+**Fixed:** CollapsibleText now applied to both structured hypothesis (audience/problem) and raw hypothesis text.
+
+### ✅ Improve Share and Export Functionality
+**Source:** CEO review
+**Fixed:** Added true 1-page Executive Summary PDF and Interview Guide PDF with "The Mom Test" principles.
+
+### ✅ Make "Chat with your data" Window Collapsible
+**Source:** CEO review
+**Fixed:** Converted to side drawer overlay with floating trigger button. Premium UI with animations.
 
 ---
 

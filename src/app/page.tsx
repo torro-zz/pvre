@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, Zap, Target, MessageSquare, TrendingUp, Clock, FileSearch, Brain, X, Check, ChevronRight } from 'lucide-react'
+import { ArrowRight, Zap, Target, MessageSquare, TrendingUp, Clock, FileSearch, Brain, X, Check, ChevronRight, Smartphone } from 'lucide-react'
 
 // Scroll-triggered fade in
 function useFadeIn() {
@@ -107,8 +107,8 @@ export default function Home() {
               className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed animate-fade-in"
               style={{ animationDelay: '200ms' }}
             >
-              Enter your business hypothesis. Get real pain signals from Reddit,
-              competitive analysis, and a go/no-go verdict — automatically.
+              Validate a business hypothesis or analyze app store gaps.
+              Get real pain signals, competitive analysis, and a go/no-go verdict — automatically.
             </p>
 
             {/* CTA */}
@@ -210,14 +210,14 @@ export default function Home() {
             <div className="grid md:grid-cols-3 gap-10">
               <StepCard
                 number="01"
-                title="Describe your idea"
-                description="Enter a business hypothesis like 'Meal prep service for busy parents who hate cooking'"
+                title="Choose your approach"
+                description="Enter a hypothesis like 'Meal prep for busy parents' OR analyze an existing app's user pain points to find gaps"
                 highlight="30 seconds"
               />
               <StepCard
                 number="02"
                 title="AI does the research"
-                description="We analyze 12,000+ Reddit discussions for pain signals, estimate market size, assess timing, and map competitors"
+                description="We analyze Reddit discussions and app store reviews for pain signals, estimate market size, assess timing, and map competitors"
                 highlight="~5 minutes"
               />
               <StepCard
@@ -250,9 +250,9 @@ export default function Home() {
           </div>
 
           {/* Bento Grid Layout */}
-          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {/* Featured Card - Community Voice Mining */}
-            <div className="md:row-span-2 group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-2xl transition-all duration-500">
+            <div className="md:col-span-2 group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-2xl transition-all duration-500">
               {/* Gradient overlay */}
               <div
                 className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity"
@@ -279,7 +279,7 @@ export default function Home() {
                 <div className="flex-1">
                   <h3 className="text-2xl font-bold mb-3 text-foreground">Community Voice Mining</h3>
                   <p className="text-muted-foreground leading-relaxed mb-6">
-                    Real pain points from Reddit discussions. See intensity scores, willingness-to-pay signals, and the exact words your customers use.
+                    Real pain points from Reddit discussions and app store reviews. See intensity scores, willingness-to-pay signals, and the exact words your customers use.
                   </p>
                 </div>
 
@@ -305,6 +305,39 @@ export default function Home() {
                       <span className="text-sm text-foreground font-medium">WTP Signals</span>
                       <span className="text-sm font-mono font-semibold text-chart-2">3 found</span>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* App Gap Analysis Card */}
+            <div className="group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-xl transition-all duration-500">
+              <div
+                className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity"
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, transparent 60%)'
+                }}
+              />
+
+              <div className="relative p-7 h-full flex flex-col">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 bg-emerald-500/15">
+                  <Smartphone className="w-5 h-5 text-emerald-500" />
+                </div>
+
+                <h3 className="text-xl font-bold mb-2 text-foreground">App Gap Analysis</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+                  Analyze any app&apos;s reviews to find unmet user needs and build something better.
+                </p>
+
+                {/* Compact sample */}
+                <div className="mt-5 flex items-center gap-3 text-xs">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span className="font-medium">Pain themes</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-chart-2" />
+                    <span className="font-medium">White space</span>
                   </div>
                 </div>
               </div>

@@ -619,125 +619,56 @@ export function InvestorMetricsHero({
         )}
       </div>
 
-      {/* Score Gauges */}
-      <div className="px-6 pb-5 pt-4">
-        <div className={cn(
-          'grid gap-6 mb-6',
-          hasTwoAxisData ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-        )}>
-          <MetricGauge
-            score={painScore}
-            label="Pain Score"
-            sublabel={getPainSublabel(painScore)}
-            colorClass={getGaugeColor(painScore)}
-            delay={0.2}
-          />
-          {marketOpportunity && (
-            <MetricGauge
-              score={marketOpportunity.score}
-              label="Market Opportunity"
-              sublabel={getOpportunitySublabel(marketOpportunity.score)}
-              colorClass={getGaugeColor(marketOpportunity.score)}
-              delay={0.35}
-            />
-          )}
-          {hypothesisConfidence && (
-            <MetricGauge
-              score={hypothesisConfidence.score}
-              label="Hypothesis Fit"
-              sublabel={getConfidenceSublabel(hypothesisConfidence.score)}
-              colorClass={getGaugeColor(hypothesisConfidence.score)}
-              delay={0.5}
-            />
-          )}
-          {!hasTwoAxisData && (
-            <MetricGauge
-              score={verdict?.overallScore || 0}
-              label="Viability"
-              sublabel={verdict?.confidence || 'Calculating'}
-              colorClass={getGaugeColor(verdict?.overallScore || 0)}
-              delay={0.35}
-            />
-          )}
-        </div>
-
-        {/* Key Signals Row */}
-        <StaggerContainer className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5" staggerDelay={0.08} initialDelay={0.6}>
-          <SignalStat
-            icon={DollarSign}
-            value={wtpCount}
-            label="WTP signals"
-            accent={wtpCount > 0}
-            warning={wtpCount === 0 && painScore >= 5}
-            tooltip={wtpCount === 0 ? 'Willingness-to-pay signals help validate monetization potential' : `${wtpCount} people showed willingness to pay`}
-          />
-          <SignalStat
-            icon={MessageSquare}
-            value={totalSignals}
-            label="pain signals found"
-            accent={totalSignals >= 10}
-            tooltip={`${totalSignals} relevant discussions discovered from ${communitiesCount} communities`}
-          />
-          <SignalStat
-            icon={TrendingUp}
-            value={postsAnalyzed.toLocaleString()}
-            label="posts analyzed"
-            tooltip={`We analyzed ${postsAnalyzed.toLocaleString()} posts to find relevant signals`}
-          />
-          <SignalStat
-            icon={Users}
-            value={communitiesCount}
-            label="communities"
-            tooltip={`Research covered ${communitiesCount} online communities`}
-          />
-        </StaggerContainer>
-
-        {/* Warnings */}
+      {/* Compact Key Signals Row - moved to bottom for space efficiency */}
+      <div className="px-6 pb-4 pt-2">
+        {/* Warnings - shown inline if any */}
         {hasWarnings && (
           <motion.div
-            className="space-y-2 mb-5"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.9 }}
+            className="flex items-center gap-2 mb-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.5 }}
           >
-            {allWarnings.slice(0, 2).map((warning, i) => (
+            {allWarnings.slice(0, 1).map((warning, i) => (
               <div
                 key={i}
                 className={cn(
-                  'flex items-start gap-2 px-3 py-2 rounded-lg text-sm',
+                  'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs flex-1',
                   warning.severity === 'HIGH'
-                    ? 'bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-300'
-                    : 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
+                    ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400'
+                    : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'
                 )}
               >
-                <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>{warning.message}</span>
+                <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate">{warning.message}</span>
               </div>
             ))}
           </motion.div>
         )}
+
+        {/* Footer stats - compact inline */}
+        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+          {dataSources.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Database className="w-3.5 h-3.5" />
+              <span>{dataSources.join(' · ')}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5" />
+            <span>{communitiesCount} communities</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>{postsAnalyzed.toLocaleString()} posts</span>
+          </div>
+          {recencyScore !== undefined && (
+            <div className="flex items-center gap-1.5">
+              <span>Recency: {Math.round(recencyScore * 100)}%</span>
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Footer */}
-      <motion.div
-        className="px-6 py-3 bg-muted/30 border-t flex flex-wrap items-center gap-4 text-xs text-muted-foreground"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 1.1 }}
-      >
-        {dataSources.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <Database className="w-3.5 h-3.5" />
-            <span>{dataSources.join(' · ')}</span>
-          </div>
-        )}
-
-        {recencyScore !== undefined && (
-          <div className="flex items-center gap-1.5">
-            <span>Recency: {Math.round(recencyScore * 100)}%</span>
-          </div>
-        )}
-      </motion.div>
     </AnimatedCard>
   )
 }

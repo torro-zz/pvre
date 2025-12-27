@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { FileText, CheckCircle2, TrendingUp, Calendar } from 'lucide-react'
+import { FileText, Calendar } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { AnimatedNumber } from '@/components/ui/animated-components'
 import { cn } from '@/lib/utils'
@@ -45,12 +45,10 @@ export function QuickStats({ jobs }: QuickStatsProps) {
     const now = new Date()
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    const completed = jobs.filter(j => j.status === 'completed').length
     const total = jobs.length
-    const successRate = total > 0 ? Math.round((completed / total) * 100) : 0
     const thisWeek = jobs.filter(j => new Date(j.created_at) > weekAgo).length
 
-    return { total, completed, successRate, thisWeek }
+    return { total, thisWeek }
   }, [jobs])
 
   // Don't render if no jobs
@@ -58,7 +56,7 @@ export function QuickStats({ jobs }: QuickStatsProps) {
 
   return (
     <motion.div
-      className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
+      className="grid grid-cols-2 gap-3 sm:gap-4"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
@@ -68,19 +66,6 @@ export function QuickStats({ jobs }: QuickStatsProps) {
         label="Total Research"
         value={stats.total}
         colorClass="text-blue-600 bg-blue-100 dark:bg-blue-500/20 dark:text-blue-400"
-      />
-      <StatCard
-        icon={CheckCircle2}
-        label="Completed"
-        value={stats.completed}
-        colorClass="text-emerald-600 bg-emerald-100 dark:bg-emerald-500/20 dark:text-emerald-400"
-      />
-      <StatCard
-        icon={TrendingUp}
-        label="Success Rate"
-        value={stats.successRate}
-        suffix="%"
-        colorClass="text-purple-600 bg-purple-100 dark:bg-purple-500/20 dark:text-purple-400"
       />
       <StatCard
         icon={Calendar}

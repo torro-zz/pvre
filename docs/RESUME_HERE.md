@@ -1,117 +1,96 @@
-# Resume Point - December 26, 2025
+# Resume Point - December 27, 2025
+
+## Current Status & Notes
+
+### Landing Page Copy - NEEDS REWORK
+The landing page copy changes were a low-effort first attempt. The current changes (adding "or analyze app store gaps" to the hero, etc.) are **not satisfactory** and need to be discussed with Claude for a proper rewrite. The messaging should be more compelling and better integrated, not just tacked on.
+
+### Research Page Layout - STILL INCOMPLETE
+The "Redesign Research Page Layout" is **not fully done**. While we made Sources Covered collapsible and InvestorMetricsHero more compact, the core request was NOT addressed:
+- **Need:** A floating/adaptable grid layout for research information
+- **Current state:** Everything still displays in a single vertical column
+- **Goal:** Information blocks should be arranged side-by-side where appropriate, using space more efficiently
+
+This requires a more significant redesign of the research results layout, not just compacting existing components.
+
+---
 
 ## What Was Just Completed
 
-### Phase 3-5 UI Redesign (Continuation from Dec 25)
+### Session 2 (Dec 27 Late Afternoon)
 
-**Phase 3: InvestorMetricsHero Component**
-- Created new `investor-metrics-hero.tsx` with animated circular gauges
-- Three primary metrics: Pain Score, Market Opportunity, Hypothesis Fit
-- Secondary stats row: WTP signals, total signals, posts scanned, communities
-- Warning banner for low relevance, recommendation banner with verdict-based CTAs
-- Data source badges with recency/relevance percentages
+1. **Decluttered Dashboard**
+   - Removed "Completed" and "Success Rate" stat cards
+   - Dashboard now shows only "Total Research" and "This Week" (2 stats)
 
-**Phase 4: Tab Restructure**
-- Created `summary-tab.tsx` - Key insights, red flags, data quality card
-- Created `action-tab.tsx` - Next steps with interview questions
-- Updated `tabbed-view.tsx` with new 5-tab structure (App, Feedback, Market, Gaps, Verdict)
-- Updated `scroll-view.tsx` with InvestorMetricsHero integration
+2. **Updated Landing Page Content**
+   - Added app gap analysis to hero subheadline
+   - Updated "How it works" steps to mention both hypothesis validation and app analysis
+   - Added "App Gap Analysis" feature card with Smartphone icon
+   - Updated Community Voice description to include app store reviews
 
-**Phase 5: Dashboard & Mobile Polish**
-- Created `animated-dashboard.tsx` with reusable animation components:
-  - DashboardHeader, AnimatedGrid, AnimatedItem, ProgressBanner, FeatureGrid, FeatureItem
-- Updated dashboard page with staggered animations and mobile-responsive spacing
-- Updated research-job-list with motion animations and mobile-friendly layout
+3. **Redesigned Research Page Layout**
+   - Renamed "What We Searched" to "Sources Covered"
+   - Made Sources Covered collapsible (collapsed by default, compact single-line summary)
+   - Made InvestorMetricsHero more compact by removing large circular score gauges
+   - Quick Metrics Row now serves as primary score display
 
-### Playwright Screenshot Learnings
-- Added comprehensive screenshot checklist to `docs/agent-learnings.md`
-- Key learning: Always dismiss cookie consent banners before taking screenshots
+### Session 1 (Dec 27 Afternoon)
 
-## Files Modified This Session
-| File | Status | Purpose |
-|------|--------|---------|
-| `src/components/dashboard/animated-dashboard.tsx` | **New** | Dashboard animation components |
-| `src/components/research/investor-metrics-hero.tsx` | **New** | InvestorMetrics hero section |
-| `src/components/research/summary-tab.tsx` | **New** | Summary tab with insights |
-| `src/components/research/action-tab.tsx` | **New** | Action tab with next steps |
-| `src/app/(dashboard)/dashboard/page.tsx` | Modified | Dashboard animations + mobile |
-| `src/components/dashboard/research-job-list.tsx` | Modified | Job list animations + mobile |
-| `src/components/research/layouts/tabbed-view.tsx` | Modified | New tab structure |
-| `src/components/research/layouts/scroll-view.tsx` | Modified | InvestorMetricsHero integration |
-| `src/components/research/controlled-tabs.tsx` | Modified | Tab state management |
-| `src/components/research/research-tabs-context.tsx` | Modified | Tab context updates |
-| `src/components/research/viability-verdict.tsx` | Modified | Verdict component updates |
-| `src/components/research/competitor-prompt-modal.tsx` | Modified | Minor fix |
-| `src/components/research/community-voice-results.tsx` | Modified | Minor fix |
-| `src/components/ui/animated-components.tsx` | Modified | Animation tweaks |
-| `docs/agent-learnings.md` | Modified | Screenshot checklist added |
-
-## Uncommitted Changes
-**WARNING: You have 14 uncommitted files!**
-
-All Phase 3-5 work is uncommitted. Should be committed as:
-```
-feat: Phase 3-5 UI redesign - InvestorMetricsHero, tab restructure, dashboard polish
-```
+1. **Fixed MCP Configuration** - Removed playwright, fixed browser-tools package name
+2. **Fixed Collapsible Hypothesis Bug** - CollapsibleText applied to structured hypothesis
+3. **Improved Export Functionality** - 1-page Executive Summary PDF + Interview Guide PDF
+4. **Implemented Chat Side Drawer** - Floating button, backdrop blur, premium UI
 
 ## Build & Test Status
 - **Build:** Passing
-- **Tests:** 128 passing, 0 failing, 6 skipped
 - **Dev Server:** Running on :3000
 
-## What Needs To Be Done Next
+## CEO Review Summary
 
-### Immediate: Commit Uncommitted Work
-14 files with Phase 3-5 UI redesign need to be committed.
+**Completed (11 items):**
+- ✅ Dashboard kebab menu overlay issue
+- ✅ Remove 'P' icon from collapsible panel
+- ✅ Reposition 'Start New Research' button
+- ✅ Display All Research on Dashboard
+- ✅ Add Folder Organization for Research
+- ✅ Remove Gimmicky Star Icons
+- ✅ Duplicate Kebab Menu Item
+- ✅ Fix Collapsible Hypothesis Feature
+- ✅ Improve Share and Export Functionality
+- ✅ Make "Chat with your data" Window Collapsible
+- ✅ Declutter Dashboard
 
-### From Known Issues (P1)
-| Priority | Issue | Status |
-|----------|-------|--------|
-| P1 | Direct API Calls Don't Persist to Database | Open |
+**Partial / Needs Rework (2 items):**
+- ⚠️ Update Landing Page Content — Copy is low-effort, needs proper rewrite
+- ⚠️ Redesign Research Page Layout — Compacted some components but still single column, need floating grid
 
-### Future Enhancements
-| Priority | Issue | Status |
-|----------|-------|--------|
-| P3 | AI vs Code Audit | Defer post-launch |
+**Remaining (4 items):**
+| Priority | Issue | Notes |
+|----------|-------|-------|
+| MED | Landing Page Copy | Low-effort attempt, discuss with Claude |
+| MED | Research Grid Layout | Need floating/adaptable grid, not single column |
+| LOW | Connect Help to Canny | External service configuration needed |
+| LOW | Clarify Purpose of API Keys | Document or remove feature |
+| LOW | Investigate Two-Panel Section | Need clarification on what this refers to |
+| P1 | Direct API Calls Don't Persist | From Known Issues |
 
-## Blockers or Open Questions
-None identified.
-
-## User Notes
-None
-
-## Key Files Reference
-| Purpose | File |
-|---------|------|
-| Project instructions | `CLAUDE.md` |
-| Known bugs & UX backlog | `docs/KNOWN_ISSUES.md` |
-| Technical overview | `docs/TECHNICAL_OVERVIEW.md` |
-| Agent learnings | `docs/agent-learnings.md` |
-| Dashboard animations | `src/components/dashboard/animated-dashboard.tsx` |
-| InvestorMetrics hero | `src/components/research/investor-metrics-hero.tsx` |
-| Tab layouts | `src/components/research/layouts/tabbed-view.tsx` |
+## Key Files Modified (Session 2)
+| File | Change |
+|------|--------|
+| `src/components/dashboard/quick-stats.tsx` | Removed Completed/Success Rate stats |
+| `src/app/page.tsx` | Added app gap analysis, new feature card |
+| `src/components/research/search-coverage-section.tsx` | Made collapsible, renamed to Sources Covered |
+| `src/components/research/investor-metrics-hero.tsx` | Removed large circular gauges |
 
 ## Quick Start Commands
 ```bash
-# Navigate to project
 cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine PVRE"
-
-# Start dev server
 npm run dev
-
-# Run tests
-npm run test:run
-
-# Build
 npm run build
-
-# View dashboard (with animations)
 open http://localhost:3000/dashboard
-
-# View results page (with InvestorMetricsHero)
-open http://localhost:3000/research/3864ecd9-daf3-447a-a1f6-216eb6186fa7
 ```
 
 ---
 
-*Last updated: December 26, 2025*
+*Last updated: December 27, 2025*
