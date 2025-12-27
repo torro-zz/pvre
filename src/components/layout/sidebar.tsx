@@ -105,14 +105,15 @@ function SidebarContent({ isCollapsed }: { isCollapsed: boolean }) {
       {/* Logo */}
       <div className={cn('px-4 py-5 border-b', isCollapsed && 'px-3 flex justify-center')}>
         <Link href="/dashboard" className="flex items-center">
-          <motion.span
-            className="font-bold text-xl text-primary whitespace-nowrap overflow-hidden"
-            initial={false}
-            animate={{ width: isCollapsed ? '20px' : 'auto' }}
-            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-          >
-            {isCollapsed ? 'P' : 'PVRE'}
-          </motion.span>
+          {isCollapsed ? (
+            // Stacked logo mark for collapsed state
+            <div className="flex flex-col items-center leading-none">
+              <span className="font-black text-[13px] tracking-tight text-primary">PV</span>
+              <span className="font-black text-[13px] tracking-tight text-primary">RE</span>
+            </div>
+          ) : (
+            <span className="font-bold text-xl text-primary">PVRE</span>
+          )}
         </Link>
       </div>
 

@@ -8,7 +8,7 @@ import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Clock, ArrowRight, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, BarChart3, MoreVertical, Eye, Copy, Trash2, ChevronDown, ChevronUp, FolderInput, FolderPlus } from 'lucide-react'
+import { Clock, ArrowRight, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, BarChart3, MoreVertical, Copy, Trash2, ChevronDown, ChevronUp, FolderInput, FolderPlus } from 'lucide-react'
 import { FolderSelector, FolderDialog } from '@/components/folders'
 import { StepStatusMap, DEFAULT_STEP_STATUS } from '@/types/database'
 import { cn } from '@/lib/utils'
@@ -313,14 +313,6 @@ function CardMenu({
             className="fixed w-48 bg-popover rounded-lg shadow-xl border py-1 z-[101]"
             style={{ top: menuPosition.top, right: menuPosition.right }}
           >
-            <Link
-              href={`/research/${jobId}`}
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-muted w-full"
-            >
-              <Eye className="h-4 w-4" />
-              View Details
-            </Link>
             <button
               onClick={handleDuplicate}
               className="flex items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-muted w-full text-left"
