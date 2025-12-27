@@ -402,29 +402,29 @@ function JobCard({
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute inset-y-0 right-0 left-0 sm:left-auto sm:w-auto flex items-stretch bg-background border-l shadow-lg"
+              className="absolute inset-y-0 right-0 w-1/2 sm:w-1/4 flex items-stretch bg-background border-l shadow-lg"
             >
-              {/* Action buttons - compact */}
+              {/* Action buttons - iOS style with icons and labels */}
               <button
                 onClick={handleMoveClick}
-                className="w-10 sm:w-11 flex items-center justify-center text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/20 transition-colors"
-                title="Move to Folder"
+                className="flex-1 flex flex-col items-center justify-center gap-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors"
               >
                 <FolderInput className="h-4 w-4" />
+                <span className="text-[10px] font-medium">Move</span>
               </button>
               <button
                 onClick={handleDeleteClick}
-                className="w-10 sm:w-11 flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/20 transition-colors"
-                title="Delete"
+                className="flex-1 flex flex-col items-center justify-center gap-1 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
               >
                 <Trash2 className="h-4 w-4" />
+                <span className="text-[10px] font-medium">Delete</span>
               </button>
               <button
                 onClick={onCloseActions}
-                className="w-10 sm:w-11 flex items-center justify-center hover:bg-muted/50 transition-colors"
-                title="Close"
+                className="w-10 flex flex-col items-center justify-center gap-1 bg-muted/30 hover:bg-muted/50 transition-colors border-l"
               >
                 <X className="h-4 w-4 text-muted-foreground" />
+                <span className="text-[10px] font-medium text-muted-foreground">Close</span>
               </button>
             </motion.div>
           )}
