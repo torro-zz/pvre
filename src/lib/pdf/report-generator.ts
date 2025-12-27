@@ -1018,3 +1018,415 @@ export function downloadPDFReport(data: ReportData, filename?: string): void {
   const safeName = filename || `pvre-report-${data.hypothesis.slice(0, 30).replace(/[^a-z0-9]/gi, '-')}`;
   doc.save(`${safeName}.pdf`);
 }
+
+/**
+ * Generate 1-Page Executive Summary PDF
+ * Condensed version with key metrics and verdict
+ */
+export function generateExecutiveSummaryPDF(data: ReportData): jsPDF {
+  const doc = new jsPDF();
+  let y = 20;
+  const margin = 20;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const contentWidth = pageWidth - margin * 2;
+
+  // Helper for score bar
+  const drawScoreBar = (score: number, maxScore: number, x: number, barY: number, width: number, height: number = 6) => {
+    const percentage = score / maxScore;
+    const color = percentage >= 0.7 ? COLORS.success :
+                  percentage >= 0.5 ? COLORS.warning :
+                  percentage >= 0.3 ? COLORS.orange : COLORS.danger;
+    doc.setFillColor(...COLORS.lightGray);
+    doc.roundedRect(x, barY, width, height, 2, 2, 'F');
+    doc.setFillColor(...color);
+    doc.roundedRect(x, barY, Math.max(width * percentage, 4), height, 2, 2, 'F');
+  };
+
+  // Header accent bar
+  doc.setFillColor(...COLORS.primary);
+  doc.rect(0, 0, pageWidth, 5, 'F');
+
+  // Title
+  y = 18;
+  doc.setFontSize(22);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...COLORS.darkGray);
+  doc.text('Executive Summary', margin, y);
+  y += 6;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...COLORS.gray);
+  doc.text(`Generated: ${data.createdAt}`, margin, y);
+  y += 12;
+
+  // Hypothesis box (compact)
+  const hypothesisLines = doc.splitTextToSize(data.hypothesis, contentWidth - 20);
+  const hypoHeight = Math.min(hypothesisLines.length * 4 + 12, 30);
+  doc.setFillColor(250, 251, 252);
+  doc.setDrawColor(230, 232, 236);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(margin, y, contentWidth, hypoHeight, 3, 3, 'FD');
+  doc.setFillColor(...COLORS.primary);
+  doc.roundedRect(margin, y, 3, hypoHeight, 3, 0, 'F');
+  y += 8;
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...COLORS.gray);
+  doc.text('HYPOTHESIS', margin + 10, y);
+  y += 5;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...COLORS.darkGray);
+  doc.text(hypothesisLines.slice(0, 3), margin + 10, y);
+  y += Math.min(hypothesisLines.length, 3) * 4 + 10;
+
+  // Verdict Box (larger, prominent)
+  const verdictColor = data.viability.verdict === 'strong' ? COLORS.success :
+                       data.viability.verdict === 'mixed' ? COLORS.warning :
+                       data.viability.verdict === 'weak' ? COLORS.orange : COLORS.danger;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...verdictColor);
+  doc.setLineWidth(2);
+  doc.roundedRect(margin, y, contentWidth, 40, 4, 4, 'FD');
+
+  y += 10;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...COLORS.gray);
+  doc.text('VIABILITY VERDICT', margin + 10, y);
+
+  y += 12;
+  doc.setFontSize(28);
+  doc.setTextColor(...verdictColor);
+  doc.text(`${data.viability.overallScore.toFixed(1)}`, margin + 10, y);
+  doc.setFontSize(12);
+  doc.text('/10', margin + 32, y);
+
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(data.viability.verdictLabel, margin + 55, y - 3);
+  drawScoreBar(data.viability.overallScore, 10, margin + 55, y + 3, contentWidth - 65, 5);
+  y += 25;
+
+  // Key Metrics Row (4 columns)
+  const metricWidth = (contentWidth - 15) / 4;
+  const painSummary = data.communityVoice?.painSummary;
+  const metrics = [
+    { label: 'Pain Signals', value: painSummary?.totalSignals?.toString() || '0', color: COLORS.primary },
+    { label: 'High Intensity', value: painSummary?.highIntensityCount?.toString() || '0', color: COLORS.danger },
+    { label: 'WTP Signals', value: painSummary?.willingnessToPayCount?.toString() || '0', color: COLORS.success },
+    { label: 'Confidence', value: painSummary?.dataConfidence?.toUpperCase() || 'N/A', color: COLORS.gray },
+  ];
+
+  metrics.forEach((m, i) => {
+    const x = margin + i * (metricWidth + 5);
+    doc.setFillColor(...COLORS.lightGray);
+    doc.roundedRect(x, y, metricWidth, 22, 2, 2, 'F');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.gray);
+    doc.text(m.label, x + 5, y + 8);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...m.color);
+    doc.text(m.value, x + 5, y + 18);
+  });
+  y += 30;
+
+  // Dimension Scores (2 columns, compact)
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...COLORS.darkGray);
+  doc.text('Score Breakdown', margin, y);
+  y += 8;
+
+  const dimColWidth = contentWidth / 2;
+  data.viability.dimensions.forEach((dim, i) => {
+    const col = i % 2;
+    const xPos = margin + col * dimColWidth;
+    if (col === 0 && i > 0) y += 12;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.gray);
+    doc.text(`${dim.name}`, xPos, y);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
+    doc.text(`${dim.score.toFixed(1)}`, xPos + 50, y);
+    drawScoreBar(dim.score, 10, xPos + 60, y - 3, dimColWidth - 70, 4);
+  });
+  y += 18;
+
+  // Top Pain Themes (condensed, top 3 only)
+  if (data.communityVoice?.themeAnalysis?.themes) {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.darkGray);
+    doc.text('Top Pain Themes', margin, y);
+    y += 8;
+
+    data.communityVoice.themeAnalysis.themes.slice(0, 3).forEach((theme, i) => {
+      const intensityColor = theme.intensity === 'high' ? COLORS.danger :
+                            theme.intensity === 'medium' ? COLORS.warning : COLORS.gray;
+      doc.setFillColor(...intensityColor);
+      doc.circle(margin + 4, y + 1, 2, 'F');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...COLORS.darkGray);
+      doc.text(`${i + 1}. ${theme.name}`, margin + 10, y + 3);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...COLORS.gray);
+      const desc = theme.description.slice(0, 80) + (theme.description.length > 80 ? '...' : '');
+      doc.text(desc, margin + 10, y + 10);
+      y += 15;
+    });
+  }
+
+  // Key Quote (if available)
+  const keyQuotes = data.communityVoice?.themeAnalysis?.keyQuotes;
+  if (keyQuotes && keyQuotes.length > 0) {
+    y += 3;
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, y, contentWidth, 18, 2, 2, 'F');
+    y += 8;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(...COLORS.darkGray);
+    const quote = keyQuotes[0].quote.slice(0, 120) + (keyQuotes[0].quote.length > 120 ? '...' : '');
+    doc.text(`"${quote}"`, margin + 5, y);
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.gray);
+    doc.text(`— ${keyQuotes[0].source}`, margin + 5, y);
+    y += 10;
+  }
+
+  // Recommendation Box (bottom)
+  const recY = 250;
+  const recHeight = 30;
+  const recColor = data.viability.verdict === 'strong' ? COLORS.success :
+                   data.viability.verdict === 'mixed' ? COLORS.warning : COLORS.danger;
+  doc.setFillColor(...recColor);
+  doc.roundedRect(margin, recY, contentWidth, recHeight, 3, 3, 'F');
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  const recTitle = data.viability.verdict === 'strong' ? 'RECOMMENDATION: PROCEED TO INTERVIEWS' :
+                   data.viability.verdict === 'mixed' ? 'RECOMMENDATION: EXPLORE FURTHER' :
+                   'RECOMMENDATION: CONSIDER PIVOTING';
+  doc.text(recTitle, margin + 10, recY + 12);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  const recText = data.viability.recommendations?.[0]?.slice(0, 100) || data.viability.verdictDescription.slice(0, 100);
+  doc.text(recText + '...', margin + 10, recY + 22);
+
+  // Footer
+  doc.setFontSize(7);
+  doc.setTextColor(...COLORS.gray);
+  doc.text('Generated by PVRE - Pre-Validation Research Engine', margin, 290);
+  doc.text('See full report for detailed analysis', pageWidth - margin - 60, 290);
+
+  return doc;
+}
+
+export function downloadExecutiveSummaryPDF(data: ReportData): void {
+  const doc = generateExecutiveSummaryPDF(data);
+  const safeName = `pvre-summary-${data.hypothesis.slice(0, 20).replace(/[^a-z0-9]/gi, '-')}`;
+  doc.save(`${safeName}.pdf`);
+}
+
+/**
+ * Generate Interview Guide PDF with "The Mom Test" principles
+ */
+export function generateInterviewGuidePDF(data: ReportData): jsPDF {
+  const doc = new jsPDF();
+  let y = 20;
+  const margin = 20;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const contentWidth = pageWidth - margin * 2;
+
+  // Header
+  doc.setFillColor(...COLORS.primary);
+  doc.rect(0, 0, pageWidth, 5, 'F');
+  y = 18;
+  doc.setFontSize(22);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...COLORS.darkGray);
+  doc.text('Interview Guide', margin, y);
+  y += 6;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...COLORS.gray);
+  doc.text('Based on "The Mom Test" principles', margin, y);
+  y += 12;
+
+  // Hypothesis context
+  doc.setFillColor(250, 251, 252);
+  doc.roundedRect(margin, y, contentWidth, 20, 3, 3, 'F');
+  y += 8;
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...COLORS.gray);
+  doc.text('RESEARCHING', margin + 8, y);
+  y += 5;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...COLORS.darkGray);
+  const hypoLines = doc.splitTextToSize(data.hypothesis, contentWidth - 16);
+  doc.text(hypoLines.slice(0, 1), margin + 8, y);
+  y += 15;
+
+  // Mom Test Core Rules Box
+  doc.setFillColor(254, 243, 199); // Amber background
+  doc.roundedRect(margin, y, contentWidth, 45, 3, 3, 'F');
+  y += 10;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...COLORS.orange);
+  doc.text('THE MOM TEST: CORE RULES', margin + 10, y);
+  y += 8;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...COLORS.darkGray);
+  const rules = [
+    '1. Talk about THEIR life, not your idea',
+    '2. Ask about the PAST, not the future ("When did you last..." not "Would you...")',
+    '3. Listen more than you talk (aim for 80% them, 20% you)',
+    '4. Look for FACTS and COMMITMENTS, not compliments'
+  ];
+  rules.forEach(rule => {
+    doc.text(rule, margin + 10, y);
+    y += 6;
+  });
+  y += 10;
+
+  // Question sections with hints
+  const sections = [
+    {
+      title: 'Context Questions',
+      color: COLORS.primary,
+      hint: 'Build rapport and understand their world before diving into problems',
+      questions: [
+        { q: 'Tell me about your role and typical day.', tip: 'Listen for pain points they mention naturally' },
+        { q: 'What takes up most of your time?', tip: 'Note frustrations in their voice' },
+        { q: 'Walk me through how you currently handle [problem area].', tip: 'Document their actual process' },
+      ]
+    },
+    {
+      title: 'Problem Exploration',
+      color: COLORS.orange,
+      hint: 'Dig into specific instances - "last time" questions reveal real behavior',
+      questions: [
+        { q: 'When was the last time you struggled with [problem]?', tip: 'Get dates, details, emotions' },
+        { q: 'What did you do about it?', tip: 'Did they actively solve it or just accept it?' },
+        { q: 'How much time/money did that cost you?', tip: 'Quantify the pain - real numbers matter' },
+        { q: 'Why hasn\'t this been solved already?', tip: 'Reveals blockers and priorities' },
+      ]
+    },
+    {
+      title: 'Existing Solutions',
+      color: COLORS.warning,
+      hint: 'Understand what they\'ve tried - reveals willingness to act and pay',
+      questions: [
+        { q: 'What are you using today to solve this?', tip: 'Competitors, workarounds, manual processes' },
+        { q: 'What do you hate about your current solution?', tip: 'These become your key differentiators' },
+        { q: 'Have you looked for alternatives?', tip: 'Active searchers = real pain' },
+        { q: 'What would make you switch?', tip: 'Reveals must-have features' },
+      ]
+    },
+    {
+      title: 'Commitment & WTP',
+      color: COLORS.success,
+      hint: 'Don\'t ask "would you pay?" - look for past spending and commitments',
+      questions: [
+        { q: 'Have you spent money trying to solve this?', tip: 'Past spending predicts future' },
+        { q: 'What\'s the budget for tools in this area?', tip: 'Get actual numbers' },
+        { q: 'Would you be open to a follow-up call to see a prototype?', tip: 'Time commitment = validation' },
+      ]
+    }
+  ];
+
+  sections.forEach(section => {
+    if (y > 240) {
+      doc.addPage();
+      y = 25;
+    }
+
+    // Section header
+    doc.setFillColor(...section.color);
+    doc.rect(margin, y, 3, 10, 'F');
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.darkGray);
+    doc.text(section.title, margin + 8, y + 7);
+    y += 12;
+
+    // Hint
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(...COLORS.gray);
+    doc.text(section.hint, margin + 8, y);
+    y += 8;
+
+    // Questions with tips
+    section.questions.forEach((item, i) => {
+      if (y > 265) {
+        doc.addPage();
+        y = 25;
+      }
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0);
+      doc.text(`${i + 1}. ${item.q}`, margin + 5, y);
+      y += 5;
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...section.color);
+      doc.text(`→ ${item.tip}`, margin + 10, y);
+      y += 7;
+    });
+    y += 8;
+  });
+
+  // After Interview Checklist
+  if (y > 220) {
+    doc.addPage();
+    y = 25;
+  }
+  doc.setFillColor(236, 253, 245);
+  doc.roundedRect(margin, y, contentWidth, 45, 3, 3, 'F');
+  y += 10;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...COLORS.success);
+  doc.text('AFTER EACH INTERVIEW - REFLECTION', margin + 10, y);
+  y += 8;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...COLORS.darkGray);
+  const reflections = [
+    '□ What surprised me?',
+    '□ What validated my hypothesis?',
+    '□ What challenged my assumptions?',
+    '□ Did they commit to anything? (follow-up call, intro, purchase)',
+    '□ What should I ask differently next time?'
+  ];
+  reflections.forEach(r => {
+    doc.text(r, margin + 10, y);
+    y += 5;
+  });
+
+  // Footer
+  doc.setFontSize(7);
+  doc.setTextColor(...COLORS.gray);
+  doc.text('Generated by PVRE - Pre-Validation Research Engine', margin, 290);
+
+  return doc;
+}
+
+export function downloadInterviewGuidePDF(data: ReportData): void {
+  const doc = generateInterviewGuidePDF(data);
+  const safeName = `interview-guide-${Date.now()}`;
+  doc.save(`${safeName}.pdf`);
+}

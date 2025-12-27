@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { ArrowLeft, Calendar, Clock, AlertCircle, TrendingUp, Shield, Target, PieChart, Timer } from 'lucide-react'
 import { ExportDropdown } from '@/components/research/export-dropdown'
 import { ReportProblem } from '@/components/research/report-problem'
-import { AskAnythingSidebar } from '@/components/research/ask-anything-sidebar'
+import { ChatPanel } from '@/components/research/chat-panel'
 import { CollapsibleText } from '@/components/ui/collapsible-section'
 import { StatusPoller } from '@/components/research/status-poller'
 import { ResearchTrigger } from '@/components/research/research-trigger'
@@ -84,9 +84,9 @@ export default async function ResearchDetailPage({
   const result = communityVoiceResult
 
   return (
-    <div className="flex gap-6 max-w-7xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       {/* Main Content */}
-      <div className={showSidebar ? "flex-1 min-w-0" : "max-w-4xl mx-auto w-full"}>
+      <div className="w-full">
       {/* Back button and header */}
       <div className="mb-6">
           <Link href="/dashboard">
@@ -102,13 +102,17 @@ export default async function ResearchDetailPage({
               {/* Show structured hypothesis if available, otherwise truncated raw hypothesis */}
               {structuredHypothesis?.audience && structuredHypothesis?.problem ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Audience</span>
-                    <h1 className="text-xl font-semibold">{structuredHypothesis.audience}</h1>
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground mt-1.5 flex-shrink-0">Audience</span>
+                    <h1 className="text-xl font-semibold">
+                      <CollapsibleText text={structuredHypothesis.audience} maxLength={80} />
+                    </h1>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Problem</span>
-                    <p className="text-base text-muted-foreground">{structuredHypothesis.problem}</p>
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground mt-0.5 flex-shrink-0">Problem</span>
+                    <p className="text-base text-muted-foreground">
+                      <CollapsibleText text={structuredHypothesis.problem} maxLength={120} />
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -398,13 +402,9 @@ export default async function ResearchDetailPage({
         )}
       </div>
 
-      {/* Chat Sidebar */}
+      {/* Chat Drawer - floating button that opens side drawer */}
       {showSidebar && (
-        <div className="hidden lg:block w-80 flex-shrink-0">
-          <div className="sticky top-4 h-[calc(100vh-6rem)] rounded-lg border shadow-sm overflow-hidden">
-            <AskAnythingSidebar jobId={id} hypothesis={researchJob.hypothesis} />
-          </div>
-        </div>
+        <ChatPanel jobId={id} hypothesis={researchJob.hypothesis} />
       )}
     </div>
   )
