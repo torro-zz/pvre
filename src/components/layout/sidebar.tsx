@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { FolderList } from '@/components/folders'
 
 interface NavItem {
   href: string
@@ -102,29 +103,21 @@ function SidebarContent({ isCollapsed }: { isCollapsed: boolean }) {
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className={cn('px-4 py-5 border-b', isCollapsed && 'px-3')}>
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-            <span className="text-primary-foreground font-bold text-sm">P</span>
-          </div>
-          <AnimatePresence mode="wait">
-            {!isCollapsed && (
-              <motion.span
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                transition={{ duration: 0.2 }}
-                className="font-semibold text-lg overflow-hidden whitespace-nowrap"
-              >
-                PVRE
-              </motion.span>
-            )}
-          </AnimatePresence>
+      <div className={cn('px-4 py-5 border-b', isCollapsed && 'px-3 flex justify-center')}>
+        <Link href="/dashboard" className="flex items-center">
+          <motion.span
+            className="font-bold text-xl text-primary whitespace-nowrap overflow-hidden"
+            initial={false}
+            animate={{ width: isCollapsed ? '20px' : 'auto' }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+          >
+            {isCollapsed ? 'P' : 'PVRE'}
+          </motion.span>
         </Link>
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="px-3 py-4 space-y-1">
         {mainNavItems.map((item) => (
           <NavLink
             key={item.href}
@@ -134,6 +127,11 @@ function SidebarContent({ isCollapsed }: { isCollapsed: boolean }) {
           />
         ))}
       </nav>
+
+      {/* Folders Section */}
+      <div className="flex-1 border-t overflow-y-auto">
+        <FolderList isCollapsed={isCollapsed} />
+      </div>
 
       {/* Bottom Navigation */}
       <div className="px-3 py-4 border-t space-y-1">

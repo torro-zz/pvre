@@ -2,22 +2,19 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { ArrowRight, FileText, CheckCircle2, Loader2, TrendingUp, Target, Hourglass, Users, Play, RefreshCw, Sparkles } from 'lucide-react'
-import { StepStatusMap, DEFAULT_STEP_STATUS } from '@/types/database'
+import { ArrowRight, FileText, Loader2, TrendingUp, Target, Hourglass, Users, RefreshCw, Folder, X } from 'lucide-react'
 import { ResearchJobList, ResearchJobWithVerdict } from '@/components/dashboard/research-job-list'
 import { QuickStats } from '@/components/dashboard/quick-stats'
 import { OverviewCharts } from '@/components/dashboard/overview-charts'
 import { TopPerformers } from '@/components/dashboard/top-performers'
 import {
   DashboardHeader,
-  AnimatedGrid,
   AnimatedItem,
   ProgressBanner,
-  FeatureGrid,
-  FeatureItem,
 } from '@/components/dashboard/animated-dashboard'
 import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
 import { calculateViability, type VerdictLevel } from '@/lib/analysis/viability-calculator'
+import { StepStatusMap } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,8 +23,13 @@ interface ResearchJob {
   hypothesis: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
   step_status: StepStatusMap | null
+  folder_id: string | null
   created_at: string
   updated_at: string
+}
+
+interface PageProps {
+  searchParams: Promise<{ folder?: string }>
 }
 
 interface RawResult {
@@ -36,51 +38,40 @@ interface RawResult {
   data: Record<string, unknown>
 }
 
-// Get the next incomplete step for a job
-function getNextIncompleteStep(stepStatus: StepStatusMap | null): {
-  step: keyof StepStatusMap | null
-  label: string
-  icon: React.ReactNode
-} | null {
-  const status = stepStatus || DEFAULT_STEP_STATUS
-
-  const steps: Array<{
-    key: keyof StepStatusMap
-    label: string
-    icon: React.ReactNode
-  }> = [
-    { key: 'pain_analysis', label: 'Pain Analysis', icon: <TrendingUp className="h-4 w-4" /> },
-    { key: 'market_sizing', label: 'Market Sizing', icon: <Target className="h-4 w-4" /> },
-    { key: 'timing_analysis', label: 'Timing Analysis', icon: <Hourglass className="h-4 w-4" /> },
-    { key: 'competitor_analysis', label: 'Competitor Analysis', icon: <Users className="h-4 w-4" /> },
-  ]
-
-  for (const step of steps) {
-    const stepState = status[step.key]
-    if (stepState === 'pending' || stepState === 'in_progress' || stepState === 'failed') {
-      return { step: step.key, label: step.label, icon: step.icon }
-    }
-  }
-
-  // All steps completed
-  return null
-}
-
 function truncateText(text: string, maxLength: number) {
   if (text.length <= maxLength) return text
   return text.substring(0, maxLength - 3) + '...'
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: PageProps) {
+  const { folder: folderId } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Fetch user's research jobs
-  const { data: jobs } = await supabase
+  // Fetch folder info if filtering by folder
+  let currentFolder: { id: string; name: string; color: string | null } | null = null
+  if (folderId) {
+    const { data: folderData } = await supabase
+      .from('research_folders')
+      .select('id, name, color')
+      .eq('id', folderId)
+      .single()
+    currentFolder = folderData
+  }
+
+  // Build query for research jobs
+  let jobsQuery = supabase
     .from('research_jobs')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(10)
+    .limit(20)
+
+  // Filter by folder if specified
+  if (folderId) {
+    jobsQuery = jobsQuery.eq('folder_id', folderId)
+  }
+
+  const { data: jobs } = await jobsQuery
 
   const researchJobs = (jobs || []) as ResearchJob[]
 
@@ -225,22 +216,40 @@ export default async function DashboardPage() {
     return (now - updatedAt) < STALE_THRESHOLD_MS
   })
 
-  // Find the most recent job that has incomplete steps
-  const incompleteJob = jobsWithVerdicts.find(job => {
-    if (job.status === 'failed') return false
-    const nextStep = getNextIncompleteStep(job.step_status)
-    return nextStep !== null
-  })
-
-  const nextStep = incompleteJob ? getNextIncompleteStep(incompleteJob.step_status) : null
-
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* Header with greeting */}
       <DashboardHeader
-        title={<>Welcome back{user?.user_metadata?.full_name ? `, ${user.user_metadata.full_name}` : ''}!</>}
-        subtitle="Get automated market research for your business hypothesis"
+        title={currentFolder ? (
+          <span className="flex items-center gap-2">
+            <Folder className="h-5 w-5 sm:h-6 sm:w-6" />
+            {currentFolder.name}
+          </span>
+        ) : (
+          <>Welcome back{user?.user_metadata?.full_name ? `, ${user.user_metadata.full_name}` : ''}!</>
+        )}
+        subtitle={currentFolder
+          ? `${jobsWithVerdicts.length} research project${jobsWithVerdicts.length !== 1 ? 's' : ''} in this folder`
+          : 'Get automated market research for your business hypothesis'
+        }
       />
+
+      {/* Folder Filter Indicator */}
+      {currentFolder && (
+        <AnimatedItem>
+          <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2">
+            <span className="text-sm text-muted-foreground">
+              Viewing folder: <span className="font-medium text-foreground">{currentFolder.name}</span>
+            </span>
+            <Link href="/dashboard">
+              <Button variant="ghost" size="sm" className="text-xs">
+                <X className="h-3 w-3 mr-1" />
+                Clear filter
+              </Button>
+            </Link>
+          </div>
+        </AnimatedItem>
+      )}
 
       {/* In Progress Research Banner */}
       {processingJobs.length > 0 && (
@@ -280,6 +289,45 @@ export default async function DashboardPage() {
         </ProgressBanner>
       )}
 
+      {/* Start New Research - Prominent CTA at top */}
+      <AnimatedItem>
+        <Card className="relative overflow-hidden border-primary/20">
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5" />
+          <CardContent className="relative py-4 sm:py-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="hidden sm:flex items-center gap-2 text-muted-foreground">
+                  <div className="p-1.5 rounded-md bg-emerald-100 dark:bg-emerald-500/20">
+                    <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div className="p-1.5 rounded-md bg-blue-100 dark:bg-blue-500/20">
+                    <Target className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="p-1.5 rounded-md bg-amber-100 dark:bg-amber-500/20">
+                    <Hourglass className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div className="p-1.5 rounded-md bg-purple-100 dark:bg-purple-500/20">
+                    <Users className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-base sm:text-lg">Start New Research</h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
+                    Validate ideas or analyze app markets with AI-powered insights
+                  </p>
+                </div>
+              </div>
+              <Link href="/research">
+                <Button size="lg" className="w-full sm:w-auto">
+                  Start Research
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </AnimatedItem>
+
       {/* Quick Stats Row */}
       <QuickStats jobs={jobsWithVerdicts} />
 
@@ -304,127 +352,6 @@ export default async function DashboardPage() {
         ) : null
       })()}
 
-      {/* Action Cards */}
-      <AnimatedGrid className="md:grid-cols-2">
-        {/* Hero: Start New Research */}
-        <AnimatedItem>
-          <Card className="relative overflow-hidden h-full">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/10" />
-            <CardHeader className="relative pb-3 sm:pb-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                <CardTitle className="text-base sm:text-lg">Start New Research</CardTitle>
-              </div>
-              <CardDescription className="text-xs sm:text-sm">
-                Validate your business hypothesis with AI-powered analysis
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="relative space-y-3 sm:space-y-4">
-              <FeatureGrid>
-                <FeatureItem>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm">
-                    <div className="p-1 sm:p-1.5 rounded-md bg-emerald-100 dark:bg-emerald-500/20">
-                      <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <span className="text-muted-foreground">Pain Score</span>
-                  </div>
-                </FeatureItem>
-                <FeatureItem>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm">
-                    <div className="p-1 sm:p-1.5 rounded-md bg-blue-100 dark:bg-blue-500/20">
-                      <Target className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <span className="text-muted-foreground">Market Size</span>
-                  </div>
-                </FeatureItem>
-                <FeatureItem>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm">
-                    <div className="p-1 sm:p-1.5 rounded-md bg-amber-100 dark:bg-amber-500/20">
-                      <Hourglass className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    <span className="text-muted-foreground">Timing</span>
-                  </div>
-                </FeatureItem>
-                <FeatureItem>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm">
-                    <div className="p-1 sm:p-1.5 rounded-md bg-purple-100 dark:bg-purple-500/20">
-                      <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <span className="text-muted-foreground">Competition</span>
-                  </div>
-                </FeatureItem>
-              </FeatureGrid>
-              <Link href="/research">
-                <Button className="w-full text-sm sm:text-base" size="lg">
-                  Start Research
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </AnimatedItem>
-
-        {/* Continue Your Research (only if incomplete job) */}
-        {incompleteJob && nextStep && (
-          <AnimatedItem>
-            <Card className="border-primary/30 bg-primary/5 dark:bg-primary/10 h-full">
-              <CardHeader className="pb-3 sm:pb-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Play className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                  <CardTitle className="text-base sm:text-lg">Continue Your Research</CardTitle>
-                </div>
-                <CardDescription className="text-xs sm:text-sm">
-                  Next step: <span className="font-medium text-foreground">{nextStep.label}</span>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 sm:space-y-4">
-                <p className="text-xs sm:text-sm text-muted-foreground font-medium line-clamp-2">
-                  "{truncateText(incompleteJob.hypothesis, 80)}"
-                </p>
-                <Link href={`/research/${incompleteJob.id}`} className="block">
-                  <Button className="w-full text-sm sm:text-base" variant="default">
-                    {nextStep.icon}
-                    <span className="ml-2">Continue to {nextStep.label}</span>
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </AnimatedItem>
-        )}
-
-        {/* If no incomplete job, show a placeholder or tips card */}
-        {!incompleteJob && (
-          <AnimatedItem>
-            <Card className="h-full">
-              <CardHeader className="pb-3 sm:pb-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
-                  <CardTitle className="text-base sm:text-lg">Research Tips</CardTitle>
-                </div>
-                <CardDescription className="text-xs sm:text-sm">
-                  Get the most out of your research
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-muted-foreground">
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
-                  <span>Be specific about your target audience</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
-                  <span>Include the problem you're solving</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mt-0.5 text-emerald-500 flex-shrink-0" />
-                  <span>Run competitor analysis for full insights</span>
-                </div>
-              </CardContent>
-            </Card>
-          </AnimatedItem>
-        )}
-      </AnimatedGrid>
-
       {/* Recent Research */}
       <AnimatedItem>
         <Card>
@@ -439,7 +366,7 @@ export default async function DashboardPage() {
                   Your latest research projects
                 </CardDescription>
               </div>
-              {jobsWithVerdicts.length > 0 && (
+              {jobsWithVerdicts.length > 20 && (
                 <Link href="/account/usage">
                   <Button variant="ghost" size="sm" className="text-xs sm:text-sm">
                     View All

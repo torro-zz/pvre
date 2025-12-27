@@ -713,6 +713,47 @@ export type Database = {
           },
         ]
       }
+      research_folders: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          color: string | null
+          icon: string | null
+          order_index: number | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          color?: string | null
+          icon?: string | null
+          order_index?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          color?: string | null
+          icon?: string | null
+          order_index?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_folders_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_jobs: {
         Row: {
           chat_count: number | null
@@ -721,6 +762,7 @@ export type Database = {
           created_at: string | null
           error_message: string | null
           error_source: string | null
+          folder_id: string | null
           hypothesis: string
           id: string
           idempotency_key: string | null
@@ -740,6 +782,7 @@ export type Database = {
           created_at?: string | null
           error_message?: string | null
           error_source?: string | null
+          folder_id?: string | null
           hypothesis: string
           id?: string
           idempotency_key?: string | null
@@ -759,6 +802,7 @@ export type Database = {
           created_at?: string | null
           error_message?: string | null
           error_source?: string | null
+          folder_id?: string | null
           hypothesis?: string
           id?: string
           idempotency_key?: string | null
@@ -772,6 +816,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "research_jobs_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "research_folders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "research_jobs_user_id_fkey"
             columns: ["user_id"]

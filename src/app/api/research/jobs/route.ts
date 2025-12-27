@@ -193,7 +193,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH - Update job status
+// PATCH - Update job status or folder
 export async function PATCH(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -206,28 +206,49 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
+    // Support both body param and query param for jobId
+    const searchParams = request.nextUrl.searchParams
     const body = await request.json()
-    const { jobId, status } = body
+    const jobId = body.jobId || searchParams.get('id')
+    const { status, folder_id } = body
 
-    if (!jobId || !status) {
+    if (!jobId) {
       return NextResponse.json(
-        { error: 'jobId and status are required' },
+        { error: 'jobId is required' },
         { status: 400 }
       )
     }
 
-    const validStatuses = ['pending', 'processing', 'completed', 'failed']
-    if (!validStatuses.includes(status)) {
+    // Build update object with provided fields
+    const updateData: { status?: string; folder_id?: string | null } = {}
+
+    if (status !== undefined) {
+      const validStatuses = ['pending', 'processing', 'completed', 'failed']
+      if (!validStatuses.includes(status)) {
+        return NextResponse.json(
+          { error: 'Invalid status' },
+          { status: 400 }
+        )
+      }
+      updateData.status = status
+    }
+
+    if (folder_id !== undefined) {
+      // folder_id can be null (to remove from folder) or a valid UUID
+      updateData.folder_id = folder_id
+    }
+
+    if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
-        { error: 'Invalid status' },
+        { error: 'No valid fields to update' },
         { status: 400 }
       )
     }
 
-    // Update job status
+    // Update job
     const { data: job, error: updateError } = await supabase
       .from('research_jobs')
-      .update({ status })
+      .update(updateData)
       .eq('id', jobId)
       .eq('user_id', user.id) // Ensure user owns this job
       .select()
