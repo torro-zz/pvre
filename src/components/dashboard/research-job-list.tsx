@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Clock, ArrowRight, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, BarChart3, MoreVertical, Copy, Trash2, ChevronDown, ChevronUp, FolderInput, FolderPlus, X } from 'lucide-react'
+import { Clock, ArrowRight, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, BarChart3, MoreVertical, Trash2, ChevronDown, ChevronUp, FolderInput, FolderPlus, X } from 'lucide-react'
 import { FolderSelector, FolderDialog } from '@/components/folders'
 import { StepStatusMap, DEFAULT_STEP_STATUS } from '@/types/database'
 import { cn } from '@/lib/utils'
@@ -245,13 +245,6 @@ function JobCard({
   }, [isActionsOpen, onCloseActions])
 
   // Action handlers
-  const handleDuplicate = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    router.push(`/research?hypothesis=${encodeURIComponent(job.hypothesis)}`)
-    onCloseActions()
-  }
-
   const handleMoveClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -421,14 +414,6 @@ function JobCard({
               </button>
 
               {/* Action buttons */}
-              <button
-                onClick={handleDuplicate}
-                className="w-20 sm:w-24 flex flex-col items-center justify-center gap-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors border-r"
-                title="Duplicate"
-              >
-                <Copy className="h-5 w-5" />
-                <span className="text-[10px] sm:text-xs font-medium">Duplicate</span>
-              </button>
               <button
                 onClick={handleMoveClick}
                 className="w-20 sm:w-24 flex flex-col items-center justify-center gap-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors border-r"
