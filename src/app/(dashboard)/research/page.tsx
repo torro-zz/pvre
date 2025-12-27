@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ConversationalInput } from '@/components/research/conversational-input'
 import { CommunityVoiceResults } from '@/components/research/community-voice-results'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -37,8 +37,33 @@ interface StreamProgress {
   themeCount?: number
 }
 
+// Wrapper to handle Suspense for useSearchParams
 export default function ResearchPage() {
+  return (
+    <Suspense fallback={<ResearchPageSkeleton />}>
+      <ResearchPageContent />
+    </Suspense>
+  )
+}
+
+function ResearchPageSkeleton() {
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold tracking-tight">New Research</h1>
+      </div>
+      <div className="animate-pulse">
+        <div className="h-40 bg-muted rounded-xl mb-4" />
+        <div className="h-12 bg-muted rounded-xl" />
+      </div>
+    </div>
+  )
+}
+
+function ResearchPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialHypothesis = searchParams.get('hypothesis') || ''
   const [status, setStatus] = useState<ResearchStatus>('idle')
   const [results, setResults] = useState<CommunityVoiceResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -268,7 +293,11 @@ export default function ResearchPage() {
       ) : (
         /* Conversational Input */
         <div className="mb-8">
-          <ConversationalInput onSubmit={runResearch} isLoading={status === 'loading'} />
+          <ConversationalInput
+            onSubmit={runResearch}
+            isLoading={status === 'loading'}
+            initialValue={initialHypothesis}
+          />
         </div>
       )}
 

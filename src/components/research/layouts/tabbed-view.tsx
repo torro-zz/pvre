@@ -96,6 +96,13 @@ export function TabbedView() {
           postsAnalyzed={communityVoiceResult.data.metadata?.postsAnalyzed ?? 0}
           communitiesCount={communityVoiceResult.data.subreddits?.analyzed?.length ?? 0}
           dataSources={communityVoiceResult.data.metadata?.dataSources ?? []}
+          hypothesis={job.hypothesis}
+          timingScore={timingData?.score}
+          competitionScore={competitorResult?.data?.competitionScore?.score}
+          marketSizing={marketData ? {
+            samFormatted: marketData.sam ? `${(marketData.sam.value / 1000000).toFixed(1)}M` : undefined,
+            tamFormatted: marketData.tam ? `${(marketData.tam.value / 1000000).toFixed(1)}M` : undefined,
+          } : undefined}
           verdict={viabilityVerdict}
           redFlags={viabilityVerdict.redFlags}
           className="mb-6"

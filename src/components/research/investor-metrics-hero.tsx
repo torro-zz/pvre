@@ -65,6 +65,7 @@ interface InvestorMetricsHeroProps {
   postsAnalyzed: number
   communitiesCount: number
   dataSources: string[]
+  hypothesis?: string  // For "Edit & Re-run" link
 
   // Additional metrics for compact row
   marketSizing?: {
@@ -254,6 +255,45 @@ function DataQualityBadge({ confidence }: { confidence: 'very_low' | 'low' | 'me
   )
 }
 
+// Color coding helper for scores
+function getScoreColor(value: number | string, colorType?: 'score' | 'count' | 'neutral'): string {
+  if (colorType === 'neutral' || typeof value === 'string') return ''
+  const numValue = typeof value === 'number' ? value : parseFloat(value)
+  if (isNaN(numValue)) return ''
+
+  if (colorType === 'count') {
+    return numValue === 0 ? 'text-red-500' : ''
+  }
+
+  // Score-based coloring
+  if (numValue >= 8) return 'text-emerald-500'
+  if (numValue >= 6) return 'text-amber-500'
+  if (numValue >= 4) return 'text-orange-500'
+  return 'text-red-500'
+}
+
+// Interpretive label helpers for metrics
+function getPainLabel(score: number): string {
+  if (score >= 8) return 'Strong'
+  if (score >= 6) return 'Moderate'
+  if (score >= 4) return 'Low'
+  return 'Minimal'
+}
+
+function getTimingLabel(score: number): string {
+  if (score >= 8) return 'Rising ↑'
+  if (score >= 6) return 'Stable →'
+  if (score >= 4) return 'Uncertain'
+  return 'Declining ↓'
+}
+
+function getVerdictLabel(score: number): { text: string; color: string } {
+  if (score >= 8) return { text: 'Strong Signal', color: 'text-emerald-500' }
+  if (score >= 6) return { text: 'Solid Foundation', color: 'text-amber-500' }
+  if (score >= 4) return { text: 'Mixed Signal', color: 'text-orange-500' }
+  return { text: 'Needs Rethinking', color: 'text-red-500' }
+}
+
 // Quick Metrics Row - compact horizontal display
 function QuickMetricsRow({
   metrics,
@@ -262,8 +302,13 @@ function QuickMetricsRow({
   metrics: Array<{
     label: string
     value: string | number
+    suffix?: string  // e.g., "/10" or "users"
+    interpretiveLabel?: string  // e.g., "Strong", "Mixed Signal"
+    interpretiveLabelColor?: string  // Tailwind color class
     section?: string
     highlight?: boolean
+    tooltip?: string
+    colorType?: 'score' | 'count' | 'neutral'  // For color coding
   }>
   onScrollToSection?: (section: string) => void
 }) {
@@ -274,44 +319,76 @@ function QuickMetricsRow({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.15 }}
     >
-      {metrics.map((metric, index) => (
-        <motion.button
-          key={metric.label}
-          type="button"
-          onClick={() => metric.section && onScrollToSection?.(metric.section)}
-          disabled={!metric.section || !onScrollToSection}
-          className={cn(
-            'flex flex-col items-center p-2 rounded-lg transition-colors text-center',
-            metric.section && onScrollToSection
-              ? 'hover:bg-muted/50 cursor-pointer'
-              : 'cursor-default',
-            metric.highlight && 'bg-primary/5'
-          )}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3, delay: 0.2 + index * 0.05 }}
-        >
-          {typeof metric.value === 'number' ? (
-            <AnimatedNumber
-              value={metric.value}
-              decimals={metric.value % 1 !== 0 ? 1 : 0}
-              delay={0.3 + index * 0.05}
-              duration={0.8}
-              className={cn(
-                'text-lg font-bold',
-                metric.highlight && 'text-primary'
+      {metrics.map((metric, index) => {
+        const colorClass = getScoreColor(metric.value, metric.colorType)
+
+        const button = (
+          <motion.button
+            key={metric.label}
+            type="button"
+            onClick={() => metric.section && onScrollToSection?.(metric.section)}
+            disabled={!metric.section || !onScrollToSection}
+            className={cn(
+              'flex flex-col items-center p-2 rounded-lg transition-colors text-center w-full',
+              metric.section && onScrollToSection
+                ? 'hover:bg-muted/50 cursor-pointer'
+                : 'cursor-default',
+              metric.highlight && 'bg-primary/5'
+            )}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, delay: 0.2 + index * 0.05 }}
+          >
+            <div className="flex items-baseline gap-0.5">
+              {typeof metric.value === 'number' ? (
+                <AnimatedNumber
+                  value={metric.value}
+                  decimals={metric.value % 1 !== 0 ? 1 : 0}
+                  delay={0.3 + index * 0.05}
+                  duration={0.8}
+                  className={cn(
+                    'text-lg font-bold',
+                    colorClass || (metric.highlight && 'text-primary')
+                  )}
+                />
+              ) : (
+                <span className={cn('text-lg font-bold', colorClass || (metric.highlight && 'text-primary'))}>
+                  {metric.value}
+                </span>
               )}
-            />
-          ) : (
-            <span className={cn('text-lg font-bold', metric.highlight && 'text-primary')}>
-              {metric.value}
+              {metric.suffix && (
+                <span className={cn('text-sm font-medium', colorClass || 'text-muted-foreground')}>
+                  {metric.suffix}
+                </span>
+              )}
+            </div>
+            {metric.interpretiveLabel && (
+              <span className={cn(
+                'text-[10px] font-medium mt-0.5',
+                metric.interpretiveLabelColor || 'text-muted-foreground'
+              )}>
+                {metric.interpretiveLabel}
+              </span>
+            )}
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">
+              {metric.label}
             </span>
-          )}
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">
-            {metric.label}
-          </span>
-        </motion.button>
-      ))}
+          </motion.button>
+        )
+
+        if (metric.tooltip) {
+          return (
+            <Tooltip key={metric.label}>
+              <TooltipTrigger asChild>{button}</TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[240px] text-xs">
+                {metric.tooltip}
+              </TooltipContent>
+            </Tooltip>
+          )
+        }
+
+        return button
+      })}
     </motion.div>
   )
 }
@@ -335,6 +412,7 @@ export function InvestorMetricsHero({
   postsAnalyzed,
   communitiesCount,
   dataSources,
+  hypothesis,
   marketSizing,
   timingScore,
   competitionScore,
@@ -464,17 +542,7 @@ export function InvestorMetricsHero({
           </motion.div>
           <h2 className="font-semibold text-base">Investor Metrics</h2>
         </div>
-        <div className="flex items-center gap-2">
-          <DataQualityBadge confidence={dataConfidence} />
-          {hasWarnings && (
-            <AnimatedBadge delay={0.5}>
-              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800">
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                {allWarnings.length} warning{allWarnings.length > 1 ? 's' : ''}
-              </Badge>
-            </AnimatedBadge>
-          )}
-        </div>
+        {/* Removed redundant badges - consolidated warning banner shown below */}
       </motion.div>
 
       {/* Quick Metrics Row - compact at-a-glance numbers */}
@@ -484,40 +552,95 @@ export function InvestorMetricsHero({
             {
               label: 'Pain',
               value: painScore,
+              suffix: '/10',
               section: 'evidence',
-              highlight: painScore >= 7,
+              colorType: 'score' as const,
+              interpretiveLabel: getPainLabel(painScore),
+              interpretiveLabelColor: getScoreColor(painScore, 'score'),
             },
             {
               label: 'Signals',
               value: totalSignals,
               section: 'evidence',
+              colorType: 'count' as const,
+              interpretiveLabel: totalSignals > 0 ? 'found' : undefined,
+              tooltip: coreSignals !== undefined
+                ? `${totalSignals} total signals found. ${coreSignals} are core (directly match your hypothesis), ${totalSignals - coreSignals} are supporting.`
+                : `${totalSignals} signals found matching your hypothesis.`,
             },
             {
               label: 'WTP',
               value: wtpCount,
               section: 'evidence',
-              highlight: wtpCount > 0,
+              colorType: 'count' as const,
+              interpretiveLabel: wtpCount > 0 ? '💰 found' : undefined,
+              interpretiveLabelColor: wtpCount > 0 ? 'text-emerald-500' : undefined,
             },
             {
               label: 'Market',
               value: marketSizing?.samFormatted || (marketOpportunity?.score?.toFixed(1) || '—'),
+              suffix: marketSizing?.samFormatted ? ' users' : '/10',
               section: 'market',
+              colorType: 'neutral' as const,
             },
             {
               label: 'Timing',
-              value: timingScore ?? 0,
+              value: timingScore !== undefined ? timingScore : '—',
+              suffix: timingScore !== undefined ? '/10' : undefined,
               section: 'market',
+              colorType: 'score' as const,
+              interpretiveLabel: timingScore !== undefined ? getTimingLabel(timingScore) : undefined,
+              interpretiveLabelColor: timingScore !== undefined ? getScoreColor(timingScore, 'score') : undefined,
             },
             {
               label: 'Verdict',
               value: verdict?.overallScore || 0,
+              suffix: '/10',
               section: 'action',
-              highlight: (verdict?.overallScore || 0) >= 7,
+              colorType: 'score' as const,
+              interpretiveLabel: getVerdictLabel(verdict?.overallScore || 0).text,
+              interpretiveLabelColor: getVerdictLabel(verdict?.overallScore || 0).color,
             },
           ]}
           onScrollToSection={onScrollToSection}
         />
       </div>
+
+      {/* Consolidated Limited Data Banner */}
+      {(dataConfidence === 'very_low' || dataConfidence === 'low') && (
+        <motion.div
+          className="mx-6 mt-3 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.25 }}
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-medium text-amber-700 dark:text-amber-300 text-sm">
+                Limited Data
+              </div>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                Results based on {postsAnalyzed.toLocaleString()} relevant post{postsAnalyzed === 1 ? '' : 's'}.
+                {postsAnalyzed < 10 && ' Consider broadening your search for stronger signals.'}
+              </p>
+            </div>
+            {hypothesis && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-xs h-7"
+                asChild
+              >
+                <a href={`/research?hypothesis=${encodeURIComponent(hypothesis)}`}>
+                  Edit & Re-run
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                </a>
+              </Button>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Two-Panel Section: Recommendation + Market Snapshot */}
       <div className={cn(
@@ -582,12 +705,12 @@ export function InvestorMetricsHero({
               {marketSizing.tamFormatted && (
                 <div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">TAM</div>
-                  <div className="font-semibold">{marketSizing.tamFormatted}</div>
+                  <div className="font-semibold">{marketSizing.tamFormatted} users</div>
                 </div>
               )}
               <div>
                 <div className="text-xs text-muted-foreground uppercase tracking-wide">SAM</div>
-                <div className="font-semibold">{marketSizing.samFormatted}</div>
+                <div className="font-semibold">{marketSizing.samFormatted} users</div>
               </div>
               {competitionScore !== undefined && competitionScore > 0 && (
                 <div>
@@ -619,34 +742,8 @@ export function InvestorMetricsHero({
         )}
       </div>
 
-      {/* Compact Key Signals Row - moved to bottom for space efficiency */}
+      {/* Footer stats - compact inline */}
       <div className="px-6 pb-4 pt-2">
-        {/* Warnings - shown inline if any */}
-        {hasWarnings && (
-          <motion.div
-            className="flex items-center gap-2 mb-3"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3, delay: 0.5 }}
-          >
-            {allWarnings.slice(0, 1).map((warning, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs flex-1',
-                  warning.severity === 'HIGH'
-                    ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400'
-                    : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'
-                )}
-              >
-                <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate">{warning.message}</span>
-              </div>
-            ))}
-          </motion.div>
-        )}
-
-        {/* Footer stats - compact inline */}
         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
           {dataSources.length > 0 && (
             <div className="flex items-center gap-1.5">

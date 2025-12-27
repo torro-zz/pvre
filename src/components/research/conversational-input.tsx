@@ -26,6 +26,7 @@ interface ConversationalInputProps {
   onSubmit: (hypothesis: string, coverageData?: CoverageData, structuredHypothesis?: StructuredHypothesis) => Promise<void>
   isLoading: boolean
   showCoveragePreview?: boolean
+  initialValue?: string  // Pre-fill the input with a hypothesis (e.g., from URL query param)
 }
 
 // Structured examples with audience and problem separated for visual teaching
@@ -123,15 +124,15 @@ function InputQualityIndicator({ input }: { input: string }) {
   )
 }
 
-export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview = true }: ConversationalInputProps) {
+export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview = true, initialValue }: ConversationalInputProps) {
   // Step state
   const [step, setStep] = useState<Step>('input')
 
   // Input mode: 'text' or 'url'
   const [inputMode, setInputMode] = useState<'text' | 'url'>('text')
 
-  // Input state
-  const [rawInput, setRawInput] = useState('')
+  // Input state - initialize with initialValue if provided
+  const [rawInput, setRawInput] = useState(initialValue || '')
   const [urlInput, setUrlInput] = useState('')
   const [urlError, setUrlError] = useState<string | null>(null)
 
