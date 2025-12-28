@@ -13,6 +13,7 @@ export interface QuoteData {
   isWtp?: boolean
   url?: string
   timestamp?: string
+  isDeleted?: boolean  // Whether the original post was deleted
 }
 
 // Detect source type from source string
@@ -200,6 +201,20 @@ export function QuoteCard({
         <div className="flex items-center gap-2">
           <span className={cn("text-sm font-medium", getSourceTextClass(data.source))}>{formatSourceName(data.source)}</span>
           <TrustBadge level={trustLevel} size="sm" />
+          {data.url && (
+            <a
+              href={data.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title={data.isDeleted ? "Post may be deleted - click to check" : "View original post"}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+          {data.isDeleted && (
+            <span className="text-[10px] text-muted-foreground italic">(deleted)</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {data.isWtp && (
@@ -210,7 +225,7 @@ export function QuoteCard({
           )}
           {painLevel && data.painScore !== undefined && (
             <Badge variant="outline" className={cn('h-5 text-[10px]', painBadgeColors[painLevel])}>
-              {data.painScore.toFixed(1)}
+              Pain: {Math.round(data.painScore * 10) / 10}
             </Badge>
           )}
         </div>
@@ -278,24 +293,70 @@ export function QuoteList({
   )
 }
 
-// WTP-specific quote card
+// WTP-specific quote card with explicit/inferred differentiation
 interface WtpQuoteCardProps {
   quote: string
   source: string
+  signalType?: 'explicit' | 'inferred'  // explicit = clear payment language, inferred = AI interpretation
+  url?: string  // Original post/comment URL
   className?: string
 }
 
-export function WtpQuoteCard({ quote, source, className }: WtpQuoteCardProps) {
+export function WtpQuoteCard({ quote, source, signalType = 'explicit', url, className }: WtpQuoteCardProps) {
+  const isInferred = signalType === 'inferred'
+
   return (
-    <QuoteCard
-      data={{
-        quote,
-        source,
-        isWtp: true,
-      }}
-      trustLevel="verified"
-      variant="default"
-      className={cn('border-l-green-500', className)}
-    />
+    <div className={cn(
+      'p-4 rounded-lg border bg-card border-l-4',
+      isInferred ? 'border-l-green-400 border-dashed' : 'border-l-green-500',
+      className
+    )}>
+      {/* Header with source and signal type badge */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className={cn("text-sm font-medium", getSourceTextClass(source))}>{formatSourceName(source)}</span>
+          <TrustBadge level="verified" size="sm" />
+          {url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title="View original post"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className={cn(
+              'h-5 text-[10px]',
+              isInferred
+                ? 'bg-green-50/50 text-green-600 border-green-200 border-dashed dark:bg-green-950/20 dark:text-green-400 dark:border-green-700'
+                : 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800'
+            )}
+            title={isInferred ? 'AI-inferred from behavior patterns' : 'Contains explicit payment language'}
+          >
+            <DollarSign className="h-2.5 w-2.5 mr-0.5" />
+            {isInferred ? 'Inferred' : 'WTP'}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Quote */}
+      <div className="flex items-start gap-2">
+        <Quote className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
+        <p className="text-sm italic leading-relaxed">"{quote}"</p>
+      </div>
+
+      {/* Inferred signal note */}
+      {isInferred && (
+        <p className="text-xs text-muted-foreground mt-2 pl-6 italic">
+          Behavior suggests willingness to pay (not explicit statement)
+        </p>
+      )}
+    </div>
   )
 }

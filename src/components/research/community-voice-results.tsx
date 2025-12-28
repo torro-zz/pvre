@@ -25,6 +25,9 @@ import {
   HelpCircle,
   Zap,
   MessageSquare,
+  Clock,
+  Star,
+  FileText,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useResearchTabs } from './research-tabs-context'
@@ -45,7 +48,20 @@ export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep
   const [showAllSignals, setShowAllSignals] = useState(false)
   const [copiedSection, setCopiedSection] = useState<string | null>(null)
   const [expandedThemes, setExpandedThemes] = useState<Set<number>>(new Set([0])) // First card expanded by default
+  const [expandedInterviewSections, setExpandedInterviewSections] = useState<Set<string>>(new Set(['context', 'problem', 'solution'])) // All expanded by default
   const { setActiveTab, communitySubTab, setCommunitySubTab } = useResearchTabs()
+
+  const toggleInterviewSection = (section: string) => {
+    setExpandedInterviewSections(prev => {
+      const next = new Set(prev)
+      if (next.has(section)) {
+        next.delete(section)
+      } else {
+        next.add(section)
+      }
+      return next
+    })
+  }
 
   const toggleTheme = (index: number) => {
     setExpandedThemes(prev => {
@@ -109,20 +125,22 @@ export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep
     setTimeout(() => setCopiedSection(null), 2000)
   }
 
-  const formatInterviewQuestions = () => {
+  const formatInterviewQuestions = (asMarkdown = false) => {
     const { contextQuestions, problemQuestions, solutionQuestions } =
       results.interviewQuestions
 
-    return `# Interview Guide for: ${results.hypothesis}
+    const starMarker = asMarkdown ? '⭐ ' : ''
 
+    return `# Interview Guide for: ${results.hypothesis}
+${asMarkdown ? '\n> Estimated time: ~30 minutes\n' : ''}
 ## Context Questions
-${contextQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
+${contextQuestions.map((q, i) => `${i + 1}. ${i === 0 ? starMarker : ''}${getQuestionText(q)}${i === 0 && asMarkdown ? ' *(Start here)*' : ''}`).join('\n')}
 
 ## Problem Exploration
-${problemQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
+${problemQuestions.map((q, i) => `${i + 1}. ${i === 0 ? starMarker : ''}${getQuestionText(q)}${i === 0 && asMarkdown ? ' *(Start here)*' : ''}`).join('\n')}
 
 ## Solution Testing
-${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
+${solutionQuestions.map((q, i) => `${i + 1}. ${i === 0 ? starMarker : ''}${getQuestionText(q)}${i === 0 && asMarkdown ? ' *(Start here)*' : ''}`).join('\n')}
 `
   }
 
@@ -596,6 +614,8 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
                 source: q.source,
                 painScore: q.painScore,
                 relevanceScore: q.relevanceScore,
+                url: q.url,
+                isDeleted: q.isDeleted,
               }))}
               trustLevel="verified"
               variant="default"
@@ -616,13 +636,24 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
                 </span>
               </div>
               <div className="space-y-3">
-                {results.themeAnalysis.willingnessToPaySignals.map((signal, i) => (
-                  <WtpQuoteCard
-                    key={i}
-                    quote={signal}
-                    source="Community"
-                  />
-                ))}
+                {results.themeAnalysis.willingnessToPaySignals.map((signal, i) => {
+                  // Handle both legacy strings and new WtpSignal objects
+                  const isLegacyString = typeof signal === 'string'
+                  const quote = isLegacyString ? signal : signal.quote
+                  const source = isLegacyString ? 'Reddit' : signal.source
+                  const signalType = isLegacyString ? 'explicit' : signal.type
+                  const url = isLegacyString ? undefined : signal.url
+
+                  return (
+                    <WtpQuoteCard
+                      key={i}
+                      quote={quote}
+                      source={source}
+                      signalType={signalType}
+                      url={url}
+                    />
+                  )
+                })}
               </div>
             </div>
           )}
@@ -633,85 +664,184 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg">Interview Questions</CardTitle>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="text-lg">Interview Questions</CardTitle>
+                    <Badge variant="outline" className="text-xs font-normal">
+                      <Clock className="h-3 w-3 mr-1" />
+                      ~30 min
+                    </Badge>
+                  </div>
                   <CardDescription>
                     Based on "The Mom Test" principles - no leading questions, focus
                     on past behavior
                   </CardDescription>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    copyToClipboard(formatInterviewQuestions(), 'interview')
-                  }
-                >
-                  {copiedSection === 'interview' ? (
-                    <>
-                      <Check className="mr-2 h-4 w-4" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="mr-2 h-4 w-4" />
-                      Copy All
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      copyToClipboard(formatInterviewQuestions(true), 'interview-md')
+                    }
+                    title="Copy as Markdown"
+                  >
+                    {copiedSection === 'interview-md' ? (
+                      <>
+                        <Check className="mr-2 h-4 w-4" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Markdown
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      copyToClipboard(formatInterviewQuestions(), 'interview')
+                    }
+                  >
+                    {copiedSection === 'interview' ? (
+                      <>
+                        <Check className="mr-2 h-4 w-4" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copy All
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <h4 className="font-semibold mb-3 flex items-center gap-2">
-                  <Badge>1</Badge>
-                  Context Questions
-                </h4>
-                <ol className="space-y-2">
-                  {results.interviewQuestions.contextQuestions.map((q, i) => (
-                    <li key={i} className="text-sm pl-6 relative">
-                      <span className="absolute left-0 text-muted-foreground">
-                        {i + 1}.
-                      </span>
-                      {getQuestionText(q)}
-                    </li>
-                  ))}
-                </ol>
+            <CardContent className="space-y-4">
+              {/* Context Questions - Collapsible */}
+              <div className="border rounded-lg">
+                <button
+                  onClick={() => toggleInterviewSection('context')}
+                  className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+                >
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <Badge>1</Badge>
+                    Context Questions
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({results.interviewQuestions.contextQuestions.length} questions)
+                    </span>
+                  </h4>
+                  {expandedInterviewSections.has('context') ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+                {expandedInterviewSections.has('context') && (
+                  <ol className="space-y-2 px-3 pb-3">
+                    {results.interviewQuestions.contextQuestions.map((q, i) => (
+                      <li key={i} className="text-sm pl-6 relative flex items-start gap-2">
+                        <span className="absolute left-0 text-muted-foreground">
+                          {i + 1}.
+                        </span>
+                        <span className="flex-1">{getQuestionText(q)}</span>
+                        {i === 0 && (
+                          <Badge variant="secondary" className="text-[10px] shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                            <Star className="h-2.5 w-2.5 mr-0.5 fill-current" />
+                            Start here
+                          </Badge>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
 
-              <div>
-                <h4 className="font-semibold mb-3 flex items-center gap-2">
-                  <Badge>2</Badge>
-                  Problem Exploration
-                </h4>
-                <ol className="space-y-2">
-                  {results.interviewQuestions.problemQuestions.map((q, i) => (
-                    <li key={i} className="text-sm pl-6 relative">
-                      <span className="absolute left-0 text-muted-foreground">
-                        {i + 1}.
-                      </span>
-                      {getQuestionText(q)}
-                    </li>
-                  ))}
-                </ol>
+              {/* Problem Exploration - Collapsible */}
+              <div className="border rounded-lg">
+                <button
+                  onClick={() => toggleInterviewSection('problem')}
+                  className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+                >
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <Badge>2</Badge>
+                    Problem Exploration
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({results.interviewQuestions.problemQuestions.length} questions)
+                    </span>
+                  </h4>
+                  {expandedInterviewSections.has('problem') ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+                {expandedInterviewSections.has('problem') && (
+                  <ol className="space-y-2 px-3 pb-3">
+                    {results.interviewQuestions.problemQuestions.map((q, i) => (
+                      <li key={i} className="text-sm pl-6 relative flex items-start gap-2">
+                        <span className="absolute left-0 text-muted-foreground">
+                          {i + 1}.
+                        </span>
+                        <span className="flex-1">{getQuestionText(q)}</span>
+                        {i === 0 && (
+                          <Badge variant="secondary" className="text-[10px] shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                            <Star className="h-2.5 w-2.5 mr-0.5 fill-current" />
+                            Start here
+                          </Badge>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
 
-              <div>
-                <h4 className="font-semibold mb-3 flex items-center gap-2">
-                  <Badge>3</Badge>
-                  Solution Testing
-                </h4>
-                <ol className="space-y-2">
-                  {results.interviewQuestions.solutionQuestions.map((q, i) => (
-                    <li key={i} className="text-sm pl-6 relative">
-                      <span className="absolute left-0 text-muted-foreground">
-                        {i + 1}.
-                      </span>
-                      {getQuestionText(q)}
-                    </li>
-                  ))}
-                </ol>
+              {/* Solution Testing - Collapsible */}
+              <div className="border rounded-lg">
+                <button
+                  onClick={() => toggleInterviewSection('solution')}
+                  className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+                >
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <Badge>3</Badge>
+                    Solution Testing
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({results.interviewQuestions.solutionQuestions.length} questions)
+                    </span>
+                  </h4>
+                  {expandedInterviewSections.has('solution') ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+                {expandedInterviewSections.has('solution') && (
+                  <ol className="space-y-2 px-3 pb-3">
+                    {results.interviewQuestions.solutionQuestions.map((q, i) => (
+                      <li key={i} className="text-sm pl-6 relative flex items-start gap-2">
+                        <span className="absolute left-0 text-muted-foreground">
+                          {i + 1}.
+                        </span>
+                        <span className="flex-1">{getQuestionText(q)}</span>
+                        {i === 0 && (
+                          <Badge variant="secondary" className="text-[10px] shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                            <Star className="h-2.5 w-2.5 mr-0.5 fill-current" />
+                            Start here
+                          </Badge>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
+
+              {/* Quick tip */}
+              <p className="text-xs text-muted-foreground text-center pt-2">
+                Tip: Start with questions marked with ⭐ if you have limited time
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

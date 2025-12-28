@@ -25,7 +25,7 @@ const trustConfig: Record<TrustLevel, {
   verified: {
     icon: Check,
     text: 'Verified',
-    tooltip: 'Real data from verified sources (Reddit posts, app reviews, APIs)',
+    tooltip: 'Quote verified - found in original source (Reddit post, app review, or discussion)',
     bgClass: 'bg-emerald-50 dark:bg-emerald-950/30',
     textClass: 'text-emerald-700 dark:text-emerald-400',
     borderClass: 'border-emerald-200 dark:border-emerald-800',

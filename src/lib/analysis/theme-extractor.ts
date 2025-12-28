@@ -55,18 +55,28 @@ export interface StrategicRecommendation {
   rationale: string // Why this recommendation (based on evidence)
 }
 
+// WTP signal with source and type info
+export interface WtpSignal {
+  quote: string
+  source: string  // Actual subreddit name like "entrepreneur" or "google_play"
+  type: 'explicit' | 'inferred'  // explicit = clear payment language, inferred = AI interpretation
+  url?: string  // Original post/comment URL
+}
+
 export interface ThemeAnalysis {
   themes: Theme[]
   customerLanguage: string[]
   alternativesMentioned: string[]
   competitorInsights?: CompetitorInsight[] // Enhanced competitor data
-  willingnessToPaySignals: string[]
+  willingnessToPaySignals: (string | WtpSignal)[]  // Support both legacy strings and new objects
   overallPainScore: number
   keyQuotes: {
     quote: string
-    source: string
+    source: string  // Actual subreddit name like "entrepreneur" or "google_play"
     painScore: number
     relevanceScore?: number  // Phase 0: How relevant is this quote to the hypothesis (0-10)
+    url?: string  // Original post/comment URL
+    isDeleted?: boolean  // Whether the original post was deleted
   }[]
   summary: string
   strategicRecommendations?: StrategicRecommendation[] // Actionable next steps
@@ -120,6 +130,8 @@ export async function extractThemes(
     index: index + 1,
     tier: signal.tier || 'CORE', // Default to CORE if not specified
     source: getSourceType(signal.source.subreddit),
+    subreddit: signal.source.subreddit, // Raw subreddit name for accurate mapping
+    url: signal.source.url, // Original post/comment URL
     text: truncateText(signal.text, 500),
     title: signal.title || '',
     painScore: signal.score,
@@ -236,14 +248,22 @@ Provide a structured analysis in JSON format:
   ],
   "customerLanguage": ["exact phrases customers use to describe their problems"],
   "alternativesMentioned": ["Product Name", "Tool Name", "Service Name" - list ALL products, tools, apps, services, or solutions mentioned in the discussions, even if mentioned negatively],
-  "willingnessToPaySignals": ["quotes or signals showing people would pay for a solution"],
+  "willingnessToPaySignals": [
+    {
+      "quote": "The exact quote showing willingness to pay",
+      "source": "Copy EXACT subreddit value from input (e.g., 'entrepreneur', 'startups', 'google_play')",
+      "type": "explicit" or "inferred" - "explicit" = contains payment words (pay, spend, buy, purchase, price, worth, money), "inferred" = AI interpretation of behavior,
+      "url": "Copy EXACT url from input data for this quote"
+    }
+  ],
   "overallPainScore": <0-10 assessment of overall pain intensity>,
   "keyQuotes": [
     {
       "quote": "Quote that is RELEVANT to hypothesis (max 150 chars)",
-      "source": "Reddit/Google Play/App Store - identify correctly based on source field",
+      "source": "Copy EXACT subreddit value from input (e.g., 'entrepreneur', 'startups', 'google_play')",
       "painScore": <pain score of this quote>,
-      "relevanceScore": <0-10 how relevant is this to the hypothesis - MUST be 7+ to include>
+      "relevanceScore": <0-10 how relevant is this to the hypothesis - MUST be 7+ to include>,
+      "url": "Copy EXACT url from input data for this quote"
     }
   ],
   "summary": "2-3 sentence executive summary of the key findings for this hypothesis",
@@ -409,6 +429,7 @@ async function retryThemeExtraction(
     title: signal.title || '',
     painScore: signal.score,
     subreddit: signal.source.subreddit,
+    url: signal.source.url,
   }))
 
   const systemPrompt = `You are a market research analyst. Your task is to synthesize pain themes from Reddit discussions.
@@ -453,9 +474,9 @@ Return JSON:
   ],
   "customerLanguage": ["exact phrases from posts"],
   "alternativesMentioned": ["products/tools mentioned"],
-  "willingnessToPaySignals": ["quotes showing payment intent"],
+  "willingnessToPaySignals": [{"quote": "...", "source": "subreddit_name", "type": "explicit"|"inferred", "url": "from input"}],
   "overallPainScore": <0-10>,
-  "keyQuotes": [{"quote": "RELEVANT quote", "source": "r/sub", "painScore": <n>, "relevanceScore": <0-10, must be 7+>}],
+  "keyQuotes": [{"quote": "RELEVANT quote", "source": "subreddit_name", "painScore": <n>, "relevanceScore": <0-10, must be 7+>, "url": "from input"}],
   "summary": "2-3 sentence summary",
   "strategicRecommendations": [{"action": "Verb + tactic", "rationale": "Why based on data"}],
   "keyOpportunity": "Biggest opportunity if strong signal exists"
@@ -551,8 +572,9 @@ function getFallbackAnalysis(
     .slice(0, 5)
     .map((signal) => ({
       quote: truncateText(signal.text, 150),
-      source: `r/${signal.source.subreddit}`,
+      source: signal.source.subreddit,  // Raw subreddit name, formatted by UI
       painScore: signal.score,
+      url: signal.source.url,
     }))
 
   // Calculate average pain score
