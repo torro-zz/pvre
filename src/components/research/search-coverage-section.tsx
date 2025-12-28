@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   MessageSquare,
   Smartphone,
@@ -58,13 +57,13 @@ export function SearchCoverageSection({
             {totalSignals} signals ({totalCoreSignals} core)
           </Badge>
         </div>
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+        <span className="h-6 w-6 flex items-center justify-center text-muted-foreground">
           {isExpanded ? (
             <ChevronUp className="h-4 w-4" />
           ) : (
             <ChevronDown className="h-4 w-4" />
           )}
-        </Button>
+        </span>
       </button>
 
       {/* Expandable details */}
