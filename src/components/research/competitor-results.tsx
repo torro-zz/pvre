@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import {
   Building2,
@@ -42,6 +41,22 @@ interface CompetitorResultsProps {
 
 export function CompetitorResults({ results }: CompetitorResultsProps) {
   const [expandedCompetitor, setExpandedCompetitor] = useState<string | null>(null)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['marketOverview', 'platformsCommunities', 'comparisonMatrix', 'adjacentTools'])) // Secondary sections collapsed by default
+  const [showAllPlatforms, setShowAllPlatforms] = useState(false)
+  const [showAllAdjacent, setShowAllAdjacent] = useState(false)
+  const INITIAL_DISPLAY_COUNT = 3
+
+  const toggleSection = (section: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev)
+      if (next.has(section)) {
+        next.delete(section)
+      } else {
+        next.add(section)
+      }
+      return next
+    })
+  }
 
   // Calculate pricing suggestion from competitors
   const pricingSuggestion = useMemo<PricingSuggestion>(() => {
@@ -119,6 +134,77 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
     return <CircleDot className="h-3 w-3" />
   }
 
+  // Categorize competitors as Direct, Platform, or Adjacent
+  type CompetitorCategory = 'direct' | 'platform' | 'adjacent'
+
+  const categorizeCompetitor = (competitor: typeof results.competitors[0]): CompetitorCategory => {
+    const positioningLower = competitor.positioning?.toLowerCase() || ''
+    const descriptionLower = competitor.description?.toLowerCase() || ''
+    const nameLower = competitor.name.toLowerCase()
+    const text = `${positioningLower} ${descriptionLower} ${nameLower}`
+
+    // Platform indicators - community, launch platform, forum
+    const platformKeywords = [
+      'platform', 'community', 'forum', 'launch', 'directory',
+      'marketplace', 'product hunt', 'indie hackers', 'betalist',
+      'hacker news', 'reddit', 'listing', 'social network',
+      'accelerator', 'incubator', 'network'
+    ]
+
+    // Adjacent tool indicators - tools that do something else
+    const adjacentKeywords = [
+      'email', 'survey', 'form', 'analytics', 'marketing automation',
+      'crm', 'acquisition', 'newsletter', 'landing page', 'payments',
+      'invoicing', 'accounting', 'project management', 'mailchimp',
+      'typeform', 'google forms', 'hubspot', 'stripe'
+    ]
+
+    // Check for platform indicators
+    for (const keyword of platformKeywords) {
+      if (text.includes(keyword)) {
+        return 'platform'
+      }
+    }
+
+    // Check for adjacent tool indicators
+    for (const keyword of adjacentKeywords) {
+      if (text.includes(keyword)) {
+        return 'adjacent'
+      }
+    }
+
+    // Default to direct competitor if high/medium threat level and significant market share
+    // or if we don't have clear categorization signals
+    if (competitor.threatLevel === 'high' ||
+        competitor.marketShareEstimate === 'dominant' ||
+        competitor.marketShareEstimate === 'significant') {
+      return 'direct'
+    }
+
+    // Default: assume direct competitor (better to be cautious)
+    return 'direct'
+  }
+
+  // Group competitors by category
+  const categorizedCompetitors = useMemo(() => {
+    const grouped: Record<CompetitorCategory, typeof results.competitors> = {
+      direct: [],
+      platform: [],
+      adjacent: []
+    }
+
+    results.competitors.forEach((competitor) => {
+      const category = categorizeCompetitor(competitor)
+      grouped[category].push(competitor)
+    })
+
+    return grouped
+  }, [results.competitors])
+
+  const hasDirectCompetitors = categorizedCompetitors.direct.length > 0
+  const hasPlatformCompetitors = categorizedCompetitors.platform.length > 0
+  const hasAdjacentCompetitors = categorizedCompetitors.adjacent.length > 0
+
   // Type-safe access to competition score
   const competitionScore = (results as { competitionScore?: {
     score: number
@@ -142,10 +228,13 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Competitors</span>
+              <span className="text-sm text-muted-foreground">Related Products</span>
             </div>
             <p className="text-2xl font-bold mt-1">
               {results.metadata.competitorsAnalyzed}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {categorizedCompetitors.direct.length} direct, {categorizedCompetitors.platform.length + categorizedCompetitors.adjacent.length} adjacent
             </p>
           </CardContent>
         </Card>
@@ -177,11 +266,16 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Processing Time</span>
+              <Shield className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Entry Difficulty</span>
             </div>
             <p className="text-2xl font-bold mt-1">
-              {(results.metadata.processingTimeMs / 1000).toFixed(1)}s
+              {competitionScore?.score?.toFixed(1) || '—'}/10
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {(competitionScore?.score ?? 0) >= 7 ? 'High barrier to entry' :
+               (competitionScore?.score ?? 0) >= 5 ? 'Moderate barrier' :
+               (competitionScore?.score ?? 0) >= 3 ? 'Low barrier' : 'Open market'}
             </p>
           </CardContent>
         </Card>
@@ -454,354 +548,527 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
         </Card>
       )}
 
-      {/* Market Overview */}
+      {/* Market Overview - Collapsible */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Market Overview
-          </CardTitle>
+        <CardHeader className="pb-3">
+          <button
+            onClick={() => toggleSection('marketOverview')}
+            className="flex items-center justify-between w-full text-left"
+          >
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Market Overview
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {collapsedSections.has('marketOverview') && (
+                <span className="text-sm text-muted-foreground">
+                  {results.marketOverview.competitionIntensity} competition
+                </span>
+              )}
+              <ChevronDown className={`h-5 w-5 transition-transform ${!collapsedSections.has('marketOverview') ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
         </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground mb-4">{results.marketOverview.summary}</p>
+        {!collapsedSections.has('marketOverview') && (
+          <CardContent className="pt-0">
+            <p className="text-muted-foreground mb-4">{results.marketOverview.summary}</p>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-1">
-              <span className="text-sm text-muted-foreground">Market Size</span>
-              <p className="font-medium">{results.marketOverview.marketSize}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <span className="text-sm text-muted-foreground">Market Size</span>
+                <p className="font-medium">{results.marketOverview.marketSize}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm text-muted-foreground">Growth Trend</span>
+                <p className="font-medium">{results.marketOverview.growthTrend}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm text-muted-foreground">Maturity</span>
+                <Badge className={getMaturityColor(results.marketOverview.maturityLevel)}>
+                  {results.marketOverview.maturityLevel}
+                </Badge>
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm text-muted-foreground">Competition</span>
+                <Badge className={getIntensityColor(results.marketOverview.competitionIntensity)}>
+                  {results.marketOverview.competitionIntensity}
+                </Badge>
+              </div>
             </div>
-            <div className="space-y-1">
-              <span className="text-sm text-muted-foreground">Growth Trend</span>
-              <p className="font-medium">{results.marketOverview.growthTrend}</p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-sm text-muted-foreground">Maturity</span>
-              <Badge className={getMaturityColor(results.marketOverview.maturityLevel)}>
-                {results.marketOverview.maturityLevel}
-              </Badge>
-            </div>
-            <div className="space-y-1">
-              <span className="text-sm text-muted-foreground">Competition</span>
-              <Badge className={getIntensityColor(results.marketOverview.competitionIntensity)}>
-                {results.marketOverview.competitionIntensity}
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
 
-      {/* Tabbed Content */}
-      <Tabs defaultValue="competitors" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="competitors">Competitors</TabsTrigger>
-          <TabsTrigger value="matrix">Comparison</TabsTrigger>
-          <TabsTrigger value="gaps">Opportunities</TabsTrigger>
-          <TabsTrigger value="positioning">Positioning</TabsTrigger>
-        </TabsList>
-
-        {/* Competitors Tab */}
-        <TabsContent value="competitors" className="space-y-4">
-          {results.competitors.map((competitor) => (
-            <Card key={competitor.name} className="overflow-hidden">
-              <CardHeader
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => toggleCompetitor(competitor.name)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      {competitor.name}
-                      {competitor.website && (
-                        <a
-                          href={competitor.website.startsWith('http') ? competitor.website : `https://${competitor.website}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-muted-foreground hover:text-primary"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      )}
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      {competitor.positioning}
-                    </CardDescription>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    {expandedCompetitor === competitor.name ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </Button>
+      {/* Competitor Analysis - Single Scrollable Page */}
+      <div className="space-y-6">
+        {/* Blue Ocean Notice - if no direct competitors */}
+        {!hasDirectCompetitors && (hasPlatformCompetitors || hasAdjacentCompetitors) && (
+          <Card className="border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20">
+            <CardContent className="py-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg">
+                  <Sparkles className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
-              </CardHeader>
-
-              {expandedCompetitor === competitor.name && (
-                <CardContent className="border-t pt-4 space-y-4">
-                  <p className="text-sm text-muted-foreground">{competitor.description}</p>
-
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <Users className="h-4 w-4" />
-                        Target Audience
-                      </div>
-                      <p className="text-sm text-muted-foreground">{competitor.targetAudience}</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <DollarSign className="h-4 w-4" />
-                        Pricing
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {competitor.pricingModel && competitor.pricingRange
-                          ? `${competitor.pricingModel} - ${competitor.pricingRange}`
-                          : competitor.pricingModel || competitor.pricingRange || 'Not available'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-medium text-green-600">
-                        <Zap className="h-4 w-4" />
-                        Strengths
-                      </div>
-                      <ul className="text-sm space-y-1">
-                        {competitor.strengths.map((strength, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-green-500 mt-1">+</span>
-                            <span className="text-muted-foreground">{strength}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-medium text-red-600">
-                        <AlertTriangle className="h-4 w-4" />
-                        Weaknesses
-                      </div>
-                      <ul className="text-sm space-y-1">
-                        {competitor.weaknesses.map((weakness, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-red-500 mt-1">-</span>
-                            <span className="text-muted-foreground">{weakness}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {competitor.differentiators.length > 0 && (
-                    <div className="pt-2">
-                      <div className="text-sm font-medium mb-2">Key Differentiators</div>
-                      <div className="flex flex-wrap gap-2">
-                        {competitor.differentiators.map((diff, i) => (
-                          <Badge key={i} variant="secondary">{diff}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              )}
-            </Card>
-          ))}
-        </TabsContent>
-
-        {/* Matrix Tab */}
-        <TabsContent value="matrix" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Competitor Comparison Matrix</CardTitle>
-              <CardDescription>
-                How competitors score across key dimensions (1-10 scale). Hover over scores for details.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-muted/50">
-                      <th className="text-left py-3 px-4 font-semibold border-b-2 border-border sticky left-0 bg-muted/50 min-w-[140px]">
-                        Competitor
-                      </th>
-                      {results.competitorMatrix.categories.map((category) => (
-                        <th key={category} className="text-center py-3 px-3 font-semibold border-b-2 border-border min-w-[90px]">
-                          <span className="text-xs">{category}</span>
-                        </th>
-                      ))}
-                      <th className="text-center py-3 px-3 font-semibold border-b-2 border-border min-w-[70px] bg-primary/5">
-                        <span className="text-xs">Avg</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.competitorMatrix.comparison.map((comp, rowIndex) => {
-                      // Calculate average score for this competitor
-                      const scores = results.competitorMatrix.categories.map(cat => {
-                        const scoreData = comp.scores.find(s => s.category === cat)
-                        return scoreData?.score || 0
-                      })
-                      const avgScore = scores.length > 0
-                        ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
-                        : 0
-
-                      return (
-                        <tr
-                          key={comp.competitorName}
-                          className={`${rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'} hover:bg-muted/40 transition-colors`}
-                        >
-                          <td className={`py-3 px-4 font-medium border-b sticky left-0 text-foreground ${rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
-                            {comp.competitorName}
-                          </td>
-                          {results.competitorMatrix.categories.map((category) => {
-                            const scoreData = comp.scores.find(s => s.category === category)
-                            const score = scoreData?.score || 0
-                            // Color coding based on score
-                            const scoreColorClass = score >= 8
-                              ? 'bg-green-500 text-white'
-                              : score >= 6
-                              ? 'bg-green-400 text-white'
-                              : score >= 4
-                              ? 'bg-yellow-400 text-gray-900'
-                              : score >= 2
-                              ? 'bg-orange-400 text-white'
-                              : 'bg-red-400 text-white'
-
-                            return (
-                              <td key={category} className="py-3 px-3 border-b">
-                                <div className="flex justify-center">
-                                  <div
-                                    className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${scoreColorClass} cursor-help shadow-sm`}
-                                    title={scoreData?.notes || `${category}: ${score}/10`}
-                                  >
-                                    {score}
-                                  </div>
-                                </div>
-                              </td>
-                            )
-                          })}
-                          <td className="py-3 px-3 border-b bg-primary/5">
-                            <div className="flex justify-center">
-                              <div
-                                className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm border-2 ${
-                                  avgScore >= 7 ? 'border-green-500 text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-950' :
-                                  avgScore >= 5 ? 'border-yellow-500 text-yellow-700 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950' :
-                                  'border-red-500 text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-950'
-                                }`}
-                                title={`Average score: ${avgScore}/10`}
-                              >
-                                {avgScore}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Legend */}
-              <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                <span className="font-medium">Score Legend:</span>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-green-500"></div>
-                  <span>8-10 Excellent</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-green-400"></div>
-                  <span>6-7 Good</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-yellow-400"></div>
-                  <span>4-5 Average</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-orange-400"></div>
-                  <span>2-3 Below Avg</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-red-400"></div>
-                  <span>0-1 Poor</span>
+                <div>
+                  <h3 className="font-semibold text-emerald-800 dark:text-emerald-300">No Direct Competitors Identified</h3>
+                  <p className="text-sm text-emerald-700 dark:text-emerald-400 mt-1">
+                    This appears to be a <strong>blue ocean opportunity</strong>. While we found related alternatives, no existing products directly address this exact problem in the same way.
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        )}
 
-        {/* Gaps Tab */}
-        <TabsContent value="gaps" className="space-y-4">
-          <div className="grid gap-4">
-            {results.gaps.map((gap, index) => (
-              <Card key={index}>
-                <CardContent className="pt-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5 text-yellow-500" />
-                      <h4 className="font-semibold">{gap.gap}</h4>
-                    </div>
-                    {getDifficultyBadge(gap.difficulty)}
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3">{gap.description}</p>
-                  <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md p-3">
-                    <div className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">Opportunity</div>
-                    <p className="text-sm text-green-700 dark:text-green-300">{gap.opportunity}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+        {/* Direct Competitors */}
+        {hasDirectCompetitors && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-red-600" />
+              <h3 className="text-lg font-semibold">Direct Competitors ({categorizedCompetitors.direct.length})</h3>
+              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800">
+                Watch closely
+              </Badge>
+            </div>
+            <div className="space-y-3">
+              {categorizedCompetitors.direct.map((competitor) => (
+                <CompetitorCard
+                  key={competitor.name}
+                  competitor={competitor}
+                  expanded={expandedCompetitor === competitor.name}
+                  onToggle={() => toggleCompetitor(competitor.name)}
+                  categoryBadge={<Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800 text-xs">Direct</Badge>}
+                />
+              ))}
+            </div>
           </div>
-        </TabsContent>
+        )}
 
-        {/* Positioning Tab */}
-        <TabsContent value="positioning" className="space-y-4">
-          {results.positioningRecommendations.map((rec, index) => (
-            <Card key={index}>
-              <CardHeader>
+        {/* Comparison Matrix - Collapsible, only shown if direct competitors exist */}
+        {hasDirectCompetitors && results.competitorMatrix?.comparison?.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <button
+                onClick={() => toggleSection('comparisonMatrix')}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Comparison Matrix
+                </CardTitle>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-primary">{index + 1}</Badge>
-                  <CardTitle className="text-lg">{rec.strategy}</CardTitle>
+                  {collapsedSections.has('comparisonMatrix') && (
+                    <span className="text-sm text-muted-foreground">
+                      Compare across {results.competitorMatrix.categories.length} dimensions
+                    </span>
+                  )}
+                  <ChevronDown className={`h-5 w-5 transition-transform ${!collapsedSections.has('comparisonMatrix') ? 'rotate-180' : ''}`} />
                 </div>
-                <CardDescription>{rec.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="text-sm font-medium mb-2 flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    Target Niche
-                  </div>
-                  <p className="text-sm text-muted-foreground">{rec.targetNiche}</p>
+              </button>
+            </CardHeader>
+            {!collapsedSections.has('comparisonMatrix') && (
+              <CardContent className="pt-0">
+                <CardDescription className="mb-4">
+                  How competitors score across key dimensions (1-10 scale). Hover over scores for details.
+                </CardDescription>
+
+                {/* Methodology Note */}
+                <div className="mb-4 p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Scores are AI estimates based on public information. Verify before making strategic decisions.
+                  </p>
                 </div>
 
-                <div>
-                  <div className="text-sm font-medium mb-2">Key Differentiators</div>
-                  <div className="flex flex-wrap gap-2">
-                    {rec.keyDifferentiators.map((diff, i) => (
-                      <Badge key={i} variant="outline">{diff}</Badge>
-                    ))}
-                  </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-muted/50">
+                        <th className="text-left py-3 px-4 font-semibold border-b-2 border-border sticky left-0 bg-muted/50 min-w-[140px]">
+                          Competitor
+                        </th>
+                        {results.competitorMatrix.categories.map((category) => (
+                          <th key={category} className="text-center py-3 px-3 font-semibold border-b-2 border-border min-w-[90px]">
+                            <span className="text-xs">{category}</span>
+                          </th>
+                        ))}
+                        <th className="text-center py-3 px-3 font-semibold border-b-2 border-border min-w-[70px] bg-primary/5">
+                          <span className="text-xs">Avg</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {results.competitorMatrix.comparison.map((comp, rowIndex) => {
+                        const scores = results.competitorMatrix.categories.map(cat => {
+                          const scoreData = comp.scores.find(s => s.category === cat)
+                          return scoreData?.score || 0
+                        })
+                        const avgScore = scores.length > 0
+                          ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+                          : 0
+
+                        return (
+                          <tr
+                            key={comp.competitorName}
+                            className={`${rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'} hover:bg-muted/40 transition-colors`}
+                          >
+                            <td className={`py-3 px-4 font-medium border-b sticky left-0 text-foreground ${rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
+                              {comp.competitorName}
+                            </td>
+                            {results.competitorMatrix.categories.map((category) => {
+                              const scoreData = comp.scores.find(s => s.category === category)
+                              const score = scoreData?.score || 0
+                              const scoreColorClass = score >= 8
+                                ? 'bg-green-500 text-white'
+                                : score >= 6
+                                ? 'bg-green-400 text-white'
+                                : score >= 4
+                                ? 'bg-yellow-400 text-gray-900'
+                                : score >= 2
+                                ? 'bg-orange-400 text-white'
+                                : 'bg-red-400 text-white'
+
+                              return (
+                                <td key={category} className="py-3 px-3 border-b">
+                                  <div className="flex justify-center">
+                                    <div
+                                      className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${scoreColorClass} cursor-help shadow-sm`}
+                                      title={scoreData?.notes || `${category}: ${score}/10`}
+                                    >
+                                      {score}
+                                    </div>
+                                  </div>
+                                </td>
+                              )
+                            })}
+                            <td className="py-3 px-3 border-b bg-primary/5">
+                              <div className="flex justify-center">
+                                <div
+                                  className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm border-2 ${
+                                    avgScore >= 7 ? 'border-green-500 text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-950' :
+                                    avgScore >= 5 ? 'border-yellow-500 text-yellow-700 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950' :
+                                    'border-red-500 text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-950'
+                                  }`}
+                                  title={`Average score: ${avgScore}/10`}
+                                >
+                                  {avgScore}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
 
-                <div>
-                  <div className="text-sm font-medium mb-2">Messaging Angles</div>
-                  <ul className="space-y-2">
-                    {rec.messagingAngles.map((angle, i) => (
-                      <li key={i} className="text-sm flex items-start gap-2">
-                        <span className="text-primary mt-0.5">→</span>
-                        <span className="text-muted-foreground">{angle}</span>
-                      </li>
-                    ))}
-                  </ul>
+                {/* Legend */}
+                <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                  <span className="font-medium">Score Legend:</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-4 rounded bg-green-500"></div>
+                    <span>8-10 Excellent</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-4 rounded bg-green-400"></div>
+                    <span>6-7 Good</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-4 rounded bg-yellow-400"></div>
+                    <span>4-5 Average</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-4 rounded bg-orange-400"></div>
+                    <span>2-3 Below Avg</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-4 rounded bg-red-400"></div>
+                    <span>0-1 Poor</span>
+                  </div>
                 </div>
               </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-      </Tabs>
+            )}
+          </Card>
+        )}
+
+        {/* Platform Competitors - Collapsible */}
+        {hasPlatformCompetitors && (
+          <div className="space-y-3">
+            <button
+              className="flex items-center gap-2 w-full text-left hover:opacity-80 transition-opacity"
+              onClick={() => toggleSection('platformsCommunities')}
+            >
+              <Building2 className="h-5 w-5 text-blue-600" />
+              <h3 className="text-lg font-semibold">Platforms & Communities ({categorizedCompetitors.platform.length})</h3>
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800">
+                Launch channels
+              </Badge>
+              {collapsedSections.has('platformsCommunities') && (
+                <span className="text-sm text-muted-foreground ml-2">Click to expand</span>
+              )}
+              <ChevronDown className={`h-5 w-5 ml-auto transition-transform ${!collapsedSections.has('platformsCommunities') ? 'rotate-180' : ''}`} />
+            </button>
+            {!collapsedSections.has('platformsCommunities') && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Places where founders launch, discuss, and discover products. Potential marketing channels.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(showAllPlatforms ? categorizedCompetitors.platform : categorizedCompetitors.platform.slice(0, INITIAL_DISPLAY_COUNT)).map((competitor) => (
+                    <CompetitorCardCompact
+                      key={competitor.name}
+                      competitor={competitor}
+                      onClick={() => toggleCompetitor(competitor.name)}
+                    />
+                  ))}
+                </div>
+                {categorizedCompetitors.platform.length > INITIAL_DISPLAY_COUNT && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAllPlatforms(!showAllPlatforms)}
+                    className="mt-2 text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                  >
+                    {showAllPlatforms
+                      ? 'Show less'
+                      : `Show ${categorizedCompetitors.platform.length - INITIAL_DISPLAY_COUNT} more`}
+                    <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${showAllPlatforms ? 'rotate-180' : ''}`} />
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Adjacent Tools - Collapsible */}
+        {hasAdjacentCompetitors && (
+          <div className="space-y-3">
+            <button
+              className="flex items-center gap-2 w-full text-left hover:opacity-80 transition-opacity"
+              onClick={() => toggleSection('adjacentTools')}
+            >
+              <Tag className="h-5 w-5 text-amber-600" />
+              <h3 className="text-lg font-semibold">Adjacent Tools ({categorizedCompetitors.adjacent.length})</h3>
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800">
+                Partial overlap
+              </Badge>
+              {collapsedSections.has('adjacentTools') && (
+                <span className="text-sm text-muted-foreground ml-2">Click to expand</span>
+              )}
+              <ChevronDown className={`h-5 w-5 ml-auto transition-transform ${!collapsedSections.has('adjacentTools') ? 'rotate-180' : ''}`} />
+            </button>
+            {!collapsedSections.has('adjacentTools') && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Tools that solve related problems or could be integrated/replaced.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(showAllAdjacent ? categorizedCompetitors.adjacent : categorizedCompetitors.adjacent.slice(0, INITIAL_DISPLAY_COUNT)).map((competitor) => (
+                    <CompetitorCardCompact
+                      key={competitor.name}
+                      competitor={competitor}
+                      onClick={() => toggleCompetitor(competitor.name)}
+                    />
+                  ))}
+                </div>
+                {categorizedCompetitors.adjacent.length > INITIAL_DISPLAY_COUNT && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAllAdjacent(!showAllAdjacent)}
+                    className="mt-2 text-amber-600 hover:text-amber-700 dark:text-amber-400"
+                  >
+                    {showAllAdjacent
+                      ? 'Show less'
+                      : `Show ${categorizedCompetitors.adjacent.length - INITIAL_DISPLAY_COUNT} more`}
+                    <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${showAllAdjacent ? 'rotate-180' : ''}`} />
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
+  )
+}
+
+// =============================================================================
+// Competitor Card Components
+// =============================================================================
+
+interface CompetitorCardProps {
+  competitor: {
+    name: string
+    website: string | null
+    description: string
+    positioning: string
+    targetAudience: string
+    pricingModel: string | null
+    pricingRange: string | null
+    strengths: string[]
+    weaknesses: string[]
+    differentiators: string[]
+  }
+  expanded: boolean
+  onToggle: () => void
+  categoryBadge?: React.ReactNode
+}
+
+function CompetitorCard({ competitor, expanded, onToggle, categoryBadge }: CompetitorCardProps) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader
+        className="cursor-pointer hover:bg-muted/50 transition-colors py-3"
+        onClick={onToggle}
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <CardTitle className="text-base flex items-center gap-2">
+                {competitor.name}
+                {competitor.website && (
+                  <a
+                    href={competitor.website.startsWith('http') ? competitor.website : `https://${competitor.website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-muted-foreground hover:text-primary"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </CardTitle>
+              {categoryBadge}
+            </div>
+            <CardDescription className="mt-1 text-sm line-clamp-1">
+              {competitor.positioning}
+            </CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
+      </CardHeader>
+
+      {expanded && (
+        <CardContent className="border-t pt-4 space-y-4">
+          <p className="text-sm text-muted-foreground">{competitor.description}</p>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Users className="h-4 w-4" />
+                Target Audience
+              </div>
+              <p className="text-sm text-muted-foreground">{competitor.targetAudience}</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <DollarSign className="h-4 w-4" />
+                Pricing
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {competitor.pricingModel && competitor.pricingRange
+                  ? `${competitor.pricingModel} - ${competitor.pricingRange}`
+                  : competitor.pricingModel || competitor.pricingRange || 'Not available'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-green-600">
+                <Zap className="h-4 w-4" />
+                Strengths
+              </div>
+              <ul className="text-sm space-y-1">
+                {competitor.strengths.slice(0, 3).map((strength, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-green-500 mt-1">+</span>
+                    <span className="text-muted-foreground">{strength}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-red-600">
+                <AlertTriangle className="h-4 w-4" />
+                Weaknesses
+              </div>
+              <ul className="text-sm space-y-1">
+                {competitor.weaknesses.slice(0, 3).map((weakness, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-red-500 mt-1">-</span>
+                    <span className="text-muted-foreground">{weakness}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {competitor.differentiators.length > 0 && (
+            <div className="pt-2">
+              <div className="text-sm font-medium mb-2">Key Differentiators</div>
+              <div className="flex flex-wrap gap-2">
+                {competitor.differentiators.map((diff, i) => (
+                  <Badge key={i} variant="secondary" className="text-xs">{diff}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  )
+}
+
+interface CompetitorCardCompactProps {
+  competitor: {
+    name: string
+    website: string | null
+    positioning: string
+    pricingModel: string | null
+    pricingRange: string | null
+  }
+  onClick: () => void
+}
+
+function CompetitorCardCompact({ competitor, onClick }: CompetitorCardCompactProps) {
+  return (
+    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={onClick}>
+      <CardContent className="p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h4 className="font-medium text-sm truncate">{competitor.name}</h4>
+              {competitor.website && (
+                <a
+                  href={competitor.website.startsWith('http') ? competitor.website : `https://${competitor.website}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-muted-foreground hover:text-primary flex-shrink-0"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+              {competitor.positioning}
+            </p>
+          </div>
+        </div>
+        {(competitor.pricingModel || competitor.pricingRange) && (
+          <div className="mt-2 pt-2 border-t">
+            <span className="text-xs text-muted-foreground">
+              {competitor.pricingModel || competitor.pricingRange}
+            </span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

@@ -108,12 +108,6 @@ export function SearchCoverageSection({
             </table>
           </div>
 
-          {/* Summary row */}
-          <div className="flex items-center justify-between px-1 mt-2 text-xs text-muted-foreground">
-            <span>
-              Total: <span className="font-medium text-foreground">{totalAnalyzed.toLocaleString()}</span> items analyzed
-            </span>
-          </div>
         </div>
       )}
     </div>
