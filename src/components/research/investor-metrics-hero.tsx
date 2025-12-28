@@ -322,15 +322,22 @@ function QuickMetricsRow({
       {metrics.map((metric, index) => {
         const colorClass = getScoreColor(metric.value, metric.colorType)
 
+        const isClickable = metric.section && onScrollToSection
         const button = (
-          <motion.button
+          <motion.div
             key={metric.label}
-            type="button"
-            onClick={() => metric.section && onScrollToSection?.(metric.section)}
-            disabled={!metric.section || !onScrollToSection}
+            role={isClickable ? "button" : undefined}
+            tabIndex={isClickable ? 0 : undefined}
+            onClick={() => isClickable && onScrollToSection?.(metric.section!)}
+            onKeyDown={isClickable ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onScrollToSection?.(metric.section!)
+              }
+            } : undefined}
             className={cn(
               'flex flex-col items-center p-2 rounded-lg transition-colors text-center w-full',
-              metric.section && onScrollToSection
+              isClickable
                 ? 'hover:bg-muted/50 cursor-pointer'
                 : 'cursor-default',
               metric.highlight && 'bg-primary/5'
@@ -373,7 +380,7 @@ function QuickMetricsRow({
             <span className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">
               {metric.label}
             </span>
-          </motion.button>
+          </motion.div>
         )
 
         if (metric.tooltip) {
