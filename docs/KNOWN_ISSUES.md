@@ -4,7 +4,79 @@ Last updated: December 28, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
-# 12-27: Evidence Tab - Themes Sub-tab Fixes
+# 12-28: Evidence Tab - Pain Signals Sub-tab Fixes
+
+**Status:** ✅ All Complete (Dec 28, 2025)
+
+## P0 - Critical (Trust-Breaking)
+
+### ✅ Fix 1: Fix "STRONGEST SIGNAL: Unclear"
+**Fixed:** Now shows actual highest-intensity quote with subreddit and intensity level. Falls back to "TOP SIGNALS: Multiple high-intensity signals detected" when keyword is "Unclear" or not helpful.
+
+### ✅ Fix 2: Fix WTP Quote Not Showing WTP
+**Fixed:** Added validation that WTP quotes contain actual purchase intent language (pay, spend, buy, price, etc.). If no valid WTP quote exists, shows "X potential indicators found (weak signal — no explicit quote)" instead of showing irrelevant quotes.
+
+## P1 - High Priority
+
+### ✅ Fix 3: Explain Emotional Tone Percentages
+**Fixed:** Added "Posts may express multiple emotions" explanation. Changed from confusing percentages to counts "(11)" for clarity.
+
+### ✅ Fix 4: Clarify "2 posts analyzed" vs "15 signals"
+**Fixed:** Confidence line now shows "15 signals from 2 core posts" when data available, making distinction clear.
+
+### ✅ Fix 5: Fix "Active-intensity" Terminology
+**Status:** Verified - already using correct "Medium-intensity" throughout.
+
+## P2 - Polish
+
+### ✅ Fix 6: Fix "1 posts" Grammar
+**Fixed:** Added `pluralize()` helper. All instances now correctly show "1 post" vs "2 posts", "1 signal" vs "2 signals".
+
+### ✅ Fix 7: Red X Button
+**Status:** N/A - No red X button found in PainScoreCard component. May have been from a previous version.
+
+### ⏳ Fix 8: Score Calculation Explanation
+**Status:** Deferred - Optional enhancement for future.
+
+---
+
+# 12-28: Evidence Tab - Data Quality Notice Fixes (Round 2)
+
+**Status:** ✅ All Complete (Dec 28, 2025)
+
+## P0 - Critical (Trust-Breaking)
+
+### ✅ Fix 1: Remove "Relevance (0%)" Display
+**Fixed:** Removed percentage display entirely. Now shows "2 of 695 posts matched your hypothesis" instead of misleading "Relevance (0%)".
+
+### ✅ Fix 2: Fix Contradictory Signal Counts
+**Fixed:** Added `totalSignals` to interface. Now shows "15 signals found (2 high-relevance)" instead of conflicting "5 core" vs "2 signals" messages.
+
+### ✅ Fix 3: Fix Math Error
+**Fixed:** Removed percentage calculation that rounded 0.29% to 0%. Shows absolute counts instead.
+
+### ✅ Fix 4: Soften Accusatory Language
+**Fixed:** Changed "Very broad topic — most posts are off-topic" → "Limited matches found. Consider refining your search terms." Never blames user.
+
+## P1 - High Priority
+
+### ✅ Fix 5: Make Sub-tabs Sticky
+**Status:** Already complete from Round 1.
+
+### ✅ Fix 6: Simplify Data Quality Notice
+**Fixed:** Collapsed state now shows key info: "Limited Data: 2 relevant posts from 695 scanned [Details]". More informative at a glance.
+
+## P2 - Polish
+
+### ✅ Fix 7: Consistent Badge Labels
+**Status:** Verified - all theme cards use "intensity" consistently (High/Medium/Low intensity).
+
+### ✅ Fix 8: Source Table Collapse by Default
+**Status:** Already collapsed by default from Round 1.
+
+---
+
+# 12-27: Evidence Tab - Themes Sub-tab Fixes (Round 1)
 
 **Status:** ✅ All Complete (Dec 28, 2025)
 

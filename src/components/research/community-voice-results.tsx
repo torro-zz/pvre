@@ -420,8 +420,23 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
               recencyScore: (results.painSummary as { recencyScore?: number }).recencyScore || 1.0,
             }}
             postsAnalyzed={results.metadata.postsAnalyzed}
-            strongestSignal={(results.painSummary as { strongestSignals?: string[] }).strongestSignals?.[0]}
+            // P0 Fix 1: Pass strongest signal as quote object when available (find highest-intensity signal)
+            strongestSignal={(() => {
+              const highIntensitySignal = painSignals.find(s => s.intensity === 'high')
+              if (highIntensitySignal) {
+                return {
+                  text: highIntensitySignal.text || highIntensitySignal.title || '',
+                  subreddit: highIntensitySignal.source?.subreddit || '',
+                  intensity: highIntensitySignal.intensity
+                }
+              }
+              // Fallback to keyword if no high-intensity signal found
+              return (results.painSummary as { strongestSignals?: string[] }).strongestSignals?.[0]
+            })()}
             wtpQuote={(results.painSummary as { wtpQuotes?: { text: string; subreddit: string }[] }).wtpQuotes?.[0]}
+            // P1 Fix 4: Pass totalSignals and coreSignals for clarity
+            totalSignals={totalSignals}
+            coreSignals={results.metadata.filteringMetrics?.coreSignals}
           />
 
           {/* Intensity Breakdown */}
@@ -499,20 +514,21 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
                 </div>
               </div>
 
-              {/* Emotions Breakdown */}
+              {/* Emotions Breakdown - P1 Fix 3: Add explanation for >100% total */}
               {totalSignals > 0 && (
                 <div className="pt-4 border-t">
-                  <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <h4 className="text-sm font-medium mb-1 flex items-center gap-2">
                     <MessageSquare className="h-4 w-4" />
                     Emotional Tone
                   </h4>
+                  <p className="text-xs text-muted-foreground mb-3">Posts may express multiple emotions</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
-                      { key: 'frustration', label: 'Frustration', emoji: '😤', color: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' },
-                      { key: 'anxiety', label: 'Anxiety', emoji: '😰', color: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400' },
-                      { key: 'disappointment', label: 'Disappointment', emoji: '😞', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
-                      { key: 'confusion', label: 'Confusion', emoji: '😕', color: 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400' },
-                      { key: 'hope', label: 'Hope', emoji: '🤞', color: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400' },
+                      { key: 'frustration', label: 'Frustrated', emoji: '😤', color: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' },
+                      { key: 'anxiety', label: 'Anxious', emoji: '😰', color: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400' },
+                      { key: 'disappointment', label: 'Disappointed', emoji: '😞', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
+                      { key: 'confusion', label: 'Confused', emoji: '😕', color: 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400' },
+                      { key: 'hope', label: 'Hopeful', emoji: '🤞', color: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400' },
                       { key: 'neutral', label: 'Neutral', emoji: '😐', color: 'bg-muted text-muted-foreground' },
                     ].map(({ key, label, emoji, color }) => {
                       const count = emotionsBreakdown[key as keyof typeof emotionsBreakdown] ?? 0
@@ -522,7 +538,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
                         <div key={key} className={`flex items-center gap-2 px-2 py-1.5 rounded-md ${color}`}>
                           <span>{emoji}</span>
                           <span className="text-xs font-medium">{label}</span>
-                          <span className="text-xs ml-auto">{percent}%</span>
+                          <span className="text-xs ml-auto">({count})</span>
                         </div>
                       )
                     })}

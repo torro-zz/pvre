@@ -26,6 +26,7 @@ export interface DataQualityDiagnostics {
   postsPassedFilter: number
   relevanceRate: number
   coreSignals: number
+  totalSignals: number  // P0 Fix 2: Add total signals for consistent display
   confidence: 'very_low' | 'low' | 'medium' | 'high'
   expansionAttempts?: ExpansionAttempt[]
   communitiesSearched?: string[]
@@ -37,9 +38,10 @@ interface DataQualityInsightsProps {
 }
 
 function getRelevanceExplanation(rate: number): string {
-  if (rate < 10) return 'Very broad topic — most posts are off-topic'
-  if (rate < 20) return 'Broad hypothesis — significant filtering needed'
-  if (rate < 40) return 'Moderate match — some noise in results'
+  // P0 Fix 4: Soften accusatory language - never blame the user
+  if (rate < 10) return 'Limited matches found. Consider refining your search terms.'
+  if (rate < 20) return 'These communities discuss many topics. Try more specific keywords.'
+  if (rate < 40) return 'Moderate match — some filtering applied'
   if (rate < 60) return 'Good match — most posts are relevant'
   return 'Excellent match — highly focused data'
 }
@@ -52,15 +54,15 @@ function getConfidenceExplanation(confidence: string, signals: number): string {
 }
 
 function getSuggestion(diagnostics: DataQualityDiagnostics): string {
-  const { relevanceRate, coreSignals, confidence } = diagnostics
+  const { relevanceRate, totalSignals, confidence } = diagnostics
 
-  if (relevanceRate < 20 && coreSignals < 15) {
-    return 'Try a more specific hypothesis or different keywords'
+  if (relevanceRate < 20 && totalSignals < 15) {
+    return 'Try more specific keywords or different communities'
   }
   if (relevanceRate < 30) {
-    return 'Consider narrowing your hypothesis to find more focused discussions'
+    return 'Try more specific keywords to find focused discussions'
   }
-  if (coreSignals < 15) {
+  if (totalSignals < 15) {
     return 'Try adding more related communities or a longer time range'
   }
   if (confidence === 'low' || confidence === 'very_low') {
@@ -76,6 +78,7 @@ export function DataQualityInsights({ diagnostics }: DataQualityInsightsProps) {
     relevanceRate,
     confidence,
     coreSignals,
+    totalSignals,
     postsFound,
     postsPassedFilter,
     expansionAttempts = [],
@@ -91,51 +94,57 @@ export function DataQualityInsights({ diagnostics }: DataQualityInsightsProps) {
   return (
     <Card className="border-amber-200 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/5">
       <CardContent className="pt-4">
+        {/* P1 Fix 6: Better collapsed state with key info visible */}
         <button
           onClick={() => setExpanded(!expanded)}
           className="w-full flex items-center justify-between text-left"
         >
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
             <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
-              Data Quality Notice
+              Limited Data:
+            </span>
+            <span className="text-sm text-amber-700 dark:text-amber-400">
+              {postsPassedFilter} relevant posts from {postsFound.toLocaleString()} scanned
             </span>
           </div>
-          {expanded ? (
-            <ChevronUp className="w-4 h-4 text-amber-600" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-amber-600" />
-          )}
+          <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 flex-shrink-0">
+            {expanded ? 'Collapse' : 'Details'}
+            {expanded ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+          </span>
         </button>
 
         {expanded && (
           <div className="mt-4 space-y-4">
-            {/* Relevance Breakdown */}
+            {/* Relevance Breakdown - P0 Fix 1 & 3: Don't show 0% when matches exist */}
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Search className="w-3.5 h-3.5 text-muted-foreground" />
-                Relevance ({Math.round(relevanceRate)}%)
+                Relevance
               </div>
               <div className="pl-5.5 space-y-0.5 text-xs text-muted-foreground">
-                <p>{postsFound.toLocaleString()} posts fetched</p>
-                <p>{postsPassedFilter.toLocaleString()} passed relevance filter ({Math.round(relevanceRate)}%)</p>
+                <p>{postsPassedFilter} of {postsFound.toLocaleString()} posts matched your hypothesis</p>
                 <p className="text-amber-700 dark:text-amber-400">
                   {getRelevanceExplanation(relevanceRate)}
                 </p>
               </div>
             </div>
 
-            {/* Confidence Breakdown */}
+            {/* Confidence Breakdown - P0 Fix 2: Consistent signal counts */}
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Users className="w-3.5 h-3.5 text-muted-foreground" />
                 Confidence ({confidence.replace('_', ' ')})
               </div>
               <div className="pl-5.5 space-y-0.5 text-xs text-muted-foreground">
-                <p>{coreSignals} core pain signals detected</p>
-                <p>Minimum recommended: 30 signals</p>
+                <p>{totalSignals} signals found ({coreSignals} high-relevance)</p>
+                <p>Minimum recommended: 30 signals for reliable results</p>
                 <p className="text-amber-700 dark:text-amber-400">
-                  {getConfidenceExplanation(confidence, coreSignals)}
+                  {getConfidenceExplanation(confidence, totalSignals)}
                 </p>
               </div>
             </div>

@@ -278,6 +278,7 @@ export function TabbedView() {
                     postsPassedFilter: filteringMetrics.postsAnalyzed,
                     relevanceRate: filteringMetrics.postsFound > 0 ? Math.round((filteringMetrics.postsAnalyzed / filteringMetrics.postsFound) * 100) : 0,
                     coreSignals: filteringMetrics.coreSignals,
+                    totalSignals: communityVoiceResult.data.painSummary?.totalSignals ?? 0,
                     confidence: communityVoiceResult.data.painSummary?.dataConfidence ?? 'low',
                     expansionAttempts: filteringMetrics.expansionAttempts,
                     communitiesSearched: filteringMetrics.communitiesSearched || communityVoiceResult.data.subreddits?.analyzed,

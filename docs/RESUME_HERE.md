@@ -1,90 +1,81 @@
-# Resume Point - December 27, 2025 (Evening)
+# Resume Point - December 27, 2025 (Late Evening)
+
+## ⚠️ UNCOMMITTED CHANGES
+
+You have 8 uncommitted files from earlier sessions:
+
+| File | Changes | Purpose |
+|------|---------|---------|
+| src/app/(dashboard)/research/[id]/page.tsx | +1/-1 | Width change max-w-4xl → max-w-6xl |
+| src/app/page.tsx | +40/-23 | Landing page copy rewrite |
+| src/components/research/action-tab.tsx | +24/-8 | Action recommendations |
+| src/components/research/ask-anything-sidebar.tsx | +6/-3 | Sidebar polish |
+| src/components/research/chat-panel.tsx | +12/-5 | Chat panel polish |
+| src/components/research/search-coverage-section.tsx | +3/-2 | Coverage section |
+| src/components/research/summary-tab.tsx | +248/-58 | Grid layout + compact cards |
+| src/lib/utils/coverage-helpers.ts | +4/-2 | Coverage helpers |
+
+**Action:** Review and commit these changes, or discard if superseded.
+
+---
 
 ## Next Session: Evidence Tab - Themes Sub-tab Fixes
 
-**IMPORTANT:** Use FRONTEND-DESIGN SKILL for all UI improvements below.
+**IMPORTANT:** Use FRONTEND-DESIGN SKILL for all UI improvements.
 
 ### P1 - High Priority (Do First)
 
 | # | Fix | Problem | Solution |
 |---|-----|---------|----------|
-| 1 | Consolidate Theme Card Badges | 3 badges per card is noisy: `[Most resonance] [high] 6 mentions` | Reduce to 2 max. Use "High/Medium/Low" labels |
-| 2 | Fix Inconsistent Badge Labels | "Most resonance" vs "Med resonance" inconsistent | Use "High/Medium/Low" consistently |
-| 3 | Make Sub-tabs Sticky | Sub-tabs hidden below Executive Summary | Add `position: sticky; top: 0; z-index: 10;` |
-| 4 | Rename "Alternatives Mentioned" | Lists platforms (Product Hunt) not alternatives | Rename to "Platforms Mentioned" |
+| 1 | Consolidate Theme Card Badges | 3 badges per card is noisy | Reduce to 2 max |
+| 2 | Fix Inconsistent Badge Labels | "Most resonance" vs "Med resonance" | Use "High/Medium/Low" |
+| 3 | Make Sub-tabs Sticky | Sub-tabs hidden below Executive Summary | position: sticky |
+| 4 | Rename "Alternatives Mentioned" | Lists platforms not alternatives | "Platforms Mentioned" |
 
 ### P2 - Polish (After P1)
 
 | # | Fix | Problem | Solution |
 |---|-----|---------|----------|
-| 5 | Copy Button for Customer Language | Phrases hard to copy for marketing | Add "Copy All" button + toast |
-| 6 | Collapsible Theme Cards | 4 expanded cards = lots of scrolling | Card 1 expanded, cards 2-4 collapsed by default |
-| 7 | Strategic Recommendations Readability | Explanation text too small (12px) | Increase to 14px, better contrast |
-| 8 | Verify Mention Count Math | 6+4+3+3=16 but 15 signals total | Add note about overlap OR fix counting |
-
-### Key Files to Modify
-
-```
-src/components/research/evidence-tab.tsx     - Sub-tabs, theme cards
-src/components/research/theme-card.tsx       - Badge consolidation
-src/components/research/summary-tab.tsx      - Strategic Recommendations
-```
+| 5 | Copy Button for Customer Language | Phrases hard to copy | Add "Copy All" button |
+| 6 | Collapsible Theme Cards | 4 expanded = scrolling | Card 1 expanded, 2-4 collapsed |
+| 7 | Strategic Recommendations Readability | Text too small (12px) | Increase to 14px |
+| 8 | Verify Mention Count Math | 16 mentions but 15 signals | Add note or fix counting |
 
 ---
 
-## What Was Just Completed (Dec 27 Late Evening)
+## Today's Commits (Dec 27)
 
-### Session 4: Summary Screen Polish - Round 2
-
-1. **Interpretive Labels on Investor Metrics** (DONE)
-   - Added labels: Strong/Moderate/Low/Minimal for Pain
-   - Added labels: Rising/Stable/Uncertain/Declining for Timing
-   - Added labels: Strong Signal/Solid Foundation/Mixed Signal/Needs Rethinking for Verdict
-   - Added "found" label for Signals, "💰 found" for WTP
-
-2. **Made /10 Suffix Larger** (DONE)
-   - Changed from `text-xs` to `text-sm font-medium`
-   - Color-coded to match the score
-
-3. **Limited Data Banner → "Edit & Re-run"** (DONE)
-   - Changed button from "View Details" to "Edit & Re-run"
-   - Button links to `/research?hypothesis=...`
-
-4. **Hypothesis Pre-fill on Research Page** (DONE)
-   - Research page reads `?hypothesis=` query parameter
-   - Pre-fills the ConversationalInput with the hypothesis
-   - Added Suspense wrapper for useSearchParams
-
-### Commit: `6e6c528`
-```
-feat: Add interpretive labels to metrics + Edit & Re-run pre-fill
-```
-
----
-
-## Previous Sessions (Dec 27)
-
-### Session 3 (Evening)
-- Research Page Floating Grid Layout
-- Landing Page Copy Rewrite
-
-### Session 2 (Late Afternoon)
-- Decluttered Dashboard
-- Redesigned Research Page Layout (compact metrics, collapsible sources)
-
-### Session 1 (Afternoon)
-- Fixed MCP Configuration
-- Fixed Collapsible Hypothesis Bug
-- Improved Export Functionality (PDFs)
-- Implemented Chat Side Drawer
+| Commit | Description |
+|--------|-------------|
+| aa584ad | docs: Add Evidence Tab fixes to Known Issues + update RESUME_HERE |
+| 6e6c528 | feat: Add interpretive labels to metrics + Edit & Re-run pre-fill |
+| 56bd51d | feat: Declutter dashboard + compact research layout |
+| 41e9848 | feat: Add chat drawer + improve exports |
+| baf858d | fix: Balanced action menu |
+| d2fde99 | fix: Make action menu compact |
+| 37ef16b | fix: Remove duplicate option from research card actions |
+| 311b3b0 | fix: Replace swipe actions with kebab menu |
+| 0349b86 | feat: iOS-style swipe actions for research cards |
+| 05489d9 | fix: UI polish from CEO review |
+| 71c5cf7 | feat: Folder organization for research projects |
 
 ---
 
 ## Build & Test Status
 
-- **Build:** Passing
-- **Last Commit:** `6e6c528` - feat: Add interpretive labels to metrics + Edit & Re-run pre-fill
-- **Branch:** main
+- **Build:** ✅ Passing
+- **Tests:** 128 passing, 6 skipped
+- **Dev Server:** Running on :3000
+
+---
+
+## Key Files Reference
+
+| Purpose | File |
+|---------|------|
+| Full issue list | docs/KNOWN_ISSUES.md |
+| Project instructions | CLAUDE.md |
+| Original CEO instructions | /Users/julientorriani/Downloads/CEO Review Instructions.md |
 
 ---
 
@@ -99,11 +90,9 @@ open http://localhost:3000/dashboard
 
 ---
 
-## Reference Documents
+## User Notes
 
-- **Full Issue List:** `docs/KNOWN_ISSUES.md` (Section: "12-27: Evidence Tab - Themes Sub-tab Fixes")
-- **Original Instructions:** `/Users/julientorriani/Downloads/CEO Review Instructions.md`
-- **Design Guidance:** Use FRONTEND-DESIGN SKILL before implementing visual changes
+None
 
 ---
 

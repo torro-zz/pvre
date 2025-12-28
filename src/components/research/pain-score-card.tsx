@@ -93,7 +93,7 @@ export function PainScoreCard({ signal }: PainScoreCardProps) {
         <div className="flex items-start justify-between gap-4 mb-3">
           <div className="flex items-center gap-2">
             <Badge variant={getScoreBadgeVariant(signal.score)}>
-              Score: {signal.score}
+              Score: {Math.round(signal.score * 10) / 10}
             </Badge>
             <Badge variant="outline" className={cn("text-xs", getSourceBadgeClass(signal.source.subreddit))}>
               {formatSourceName(signal.source.subreddit)}
@@ -180,7 +180,7 @@ export function PainScoreCardCompact({ signal }: PainScoreCardProps) {
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant={getScoreBadgeVariant(signal.score)} className="text-xs">
-            {signal.score}
+            {Math.round(signal.score * 10) / 10}
           </Badge>
           <span className={cn("text-xs",
             getSourceType(signal.source.subreddit) === 'hackernews' ? 'text-orange-600 dark:text-orange-400' :
