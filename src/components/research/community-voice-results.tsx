@@ -220,6 +220,30 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
 
         {/* Themes Tab */}
         <TabsContent value="themes" className="space-y-4">
+          {/* Header with count explanation and expand/collapse controls */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">
+              {results.themeAnalysis.themes.length} themes identified from {totalSignals} signals
+              {results.themeAnalysis.themes.length > 1 && totalSignals > 0 && (
+                <span className="text-muted-foreground/70"> (some signals relate to multiple themes)</span>
+              )}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setExpandedThemes(new Set(results.themeAnalysis.themes.map((_, i) => i)))}
+                className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+              >
+                Expand All
+              </button>
+              <span className="text-muted-foreground/50">|</span>
+              <button
+                onClick={() => setExpandedThemes(new Set())}
+                className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+              >
+                Collapse All
+              </button>
+            </div>
+          </div>
           <div className="grid gap-4">
             {results.themeAnalysis.themes.map((theme, index) => {
               const isExpanded = expandedThemes.has(index)
@@ -262,9 +286,8 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
                           >
                             {theme.intensity === 'high' ? 'High' : theme.intensity === 'medium' ? 'Medium' : 'Low'} intensity
                           </Badge>
-                          <span className="text-sm text-muted-foreground flex items-center gap-1" title="Posts/comments mentioning this specific theme">
+                          <span className="text-sm text-muted-foreground">
                             {theme.frequency} mentions
-                            <HelpCircle className="h-3 w-3 opacity-50" />
                           </span>
                         </div>
                       </div>
