@@ -39,6 +39,7 @@ export function SearchCoverageSection({
 }: SearchCoverageSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const totalSignals = sources.reduce((sum, s) => sum + s.signals, 0)
+  const totalCoreSignals = sources.reduce((sum, s) => sum + s.coreSignals, 0)
 
   // Compact summary for collapsed state
   const sourceNames = sources.map(s => s.name).join(' · ')
@@ -54,7 +55,7 @@ export function SearchCoverageSection({
           <span className="font-medium text-muted-foreground">Sources Covered:</span>
           <span className="text-foreground">{sourceNames}</span>
           <Badge variant="secondary" className="font-mono text-xs">
-            {totalSignals} signals
+            {totalSignals} signals ({totalCoreSignals} core)
           </Badge>
         </div>
         <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
@@ -98,7 +99,7 @@ export function SearchCoverageSection({
                       </td>
                       <td className="px-3 py-1.5 text-right">
                         <Badge variant="secondary" className="font-mono text-xs">
-                          {source.signals}
+                          {source.signals} ({source.coreSignals} core)
                         </Badge>
                       </td>
                     </tr>

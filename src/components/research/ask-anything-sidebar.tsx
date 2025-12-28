@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Dispatch, SetStateAction } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { MessageCircle, Send, Loader2, FileText, TrendingUp, Quote, Lightbulb, Brain } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 
-interface Message {
+export interface Message {
   role: 'user' | 'assistant'
   content: string
 }
@@ -15,6 +15,8 @@ interface Message {
 interface AskAnythingSidebarProps {
   jobId: string
   hypothesis: string
+  messages: Message[]
+  setMessages: Dispatch<SetStateAction<Message[]>>
 }
 
 const QUICK_SKILLS = [
@@ -48,8 +50,7 @@ const QUICK_SKILLS = [
   },
 ]
 
-export function AskAnythingSidebar({ jobId, hypothesis }: AskAnythingSidebarProps) {
-  const [messages, setMessages] = useState<Message[]>([])
+export function AskAnythingSidebar({ jobId, hypothesis, messages, setMessages }: AskAnythingSidebarProps) {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)

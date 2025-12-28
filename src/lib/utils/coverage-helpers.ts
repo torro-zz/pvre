@@ -8,7 +8,8 @@ export interface SourceCoverageData {
   iconType: 'reddit' | 'google_play' | 'app_store' | 'hacker_news' | 'g2' | 'capterra' | 'default'
   scope: string  // e.g., "8 communities", "5 apps"
   volume: string  // e.g., "692 posts", "250 reviews"
-  signals: number
+  signals: number  // Total signals from this source
+  coreSignals: number  // Core (high-relevance) signals
 }
 
 function formatSourceName(source: string): string {
@@ -59,7 +60,8 @@ export function createSourceCoverageData(
       iconType: 'reddit',
       scope: `${communityCount} ${communityCount === 1 ? 'community' : 'communities'}`,
       volume: `${filteringMetrics.postsFound || filteringMetrics.postsAnalyzed} posts`,
-      signals: filteringMetrics.coreSignals || 0,
+      signals: totalSignals,  // Total signals (core + related)
+      coreSignals: filteringMetrics.coreSignals || 0,  // Core (high-relevance) signals only
     })
   }
 

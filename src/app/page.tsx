@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, Zap, Target, MessageSquare, TrendingUp, Clock, FileSearch, Brain, X, Check, ChevronRight, Smartphone } from 'lucide-react'
+import { ArrowRight, Zap, Target, MessageSquare, TrendingUp, Clock, FileSearch, Brain, X, Check, ChevronRight } from 'lucide-react'
 
 // Scroll-triggered fade in
 function useFadeIn() {
@@ -96,9 +96,9 @@ export default function Home() {
               className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight mb-6 animate-fade-in"
               style={{ animationDelay: '100ms' }}
             >
-              <span className="block text-foreground">Know if your idea has legs</span>
+              <span className="block text-foreground">Research that takes weeks.</span>
               <span className="block text-primary mt-2">
-                in 5 minutes, not 5 weeks
+                Done in 5 minutes.
               </span>
             </h1>
 
@@ -107,8 +107,8 @@ export default function Home() {
               className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed animate-fade-in"
               style={{ animationDelay: '200ms' }}
             >
-              Validate a business hypothesis or analyze app store gaps.
-              Get real pain signals, competitive analysis, and a go/no-go verdict — automatically.
+              PVRE scans Reddit, app reviews, and competitor landscapes to find real pain signals,
+              market gaps, and willingness-to-pay — so you know what to build before you build it.
             </p>
 
             {/* CTA */}
@@ -210,20 +210,20 @@ export default function Home() {
             <div className="grid md:grid-cols-3 gap-10">
               <StepCard
                 number="01"
-                title="Choose your approach"
-                description="Enter a hypothesis like 'Meal prep for busy parents' OR analyze an existing app's user pain points to find gaps"
+                title="Describe what you're exploring"
+                description="A business hypothesis, a problem you've noticed, or an existing app you want to compete with"
                 highlight="30 seconds"
               />
               <StepCard
                 number="02"
-                title="AI does the research"
-                description="We analyze Reddit discussions and app store reviews for pain signals, estimate market size, assess timing, and map competitors"
+                title="We mine the evidence"
+                description="PVRE analyzes thousands of Reddit posts, app reviews, and competitor data to find real user frustrations and market signals"
                 highlight="~5 minutes"
               />
               <StepCard
                 number="03"
-                title="Get your verdict"
-                description="Receive a 4-dimension viability score (Pain, Market, Competition, Timing) plus interview questions to validate further"
+                title="Make an informed decision"
+                description="Get a clear verdict with evidence: pain intensity, market size, competition gaps, and timing — all backed by real quotes"
                 highlight="Actionable"
               />
             </div>
@@ -242,10 +242,10 @@ export default function Home() {
           <div className="max-w-3xl mx-auto text-center mb-16">
             <span className="inline-block text-sm font-semibold text-primary uppercase tracking-widest mb-4">Your Research Suite</span>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-5">
-              What you get
+              Evidence, not assumptions
             </h2>
             <p className="text-lg text-muted-foreground">
-              Three modules that turn guesswork into evidence
+              Four dimensions of validation to help you make confident decisions
             </p>
           </div>
 
@@ -277,9 +277,9 @@ export default function Home() {
                 </div>
 
                 <div className="flex-1">
-                  <h3 className="text-2xl font-bold mb-3 text-foreground">Community Voice Mining</h3>
+                  <h3 className="text-2xl font-bold mb-3 text-foreground">Real Pain, Real Words</h3>
                   <p className="text-muted-foreground leading-relaxed mb-6">
-                    Real pain points from Reddit discussions and app store reviews. See intensity scores, willingness-to-pay signals, and the exact words your customers use.
+                    We find people describing your problem in their own words — from Reddit rants to app store complaints. See how intensely they feel it and whether they&apos;d pay to fix it.
                   </p>
                 </div>
 
@@ -310,7 +310,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* App Gap Analysis Card */}
+            {/* Market Sizing Card */}
             <div className="group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-xl transition-all duration-500">
               <div
                 className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity"
@@ -321,23 +321,23 @@ export default function Home() {
 
               <div className="relative p-7 h-full flex flex-col">
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 bg-emerald-500/15">
-                  <Smartphone className="w-5 h-5 text-emerald-500" />
+                  <TrendingUp className="w-5 h-5 text-emerald-500" />
                 </div>
 
-                <h3 className="text-xl font-bold mb-2 text-foreground">App Gap Analysis</h3>
+                <h3 className="text-xl font-bold mb-2 text-foreground">Market Sizing</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed flex-1">
-                  Analyze any app&apos;s reviews to find unmet user needs and build something better.
+                  TAM/SAM/SOM estimates based on real data. Know if your market is big enough before you commit.
                 </p>
 
                 {/* Compact sample */}
                 <div className="mt-5 flex items-center gap-3 text-xs">
                   <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <span className="font-medium">Pain themes</span>
+                    <span className="font-medium">User count</span>
                   </div>
                   <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-chart-2" />
-                    <span className="font-medium">White space</span>
+                    <span className="font-medium">Growth rate</span>
                   </div>
                 </div>
               </div>
@@ -360,20 +360,20 @@ export default function Home() {
                   <Target className="w-5 h-5" style={{ color: 'var(--competitors)' }} />
                 </div>
 
-                <h3 className="text-xl font-bold mb-2 text-foreground">Competitor Intelligence</h3>
+                <h3 className="text-xl font-bold mb-2 text-foreground">Competition Gaps</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed flex-1">
-                  Map existing solutions. Discover market gaps and positioning opportunities.
+                  See who else is solving this problem and where they&apos;re falling short. Find your opening.
                 </p>
 
                 {/* Compact sample */}
                 <div className="mt-5 flex items-center gap-3 text-xs">
                   <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
                     <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--competitors)' }} />
-                    <span className="font-medium">4 direct</span>
+                    <span className="font-medium">Competitors</span>
                   </div>
                   <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-chart-2" />
-                    <span className="font-medium">2 gaps</span>
+                    <span className="font-medium">Gaps</span>
                   </div>
                 </div>
               </div>
@@ -393,12 +393,12 @@ export default function Home() {
                   className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
                   style={{ backgroundColor: 'color-mix(in oklch, var(--verdict) 15%, transparent)' }}
                 >
-                  <TrendingUp className="w-5 h-5" style={{ color: 'var(--verdict)' }} />
+                  <Zap className="w-5 h-5" style={{ color: 'var(--verdict)' }} />
                 </div>
 
-                <h3 className="text-xl font-bold mb-2 text-foreground">4-Dimension Verdict</h3>
+                <h3 className="text-xl font-bold mb-2 text-foreground">Clear Verdict</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed flex-1">
-                  Clear recommendation based on Pain (35%), Market (25%), Competition (25%), and Timing (15%).
+                  A single score that weighs pain, market, competition, and timing. Plus red flags to watch for.
                 </p>
 
                 {/* Verdict badge */}
@@ -413,7 +413,7 @@ export default function Home() {
                     <Check className="w-4 h-4" />
                     Proceed
                   </div>
-                  <span className="text-sm text-muted-foreground font-mono">6.8/10</span>
+                  <span className="text-sm text-muted-foreground font-mono">7.2/10</span>
                 </div>
               </div>
             </div>
@@ -467,12 +467,11 @@ export default function Home() {
             </div>
 
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-5">
-              Stop guessing. Start validating.
+              Your idea deserves real data.
             </h2>
 
             <p className="text-lg text-muted-foreground mb-10">
-              Your next idea deserves real evidence, not gut feelings.
-              Find out if it has legs — in the next 5 minutes.
+              Stop wondering. Start knowing. Get the evidence you need to make a confident decision — before you write a line of code.
             </p>
 
             <Link href="/login">

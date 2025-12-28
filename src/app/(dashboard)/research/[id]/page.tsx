@@ -84,7 +84,7 @@ export default async function ResearchDetailPage({
   const result = communityVoiceResult
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       {/* Main Content */}
       <div className="w-full">
       {/* Back button and header */}

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MessageCircle, X } from 'lucide-react'
-import { AskAnythingSidebar } from './ask-anything-sidebar'
+import { AskAnythingSidebar, Message } from './ask-anything-sidebar'
 import { cn } from '@/lib/utils'
 
 interface ChatPanelProps {
@@ -15,6 +15,8 @@ interface ChatPanelProps {
 
 export function ChatPanel({ jobId, hypothesis }: ChatPanelProps) {
   const [isOpen, setIsOpen] = useState(false)
+  // Lift messages state up so it persists when drawer closes
+  const [messages, setMessages] = useState<Message[]>([])
 
   return (
     <>
@@ -38,6 +40,12 @@ export function ChatPanel({ jobId, hypothesis }: ChatPanelProps) {
         >
           <MessageCircle className="h-6 w-6" />
         </motion.div>
+        {/* Message count badge */}
+        {messages.length > 0 && (
+          <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 text-[10px] font-bold flex items-center justify-center ring-2 ring-background">
+            {messages.length > 9 ? '9+' : messages.length}
+          </span>
+        )}
       </Button>
 
       {/* Side Drawer */}
@@ -113,7 +121,12 @@ export function ChatPanel({ jobId, hypothesis }: ChatPanelProps) {
 
               {/* Drawer Content */}
               <div className="flex-1 overflow-hidden">
-                <AskAnythingSidebar jobId={jobId} hypothesis={hypothesis} />
+                <AskAnythingSidebar
+                  jobId={jobId}
+                  hypothesis={hypothesis}
+                  messages={messages}
+                  setMessages={setMessages}
+                />
               </div>
             </motion.div>
           </>

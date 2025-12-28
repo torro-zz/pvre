@@ -40,17 +40,19 @@ function getActionRecommendation(confidence?: HypothesisConfidence): {
   title: string
   description: string
   actions: string[]
+  showEditButton?: boolean
 } {
   if (!confidence) {
     return {
       status: 'explore',
-      title: 'Gather More Data',
-      description: 'We need more signals to provide a confident recommendation.',
+      title: 'Tip: Broaden Your Search',
+      description: 'Your hypothesis is specific, which limits matches. Try a broader problem statement.',
       actions: [
-        'Run a deeper search with different keywords',
-        'Expand to additional communities',
-        'Consider testing with a different angle',
-      ]
+        'Simplify your hypothesis to focus on the core pain point',
+        'Try: "Entrepreneurs struggling to find first customers" instead of a full problem statement',
+        'Expand to additional communities or time range',
+      ],
+      showEditButton: true
     }
   }
 
@@ -100,9 +102,11 @@ function getActionRecommendation(confidence?: HypothesisConfidence): {
 // ============================================
 
 function RecommendationCard({
-  recommendation
+  recommendation,
+  hypothesis
 }: {
   recommendation: ReturnType<typeof getActionRecommendation>
+  hypothesis?: string
 }) {
   const statusColors = {
     proceed: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800',
@@ -136,6 +140,18 @@ function RecommendationCard({
             </div>
           ))}
         </div>
+        {recommendation.showEditButton && hypothesis && (
+          <Button
+            variant="outline"
+            className="w-full mt-4"
+            asChild
+          >
+            <a href={`/research?hypothesis=${encodeURIComponent(hypothesis)}`}>
+              Edit Hypothesis & Re-run
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </a>
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
@@ -337,7 +353,7 @@ export function ActionTab({
     <div className="space-y-6">
       {/* Main Recommendation */}
       <AnimatedCard delay={0}>
-        <RecommendationCard recommendation={recommendation} />
+        <RecommendationCard recommendation={recommendation} hypothesis={hypothesis} />
       </AnimatedCard>
 
       {/* Interview Guide */}

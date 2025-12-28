@@ -14,6 +14,9 @@ import {
   MessageSquare,
   Users,
   Clock,
+  PieChart,
+  Timer,
+  Shield,
 } from 'lucide-react'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
@@ -38,12 +41,15 @@ interface SummaryTabProps {
   hypothesis: string
   marketData?: {
     score: number
-    som: { value: number }
+    som: { value: number; description?: string }
+    sam?: { value: number; description?: string }
+    tam?: { value: number; description?: string }
   }
   timingData?: {
     score: number
     trend: string
     growthRate?: number
+    timingWindow?: string
   }
   filteringMetrics?: {
     postsFound: number
@@ -59,21 +65,32 @@ interface SummaryTabProps {
 // Helper Functions
 // ============================================
 
+// Helper for singular/plural
+function pluralize(count: number, singular: string, plural: string): string {
+  return count === 1 ? singular : plural
+}
+
 function extractTopInsights(
   communityVoice?: CommunityVoiceResult,
   competitor?: CompetitorIntelligenceResult,
   market?: SummaryTabProps['marketData'],
-  timing?: SummaryTabProps['timingData']
+  timing?: SummaryTabProps['timingData'],
+  postsAnalyzed?: number
 ): Insight[] {
   const insights: Insight[] = []
 
-  // Pain intensity
+  // Pain intensity - cap claims to posts analyzed to avoid impossible statements
   if (communityVoice?.painSummary) {
     const ps = communityVoice.painSummary
-    if (ps.highIntensityCount && ps.highIntensityCount >= 3) {
+    // Cap highIntensityCount to postsAnalyzed to avoid "4 people" from "2 posts"
+    const claimCount = postsAnalyzed
+      ? Math.min(ps.highIntensityCount || 0, postsAnalyzed)
+      : ps.highIntensityCount || 0
+
+    if (claimCount >= 2) {
       insights.push({
         type: 'pain',
-        text: `${ps.highIntensityCount} people described severe pain (8-10/10)`,
+        text: `${claimCount} ${pluralize(claimCount, 'post', 'posts')} showed severe pain (8-10/10)`,
         icon: AlertTriangle,
         color: 'red'
       })
@@ -86,11 +103,14 @@ function extractTopInsights(
       })
     }
 
-    // WTP signals
+    // WTP signals - also cap and use proper grammar
     if (ps.willingnessToPayCount && ps.willingnessToPayCount > 0) {
+      const wtpCount = postsAnalyzed
+        ? Math.min(ps.willingnessToPayCount, postsAnalyzed)
+        : ps.willingnessToPayCount
       insights.push({
         type: 'wtp',
-        text: `${ps.willingnessToPayCount} people showed willingness to pay`,
+        text: `${wtpCount} ${pluralize(wtpCount, 'person', 'people')} showed willingness to pay`,
         icon: DollarSign,
         color: 'green'
       })
@@ -278,6 +298,167 @@ function RedFlagsCard({ redFlags }: { redFlags: RedFlag[] }) {
   )
 }
 
+function getMarketLabel(score: number): { label: string; color: string } {
+  if (score >= 8) return { label: 'Large Opportunity', color: 'text-emerald-600 dark:text-emerald-400' }
+  if (score >= 6) return { label: 'Good Opportunity', color: 'text-amber-600 dark:text-amber-400' }
+  if (score >= 4) return { label: 'Moderate', color: 'text-orange-600 dark:text-orange-400' }
+  return { label: 'Limited', color: 'text-red-600 dark:text-red-400' }
+}
+
+function MarketCard({ marketData }: { marketData: SummaryTabProps['marketData'] }) {
+  if (!marketData) return null
+
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+    if (num >= 1000) return `${(num / 1000).toFixed(0)}K`
+    return num.toLocaleString()
+  }
+
+  const { label, color } = getMarketLabel(marketData.score)
+
+  return (
+    <Card className="h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <PieChart className="h-4 w-4 text-blue-500" />
+          Market Size
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-3xl font-bold">{marketData.score.toFixed(1)}</span>
+          <span className="text-muted-foreground">/10</span>
+        </div>
+        <div className={`text-sm font-medium mb-3 ${color}`}>
+          {label}
+        </div>
+        <div className="space-y-2 text-sm">
+          {marketData.sam && (
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">SAM</span>
+              <span className="font-medium">{formatNumber(marketData.sam.value)} users</span>
+            </div>
+          )}
+          {marketData.som && (
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">SOM</span>
+              <span className="font-medium">{formatNumber(marketData.som.value)} users</span>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function TimingCard({ timingData }: { timingData: SummaryTabProps['timingData'] }) {
+  if (!timingData) return null
+
+  const getTrendColor = (trend: string) => {
+    if (trend === 'rising') return 'text-emerald-600 dark:text-emerald-400'
+    if (trend === 'stable') return 'text-blue-600 dark:text-blue-400'
+    return 'text-red-600 dark:text-red-400'
+  }
+
+  const getTrendIcon = (trend: string) => {
+    if (trend === 'rising') return '↑'
+    if (trend === 'stable') return '→'
+    return '↓'
+  }
+
+  return (
+    <Card className="h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Timer className="h-4 w-4 text-purple-500" />
+          Timing
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-baseline gap-2 mb-3">
+          <span className="text-3xl font-bold">{timingData.score.toFixed(1)}</span>
+          <span className="text-muted-foreground">/10</span>
+        </div>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between items-center">
+            <span className="text-muted-foreground">Trend</span>
+            <span className={`font-medium ${getTrendColor(timingData.trend)}`}>
+              {getTrendIcon(timingData.trend)} {timingData.trend.charAt(0).toUpperCase() + timingData.trend.slice(1)}
+            </span>
+          </div>
+          {timingData.growthRate !== undefined && (
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Growth</span>
+              <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                +{timingData.growthRate}%
+              </span>
+            </div>
+          )}
+          {timingData.timingWindow && (
+            <div className="pt-1">
+              <Badge variant="secondary" className="text-xs">
+                {timingData.timingWindow}
+              </Badge>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function getCompetitionLabel(count: number): { label: string; color: string } {
+  if (count <= 3) return { label: 'Blue Ocean', color: 'text-emerald-600 dark:text-emerald-400' }
+  if (count <= 6) return { label: 'Moderate Entry', color: 'text-amber-600 dark:text-amber-400' }
+  if (count <= 10) return { label: 'Competitive', color: 'text-orange-600 dark:text-orange-400' }
+  return { label: 'Crowded', color: 'text-red-600 dark:text-red-400' }
+}
+
+function CompetitionCard({ competitorResult }: { competitorResult?: CompetitorIntelligenceResult }) {
+  if (!competitorResult) return null
+
+  const highThreatCount = competitorResult.competitors?.filter(c => c.threatLevel === 'high').length || 0
+  const totalCount = competitorResult.competitors?.length || 0
+  const gapsCount = competitorResult.gaps?.length || 0
+  const { label, color } = getCompetitionLabel(totalCount)
+
+  return (
+    <Card className="h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Shield className="h-4 w-4 text-orange-500" />
+          Competition
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-3xl font-bold">{totalCount}</span>
+          <span className="text-muted-foreground">found</span>
+        </div>
+        <div className={`text-sm font-medium mb-3 ${color}`}>
+          {label}
+        </div>
+        <div className="space-y-2 text-sm">
+          {highThreatCount > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">High Threat</span>
+              <span className="font-medium text-red-600 dark:text-red-400">{highThreatCount}</span>
+            </div>
+          )}
+          {gapsCount > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Gaps</span>
+              <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                {gapsCount} found
+              </span>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ============================================
 // Main Component
 // ============================================
@@ -293,58 +474,89 @@ export function SummaryTab({
   onViewEvidence,
   onViewAction,
 }: SummaryTabProps) {
-  const insights = extractTopInsights(communityVoiceResult, competitorResult, marketData, timingData)
+  const insights = extractTopInsights(
+    communityVoiceResult,
+    competitorResult,
+    marketData,
+    timingData,
+    filteringMetrics?.postsAnalyzed
+  )
   const hasRedFlags = verdict.redFlags && verdict.redFlags.length > 0
+  const hasMarketData = marketData || timingData || competitorResult
 
   return (
     <div className="space-y-6">
-      {/* Key Insights */}
-      {insights.length > 0 && (
-        <AnimatedCard>
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Lightbulb className="h-4 w-4 text-amber-500" />
-                  Key Insights
-                </CardTitle>
-                {onViewEvidence && (
-                  <Button variant="ghost" size="sm" onClick={onViewEvidence}>
-                    View Evidence
-                    <ArrowRight className="h-4 w-4 ml-1" />
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <StaggerContainer className="space-y-2" staggerDelay={0.1} initialDelay={0.2}>
-                {insights.map((insight, i) => (
-                  <InsightCard key={i} insight={insight} index={i} />
-                ))}
-              </StaggerContainer>
-            </CardContent>
-          </Card>
+      {/* Top Row: Key Insights (full width or 2/3) + Quick Stats Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Key Insights - spans 2 columns on large screens */}
+        {insights.length > 0 && (
+          <AnimatedCard className="lg:col-span-2">
+            <Card className="h-full">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Lightbulb className="h-4 w-4 text-amber-500" />
+                    Key Insights
+                  </CardTitle>
+                  {onViewEvidence && (
+                    <Button variant="ghost" size="sm" onClick={onViewEvidence}>
+                      View Evidence
+                      <ArrowRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <StaggerContainer className="space-y-2" staggerDelay={0.1} initialDelay={0.2}>
+                  {insights.map((insight, i) => (
+                    <InsightCard key={i} insight={insight} index={i} />
+                  ))}
+                </StaggerContainer>
+              </CardContent>
+            </Card>
+          </AnimatedCard>
+        )}
+
+        {/* Data Quality Card - 1 column */}
+        <AnimatedCard delay={0.15} className={insights.length === 0 ? 'lg:col-span-3' : ''}>
+          <DataQualityCard
+            filteringMetrics={filteringMetrics}
+            painSummary={communityVoiceResult?.painSummary}
+            dataSources={communityVoiceResult?.metadata?.dataSources}
+          />
         </AnimatedCard>
+      </div>
+
+      {/* Middle Row: Market/Timing/Competition Grid */}
+      {hasMarketData && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {marketData && (
+            <AnimatedCard delay={0.2}>
+              <MarketCard marketData={marketData} />
+            </AnimatedCard>
+          )}
+          {timingData && (
+            <AnimatedCard delay={0.25}>
+              <TimingCard timingData={timingData} />
+            </AnimatedCard>
+          )}
+          {competitorResult && (
+            <AnimatedCard delay={0.3}>
+              <CompetitionCard competitorResult={competitorResult} />
+            </AnimatedCard>
+          )}
+        </div>
       )}
 
-      {/* Red Flags */}
+      {/* Red Flags - full width if present */}
       {hasRedFlags && (
-        <AnimatedCard delay={0.3}>
+        <AnimatedCard delay={0.35}>
           <RedFlagsCard redFlags={verdict.redFlags!} />
         </AnimatedCard>
       )}
 
-      {/* Data Quality */}
-      <AnimatedCard delay={hasRedFlags ? 0.4 : 0.3}>
-        <DataQualityCard
-          filteringMetrics={filteringMetrics}
-          painSummary={communityVoiceResult?.painSummary}
-          dataSources={communityVoiceResult?.metadata?.dataSources}
-        />
-      </AnimatedCard>
-
-      {/* Quick Actions */}
-      <AnimatedCard delay={hasRedFlags ? 0.5 : 0.4}>
+      {/* Quick Actions - full width */}
+      <AnimatedCard delay={hasRedFlags ? 0.45 : 0.4}>
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row gap-3">
