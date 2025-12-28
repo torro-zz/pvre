@@ -44,7 +44,20 @@ interface CommunityVoiceResultsProps {
 export function CommunityVoiceResults({ results, jobId, hypothesis, showNextStep = true }: CommunityVoiceResultsProps) {
   const [showAllSignals, setShowAllSignals] = useState(false)
   const [copiedSection, setCopiedSection] = useState<string | null>(null)
+  const [expandedThemes, setExpandedThemes] = useState<Set<number>>(new Set([0])) // First card expanded by default
   const { setActiveTab, communitySubTab, setCommunitySubTab } = useResearchTabs()
+
+  const toggleTheme = (index: number) => {
+    setExpandedThemes(prev => {
+      const next = new Set(prev)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
+  }
 
   // Safely handle null/undefined painSignals array
   const painSignals = results.painSignals ?? []
@@ -208,90 +221,132 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
         {/* Themes Tab */}
         <TabsContent value="themes" className="space-y-4">
           <div className="grid gap-4">
-            {results.themeAnalysis.themes.map((theme, index) => (
-              <Card key={index}>
-                <CardContent className="pt-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-semibold">{theme.name}</h4>
-                      {/* Tier Badge - shows if theme is from core or contextual signals */}
-                      {theme.tier === 'contextual' && (
-                        <Badge
-                          variant="outline"
-                          className="border-blue-500/50 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs"
-                        >
-                          contextual
-                        </Badge>
+            {results.themeAnalysis.themes.map((theme, index) => {
+              const isExpanded = expandedThemes.has(index)
+              return (
+                <Card key={index} className="overflow-hidden">
+                  <button
+                    onClick={() => toggleTheme(index)}
+                    className="w-full text-left"
+                  >
+                    <CardContent className="pt-4 pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          )}
+                          <h4 className="font-semibold">{theme.name}</h4>
+                          {/* Tier Badge - shows if theme is from core or contextual signals */}
+                          {theme.tier === 'contextual' && (
+                            <Badge
+                              variant="outline"
+                              className="border-blue-500/50 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs"
+                            >
+                              contextual
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {/* Combined Intensity/Resonance Badge - consolidated for cleaner UI */}
+                          <Badge
+                            variant="outline"
+                            className={
+                              theme.intensity === 'high'
+                                ? 'border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-400'
+                                : theme.intensity === 'medium'
+                                ? 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                : 'border-muted-foreground/30 bg-muted/30 text-muted-foreground'
+                            }
+                          >
+                            {theme.intensity === 'high' ? 'High' : theme.intensity === 'medium' ? 'Medium' : 'Low'} intensity
+                          </Badge>
+                          <span className="text-sm text-muted-foreground flex items-center gap-1" title="Posts/comments mentioning this specific theme">
+                            {theme.frequency} mentions
+                            <HelpCircle className="h-3 w-3 opacity-50" />
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </button>
+                  {isExpanded && (
+                    <CardContent className="pt-0 pb-4">
+                      <p className="text-sm text-muted-foreground mb-3 pl-6">
+                        {theme.description}
+                      </p>
+                      {/* Source Badges - show which data sources this theme came from */}
+                      {theme.sources && theme.sources.length > 0 && (
+                        <div className="flex gap-1.5 mb-3 pl-6">
+                          {theme.sources.map((source: string) => (
+                            <Badge
+                              key={source}
+                              variant="outline"
+                              className={`text-xs font-normal ${
+                                source === 'hacker_news' ? 'bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-400' :
+                                source === 'trustpilot' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : ''
+                              }`}
+                            >
+                              {source === 'reddit' && '💬 Reddit'}
+                              {source === 'hacker_news' && '🔶 Hacker News'}
+                              {source === 'trustpilot' && '⭐ Trustpilot'}
+                              {source === 'google_play' && '🤖 Google Play'}
+                              {source === 'app_store' && '🍎 App Store'}
+                            </Badge>
+                          ))}
+                        </div>
                       )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {/* Combined Intensity/Resonance Badge - consolidated for cleaner UI */}
-                      <Badge
-                        variant="outline"
-                        className={
-                          theme.intensity === 'high'
-                            ? 'border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-400'
-                            : theme.intensity === 'medium'
-                            ? 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                            : 'border-muted-foreground/30 bg-muted/30 text-muted-foreground'
-                        }
-                      >
-                        {theme.intensity === 'high' ? 'High' : theme.intensity === 'medium' ? 'Medium' : 'Low'} intensity
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">
-                        {theme.frequency} mentions
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    {theme.description}
-                  </p>
-                  {/* Source Badges - show which data sources this theme came from */}
-                  {theme.sources && theme.sources.length > 0 && (
-                    <div className="flex gap-1.5 mb-3">
-                      {theme.sources.map((source: string) => (
-                        <Badge
-                          key={source}
-                          variant="outline"
-                          className={`text-xs font-normal ${
-                            source === 'hacker_news' ? 'bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-400' :
-                            source === 'trustpilot' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : ''
-                          }`}
-                        >
-                          {source === 'reddit' && '💬 Reddit'}
-                          {source === 'hacker_news' && '🔶 Hacker News'}
-                          {source === 'trustpilot' && '⭐ Trustpilot'}
-                          {source === 'google_play' && '🤖 Google Play'}
-                          {source === 'app_store' && '🍎 App Store'}
-                        </Badge>
-                      ))}
-                    </div>
+                      {theme.examples.length > 0 && (
+                        <div className="space-y-2 pl-6">
+                          {theme.examples.map((example, i) => (
+                            <p
+                              key={i}
+                              className="text-sm italic border-l-2 pl-3 text-muted-foreground"
+                            >
+                              "{example}"
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
                   )}
-                  {theme.examples.length > 0 && (
-                    <div className="space-y-2">
-                      {theme.examples.map((example, i) => (
-                        <p
-                          key={i}
-                          className="text-sm italic border-l-2 pl-3 text-muted-foreground"
-                        >
-                          "{example}"
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                </Card>
+              )
+            })}
           </div>
 
           {/* Customer Language */}
           {results.themeAnalysis.customerLanguage.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Customer Language</CardTitle>
-                <CardDescription>
-                  Exact phrases your target customers use
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Customer Language</CardTitle>
+                    <CardDescription>
+                      Exact phrases your target customers use
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyToClipboard(
+                      results.themeAnalysis.customerLanguage.map(p => `"${p}"`).join('\n'),
+                      'customerLanguage'
+                    )}
+                  >
+                    {copiedSection === 'customerLanguage' ? (
+                      <>
+                        <Check className="mr-2 h-4 w-4" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copy All
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
