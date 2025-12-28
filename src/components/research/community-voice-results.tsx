@@ -147,7 +147,7 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
                       </span>
                       <div>
                         <p className="font-medium text-sm">{rec.action}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{rec.rationale}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{rec.rationale}</p>
                       </div>
                     </div>
                   </div>
@@ -196,12 +196,14 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
 
       {/* Tabbed Content */}
       <Tabs value={communitySubTab} onValueChange={(v) => setCommunitySubTab(v as 'themes' | 'signals' | 'quotes' | 'interview')} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="themes">Themes</TabsTrigger>
-          <TabsTrigger value="signals">Pain Signals</TabsTrigger>
-          <TabsTrigger value="quotes">Key Quotes</TabsTrigger>
-          <TabsTrigger value="interview">Interview Guide</TabsTrigger>
-        </TabsList>
+        <div className="sticky top-0 z-10 bg-background py-2 -mx-1 px-1">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="themes">Themes</TabsTrigger>
+            <TabsTrigger value="signals">Pain Signals</TabsTrigger>
+            <TabsTrigger value="quotes">Key Quotes</TabsTrigger>
+            <TabsTrigger value="interview">Interview Guide</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Themes Tab */}
         <TabsContent value="themes" className="space-y-4">
@@ -223,33 +225,18 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {/* Resonance Badge */}
-                      {theme.resonance && (
-                        <Badge
-                          variant="outline"
-                          className={
-                            theme.resonance === 'high'
-                              ? 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                              : theme.resonance === 'medium'
-                              ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400'
-                              : 'border-muted-foreground/30 bg-muted/30 text-muted-foreground'
-                          }
-                        >
-                          <Zap className="h-3 w-3 mr-1" />
-                          {theme.resonance === 'high' ? 'High' : theme.resonance === 'medium' ? 'Med' : 'Low'} resonance
-                        </Badge>
-                      )}
-                      {/* Intensity Badge */}
+                      {/* Combined Intensity/Resonance Badge - consolidated for cleaner UI */}
                       <Badge
-                        variant={
+                        variant="outline"
+                        className={
                           theme.intensity === 'high'
-                            ? 'destructive'
+                            ? 'border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-400'
                             : theme.intensity === 'medium'
-                            ? 'default'
-                            : 'secondary'
+                            ? 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                            : 'border-muted-foreground/30 bg-muted/30 text-muted-foreground'
                         }
                       >
-                        {theme.intensity}
+                        {theme.intensity === 'high' ? 'High' : theme.intensity === 'medium' ? 'Medium' : 'Low'} intensity
                       </Badge>
                       <span className="text-sm text-muted-foreground">
                         {theme.frequency} mentions
@@ -318,13 +305,13 @@ ${solutionQuestions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
             </Card>
           )}
 
-          {/* Alternatives Mentioned */}
+          {/* Platforms Mentioned */}
           {results.themeAnalysis.alternativesMentioned.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Alternatives Mentioned</CardTitle>
+                <CardTitle className="text-lg">Platforms Mentioned</CardTitle>
                 <CardDescription>
-                  Existing solutions customers are aware of
+                  Tools and platforms customers reference in discussions
                 </CardDescription>
               </CardHeader>
               <CardContent>
