@@ -30,7 +30,6 @@ export default function Home() {
   const oldWayRef = useFadeIn()
   const newWayRef = useFadeIn()
   const featuresRef = useFadeIn()
-  const testimonialsRef = useFadeIn()
 
   return (
     <div className="min-h-screen bg-background overflow-hidden">
@@ -93,7 +92,7 @@ export default function Home() {
 
             {/* Pain-focused headline */}
             <h1
-              className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight mb-6 animate-fade-in"
+              className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight mb-4 animate-fade-in"
               style={{ animationDelay: '100ms' }}
             >
               <span className="block text-foreground">Research that takes weeks.</span>
@@ -102,13 +101,22 @@ export default function Home() {
               </span>
             </h1>
 
+            {/* Who this is for */}
+            <p
+              className="text-base sm:text-lg text-muted-foreground/80 italic max-w-xl mx-auto mb-6 animate-fade-in"
+              style={{ animationDelay: '150ms' }}
+            >
+              For indie hackers, solo founders, and product builders who refuse to waste months building something nobody wants.
+            </p>
+
             {/* Subheadline - value prop */}
             <p
               className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed animate-fade-in"
               style={{ animationDelay: '200ms' }}
             >
-              PVRE scans Reddit, app reviews, and competitor landscapes to find real pain signals,
-              market gaps, and willingness-to-pay — so you know what to build before you build it.
+              Stop guessing if your idea will work. We analyze thousands of real conversations
+              to find proof of demand — pain signals, market gaps, and willingness-to-pay — so
+              you can build with confidence.
             </p>
 
             {/* CTA */}
@@ -137,6 +145,16 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Product Preview Section */}
+      <section className="py-16 sm:py-20 bg-gradient-to-b from-background via-muted/20 to-background">
+        <div className="container mx-auto px-4">
+          <ProductPreview />
+          <p className="text-center text-sm text-muted-foreground mt-6">
+            Pain signals. Market size. Clear verdict. All in under 5 minutes.
+          </p>
+        </div>
+      </section>
+
       {/* The Old Way - Problem Section */}
       <section
         ref={oldWayRef.ref}
@@ -156,23 +174,23 @@ export default function Home() {
             <div className="grid sm:grid-cols-2 gap-5">
               <PainPoint
                 icon={<Clock className="w-5 h-5" />}
-                title="30+ hours browsing Reddit"
-                description="Manually searching forums, saving posts, trying to find patterns"
+                title="Drowning in Reddit threads"
+                description="Ctrl+F-ing desperately for any sign someone cares about your problem"
               />
               <PainPoint
                 icon={<FileSearch className="w-5 h-5" />}
-                title="Scattered notes everywhere"
-                description="Insights buried in random docs, spreadsheets, and bookmarks"
+                title="50 open tabs, zero clarity"
+                description="That one useful comment you found? Good luck finding it again"
               />
               <PainPoint
                 icon={<Brain className="w-5 h-5" />}
-                title="Guessing what to ask"
-                description="Running interviews without knowing the right questions"
+                title="Interviews that teach nothing"
+                description="Asking leading questions that confirm what you already believe"
               />
               <PainPoint
                 icon={<X className="w-5 h-5" />}
-                title="Building for months, then..."
-                description="Discovering nobody actually wants what you built"
+                title="Shipping to crickets"
+                description={`Zero signups. "Maybe I need more features..." No. You needed validation.`}
               />
             </div>
           </div>
@@ -180,12 +198,12 @@ export default function Home() {
       </section>
 
       {/* The Switch */}
-      <section className="py-6 bg-primary text-primary-foreground relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 to-primary" />
+      <section className="py-6 relative overflow-hidden border-l-4 border-emerald-500" style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' }}>
+        {/* Subtle glow effect */}
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-emerald-500/10 to-emerald-500/5" />
         <div className="container mx-auto px-4 text-center relative">
-          <p className="text-lg font-semibold flex items-center justify-center gap-3">
-            <span>There&apos;s a better way</span>
-            <ChevronRight className="w-5 h-5 animate-pulse" />
+          <p className="text-lg font-semibold text-white tracking-wide" style={{ textShadow: '0 0 20px rgba(34, 197, 94, 0.3)' }}>
+            There&apos;s a better way
           </p>
         </div>
       </section>
@@ -249,203 +267,146 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Bento Grid Layout */}
-          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-            {/* Featured Card - Community Voice Mining */}
-            <div className="md:col-span-2 group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-2xl transition-all duration-500">
-              {/* Gradient overlay */}
-              <div
-                className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity"
-                style={{
-                  background: 'linear-gradient(135deg, var(--community-voice) 0%, transparent 60%)'
-                }}
-              />
-
-              <div className="relative p-8 h-full flex flex-col">
-                {/* Icon with glow */}
-                <div className="relative mb-6">
-                  <div
-                    className="absolute inset-0 blur-2xl opacity-30"
-                    style={{ backgroundColor: 'var(--community-voice)' }}
-                  />
-                  <div
-                    className="relative w-14 h-14 rounded-2xl flex items-center justify-center"
-                    style={{ backgroundColor: 'color-mix(in oklch, var(--community-voice) 15%, transparent)' }}
-                  >
-                    <MessageSquare className="w-6 h-6" style={{ color: 'var(--community-voice)' }} />
-                  </div>
-                </div>
-
-                <div className="flex-1">
-                  <h3 className="text-2xl font-bold mb-3 text-foreground">Real Pain, Real Words</h3>
-                  <p className="text-muted-foreground leading-relaxed mb-6">
-                    We find people describing your problem in their own words — from Reddit rants to app store complaints. See how intensely they feel it and whether they&apos;d pay to fix it.
-                  </p>
-                </div>
-
-                {/* Sample Output - Visual */}
-                <div className="mt-auto pt-6 border-t border-border/50">
-                  <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Sample Output</div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-foreground font-medium">Pain Score</span>
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-0.5">
-                          {[...Array(7)].map((_, i) => (
-                            <div key={i} className="w-2 h-4 rounded-sm" style={{ backgroundColor: 'var(--community-voice)' }} />
-                          ))}
-                          {[...Array(3)].map((_, i) => (
-                            <div key={i} className="w-2 h-4 rounded-sm bg-border/50" />
-                          ))}
-                        </div>
-                        <span className="text-sm font-mono font-bold" style={{ color: 'var(--community-voice)' }}>7.2</span>
+          {/* Bento Grid Layout - Clean 2x2 */}
+          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Pain Signals Card */}
+            <FeatureCard
+              icon={<MessageSquare className="w-5 h-5" />}
+              iconColor="var(--community-voice)"
+              title="Real Pain, Real Words"
+              description="We find people describing your problem in their own words — from Reddit rants to app store complaints."
+              sampleOutput={
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Pain Score</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-0.5">
+                        {[...Array(7)].map((_, i) => (
+                          <div key={i} className="w-1.5 h-3 rounded-sm" style={{ backgroundColor: 'var(--community-voice)' }} />
+                        ))}
+                        {[...Array(3)].map((_, i) => (
+                          <div key={i} className="w-1.5 h-3 rounded-sm bg-border/50" />
+                        ))}
                       </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-foreground font-medium">WTP Signals</span>
-                      <span className="text-sm font-mono font-semibold text-chart-2">3 found</span>
+                      <span className="text-xs font-mono font-bold" style={{ color: 'var(--community-voice)' }}>7.2</span>
                     </div>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">WTP Signals</span>
+                    <span className="text-xs font-mono font-semibold text-emerald-500">3 found</span>
+                  </div>
                 </div>
-              </div>
-            </div>
+              }
+            />
 
             {/* Market Sizing Card */}
-            <div className="group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-xl transition-all duration-500">
-              <div
-                className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity"
-                style={{
-                  background: 'linear-gradient(135deg, #10b981 0%, transparent 60%)'
-                }}
-              />
-
-              <div className="relative p-7 h-full flex flex-col">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 bg-emerald-500/15">
-                  <TrendingUp className="w-5 h-5 text-emerald-500" />
-                </div>
-
-                <h3 className="text-xl font-bold mb-2 text-foreground">Market Sizing</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed flex-1">
-                  TAM/SAM/SOM estimates based on real data. Know if your market is big enough before you commit.
-                </p>
-
-                {/* Compact sample */}
-                <div className="mt-5 flex items-center gap-3 text-xs">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <span className="font-medium">User count</span>
+            <FeatureCard
+              icon={<TrendingUp className="w-5 h-5" />}
+              iconColor="#10b981"
+              title="Market Sizing"
+              description="TAM/SAM/SOM estimates based on real data. Know if your market is big enough before you commit."
+              sampleOutput={
+                <div className="flex items-center justify-between">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-emerald-500">2.1M</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">TAM</div>
                   </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
-                    <span className="w-1.5 h-1.5 rounded-full bg-chart-2" />
-                    <span className="font-medium">Growth rate</span>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-emerald-500">340K</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">SAM</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-emerald-500">+12%</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Growth</div>
                   </div>
                 </div>
-              </div>
-            </div>
+              }
+            />
 
-            {/* Competitor Intelligence Card */}
-            <div className="group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-xl transition-all duration-500">
-              <div
-                className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity"
-                style={{
-                  background: 'linear-gradient(135deg, var(--competitors) 0%, transparent 60%)'
-                }}
-              />
-
-              <div className="relative p-7 h-full flex flex-col">
-                <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
-                  style={{ backgroundColor: 'color-mix(in oklch, var(--competitors) 15%, transparent)' }}
-                >
-                  <Target className="w-5 h-5" style={{ color: 'var(--competitors)' }} />
-                </div>
-
-                <h3 className="text-xl font-bold mb-2 text-foreground">Competition Gaps</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed flex-1">
-                  See who else is solving this problem and where they&apos;re falling short. Find your opening.
-                </p>
-
-                {/* Compact sample */}
-                <div className="mt-5 flex items-center gap-3 text-xs">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--competitors)' }} />
-                    <span className="font-medium">Competitors</span>
+            {/* Competition Gaps Card */}
+            <FeatureCard
+              icon={<Target className="w-5 h-5" />}
+              iconColor="var(--competitors)"
+              title="Competition Gaps"
+              description="See who else is solving this problem and where they're falling short. Find your opening."
+              sampleOutput={
+                <div className="flex items-center justify-between">
+                  <div className="text-center">
+                    <div className="text-lg font-bold" style={{ color: 'var(--competitors)' }}>5</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Competitors</div>
                   </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80">
-                    <span className="w-1.5 h-1.5 rounded-full bg-chart-2" />
-                    <span className="font-medium">Gaps</span>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-amber-500">3</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Gaps Found</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-emerald-500">Moderate</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Saturation</div>
                   </div>
                 </div>
-              </div>
-            </div>
+              }
+            />
 
-            {/* Go/No-Go Verdict Card */}
-            <div className="group relative bg-card rounded-3xl overflow-hidden border border-border/40 shadow-sm hover:shadow-xl transition-all duration-500">
-              <div
-                className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity"
-                style={{
-                  background: 'linear-gradient(135deg, var(--verdict) 0%, transparent 60%)'
-                }}
-              />
-
-              <div className="relative p-7 h-full flex flex-col">
-                <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
-                  style={{ backgroundColor: 'color-mix(in oklch, var(--verdict) 15%, transparent)' }}
-                >
-                  <Zap className="w-5 h-5" style={{ color: 'var(--verdict)' }} />
-                </div>
-
-                <h3 className="text-xl font-bold mb-2 text-foreground">Clear Verdict</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed flex-1">
-                  A single score that weighs pain, market, competition, and timing. Plus red flags to watch for.
-                </p>
-
-                {/* Verdict badge */}
-                <div className="mt-5 flex items-center gap-3">
+            {/* Clear Verdict Card */}
+            <FeatureCard
+              icon={<Zap className="w-5 h-5" />}
+              iconColor="var(--verdict)"
+              title="Clear Verdict"
+              description="A single score that weighs pain, market, competition, and timing. Plus red flags to watch."
+              sampleOutput={
+                <div className="flex items-center justify-between">
                   <div
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                     style={{
-                      backgroundColor: 'color-mix(in oklch, var(--verdict) 12%, transparent)',
+                      backgroundColor: 'color-mix(in oklch, var(--verdict) 15%, transparent)',
                       color: 'var(--verdict)'
                     }}
                   >
-                    <Check className="w-4 h-4" />
+                    <Check className="w-3.5 h-3.5" />
                     Proceed
                   </div>
-                  <span className="text-sm text-muted-foreground font-mono">7.2/10</span>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold font-mono" style={{ color: 'var(--verdict)' }}>7.2</span>
+                    <span className="text-sm text-muted-foreground">/10</span>
+                  </div>
                 </div>
-              </div>
-            </div>
+              }
+            />
           </div>
         </div>
       </section>
 
-      {/* Social Proof - Testimonials */}
-      <section
-        ref={testimonialsRef.ref}
-        className={`py-24 transition-all duration-700 ${
-          testimonialsRef.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-        }`}
-      >
+      {/* FAQ Section */}
+      <section className="py-16 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-14">
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold">
-                What founders are saying
+                Frequently Asked Questions
               </h2>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
-              <TestimonialCard
-                quote="I was about to spend 3 months building. PVRE showed me in 30 minutes that my target market was way smaller than I thought. Saved me from a costly mistake."
-                name="Marcus R."
-                role="Solo Founder"
+            <div className="grid md:grid-cols-2 gap-4">
+              <FAQItem
+                question="How is this different from searching Reddit myself?"
+                answer="You could spend 30+ hours combing through Reddit threads. PVRE analyzes thousands of posts in minutes, extracts pain signals, scores them for intensity, and identifies willingness-to-pay indicators — work that would take you days to do manually."
+                defaultOpen
               />
-              <TestimonialCard
-                quote="The pain signals feature is incredible. I found exact quotes from my target customers that I now use in my landing page copy. Worth it for that alone."
-                name="Sarah K."
-                role="First-time Founder"
+              <FAQItem
+                question="What data sources do you analyze?"
+                answer="We currently analyze Reddit communities, app store reviews (Google Play & App Store), and Hacker News. We focus on places where people complain honestly about their problems — not polished marketing speak."
+              />
+              <FAQItem
+                question="How accurate is the market sizing?"
+                answer="Our market sizing uses Fermi estimation — the same technique VCs use for back-of-envelope calculations. We're transparent about confidence levels and always show our methodology. These are educated estimates, not guarantees."
+              />
+              <FAQItem
+                question="Is my idea kept private?"
+                answer="Yes. Your research hypotheses are private to your account. We don't share, sell, or expose your ideas to anyone."
+              />
+              <FAQItem
+                question="What if the research isn't useful?"
+                answer="We offer a satisfaction guarantee. If your research doesn't provide actionable insights, contact us and we'll refund your credits — no questions asked."
               />
             </div>
           </div>
@@ -470,8 +431,9 @@ export default function Home() {
               Your idea deserves real data.
             </h2>
 
-            <p className="text-lg text-muted-foreground mb-10">
-              Stop wondering. Start knowing. Get the evidence you need to make a confident decision — before you write a line of code.
+            <p className="text-lg text-muted-foreground mb-10 max-w-xl mx-auto">
+              Every week you spend building without validation is a week you might be wasting.
+              Find out if people actually want what you&apos;re building — in 5 minutes, not 5 months.
             </p>
 
             <Link href="/login">
@@ -553,6 +515,57 @@ function StepCard({
   )
 }
 
+// Feature card component for bento grid
+function FeatureCard({
+  icon,
+  iconColor,
+  title,
+  description,
+  sampleOutput
+}: {
+  icon: React.ReactNode
+  iconColor: string
+  title: string
+  description: string
+  sampleOutput: React.ReactNode
+}) {
+  return (
+    <div className="group relative bg-card rounded-2xl overflow-hidden border border-border/50 shadow-sm hover:shadow-lg transition-all duration-300">
+      {/* Subtle gradient overlay */}
+      <div
+        className="absolute inset-0 opacity-[0.02] group-hover:opacity-[0.04] transition-opacity"
+        style={{
+          background: `linear-gradient(135deg, ${iconColor} 0%, transparent 50%)`
+        }}
+      />
+
+      <div className="relative p-6 h-full flex flex-col">
+        {/* Icon */}
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+          style={{
+            backgroundColor: `color-mix(in oklch, ${iconColor} 12%, transparent)`,
+            color: iconColor
+          }}
+        >
+          {icon}
+        </div>
+
+        {/* Title & Description */}
+        <h3 className="text-lg font-semibold mb-2 text-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground leading-relaxed flex-1 mb-4">
+          {description}
+        </p>
+
+        {/* Sample Output */}
+        <div className="pt-4 border-t border-border/50">
+          {sampleOutput}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Testimonial card component
 function TestimonialCard({
   quote,
@@ -573,6 +586,132 @@ function TestimonialCard({
         <div>
           <div className="font-semibold text-foreground">{name}</div>
           <div className="text-sm text-muted-foreground">{role}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Product Preview - Stylized mockup of results
+function ProductPreview() {
+  return (
+    <div className="relative max-w-4xl mx-auto">
+      {/* Browser frame */}
+      <div className="bg-card rounded-2xl border border-border/60 shadow-2xl overflow-hidden">
+        {/* Browser header */}
+        <div className="bg-muted/50 border-b border-border/40 px-4 py-3 flex items-center gap-3">
+          <div className="flex gap-2">
+            <div className="w-3 h-3 rounded-full bg-red-400/60" />
+            <div className="w-3 h-3 rounded-full bg-yellow-400/60" />
+            <div className="w-3 h-3 rounded-full bg-green-400/60" />
+          </div>
+          <div className="flex-1 bg-background/50 rounded-lg px-4 py-1.5 text-xs text-muted-foreground font-mono">
+            pvre.app/research/results
+          </div>
+        </div>
+
+        {/* Results preview content */}
+        <div className="p-6 sm:p-8 bg-gradient-to-b from-background to-muted/20">
+          {/* Investor Metrics Row */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6">
+            <MetricPill label="Pain" value="7.4" sublabel="Strong" color="var(--community-voice)" />
+            <MetricPill label="Signals" value="23" sublabel="found" color="var(--community-voice)" />
+            <MetricPill label="WTP" value="4" sublabel="found" color="#10b981" />
+            <MetricPill label="Market" value="2.1M" sublabel="users" color="#10b981" />
+            <MetricPill label="Timing" value="7.8" sublabel="Rising ↑" color="var(--competitors)" />
+            <MetricPill label="Verdict" value="7.2" sublabel="Promising" color="var(--verdict)" highlight />
+          </div>
+
+          {/* Key Insight */}
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6">
+            <div className="text-xs uppercase tracking-wider text-primary font-semibold mb-2">Key Insight</div>
+            <p className="text-sm text-foreground">
+              Strong pain signals detected with 4 explicit willingness-to-pay indicators.
+              Market is growing but competition is moderate — good timing for entry.
+            </p>
+          </div>
+
+          {/* Bottom row: Verdict + Quick stats */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="px-4 py-2 rounded-xl font-bold text-sm" style={{ backgroundColor: 'color-mix(in oklch, var(--verdict) 15%, transparent)', color: 'var(--verdict)' }}>
+                <span className="flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  PROMISING SIGNAL
+                </span>
+              </div>
+              <span className="text-2xl font-bold font-mono" style={{ color: 'var(--verdict)' }}>7.2</span>
+              <span className="text-sm text-muted-foreground">/10</span>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span>23 pain signals</span>
+              <span>•</span>
+              <span>4 WTP indicators</span>
+              <span>•</span>
+              <span>3 subreddits analyzed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Subtle glow effect */}
+      <div className="absolute -inset-4 bg-gradient-to-r from-primary/10 via-transparent to-chart-2/10 rounded-3xl blur-2xl -z-10 opacity-60" />
+    </div>
+  )
+}
+
+// Metric pill for product preview
+function MetricPill({
+  label,
+  value,
+  sublabel,
+  color,
+  highlight = false
+}: {
+  label: string
+  value: string
+  sublabel?: string
+  color: string
+  highlight?: boolean
+}) {
+  return (
+    <div className={`rounded-xl p-3 text-center ${highlight ? 'ring-2 ring-offset-2 ring-offset-background' : ''}`} style={{
+      backgroundColor: `color-mix(in oklch, ${color} 10%, transparent)`,
+      ...(highlight && { ringColor: color })
+    }}>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
+      <div className="text-sm sm:text-base font-bold font-mono" style={{ color }}>{value}</div>
+      {sublabel && <div className="text-[10px] text-muted-foreground mt-0.5">{sublabel}</div>}
+    </div>
+  )
+}
+
+// FAQ Item component with accordion
+function FAQItem({
+  question,
+  answer,
+  defaultOpen = false
+}: {
+  question: string
+  answer: string
+  defaultOpen?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+
+  return (
+    <div className="bg-card border border-border/60 rounded-xl overflow-hidden">
+      <button
+        className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="font-medium text-foreground pr-4">{question}</span>
+        <span className={`text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-45' : ''}`}>
+          +
+        </span>
+      </button>
+      <div className={`overflow-hidden transition-all duration-200 ${isOpen ? 'max-h-96' : 'max-h-0'}`}>
+        <div className="px-5 pb-4 text-sm text-muted-foreground leading-relaxed">
+          {answer}
         </div>
       </div>
     </div>
