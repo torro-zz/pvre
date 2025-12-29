@@ -140,6 +140,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   const [interpretation, setInterpretation] = useState<HypothesisInterpretation | null>(null)
   const [refinements, setRefinements] = useState<RefinementSuggestion[]>([])
   const [formattedHypothesis, setFormattedHypothesis] = useState('')
+  const [storedOriginalInput, setStoredOriginalInput] = useState<string>('') // What user typed, for display
   const [isInterpreting, setIsInterpreting] = useState(false)
   const [interpretError, setInterpretError] = useState<string | null>(null)
 
@@ -310,11 +311,12 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
 
       // Hypothesis mode (default)
       setResearchMode('hypothesis')
-      const hypothesisData = data as InterpretHypothesisResponse & { mode: 'hypothesis' }
+      const hypothesisData = data as InterpretHypothesisResponse & { mode: 'hypothesis'; originalInput: string }
 
       setInterpretation(hypothesisData.interpretation)
       setRefinements(hypothesisData.refinementSuggestions || [])
       setFormattedHypothesis(hypothesisData.formattedHypothesis)
+      setStoredOriginalInput(hypothesisData.originalInput || rawInput.trim()) // Store for display
 
       // Pre-populate adjust fields
       setAdjustedAudience(hypothesisData.interpretation.audience)
@@ -1248,6 +1250,8 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
               }}
               disabled={isLoading}
               mode="hypothesis"
+              originalInput={storedOriginalInput}
+              shortTitle={interpretation?.shortTitle}
             />
             <Button variant="outline" onClick={() => setShowPreview(false)} className="w-full">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -1519,6 +1523,8 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
               disabled={isLoading}
               mode="app-analysis"
               appData={appData}
+              originalInput={urlInput || rawInput}
+              shortTitle={appData?.name}
             />
             <Button variant="outline" onClick={() => setShowPreview(false)} className="w-full">
               <ArrowLeft className="mr-2 h-4 w-4" />

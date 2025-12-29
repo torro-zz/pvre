@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { ArrowRight, FileText, Loader2, TrendingUp, Target, Hourglass, Users, RefreshCw, Folder, X } from 'lucide-react'
 import { ResearchJobList, ResearchJobWithVerdict } from '@/components/dashboard/research-job-list'
-import { QuickStats } from '@/components/dashboard/quick-stats'
 import { OverviewCharts } from '@/components/dashboard/overview-charts'
 import { TopPerformers } from '@/components/dashboard/top-performers'
 import {
@@ -24,6 +23,7 @@ interface ResearchJob {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   step_status: StepStatusMap | null
   folder_id: string | null
+  coverage_data: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -328,28 +328,40 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </Card>
       </AnimatedItem>
 
-      {/* Quick Stats Row */}
-      <QuickStats jobs={jobsWithVerdicts} />
-
-      {/* Overview Charts */}
-      <OverviewCharts jobs={jobsWithVerdicts} />
-
-      {/* Top Performers Leaderboard */}
+      {/* Activity Chart + Top Performers - Side by Side */}
       {(() => {
         const topPerformers = jobsWithVerdicts
           .filter(job => job.status === 'completed' && job.verdictData?.overallScore)
-          .map(job => ({
-            id: job.id,
-            hypothesis: job.hypothesis,
-            score: job.verdictData!.overallScore,
-            verdict: job.verdictData!.verdict,
-          }))
+          .map(job => {
+            // Extract shortTitle from coverage_data for display
+            const coverageData = job.coverage_data as { shortTitle?: string; originalInput?: string; appData?: { name?: string }; mode?: string } | null
+            const shortTitle = coverageData?.shortTitle
+              || coverageData?.originalInput
+              || (coverageData?.mode === 'app-analysis' && coverageData?.appData?.name)
+              || undefined
+            return {
+              id: job.id,
+              hypothesis: job.hypothesis,
+              shortTitle: shortTitle || undefined,
+              score: job.verdictData!.overallScore,
+              verdict: job.verdictData!.verdict,
+            }
+          })
           .sort((a, b) => b.score - a.score)
           .slice(0, 3)
 
-        return topPerformers.length > 0 ? (
-          <TopPerformers performers={topPerformers} />
-        ) : null
+        const hasTopPerformers = topPerformers.length > 0
+        const hasActivity = jobsWithVerdicts.length >= 2
+
+        // Only show grid if we have something to show
+        if (!hasActivity && !hasTopPerformers) return null
+
+        return (
+          <div className={`grid gap-4 sm:gap-6 ${hasTopPerformers && hasActivity ? 'lg:grid-cols-2' : ''}`}>
+            {hasActivity && <OverviewCharts jobs={jobsWithVerdicts} compact />}
+            {hasTopPerformers && <TopPerformers performers={topPerformers} />}
+          </div>
+        )
       })()}
 
       {/* Recent Research */}

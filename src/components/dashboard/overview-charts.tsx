@@ -13,6 +13,7 @@ interface ResearchJob {
 
 interface OverviewChartsProps {
   jobs: ResearchJob[]
+  compact?: boolean
 }
 
 const containerVariants = {
@@ -26,7 +27,7 @@ const containerVariants = {
   },
 }
 
-export function OverviewCharts({ jobs }: OverviewChartsProps) {
+export function OverviewCharts({ jobs, compact = false }: OverviewChartsProps) {
   const activityData = useMemo(() => {
     // Group by day for last 14 days
     const days: Record<string, number> = {}
@@ -54,14 +55,15 @@ export function OverviewCharts({ jobs }: OverviewChartsProps) {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
+      className="h-full"
     >
       {/* Activity Timeline */}
-      <Card>
-        <CardHeader className="pb-2">
+      <Card className="h-full flex flex-col">
+        <CardHeader className={compact ? "pb-2 pt-4 px-4" : "pb-2"}>
           <CardTitle className="text-sm font-semibold">Activity (Last 14 Days)</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-48">
+        <CardContent className={compact ? "flex-1 px-4 pb-4" : ""}>
+          <div className={compact ? "h-[200px]" : "h-48"}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activityData}>
                 <defs>

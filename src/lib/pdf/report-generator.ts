@@ -14,6 +14,24 @@ export interface ReportData {
   viability: ViabilityVerdict;
   communityVoice?: CommunityVoiceResult;
   competitors?: CompetitorIntelligenceResult;
+  // Display fields for headlines
+  shortTitle?: string;      // AI-cleaned short title for headlines
+  originalInput?: string;   // What the user originally typed
+}
+
+// Helper to get display title for headlines
+function getDisplayTitle(data: ReportData): string {
+  if (data.shortTitle) return data.shortTitle;
+  if (data.originalInput) return data.originalInput;
+
+  // Smart truncation for legacy data
+  const hypothesis = data.hypothesis;
+  const firstWho = hypothesis.indexOf(' who ');
+  if (firstWho > 0 && firstWho < 60) return hypothesis.substring(0, firstWho);
+  const firstComma = hypothesis.indexOf(',');
+  if (firstComma > 0 && firstComma < 60) return hypothesis.substring(0, firstComma);
+  if (hypothesis.length > 50) return hypothesis.substring(0, 47) + '...';
+  return hypothesis;
 }
 
 // Color palette
@@ -117,13 +135,21 @@ export function generatePDFReport(data: ReportData): jsPDF {
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLORS.darkGray);
   doc.text('Research Report', margin, y);
-  y += 10;
+  y += 12;
+
+  // Short title as headline
+  const displayTitle = getDisplayTitle(data);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(...COLORS.primary);
+  doc.text(`"${displayTitle}"`, margin, y);
+  y += 8;
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLORS.gray);
   doc.text(`Generated: ${data.createdAt}`, margin, y);
-  y += 15;
+  y += 12;
 
   // Hypothesis box - modern card design with accent border
   const accentWidth = 4;
@@ -1015,7 +1041,8 @@ export function generatePDFReport(data: ReportData): jsPDF {
 // Helper to trigger download
 export function downloadPDFReport(data: ReportData, filename?: string): void {
   const doc = generatePDFReport(data);
-  const safeName = filename || `pvre-report-${data.hypothesis.slice(0, 30).replace(/[^a-z0-9]/gi, '-')}`;
+  const displayTitle = getDisplayTitle(data);
+  const safeName = filename || `pvre-report-${displayTitle.slice(0, 30).replace(/[^a-z0-9]/gi, '-')}`;
   doc.save(`${safeName}.pdf`);
 }
 
@@ -1046,18 +1073,27 @@ export function generateExecutiveSummaryPDF(data: ReportData): jsPDF {
   doc.setFillColor(...COLORS.primary);
   doc.rect(0, 0, pageWidth, 5, 'F');
 
-  // Title
+  // Title with short title headline
   y = 18;
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLORS.darkGray);
   doc.text('Executive Summary', margin, y);
+  y += 8;
+
+  // Short title as headline
+  const displayTitle = getDisplayTitle(data);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(...COLORS.primary);
+  doc.text(`"${displayTitle}"`, margin, y);
   y += 6;
+
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLORS.gray);
   doc.text(`Generated: ${data.createdAt}`, margin, y);
-  y += 12;
+  y += 10;
 
   // Hypothesis box (compact)
   const hypothesisLines = doc.splitTextToSize(data.hypothesis, contentWidth - 20);
@@ -1232,7 +1268,8 @@ export function generateExecutiveSummaryPDF(data: ReportData): jsPDF {
 
 export function downloadExecutiveSummaryPDF(data: ReportData): void {
   const doc = generateExecutiveSummaryPDF(data);
-  const safeName = `pvre-summary-${data.hypothesis.slice(0, 20).replace(/[^a-z0-9]/gi, '-')}`;
+  const displayTitle = getDisplayTitle(data);
+  const safeName = `pvre-summary-${displayTitle.slice(0, 20).replace(/[^a-z0-9]/gi, '-')}`;
   doc.save(`${safeName}.pdf`);
 }
 

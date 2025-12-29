@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Clock, ArrowRight, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, BarChart3, MoreVertical, Trash2, ChevronDown, ChevronUp, FolderInput, FolderPlus, X } from 'lucide-react'
+import { Clock, ArrowRight, CheckCircle2, Loader2, XCircle, TrendingUp, Target, Hourglass, Users, BarChart3, MoreVertical, Trash2, ChevronDown, ChevronUp, FolderInput, FolderPlus, X, Lightbulb, Smartphone } from 'lucide-react'
 import { FolderSelector, FolderDialog } from '@/components/folders'
 import { StepStatusMap, DEFAULT_STEP_STATUS } from '@/types/database'
 import { cn } from '@/lib/utils'
@@ -22,12 +22,71 @@ interface VerdictData {
   timingScore: number | null
 }
 
+// Coverage data stored with each research job
+interface CoverageData {
+  mode?: 'hypothesis' | 'app-analysis'
+  appData?: {
+    name: string
+    store: string
+    // ... other fields exist but we only need mode
+  }
+  // Display fields (for dashboard recognition)
+  originalInput?: string   // What user typed
+  shortTitle?: string      // AI-cleaned short title
+  [key: string]: unknown
+}
+
+/**
+ * Get display title for a research job with smart fallback logic
+ * Priority: shortTitle > originalInput > smart truncation of hypothesis
+ */
+function getDisplayTitle(job: ResearchJob): string {
+  const coverageData = job.coverage_data
+
+  // Priority 1: Short title from AI
+  if (coverageData?.shortTitle) {
+    return coverageData.shortTitle
+  }
+
+  // Priority 2: Original user input
+  if (coverageData?.originalInput) {
+    return coverageData.originalInput
+  }
+
+  // Priority 3: App name for app-analysis mode
+  if (coverageData?.mode === 'app-analysis' && coverageData?.appData?.name) {
+    return coverageData.appData.name
+  }
+
+  // Priority 4: Smart truncation of hypothesis (for legacy data)
+  const hypothesis = job.hypothesis
+
+  // Try to find natural break points
+  const firstWho = hypothesis.indexOf(' who ')
+  if (firstWho > 0 && firstWho < 60) {
+    return hypothesis.substring(0, firstWho)
+  }
+
+  const firstComma = hypothesis.indexOf(',')
+  if (firstComma > 0 && firstComma < 60) {
+    return hypothesis.substring(0, firstComma)
+  }
+
+  // Last resort: truncate with ellipsis
+  if (hypothesis.length > 50) {
+    return hypothesis.substring(0, 47) + '...'
+  }
+
+  return hypothesis
+}
+
 interface ResearchJob {
   id: string
   hypothesis: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
   step_status: StepStatusMap | null
   folder_id: string | null
+  coverage_data: CoverageData | null
   created_at: string
   updated_at: string
 }
@@ -164,6 +223,61 @@ function VerdictDot({ verdict, score }: { verdict: VerdictLevel; score: number }
       </span>
     </div>
   )
+}
+
+// Research type icon with embossed styling
+type ResearchType = 'hypothesis' | 'app'
+
+function ResearchTypeIcon({ type }: { type: ResearchType }) {
+  const config = {
+    hypothesis: {
+      icon: Lightbulb,
+      label: 'Hypothesis Validation',
+    },
+    app: {
+      icon: Smartphone,
+      label: 'App Gap Analysis',
+    },
+  }
+
+  const { icon: Icon, label } = config[type]
+
+  return (
+    <div
+      className="shrink-0 relative group"
+      title={label}
+    >
+      {/* Embossed container - monochromatic, subtle depth */}
+      <div className={cn(
+        // Base styling
+        "relative w-7 h-7 rounded-lg flex items-center justify-center",
+        // Embossed effect - inset shadows for depth on dark background
+        "bg-muted/30",
+        "shadow-[inset_1px_1px_2px_rgba(0,0,0,0.3),inset_-1px_-1px_1px_rgba(255,255,255,0.05)]",
+        // Subtle border for definition
+        "border border-border/30",
+        // Hover effect - slightly lift
+        "transition-all duration-200 ease-out",
+        "group-hover:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.2),inset_-1px_-1px_2px_rgba(255,255,255,0.08)]",
+        "group-hover:border-border/50"
+      )}>
+        <Icon className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-muted-foreground/80 transition-colors" />
+
+        {/* Subtle top-left highlight for depth */}
+        <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
+      </div>
+    </div>
+  )
+}
+
+// Helper to determine research type from coverage_data
+function getResearchType(coverageData: CoverageData | null): ResearchType {
+  // Check coverage_data.mode first (most reliable)
+  if (coverageData?.mode === 'app-analysis') {
+    return 'app'
+  }
+  // Default to hypothesis
+  return 'hypothesis'
 }
 
 // Mini metrics row for completed jobs
@@ -324,6 +438,9 @@ function JobCard({
             </div>
           )}
 
+          {/* Research type icon - embossed style */}
+          <ResearchTypeIcon type={getResearchType(job.coverage_data)} />
+
           {/* Job content - clickable */}
           <Link
             href={compareMode ? '#' : href}
@@ -334,7 +451,7 @@ function JobCard({
           >
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm sm:text-base line-clamp-2 sm:truncate">
-                {truncateText(job.hypothesis, 60)}
+                {getDisplayTitle(job)}
               </p>
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-0.5 sm:mt-1">
                 <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1">
@@ -351,6 +468,10 @@ function JobCard({
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
+              {/* Type badge - subtle, monochromatic */}
+              <span className="hidden sm:inline text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">
+                {getResearchType(job.coverage_data) === 'app' ? 'App' : 'Hypothesis'}
+              </span>
               {isFullyCompleted ? (
                 <Badge className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20 dark:bg-emerald-500/20 dark:text-emerald-400 border-0 text-xs">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -509,6 +630,9 @@ interface ResearchJobListProps {
   jobs: ResearchJobWithVerdict[]
 }
 
+// Filter type for the list
+type FilterType = 'all' | 'hypothesis' | 'app'
+
 export function ResearchJobList({ jobs }: ResearchJobListProps) {
   const router = useRouter()
   const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set())
@@ -517,6 +641,7 @@ export function ResearchJobList({ jobs }: ResearchJobListProps) {
   const [showAll, setShowAll] = useState(false)
   const [jobFolders, setJobFolders] = useState<Map<string, string | null>>(new Map())
   const [openActionsJobId, setOpenActionsJobId] = useState<string | null>(null)
+  const [filterType, setFilterType] = useState<FilterType>('all')
 
   // Handle moving job to folder
   const handleMoveToFolder = async (jobId: string, folderId: string | null) => {
@@ -563,7 +688,16 @@ export function ResearchJobList({ jobs }: ResearchJobListProps) {
   }
 
   // Filter out deleted jobs
-  const allVisibleJobs = jobs.filter(job => !deletedJobs.has(job.id))
+  const nonDeletedJobs = jobs.filter(job => !deletedJobs.has(job.id))
+
+  // Count jobs by type
+  const hypothesisCount = nonDeletedJobs.filter(job => getResearchType(job.coverage_data) === 'hypothesis').length
+  const appCount = nonDeletedJobs.filter(job => getResearchType(job.coverage_data) === 'app').length
+
+  // Filter by type
+  const allVisibleJobs = filterType === 'all'
+    ? nonDeletedJobs
+    : nonDeletedJobs.filter(job => getResearchType(job.coverage_data) === filterType)
 
   // Show first 10 by default, all when expanded
   const visibleJobs = showAll ? allVisibleJobs : allVisibleJobs.slice(0, 10)
@@ -595,7 +729,10 @@ export function ResearchJobList({ jobs }: ResearchJobListProps) {
     setSelectedJobs(new Set())
   }
 
-  if (visibleJobs.length === 0) {
+  // Check if truly empty (no jobs at all) vs filtered empty
+  const hasAnyJobs = nonDeletedJobs.length > 0
+
+  if (!hasAnyJobs) {
     return (
       <div className="text-center py-6 sm:py-8">
         <p className="text-muted-foreground mb-4 text-sm sm:text-base">
@@ -613,6 +750,64 @@ export function ResearchJobList({ jobs }: ResearchJobListProps) {
 
   return (
     <div className="space-y-2 sm:space-y-3">
+      {/* Filter pills - only show if there are both types */}
+      {hypothesisCount > 0 && appCount > 0 && (
+        <div className="flex items-center gap-2 pb-2">
+          <button
+            onClick={() => setFilterType('all')}
+            className={cn(
+              "px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200",
+              filterType === 'all'
+                ? "bg-foreground text-background"
+                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            All ({nonDeletedJobs.length})
+          </button>
+          <button
+            onClick={() => setFilterType('hypothesis')}
+            className={cn(
+              "px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1.5",
+              filterType === 'hypothesis'
+                ? "bg-foreground text-background"
+                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <Lightbulb className="h-3 w-3" />
+            Hypothesis ({hypothesisCount})
+          </button>
+          <button
+            onClick={() => setFilterType('app')}
+            className={cn(
+              "px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1.5",
+              filterType === 'app'
+                ? "bg-foreground text-background"
+                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <Smartphone className="h-3 w-3" />
+            App ({appCount})
+          </button>
+        </div>
+      )}
+
+      {/* Empty state when filtered */}
+      {visibleJobs.length === 0 && filterType !== 'all' && (
+        <div className="text-center py-6">
+          <p className="text-muted-foreground text-sm">
+            No {filterType === 'hypothesis' ? 'hypothesis validation' : 'app analysis'} research found.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setFilterType('all')}
+            className="mt-2 text-xs"
+          >
+            Show all research
+          </Button>
+        </div>
+      )}
+
       {/* Compare Mode Controls */}
       {canCompare && (
         <div className="flex items-center justify-between pb-2">

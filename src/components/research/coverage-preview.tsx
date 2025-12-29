@@ -76,6 +76,9 @@ export interface CoverageData {
   // App-centric analysis mode
   mode?: 'hypothesis' | 'app-analysis'
   appData?: AppDetails | null
+  // Display fields (for dashboard recognition)
+  originalInput?: string   // What the user originally typed
+  shortTitle?: string      // AI-cleaned short title for display
   // Quality preview (pre-research relevance prediction)
   qualityPreview?: QualityPreviewData
   // Sample posts used for quality preview (for caching during refinement)
@@ -91,6 +94,9 @@ interface CoveragePreviewProps {
   // App-centric analysis mode
   mode?: 'hypothesis' | 'app-analysis'
   appData?: AppDetails | null
+  // Display fields (for dashboard recognition)
+  originalInput?: string
+  shortTitle?: string
 }
 
 const confidenceConfig = {
@@ -128,6 +134,8 @@ export function CoveragePreview({
   disabled = false,
   mode = 'hypothesis',
   appData,
+  originalInput,
+  shortTitle,
 }: CoveragePreviewProps) {
   const [coverage, setCoverage] = useState<CoverageData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -413,6 +421,9 @@ export function CoveragePreview({
       // App-centric analysis mode
       mode: mode,
       appData: appData,
+      // Display fields (for dashboard recognition)
+      originalInput: originalInput,
+      shortTitle: shortTitle,
     }
   }
 

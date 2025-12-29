@@ -37,6 +37,9 @@ export interface ResearchJob {
       audience?: string
       problem?: string
     }
+    // Display fields (for dashboard/header recognition)
+    originalInput?: string   // What the user originally typed
+    shortTitle?: string      // AI-cleaned short title for display
     [key: string]: unknown
   } | null
 }
@@ -95,6 +98,9 @@ export interface ResearchPageData {
   isAppAnalysis: boolean
   appData: AppDetails | null
   structuredHypothesis?: { audience?: string; problem?: string }
+  // Display fields for header
+  shortTitle?: string
+  originalInput?: string
   filteringMetrics: FilteringMetrics | null
   showSidebar: boolean
   allResultsCount: number
@@ -132,6 +138,9 @@ export async function fetchResearchData(
   const isAppAnalysis = researchJob.coverage_data?.mode === 'app-analysis'
   const appData = researchJob.coverage_data?.appData || null
   const structuredHypothesis = researchJob.coverage_data?.structuredHypothesis
+  // Display fields for header
+  const shortTitle = researchJob.coverage_data?.shortTitle
+  const originalInput = researchJob.coverage_data?.originalInput
 
   // Fetch all research results for this job
   const { data: allResults } = await supabase
@@ -207,6 +216,8 @@ export async function fetchResearchData(
       isAppAnalysis,
       appData,
       structuredHypothesis,
+      shortTitle,
+      originalInput,
       filteringMetrics: filteringMetrics || null,
       showSidebar: !!showSidebar,
       allResultsCount: allResults?.length || 0,

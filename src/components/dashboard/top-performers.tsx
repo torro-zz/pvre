@@ -9,6 +9,7 @@ import { AnimatedNumber, AnimatedCard, StaggerContainer, staggerItem } from '@/c
 interface TopPerformer {
   id: string
   hypothesis: string
+  shortTitle?: string  // Short title for display (falls back to hypothesis)
   score: number
   verdict: 'strong' | 'mixed' | 'weak' | 'none'
 }
@@ -49,13 +50,26 @@ export function TopPerformers({ performers, className }: TopPerformersProps) {
     }
   }
 
-  const truncateHypothesis = (text: string, maxLength: number = 45) => {
-    if (text.length <= maxLength) return text
-    return text.slice(0, maxLength).trim() + '...'
+  // Get display title with smart fallback
+  const getDisplayTitle = (performer: TopPerformer): string => {
+    // Use shortTitle if available
+    if (performer.shortTitle) {
+      return performer.shortTitle
+    }
+
+    // Smart truncation for legacy data
+    const text = performer.hypothesis
+    const firstWho = text.indexOf(' who ')
+    if (firstWho > 0 && firstWho < 50) {
+      return text.substring(0, firstWho)
+    }
+
+    if (text.length <= 45) return text
+    return text.slice(0, 42).trim() + '...'
   }
 
   return (
-    <AnimatedCard className={cn('rounded-xl border bg-card p-5', className)} delay={0.3}>
+    <AnimatedCard className={cn('rounded-xl border bg-card p-5 h-full', className)} delay={0.3}>
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <Trophy className="h-5 w-5 text-amber-500" />
@@ -87,7 +101,7 @@ export function TopPerformers({ performers, className }: TopPerformersProps) {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
-                      {truncateHypothesis(performer.hypothesis)}
+                      {getDisplayTitle(performer)}
                     </p>
 
                     {/* Progress bar */}

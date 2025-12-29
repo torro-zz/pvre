@@ -17,6 +17,7 @@ const PRESEARCH_MODEL = 'claude-sonnet-4-20250514'
 export interface HypothesisInterpretation {
   audience: string
   problem: string
+  shortTitle: string              // Clean, short version for dashboard display (5-8 words)
   searchPhrases: string[]
   confidence: 'low' | 'medium' | 'high'
   ambiguities: string[]
@@ -38,6 +39,7 @@ export interface RefinementSuggestion {
 
 export interface HypothesisResponse {
   mode: 'hypothesis'
+  originalInput: string           // Exactly what the user typed (for display/recognition)
   interpretation: HypothesisInterpretation
   refinementSuggestions: RefinementSuggestion[]
   formattedHypothesis: string
@@ -114,13 +116,14 @@ The user has entered this free-form text describing a business idea or problem t
 "${trimmedInput}"
 
 Your task is to interpret this and extract:
-1. **Audience**: Who is experiencing this problem? Be specific about demographics, roles, or situations.
-2. **Problem**: What is the core pain point or struggle? Focus on the frustration, not the solution.
-3. **Search Phrases**: 3-5 phrases these people would actually type into Reddit when seeking help or venting. Use casual, natural language - how real people talk, not marketing speak.
-4. **Confidence**: How confident are you in this interpretation? (low/medium/high)
-5. **Ambiguities**: Any unclear aspects that could lead to irrelevant results.
-6. **Is Transition Hypothesis**: Is this about people transitioning FROM one state TO another (e.g., employees wanting to become freelancers)?
-7. **App Discovery** (for finding relevant mobile apps):
+1. **Short Title**: A clean, readable version of the user's original input (5-8 words max). Keep the user's intent and key terms, fix grammar/capitalization if needed, but do NOT expand or add detail. This is for dashboard display and quick recognition.
+2. **Audience**: Who is experiencing this problem? Be specific about demographics, roles, or situations.
+3. **Problem**: What is the core pain point or struggle? Focus on the frustration, not the solution.
+4. **Search Phrases**: 3-5 phrases these people would actually type into Reddit when seeking help or venting. Use casual, natural language - how real people talk, not marketing speak.
+5. **Confidence**: How confident are you in this interpretation? (low/medium/high)
+6. **Ambiguities**: Any unclear aspects that could lead to irrelevant results.
+7. **Is Transition Hypothesis**: Is this about people transitioning FROM one state TO another (e.g., employees wanting to become freelancers)?
+8. **App Discovery** (for finding relevant mobile apps):
    - **Domain Keywords**: 3-5 domain-specific terms that define this problem space (NOT generic words like "tool", "app", "help"). Prioritize unique, specific terms.
    - **Expected Categories**: Mobile app store categories where relevant apps would be found (e.g., "Medical", "Finance", "Travel", "Business", "Productivity")
    - **Anti-Categories**: Categories that are definitely NOT relevant (e.g., "Games", "Entertainment", "Social Networking" for a B2B hypothesis)
@@ -131,6 +134,7 @@ Also provide 2-3 refinement suggestions if the input is vague or could be more s
 Respond in this exact JSON format:
 {
   "interpretation": {
+    "shortTitle": "string - clean 5-8 word title for dashboard",
     "audience": "string - specific description of who",
     "problem": "string - the core pain point",
     "searchPhrases": ["phrase 1", "phrase 2", "phrase 3"],
@@ -153,6 +157,12 @@ Respond in this exact JSON format:
   ],
   "formattedHypothesis": "A clean, formatted version combining audience and problem"
 }
+
+Short Title examples:
+- Input: "indie hackers stuck at zero revenue" → shortTitle: "Indie hackers stuck at zero revenue"
+- Input: "busy professionals not drinking enough water" → shortTitle: "Busy professionals not drinking enough water"
+- Input: "saas churn problems" → shortTitle: "SaaS churn problems"
+- Input: "remote workers lonely" → shortTitle: "Remote workers feeling lonely"
 
 Important guidelines:
 - Search phrases should be what people actually TYPE, not formal descriptions
@@ -209,10 +219,12 @@ Important guidelines:
       throw new Error('Invalid interpretation structure')
     }
 
-    // Ensure arrays exist
+    // Ensure arrays and shortTitle exist
     parsed.interpretation.searchPhrases = parsed.interpretation.searchPhrases || []
     parsed.interpretation.ambiguities = parsed.interpretation.ambiguities || []
     parsed.refinementSuggestions = parsed.refinementSuggestions || []
+    // Fallback for shortTitle if Claude didn't generate one
+    parsed.interpretation.shortTitle = parsed.interpretation.shortTitle || trimmedInput
 
     // Ensure appDiscovery fields exist with sensible defaults
     if (!parsed.interpretation.appDiscovery) {
@@ -232,6 +244,7 @@ Important guidelines:
     // Return with mode field for discriminated union
     const response: HypothesisResponse = {
       mode: 'hypothesis',
+      originalInput: trimmedInput,  // Pass through what user typed for display
       interpretation: parsed.interpretation,
       refinementSuggestions: parsed.refinementSuggestions,
       formattedHypothesis: parsed.formattedHypothesis,

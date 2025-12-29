@@ -18,7 +18,7 @@ import { ArrowLeft, Calendar, Clock, AlertCircle, TrendingUp, Shield, Target, Pi
 import { ExportDropdown } from '@/components/research/export-dropdown'
 import { ReportProblem } from '@/components/research/report-problem'
 import { ChatPanel } from '@/components/research/chat-panel'
-import { CollapsibleText } from '@/components/ui/collapsible-section'
+import { CollapsibleText, CollapsibleSection } from '@/components/ui/collapsible-section'
 import { StatusPoller } from '@/components/research/status-poller'
 import { ResearchTrigger } from '@/components/research/research-trigger'
 import { PartialResultsContainer } from '@/components/research/partial-results-container'
@@ -75,10 +75,31 @@ export default async function ResearchDetailPage({
     isAppAnalysis,
     appData,
     structuredHypothesis,
+    shortTitle,
+    originalInput,
     filteringMetrics,
     showSidebar,
     allResultsCount,
   } = researchData
+
+  // Get display title with smart fallback for header
+  const getDisplayTitle = (): string => {
+    // Priority: shortTitle > originalInput > app name > smart truncation
+    if (shortTitle) return shortTitle
+    if (originalInput) return originalInput
+    if (isAppAnalysis && appData?.name) return appData.name
+
+    // Smart truncation for legacy data
+    const hypothesis = researchJob.hypothesis
+    const firstWho = hypothesis.indexOf(' who ')
+    if (firstWho > 0 && firstWho < 60) return hypothesis.substring(0, firstWho)
+    const firstComma = hypothesis.indexOf(',')
+    if (firstComma > 0 && firstComma < 60) return hypothesis.substring(0, firstComma)
+    if (hypothesis.length > 50) return hypothesis.substring(0, 47) + '...'
+    return hypothesis
+  }
+
+  const displayTitle = getDisplayTitle()
 
   // For backwards compatibility
   const result = communityVoiceResult
@@ -96,31 +117,37 @@ export default async function ResearchDetailPage({
             </Button>
           </Link>
 
-          {/* Clean Hypothesis Header */}
+          {/* Clean Hypothesis Header - Short title prominent, details collapsible */}
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
-              {/* Show structured hypothesis if available, otherwise truncated raw hypothesis */}
-              {structuredHypothesis?.audience && structuredHypothesis?.problem ? (
-                <div className="space-y-2">
-                  <div className="flex items-start gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground mt-1.5 flex-shrink-0">Audience</span>
-                    <h1 className="text-xl font-semibold">
-                      <CollapsibleText text={structuredHypothesis.audience} maxLength={80} />
-                    </h1>
+              {/* Main headline - user's original input or short title */}
+              <h1 className="text-xl font-semibold leading-snug mb-2">
+                &ldquo;{displayTitle}&rdquo;
+              </h1>
+
+              {/* Collapsible AUDIENCE/PROBLEM section - collapsed by default */}
+              {structuredHypothesis?.audience && structuredHypothesis?.problem && (
+                <CollapsibleSection
+                  title="View full hypothesis analysis"
+                  defaultOpen={false}
+                  className="border-0 bg-muted/30 mb-3"
+                  headerClassName="py-2 px-3"
+                  contentClassName="px-3 pb-3 pt-0"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground mt-0.5 flex-shrink-0 w-16">Audience</span>
+                      <p className="text-sm">{structuredHypothesis.audience}</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground mt-0.5 flex-shrink-0 w-16">Problem</span>
+                      <p className="text-sm text-muted-foreground">{structuredHypothesis.problem}</p>
+                    </div>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground mt-0.5 flex-shrink-0">Problem</span>
-                    <p className="text-base text-muted-foreground">
-                      <CollapsibleText text={structuredHypothesis.problem} maxLength={120} />
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <h1 className="text-xl font-semibold leading-snug">
-                  <CollapsibleText text={researchJob.hypothesis} maxLength={100} />
-                </h1>
+                </CollapsibleSection>
               )}
-              <div className="flex items-center gap-4 text-sm text-muted-foreground mt-3">
+
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <Calendar className="h-4 w-4" />
                   {formatDate(researchJob.created_at)}
@@ -143,6 +170,8 @@ export default async function ResearchDetailPage({
                     viability: viabilityVerdict,
                     communityVoice: communityVoiceResult?.data,
                     competitors: competitorResult?.data,
+                    shortTitle,
+                    originalInput,
                   }}
                 />
               )}
