@@ -291,8 +291,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
       {/* Start New Research - Prominent CTA at top */}
       <AnimatedItem>
-        <Card className="relative overflow-hidden border-primary/20">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5" />
+        <Card className="relative overflow-hidden border-l-[3px] border-l-emerald-500 bg-card dark:bg-gradient-to-r dark:from-emerald-500/[0.08] dark:via-emerald-500/[0.04] dark:to-emerald-500/[0.02] dark:border-l-0 dark:border dark:border-emerald-500/15">
           <CardContent className="relative py-4 sm:py-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">

@@ -314,6 +314,9 @@ export interface PainSignal {
     createdUtc: number
     engagementScore: number
     rating?: number  // Star rating (1-5) for app store reviews
+    // Raw engagement metrics for transparency
+    upvotes?: number      // Reddit score / HN points / app review thumbsUp
+    numComments?: number  // Comment count (Reddit/HN only)
   }
 }
 
@@ -370,6 +373,14 @@ export interface PainSummary {
   recencyScore: number
   // v4.0: Emotions breakdown (optional for backward compatibility)
   emotionsBreakdown?: EmotionsBreakdown
+  // v5.0: Discussion velocity - CALCULATED from timestamps
+  discussionVelocity?: {
+    percentageChange: number  // e.g., +36 or -20
+    trend: 'rising' | 'stable' | 'declining'
+    recentCount: number       // Posts in last 90 days
+    previousCount: number     // Posts in 91-180 days
+    confidence: 'low' | 'medium' | 'high'  // Based on sample size
+  }
 }
 
 // =============================================================================
@@ -464,6 +475,56 @@ function getAgeBucket(createdUtc: number): 'last30Days' | 'last90Days' | 'last18
   if (ageInDays <= 90) return 'last90Days'
   if (ageInDays <= 180) return 'last180Days'
   return 'older'
+}
+
+/**
+ * Calculate discussion velocity from temporal distribution
+ * Compares recent activity (0-90 days) vs previous period (91-180 days)
+ * Returns percentage change and trend classification
+ */
+function calculateDiscussionVelocity(temporalDistribution: {
+  last30Days: number
+  last90Days: number
+  last180Days: number
+  older: number
+}): PainSummary['discussionVelocity'] {
+  // Recent = last 90 days (includes last30Days + last90Days buckets)
+  const recentCount = temporalDistribution.last30Days + temporalDistribution.last90Days
+  // Previous = 91-180 days (just the last180Days bucket)
+  const previousCount = temporalDistribution.last180Days
+
+  // Determine confidence based on sample size
+  const totalRecent = recentCount + previousCount
+  let confidence: 'low' | 'medium' | 'high' = 'low'
+  if (totalRecent >= 50) confidence = 'high'
+  else if (totalRecent >= 20) confidence = 'medium'
+
+  // Calculate percentage change
+  let percentageChange = 0
+  let trend: 'rising' | 'stable' | 'declining' = 'stable'
+
+  if (previousCount === 0) {
+    // No previous data - if we have recent data, it's a new/rising topic
+    if (recentCount > 0) {
+      percentageChange = 100 // Represents "new topic"
+      trend = 'rising'
+    }
+  } else {
+    percentageChange = Math.round(((recentCount - previousCount) / previousCount) * 100)
+
+    // Classify trend (±15% is considered stable)
+    if (percentageChange > 15) trend = 'rising'
+    else if (percentageChange < -15) trend = 'declining'
+    else trend = 'stable'
+  }
+
+  return {
+    percentageChange,
+    trend,
+    recentCount,
+    previousCount,
+    confidence,
+  }
 }
 
 // =============================================================================
@@ -823,6 +884,9 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
           engagementScore: engagement,
           // Include star rating for app store reviews (1-5)
           rating: (post as RedditPost & { rating?: number }).rating,
+          // Raw engagement metrics for user transparency
+          upvotes: post.score,
+          numComments: post.numComments,
         },
       })
     }
@@ -867,6 +931,8 @@ export function analyzeComments(comments: RedditComment[]): PainSignal[] {
             : `https://reddit.com/r/${comment.subreddit}/comments/${postId}/_/${comment.id}`,
           createdUtc: comment.createdUtc,
           engagementScore: Math.log10(Math.max(1, comment.score + 1)) * 2,
+          // Raw engagement for comments (no numComments since it's a comment)
+          upvotes: comment.score,
         },
       })
     }
@@ -1028,6 +1094,9 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
   const avgRecencyMultiplier = totalRecencyMultiplier / signals.length
   const recencyScore = Math.round(((avgRecencyMultiplier - 0.5) / 1.0) * 100) / 100 // Normalize 0.5-1.5 to 0-1
 
+  // Calculate discussion velocity from temporal data
+  const discussionVelocity = calculateDiscussionVelocity(temporalDistribution)
+
   return {
     totalSignals: signals.length,
     averageScore: Math.round((totalScore / signals.length) * 10) / 10,
@@ -1044,6 +1113,7 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
     dateRange,
     recencyScore: Math.max(0, Math.min(1, recencyScore)),
     emotionsBreakdown: emotionCounts,
+    discussionVelocity,
   }
 }
 

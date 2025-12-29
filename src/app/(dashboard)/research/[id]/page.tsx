@@ -125,8 +125,35 @@ export default async function ResearchDetailPage({
                 &ldquo;{displayTitle}&rdquo;
               </h1>
 
-              {/* Collapsible AUDIENCE/PROBLEM section - collapsed by default */}
-              {structuredHypothesis?.audience && structuredHypothesis?.problem && (
+              {/* Collapsible details section - different for App vs Hypothesis mode */}
+              {isAppAnalysis && appData ? (
+                <CollapsibleSection
+                  title="View app analysis details"
+                  defaultOpen={false}
+                  className="border-0 bg-muted/30 mb-3"
+                  headerClassName="py-2 px-3"
+                  contentClassName="px-3 pb-3 pt-0"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground mt-0.5 flex-shrink-0 w-20">App</span>
+                      <p className="text-sm">{appData.name}</p>
+                    </div>
+                    {appData.category && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground mt-0.5 flex-shrink-0 w-20">Category</span>
+                        <p className="text-sm text-muted-foreground">{appData.category}</p>
+                      </div>
+                    )}
+                    {appData.rating && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground mt-0.5 flex-shrink-0 w-20">Rating</span>
+                        <p className="text-sm text-muted-foreground">{appData.rating.toFixed(1)} / 5</p>
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleSection>
+              ) : structuredHypothesis?.audience && structuredHypothesis?.problem ? (
                 <CollapsibleSection
                   title="View full hypothesis analysis"
                   defaultOpen={false}
@@ -145,7 +172,7 @@ export default async function ResearchDetailPage({
                     </div>
                   </div>
                 </CollapsibleSection>
-              )}
+              ) : null}
 
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1.5">

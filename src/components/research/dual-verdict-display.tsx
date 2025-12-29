@@ -263,7 +263,8 @@ function WhatThisMeans({
     findings.push({ type: 'positive', text: 'Strong evidence supporting your specific hypothesis' })
   }
   if (directSignalPercent >= 50) {
-    findings.push({ type: 'positive', text: `${Math.round(directSignalPercent)}% of signals directly match your hypothesis` })
+    // Cap at 100% to prevent impossible percentages (e.g., 105%)
+    findings.push({ type: 'positive', text: `${Math.round(Math.min(100, directSignalPercent))}% of signals directly match your hypothesis` })
   }
 
   // Caution findings

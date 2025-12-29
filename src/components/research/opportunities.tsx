@@ -64,19 +64,99 @@ function calculateOpportunityScore(
   return { score, confidence, verdict }
 }
 
+// Sentiment words to filter out (not actual features)
+const SENTIMENT_WORDS = new Set([
+  'concerns', 'concern', 'hate', 'hated', 'hates', 'issues', 'issue',
+  'problem', 'problems', 'frustrating', 'frustrated', 'frustration',
+  'annoying', 'annoyed', 'terrible', 'awful', 'horrible', 'bad',
+  'worse', 'worst', 'sucks', 'suck', 'broken', 'useless',
+  'disappointed', 'disappointing', 'disappointment', 'angry', 'anger',
+  'pain', 'painful', 'struggle', 'struggling', 'struggles',
+])
+
+// Feature request patterns to look for in text
+const FEATURE_PATTERNS = [
+  /(?:wish|want|need|would love|should have|missing|lacks?|doesn't have|no )([\w\s-]+?)(?:\.|,|!|\?|$)/gi,
+  /(?:add|adding|implement|bring back|include) ([\w\s-]+?)(?:\.|,|!|\?|$)/gi,
+  /(?:more|better|improved?) ([\w\s-]+?)(?:\.|,|!|\?|$)/gi,
+  /(?:no|without|lacking) ([\w\s-]+?)(?:\.|,|!|\?|$)/gi,
+]
+
+// Extract a feature need from signal text
+function extractFeatureFromText(text: string): string | null {
+  const lowerText = text.toLowerCase()
+
+  // Try feature patterns first
+  for (const pattern of FEATURE_PATTERNS) {
+    pattern.lastIndex = 0 // Reset regex state
+    const match = pattern.exec(lowerText)
+    if (match && match[1]) {
+      const feature = match[1].trim()
+      // Filter out short or sentiment-only extractions
+      if (feature.length >= 3 && feature.length <= 40 && !SENTIMENT_WORDS.has(feature)) {
+        return feature.charAt(0).toUpperCase() + feature.slice(1)
+      }
+    }
+  }
+
+  return null
+}
+
+// Common feature categories for grouping
+function categorizeFeature(text: string): string | null {
+  const lowerText = text.toLowerCase()
+
+  // Feature categories by keyword matching
+  const categories: { keywords: string[]; label: string }[] = [
+    { keywords: ['ad', 'ads', 'advertisement', 'advertising', 'ad-free', 'no ads'], label: 'Ad-free experience' },
+    { keywords: ['price', 'pricing', 'expensive', 'cost', 'subscription', 'free'], label: 'Pricing / Value' },
+    { keywords: ['offline', 'without internet', 'no connection'], label: 'Offline mode' },
+    { keywords: ['age', 'filter', 'parental', 'kid', 'child', 'family'], label: 'Age / Content filters' },
+    { keywords: ['memory', 'remember', 'context', 'history'], label: 'Memory / Context' },
+    { keywords: ['crash', 'bug', 'glitch', 'freeze', 'slow', 'laggy', 'performance'], label: 'Stability / Performance' },
+    { keywords: ['ui', 'interface', 'design', 'layout', 'ux', 'navigation'], label: 'UI / UX design' },
+    { keywords: ['privacy', 'data', 'security', 'safe'], label: 'Privacy / Security' },
+    { keywords: ['customize', 'personalize', 'settings', 'options', 'control'], label: 'Customization' },
+    { keywords: ['support', 'help', 'customer service', 'response'], label: 'Customer support' },
+  ]
+
+  for (const { keywords, label } of categories) {
+    for (const keyword of keywords) {
+      if (lowerText.includes(keyword)) {
+        return label
+      }
+    }
+  }
+
+  return null
+}
+
 // Extract key unmet needs from signals
 function extractUnmetNeeds(painSignals: PainSignal[]): {
   high: { need: string; mentions: number; quote: string }[]
   medium: { need: string; mentions: number; quote: string }[]
 } {
-  // Group by signal keywords
-  const needGroups = new Map<string, { signals: PainSignal[]; intensity: 'high' | 'medium' | 'low' }[]>()
+  // Group by feature category
+  const needGroups = new Map<string, { signal: PainSignal; quote: string }[]>()
 
   for (const signal of painSignals) {
-    const keyword = signal.signals[0] || 'General'
-    const existing = needGroups.get(keyword) || []
-    existing.push({ signals: [signal], intensity: signal.intensity })
-    needGroups.set(keyword, existing)
+    // Try to categorize by known features first
+    let category = categorizeFeature(signal.text)
+
+    // If no category, try to extract feature from text
+    if (!category) {
+      const extracted = extractFeatureFromText(signal.text)
+      if (extracted) {
+        category = extracted
+      }
+    }
+
+    // Skip if we couldn't identify a feature need
+    if (!category) continue
+
+    const existing = needGroups.get(category) || []
+    existing.push({ signal, quote: signal.text })
+    needGroups.set(category, existing)
   }
 
   // Sort and categorize
@@ -85,8 +165,9 @@ function extractUnmetNeeds(painSignals: PainSignal[]): {
 
   needGroups.forEach((items, need) => {
     const mentions = items.length
-    const highIntensityCount = items.filter(i => i.intensity === 'high').length
-    const quote = items[0]?.signals[0]?.text || ''
+    const highIntensityCount = items.filter(i => i.signal.intensity === 'high').length
+    // Use the most recent quote
+    const quote = items[0]?.quote || ''
 
     if (highIntensityCount >= 2 || mentions >= 5) {
       high.push({ need, mentions, quote: quote.slice(0, 100) })
@@ -313,7 +394,17 @@ export function Opportunities({ appData, painSignals, painSummary, wtpQuotes }: 
               {wtpQuotes.slice(0, 5).map((quote, i) => (
                 <div key={i} className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
                   <blockquote className="text-sm italic">"{quote.text}"</blockquote>
-                  <p className="text-xs text-muted-foreground mt-1">— {quote.subreddit}</p>
+                  <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1.5">
+                    {quote.subreddit === 'google_play' ? (
+                      <>📱 Google Play Review</>
+                    ) : quote.subreddit === 'app_store' ? (
+                      <>🍎 App Store Review</>
+                    ) : quote.subreddit?.startsWith('r/') || quote.subreddit?.includes('reddit') ? (
+                      <>💬 {quote.subreddit}</>
+                    ) : (
+                      <>💬 r/{quote.subreddit}</>
+                    )}
+                  </p>
                 </div>
               ))}
             </div>

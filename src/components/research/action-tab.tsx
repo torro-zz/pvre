@@ -16,10 +16,12 @@ import {
   AlertTriangle,
   Target,
   Sparkles,
+  ChevronsUpDown,
 } from 'lucide-react'
 import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import { ViabilityVerdict, HypothesisConfidence } from '@/lib/analysis/viability-calculator'
 import { AnimatedCard, StaggerContainer, staggerItem } from '@/components/ui/animated-components'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 
 // ============================================
 // Types
@@ -73,7 +75,7 @@ function getActionRecommendation(confidence?: HypothesisConfidence): {
   if (confidence.level === 'partial') {
     return {
       status: 'explore',
-      title: 'Explore Further',
+      title: 'Next Steps',
       description: 'Some signals are present but the hypothesis needs refinement.',
       actions: [
         'Review the adjacent opportunities identified',
@@ -163,6 +165,9 @@ function InterviewGuideCard({
   interviewQuestions?: CommunityVoiceResult['interviewQuestions']
 }) {
   const [copiedSection, setCopiedSection] = useState<string | null>(null)
+  const [allExpanded, setAllExpanded] = useState(false)
+  // Key to force re-render of CollapsibleSections when toggling all
+  const [expandKey, setExpandKey] = useState(0)
 
   if (!interviewQuestions) {
     return (
@@ -208,6 +213,11 @@ Based on "The Mom Test" principles - no leading questions, focus on past behavio
     setTimeout(() => setCopiedSection(null), 2000)
   }
 
+  const toggleAllSections = () => {
+    setAllExpanded(!allExpanded)
+    setExpandKey(prev => prev + 1)
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -221,32 +231,45 @@ Based on "The Mom Test" principles - no leading questions, focus on past behavio
               Based on "The Mom Test" - focus on past behavior, not hypotheticals
             </CardDescription>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => copyToClipboard(formatAllQuestions(), 'all')}
-          >
-            {copiedSection === 'all' ? (
-              <>
-                <Check className="h-4 w-4 mr-1" />
-                Copied!
-              </>
-            ) : (
-              <>
-                <Copy className="h-4 w-4 mr-1" />
-                Copy All
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleAllSections}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <ChevronsUpDown className="h-4 w-4 mr-1" />
+              {allExpanded ? 'Collapse All' : 'Expand All'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copyToClipboard(formatAllQuestions(), 'all')}
+            >
+              {copiedSection === 'all' ? (
+                <>
+                  <Check className="h-4 w-4 mr-1" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4 mr-1" />
+                  Copy All
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-3">
         {/* Context Questions */}
-        <div>
-          <h4 className="font-semibold mb-3 flex items-center gap-2">
-            <Badge>1</Badge>
-            Context Questions
-          </h4>
+        <CollapsibleSection
+          key={`context-${expandKey}`}
+          title="Context Questions"
+          badge={interviewQuestions.contextQuestions.slice(0, 3).length}
+          defaultOpen={allExpanded}
+          className="border-0 bg-muted/30"
+        >
           <ol className="space-y-2">
             {interviewQuestions.contextQuestions.slice(0, 3).map((q, i) => (
               <li key={i} className="text-sm pl-6 relative">
@@ -255,14 +278,16 @@ Based on "The Mom Test" principles - no leading questions, focus on past behavio
               </li>
             ))}
           </ol>
-        </div>
+        </CollapsibleSection>
 
         {/* Problem Questions */}
-        <div>
-          <h4 className="font-semibold mb-3 flex items-center gap-2">
-            <Badge>2</Badge>
-            Problem Exploration
-          </h4>
+        <CollapsibleSection
+          key={`problem-${expandKey}`}
+          title="Problem Exploration"
+          badge={interviewQuestions.problemQuestions.slice(0, 3).length}
+          defaultOpen={allExpanded}
+          className="border-0 bg-muted/30"
+        >
           <ol className="space-y-2">
             {interviewQuestions.problemQuestions.slice(0, 3).map((q, i) => (
               <li key={i} className="text-sm pl-6 relative">
@@ -271,14 +296,16 @@ Based on "The Mom Test" principles - no leading questions, focus on past behavio
               </li>
             ))}
           </ol>
-        </div>
+        </CollapsibleSection>
 
         {/* Solution Questions */}
-        <div>
-          <h4 className="font-semibold mb-3 flex items-center gap-2">
-            <Badge>3</Badge>
-            Solution Testing
-          </h4>
+        <CollapsibleSection
+          key={`solution-${expandKey}`}
+          title="Solution Testing"
+          badge={interviewQuestions.solutionQuestions.slice(0, 3).length}
+          defaultOpen={allExpanded}
+          className="border-0 bg-muted/30"
+        >
           <ol className="space-y-2">
             {interviewQuestions.solutionQuestions.slice(0, 3).map((q, i) => (
               <li key={i} className="text-sm pl-6 relative">
@@ -287,7 +314,7 @@ Based on "The Mom Test" principles - no leading questions, focus on past behavio
               </li>
             ))}
           </ol>
-        </div>
+        </CollapsibleSection>
       </CardContent>
     </Card>
   )
@@ -303,6 +330,9 @@ function AdjacentOpportunitiesCard({
   const contextualThemes = themes?.filter(t => (t as { tier?: string }).tier === 'contextual') || []
 
   if (contextualThemes.length === 0) return null
+
+  // Find the max mentions for signal strength bars
+  const maxMentions = Math.max(...contextualThemes.map(t => t.frequency), 1)
 
   return (
     <Card>
@@ -329,12 +359,49 @@ function AdjacentOpportunitiesCard({
                   {theme.frequency} mentions
                 </Badge>
               </div>
-              <p className="text-sm text-muted-foreground">{theme.description}</p>
+              <p className="text-sm text-muted-foreground mb-2">{theme.description}</p>
+              {/* Signal strength bar */}
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500/70 rounded-full transition-all duration-500"
+                  style={{ width: `${(theme.frequency / maxMentions) * 100}%` }}
+                />
+              </div>
             </motion.div>
           ))}
         </StaggerContainer>
       </CardContent>
     </Card>
+  )
+}
+
+function NextStepSummaryCard({
+  themes,
+}: {
+  themes?: CommunityVoiceResult['themeAnalysis']['themes']
+}) {
+  // Find the top adjacent opportunity (contextual tier with highest mentions)
+  const contextualThemes = themes?.filter(t => (t as { tier?: string }).tier === 'contextual') || []
+  const topOpportunity = contextualThemes.length > 0
+    ? contextualThemes.reduce((max, t) => t.frequency > max.frequency ? t : max, contextualThemes[0])
+    : null
+
+  return (
+    <div className="flex gap-3 p-4 bg-emerald-50 dark:bg-emerald-950/30 border-l-3 border-emerald-500 rounded-lg">
+      <div className="text-2xl flex-shrink-0">🎯</div>
+      <div>
+        <h4 className="font-semibold text-sm mb-1">Recommended Next Step</h4>
+        <p className="text-sm text-muted-foreground">
+          {topOpportunity ? (
+            <>
+              Run 5-7 customer interviews using the guide below. Focus on the &ldquo;<strong className="text-foreground">{topOpportunity.name}</strong>&rdquo; opportunity — it has the strongest signal ({topOpportunity.frequency} mentions).
+            </>
+          ) : (
+            <>Run 5-7 customer interviews to validate these signals using the guide below.</>
+          )}
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -351,13 +418,18 @@ export function ActionTab({
 
   return (
     <div className="space-y-6">
-      {/* Main Recommendation */}
+      {/* Recommended Next Step Summary */}
       <AnimatedCard delay={0}>
+        <NextStepSummaryCard themes={communityVoiceResult?.themeAnalysis?.themes} />
+      </AnimatedCard>
+
+      {/* Main Recommendation */}
+      <AnimatedCard delay={0.1}>
         <RecommendationCard recommendation={recommendation} hypothesis={hypothesis} />
       </AnimatedCard>
 
       {/* Interview Guide */}
-      <AnimatedCard delay={0.2}>
+      <AnimatedCard delay={0.3}>
         <InterviewGuideCard interviewQuestions={communityVoiceResult?.interviewQuestions} />
       </AnimatedCard>
 

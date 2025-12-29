@@ -17,7 +17,6 @@ import {
   ThumbsUp,
   ThumbsDown,
   TrendingUp,
-  Sparkles
 } from 'lucide-react'
 import type { PainSignal } from '@/lib/analysis/pain-detector'
 
@@ -342,13 +341,13 @@ export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
       {opportunities.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <Lightbulb className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">Opportunities Found</h2>
           </div>
           {totalHappyUserOpportunities > 0 && (
             <Badge variant="outline" className="text-emerald-600 border-emerald-300">
               <TrendingUp className="h-3 w-3 mr-1" />
-              {totalHappyUserOpportunities} from happy users
+              {totalHappyUserOpportunities} mentions from 4-5★
             </Badge>
           )}
         </div>

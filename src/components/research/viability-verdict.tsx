@@ -39,11 +39,18 @@ import {
 } from '@/lib/analysis/viability-calculator'
 import { cn } from '@/lib/utils'
 import { DualVerdictDisplay } from './dual-verdict-display'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 
 interface ViabilityVerdictProps {
   verdict: ViabilityVerdict
   hypothesis: string
   jobId?: string
+  isAppAnalysis?: boolean
+  interviewQuestions?: {
+    contextQuestions: string[]
+    problemQuestions: string[]
+    solutionQuestions: string[]
+  }
   onRunCommunityVoice?: () => void
   onRunCompetitors?: () => void
 }
@@ -156,10 +163,13 @@ export function ViabilityVerdictDisplay({
   verdict,
   hypothesis,
   jobId,
+  isAppAnalysis,
+  interviewQuestions,
   onRunCommunityVoice,
   onRunCompetitors,
 }: ViabilityVerdictProps) {
   const [showRedFlags, setShowRedFlags] = useState(false)
+  const [showInterviewGuide, setShowInterviewGuide] = useState(false)
   const colors = VerdictColors[verdict.verdict]
   const { setActiveTab, setCommunitySubTab } = useResearchTabs()
 
@@ -406,6 +416,16 @@ export function ViabilityVerdictDisplay({
                       <div className="flex items-center gap-2">
                         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-sm font-medium">{dim.name}</span>
+                        {dim.name === 'Market Score' && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-[250px]">
+                              <p>Market Score factors in competition intensity and penetration difficulty. This differs from Market Opportunity which measures raw market size and timing.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
                         <Badge variant="outline" className="text-[10px] ml-auto">
                           {Math.round(dim.weight * 100)}%
                         </Badge>
@@ -432,6 +452,19 @@ export function ViabilityVerdictDisplay({
                 )
               })}
             </div>
+
+            {/* Score discrepancy explanation - when Market Score differs from Market Opportunity */}
+            {verdict.dimensions.find(d => d.name === 'Market Score') && (
+              <div className="mt-4 pt-4 border-t border-border/50">
+                <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
+                  <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <p>
+                    <strong className="text-foreground">Note:</strong> Market Score factors in competition intensity and penetration difficulty.
+                    This may differ from Market Opportunity (shown above), which measures raw market size and timing.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Missing dimensions hint */}
             {!verdict.isComplete && (
@@ -516,14 +549,82 @@ export function ViabilityVerdictDisplay({
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700"
                   onClick={() => {
-                    setCommunitySubTab('interview')
-                    setActiveTab('community')
+                    if (isAppAnalysis) {
+                      // For App mode: Toggle inline interview guide
+                      setShowInterviewGuide(!showInterviewGuide)
+                    } else {
+                      // For Hypothesis mode: Navigate to Action tab
+                      setActiveTab('action')
+                    }
                   }}
                 >
                   Interview Guide
-                  <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+                  {isAppAnalysis ? (
+                    showInterviewGuide ? <ChevronUp className="h-3.5 w-3.5 ml-1.5" /> : <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
+                  ) : (
+                    <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+                  )}
                 </Button>
               </div>
+
+              {/* Inline Interview Guide for App Mode */}
+              {isAppAnalysis && showInterviewGuide && interviewQuestions && (
+                <div className="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-800">
+                  <div className="space-y-4">
+                    {/* Context Questions */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-2 text-emerald-800 dark:text-emerald-200">Context Questions</h4>
+                      <ol className="space-y-1.5">
+                        {interviewQuestions.contextQuestions.slice(0, 3).map((q, i) => (
+                          <li key={i} className="text-sm text-muted-foreground pl-5 relative">
+                            <span className="absolute left-0">{i + 1}.</span>
+                            {typeof q === 'string' ? q : (q as { question?: string }).question || String(q)}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+
+                    {/* Problem Questions */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-2 text-emerald-800 dark:text-emerald-200">Problem Exploration</h4>
+                      <ol className="space-y-1.5">
+                        {interviewQuestions.problemQuestions.slice(0, 3).map((q, i) => (
+                          <li key={i} className="text-sm text-muted-foreground pl-5 relative">
+                            <span className="absolute left-0">{i + 1}.</span>
+                            {typeof q === 'string' ? q : (q as { question?: string }).question || String(q)}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+
+                    {/* Solution Questions */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-2 text-emerald-800 dark:text-emerald-200">Solution Testing</h4>
+                      <ol className="space-y-1.5">
+                        {interviewQuestions.solutionQuestions.slice(0, 3).map((q, i) => (
+                          <li key={i} className="text-sm text-muted-foreground pl-5 relative">
+                            <span className="absolute left-0">{i + 1}.</span>
+                            {typeof q === 'string' ? q : (q as { question?: string }).question || String(q)}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground italic pt-2 border-t">
+                      Based on "The Mom Test" - focus on past behavior, not hypotheticals
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* No interview questions available message */}
+              {isAppAnalysis && showInterviewGuide && !interviewQuestions && (
+                <div className="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-800">
+                  <p className="text-sm text-muted-foreground">
+                    Interview questions are generated from user feedback analysis. Complete the Feedback tab analysis first.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

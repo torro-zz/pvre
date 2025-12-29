@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { Quote, DollarSign, TrendingUp, ExternalLink } from 'lucide-react'
+import { Quote, DollarSign, TrendingUp, ExternalLink, ArrowUp, MessageSquare, Flame } from 'lucide-react'
 import { TrustBadge, TrustLevel } from './trust-badge'
 import { Badge } from './badge'
 
@@ -14,6 +14,49 @@ export interface QuoteData {
   url?: string
   timestamp?: string
   isDeleted?: boolean  // Whether the original post was deleted
+  // Engagement metrics for transparency
+  upvotes?: number
+  numComments?: number
+}
+
+// Format large numbers compactly (1234 -> "1.2K")
+function formatNumber(num: number): string {
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K'
+  }
+  return num.toString()
+}
+
+// Check if engagement qualifies as "Community Validated"
+function isCommunityValidated(upvotes?: number, numComments?: number): boolean {
+  return (upvotes !== undefined && upvotes >= 100) ||
+         (numComments !== undefined && numComments >= 50)
+}
+
+// Engagement display component
+function EngagementDisplay({ upvotes, numComments, className }: {
+  upvotes?: number
+  numComments?: number
+  className?: string
+}) {
+  if (upvotes === undefined && numComments === undefined) return null
+
+  return (
+    <span className={cn("inline-flex items-center gap-2 text-xs text-muted-foreground", className)}>
+      {upvotes !== undefined && upvotes > 0 && (
+        <span className="inline-flex items-center gap-0.5">
+          <ArrowUp className="h-3 w-3" />
+          {formatNumber(upvotes)}
+        </span>
+      )}
+      {numComments !== undefined && numComments > 0 && (
+        <span className="inline-flex items-center gap-0.5">
+          <MessageSquare className="h-3 w-3" />
+          {formatNumber(numComments)}
+        </span>
+      )}
+    </span>
+  )
 }
 
 // Detect source type from source string
@@ -88,6 +131,7 @@ export function QuoteCard({
   const painLevel = data.painScore !== undefined ? getPainLevel(data.painScore) : null
 
   if (variant === 'compact') {
+    const isValidated = isCommunityValidated(data.upvotes, data.numComments)
     return (
       <div
         className={cn(
@@ -101,6 +145,13 @@ export function QuoteCard({
           <p className="text-sm italic leading-relaxed line-clamp-2">"{data.quote}"</p>
           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
             <span className={getSourceTextClass(data.source)}>{formatSourceName(data.source)}</span>
+            <EngagementDisplay upvotes={data.upvotes} numComments={data.numComments} />
+            {isValidated && (
+              <Badge variant="outline" className="h-5 text-[10px] bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
+                <Flame className="h-2.5 w-2.5 mr-0.5" />
+                Hot
+              </Badge>
+            )}
             {data.isWtp && (
               <Badge variant="outline" className="h-5 text-[10px] bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
                 <DollarSign className="h-2.5 w-2.5 mr-0.5" />
@@ -114,6 +165,7 @@ export function QuoteCard({
   }
 
   if (variant === 'featured') {
+    const isValidated = isCommunityValidated(data.upvotes, data.numComments)
     return (
       <div
         className={cn(
@@ -124,7 +176,15 @@ export function QuoteCard({
       >
         {/* Top badges row */}
         <div className="flex items-center justify-between mb-3">
-          <TrustBadge level={trustLevel} size="sm" />
+          <div className="flex items-center gap-2">
+            <TrustBadge level={trustLevel} size="sm" />
+            {isValidated && (
+              <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
+                <Flame className="h-3 w-3 mr-1" />
+                Community Validated
+              </Badge>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {data.isWtp && (
               <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-950/50 dark:text-green-400 dark:border-green-800">
@@ -150,6 +210,7 @@ export function QuoteCard({
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span className={cn("font-medium text-foreground", getSourceTextClass(data.source))}>{formatSourceName(data.source)}</span>
+            <EngagementDisplay upvotes={data.upvotes} numComments={data.numComments} />
             {data.timestamp && <span>{data.timestamp}</span>}
           </div>
           {data.url && (
@@ -188,6 +249,7 @@ export function QuoteCard({
   }
 
   // Default variant
+  const isValidated = isCommunityValidated(data.upvotes, data.numComments)
   return (
     <div
       className={cn(
@@ -217,6 +279,12 @@ export function QuoteCard({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {isValidated && (
+            <Badge variant="outline" className="h-5 text-[10px] bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
+              <Flame className="h-2.5 w-2.5 mr-0.5" />
+              Hot
+            </Badge>
+          )}
           {data.isWtp && (
             <Badge variant="outline" className="h-5 text-[10px] bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
               <DollarSign className="h-2.5 w-2.5 mr-0.5" />
@@ -237,23 +305,24 @@ export function QuoteCard({
         <p className="text-sm italic leading-relaxed">"{data.quote}"</p>
       </div>
 
-      {/* Footer with timestamp and link */}
-      {(data.timestamp || data.url) && (
-        <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+      {/* Footer with engagement, timestamp and link */}
+      <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <EngagementDisplay upvotes={data.upvotes} numComments={data.numComments} />
           {data.timestamp && <span>{data.timestamp}</span>}
-          {data.url && (
-            <a
-              href={data.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-primary flex items-center gap-1"
-            >
-              Source
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
         </div>
-      )}
+        {data.url && (
+          <a
+            href={data.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-primary flex items-center gap-1"
+          >
+            Source
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+      </div>
     </div>
   )
 }

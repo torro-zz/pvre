@@ -682,8 +682,9 @@ export function calculateHypothesisConfidence(
 
   // Direct signal % (50% weight)
   // CORE signals are direct hypothesis matches
+  // Cap at 100% to prevent edge cases where coreSignals exceeds totalSignals
   const directSignalPercent = totalSignals > 0
-    ? (coreSignals / totalSignals) * 100
+    ? Math.min(100, (coreSignals / totalSignals) * 100)
     : 0
   // Scale: 100% CORE = 10, 0% CORE = 0
   const directSignalScore = Math.min(10, directSignalPercent / 10)

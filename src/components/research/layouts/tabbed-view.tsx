@@ -19,6 +19,7 @@ import { ActionTab } from '@/components/research/action-tab'
 import { MarketTab } from '@/components/research/market-tab'
 import { EvidenceTab } from '@/components/research/evidence-tab'
 import { CompetitorPromptModal } from '@/components/research/competitor-prompt-modal'
+import { ViabilityVerdictDisplay } from '@/components/research/viability-verdict'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -120,10 +121,10 @@ export function TabbedView() {
               <span className="hidden sm:inline">Feedback</span>
               {communityVoiceResult?.data && <span className="w-2 h-2 rounded-full bg-green-500" />}
             </TabsTrigger>
-            <TabsTrigger value="community" className="flex items-center gap-2">
+            <TabsTrigger value="market" className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
               <span className="hidden sm:inline">Market</span>
-              {communityVoiceResult?.data && <span className="w-2 h-2 rounded-full bg-green-500" />}
+              {(marketData || timingData) && <span className="w-2 h-2 rounded-full bg-green-500" />}
             </TabsTrigger>
             <TabsTrigger value="opportunities" className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
@@ -312,6 +313,37 @@ export function TabbedView() {
                   <h3 className="text-lg font-semibold mb-2">Action Plan Not Available</h3>
                   <p className="text-muted-foreground mb-4">
                     Complete research to get personalized next steps.
+                  </p>
+                  <Link href={`/research?hypothesis=${encodeURIComponent(job.hypothesis)}`}>
+                    <Button>
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      Start Research
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Verdict Tab - Overall viability assessment */}
+        <TabsContent value="verdict">
+          {viabilityVerdict.availableDimensions > 0 ? (
+            <ViabilityVerdictDisplay
+              verdict={viabilityVerdict}
+              hypothesis={job.hypothesis}
+              jobId={job.id}
+              isAppAnalysis={isAppAnalysis}
+              interviewQuestions={communityVoiceResult?.data?.interviewQuestions}
+            />
+          ) : (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Verdict Not Available</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Complete research analysis to get your viability verdict.
                   </p>
                   <Link href={`/research?hypothesis=${encodeURIComponent(job.hypothesis)}`}>
                     <Button>

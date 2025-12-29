@@ -77,6 +77,9 @@ export interface ThemeAnalysis {
     relevanceScore?: number  // Phase 0: How relevant is this quote to the hypothesis (0-10)
     url?: string  // Original post/comment URL
     isDeleted?: boolean  // Whether the original post was deleted
+    // Engagement metrics for data transparency
+    upvotes?: number      // Reddit score / HN points / app review thumbsUp
+    numComments?: number  // Comment count (Reddit/HN only)
   }[]
   summary: string
   strategicRecommendations?: StrategicRecommendation[] // Actionable next steps
@@ -308,13 +311,35 @@ Identify 3-7 themes, 5-10 customer language phrases, 3-5 key quotes, and 2-3 str
 
     // Validate and clean up the response
     // Parse tier from theme names (Claude prefixes contextual themes with "[CONTEXTUAL]")
+
+    // Build URL -> engagement lookup from painSignals for enrichment
+    const engagementByUrl = new Map<string, { upvotes?: number; numComments?: number }>()
+    for (const signal of painSignals) {
+      if (signal.source.url) {
+        engagementByUrl.set(signal.source.url, {
+          upvotes: signal.source.upvotes,
+          numComments: signal.source.numComments,
+        })
+      }
+    }
+
+    // Enrich AI-returned keyQuotes with engagement data from painSignals
+    const enrichedKeyQuotes = (parsed.keyQuotes || []).map(quote => {
+      const engagement = quote.url ? engagementByUrl.get(quote.url) : undefined
+      return {
+        ...quote,
+        upvotes: engagement?.upvotes,
+        numComments: engagement?.numComments,
+      }
+    })
+
     const result: ThemeAnalysis = {
       themes: (parsed.themes || []).map(parseThemeTier),
       customerLanguage: parsed.customerLanguage || [],
       alternativesMentioned: parsed.alternativesMentioned || [],
       willingnessToPaySignals: parsed.willingnessToPaySignals || [],
       overallPainScore: Math.min(10, Math.max(0, parsed.overallPainScore || 0)),
-      keyQuotes: parsed.keyQuotes || [],
+      keyQuotes: enrichedKeyQuotes,
       summary: parsed.summary || 'Analysis complete.',
       strategicRecommendations: parsed.strategicRecommendations || [],
       keyOpportunity: parsed.keyOpportunity || undefined,
@@ -502,13 +527,34 @@ Return JSON:
 
     const parsed = parseClaudeJSON<ThemeAnalysis>(textContent.text, 'theme extraction retry')
 
+    // Build URL -> engagement lookup from painSignals for enrichment
+    const engagementByUrl = new Map<string, { upvotes?: number; numComments?: number }>()
+    for (const signal of painSignals) {
+      if (signal.source.url) {
+        engagementByUrl.set(signal.source.url, {
+          upvotes: signal.source.upvotes,
+          numComments: signal.source.numComments,
+        })
+      }
+    }
+
+    // Enrich AI-returned keyQuotes with engagement data
+    const enrichedKeyQuotes = (parsed.keyQuotes || []).map(quote => {
+      const engagement = quote.url ? engagementByUrl.get(quote.url) : undefined
+      return {
+        ...quote,
+        upvotes: engagement?.upvotes,
+        numComments: engagement?.numComments,
+      }
+    })
+
     return {
       themes: (parsed.themes || []).map(parseThemeTier),
       customerLanguage: parsed.customerLanguage || [],
       alternativesMentioned: parsed.alternativesMentioned || [],
       willingnessToPaySignals: parsed.willingnessToPaySignals || [],
       overallPainScore: Math.min(10, Math.max(0, parsed.overallPainScore || 0)),
-      keyQuotes: parsed.keyQuotes || [],
+      keyQuotes: enrichedKeyQuotes,
       summary: parsed.summary || 'Analysis complete.',
       strategicRecommendations: parsed.strategicRecommendations || [],
       keyOpportunity: parsed.keyOpportunity || undefined,
@@ -567,7 +613,7 @@ function getFallbackAnalysis(
       .map((s) => truncateText(s.text, 100)),
   }))
 
-  // Get key quotes
+  // Get key quotes with engagement data
   const keyQuotes = painSignals
     .slice(0, 5)
     .map((signal) => ({
@@ -575,6 +621,9 @@ function getFallbackAnalysis(
       source: signal.source.subreddit,  // Raw subreddit name, formatted by UI
       painScore: signal.score,
       url: signal.source.url,
+      // Include engagement metrics for transparency
+      upvotes: signal.source.upvotes,
+      numComments: signal.source.numComments,
     }))
 
   // Calculate average pain score

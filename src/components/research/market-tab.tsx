@@ -33,7 +33,6 @@ import {
   ChevronUp,
   Users,
   BarChart3,
-  Sparkles,
   AlertTriangle,
   Info,
 } from 'lucide-react'
@@ -50,7 +49,10 @@ interface MarketTabProps {
 export function MarketTab({ jobId, hypothesis }: MarketTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<MarketSubTab>('overview')
   const data = useResearchData()
-  const { marketData, timingData, competitorResult } = data
+  const { marketData, timingData, competitorResult, communityVoiceResult } = data
+
+  // Extract discussion velocity from pain summary for timing display
+  const discussionVelocity = communityVoiceResult?.data?.painSummary?.discussionVelocity
 
   const subTabs: { id: MarketSubTab; label: string; icon: React.ReactNode; available: boolean }[] = [
     { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" />, available: true },
@@ -99,7 +101,7 @@ export function MarketTab({ jobId, hypothesis }: MarketTabProps) {
       )}
 
       {activeSubTab === 'timing' && (
-        <TimingSubTab timingData={timingData} />
+        <TimingSubTab timingData={timingData} discussionVelocity={discussionVelocity} />
       )}
 
       {activeSubTab === 'competition' && (
@@ -227,8 +229,8 @@ function MarketOverviewDashboard({ marketData, timingData, competitorData, onNav
                   {marketData.score.toFixed(1)}<span className="text-lg text-muted-foreground">/10</span>
                 </div>
                 <div className="space-y-1 text-sm text-muted-foreground">
-                  <div>SAM: {(marketData.sam.value / 1000).toFixed(0)}K users</div>
-                  <div>SOM: {(marketData.som.value / 1000).toFixed(0)}K users</div>
+                  <div>SAM: {(marketData.sam.value * 0.7 / 1000).toFixed(0)}-{(marketData.sam.value * 1.3 / 1000).toFixed(0)}K</div>
+                  <div>SOM: {(marketData.som.value * 0.7 / 1000).toFixed(0)}-{(marketData.som.value * 1.3 / 1000).toFixed(0)}K</div>
                 </div>
                 <p className="text-xs italic text-blue-600 dark:text-blue-400 mt-2 pt-2 border-t border-dashed border-muted">
                   {getSizingContext(marketData.score)}
@@ -518,9 +520,12 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
             <div className="w-full p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl border-2 border-blue-300 dark:border-blue-500/40">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-semibold text-blue-900 dark:text-blue-100">TAM (Total Addressable Market)</span>
-                <span className="text-blue-700 dark:text-blue-300 font-bold text-lg">
-                  ~{(marketData.tam.value / 1000000).toFixed(1)}M users
-                </span>
+                <div className="text-right">
+                  <span className="text-blue-700 dark:text-blue-300 font-bold text-lg">
+                    {(marketData.tam.value * 0.7 / 1000000).toFixed(0)}-{(marketData.tam.value * 1.3 / 1000000).toFixed(0)}M users
+                  </span>
+                  <span className="text-xs text-blue-500 dark:text-blue-400 ml-1">(±30%)</span>
+                </div>
               </div>
               <p className="text-sm text-blue-700 dark:text-blue-300">{marketData.tam.description}</p>
               <p className="text-sm text-blue-600 dark:text-blue-400 mt-2 font-medium">
@@ -537,9 +542,12 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
             <div className="w-[85%] p-4 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border-2 border-emerald-300 dark:border-emerald-500/40">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-semibold text-emerald-900 dark:text-emerald-100">SAM (Serviceable Available Market)</span>
-                <span className="text-emerald-700 dark:text-emerald-300 font-bold text-lg">
-                  ~{(marketData.sam.value / 1000).toFixed(0)}K users
-                </span>
+                <div className="text-right">
+                  <span className="text-emerald-700 dark:text-emerald-300 font-bold text-lg">
+                    {(marketData.sam.value * 0.7 / 1000).toFixed(0)}-{(marketData.sam.value * 1.3 / 1000).toFixed(0)}K users
+                  </span>
+                  <span className="text-xs text-emerald-500 dark:text-emerald-400 ml-1">(±30%)</span>
+                </div>
               </div>
               <p className="text-sm text-emerald-700 dark:text-emerald-300">{marketData.sam.description}</p>
               <p className="text-sm text-emerald-600 dark:text-emerald-400 mt-2 font-medium">
@@ -556,9 +564,12 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
             <div className="w-[65%] p-4 bg-purple-50 dark:bg-purple-500/10 rounded-xl border-2 border-purple-300 dark:border-purple-500/40">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-semibold text-purple-900 dark:text-purple-100">SOM (Serviceable Obtainable)</span>
-                <span className="text-purple-700 dark:text-purple-300 font-bold text-lg">
-                  ~{(marketData.som.value / 1000).toFixed(0)}K users
-                </span>
+                <div className="text-right">
+                  <span className="text-purple-700 dark:text-purple-300 font-bold text-lg">
+                    {(marketData.som.value * 0.7 / 1000).toFixed(0)}-{(marketData.som.value * 1.3 / 1000).toFixed(0)}K users
+                  </span>
+                  <span className="text-xs text-purple-500 dark:text-purple-400 ml-1">(±30%)</span>
+                </div>
               </div>
               <p className="text-sm text-purple-700 dark:text-purple-300">{marketData.som.description}</p>
               <p className="text-sm text-purple-600 dark:text-purple-400 mt-2 font-medium">
@@ -618,9 +629,16 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
 
 interface TimingSubTabProps {
   timingData: ReturnType<typeof useResearchData>['timingData']
+  discussionVelocity?: {
+    percentageChange: number
+    trend: 'rising' | 'stable' | 'declining'
+    recentCount: number
+    previousCount: number
+    confidence: 'low' | 'medium' | 'high'
+  }
 }
 
-function TimingSubTab({ timingData }: TimingSubTabProps) {
+function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
 
   const toggleSection = (section: string) => {
@@ -685,30 +703,75 @@ function TimingSubTab({ timingData }: TimingSubTabProps) {
           </div>
         </div>
         <CardContent className="pt-6">
-          {/* Google Trends Data */}
-          {timingData.trendData?.dataAvailable && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800 mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Google Trends Data</span>
+          {/* Timing Data Sources */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {/* Google Trends Data */}
+            {timingData.trendData?.dataAvailable && (
+              <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Google Trends</span>
+                  </div>
+                  <TrustBadge level="verified" size="sm" tooltip="Real data from Google Trends API" />
                 </div>
-                <TrustBadge level="verified" size="sm" tooltip="Real data from Google Trends API" />
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-2xl font-bold ${
+                    timingData.trendData.percentageChange > 0 ? 'text-emerald-600' :
+                    timingData.trendData.percentageChange < 0 ? 'text-red-600' : 'text-blue-600'
+                  }`}>
+                    {timingData.trendData.percentageChange > 0 ? '+' : ''}{timingData.trendData.percentageChange}%
+                  </span>
+                  <span className="text-sm text-muted-foreground">YoY</span>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Keywords: {timingData.trendData.keywords.join(', ')}
+                </div>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-2xl font-bold ${
-                  timingData.trendData.percentageChange > 0 ? 'text-emerald-600' :
-                  timingData.trendData.percentageChange < 0 ? 'text-red-600' : 'text-blue-600'
-                }`}>
-                  {timingData.trendData.percentageChange > 0 ? '+' : ''}{timingData.trendData.percentageChange}%
-                </span>
-                <span className="text-sm text-muted-foreground">over past year</span>
+            )}
+
+            {/* Discussion Velocity - CALCULATED from posts */}
+            {discussionVelocity && (discussionVelocity.recentCount > 0 || discussionVelocity.previousCount > 0) && (
+              <div className={`p-4 rounded-xl border ${
+                discussionVelocity.trend === 'rising'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800'
+                  : discussionVelocity.trend === 'declining'
+                  ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'
+                  : 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800'
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className={`h-4 w-4 ${
+                      discussionVelocity.trend === 'rising' ? 'text-emerald-600' :
+                      discussionVelocity.trend === 'declining' ? 'text-red-600' : 'text-slate-600'
+                    }`} />
+                    <span className={`text-sm font-semibold ${
+                      discussionVelocity.trend === 'rising' ? 'text-emerald-900 dark:text-emerald-100' :
+                      discussionVelocity.trend === 'declining' ? 'text-red-900 dark:text-red-100' : 'text-slate-900 dark:text-slate-100'
+                    }`}>Discussion Velocity</span>
+                  </div>
+                  <TrustBadge level="calculated" size="sm" tooltip="Calculated from post timestamps" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-2xl font-bold ${
+                    discussionVelocity.percentageChange > 0 ? 'text-emerald-600' :
+                    discussionVelocity.percentageChange < 0 ? 'text-red-600' : 'text-slate-600'
+                  }`}>
+                    {discussionVelocity.percentageChange > 0 ? '+' : ''}{discussionVelocity.percentageChange}%
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {discussionVelocity.trend === 'rising' ? '↑' : discussionVelocity.trend === 'declining' ? '↓' : '→'}
+                  </span>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {discussionVelocity.recentCount} posts (90d) vs {discussionVelocity.previousCount} prior
+                  {discussionVelocity.confidence !== 'high' && (
+                    <span className="ml-1 text-amber-600">• {discussionVelocity.confidence} sample</span>
+                  )}
+                </div>
               </div>
-              <div className="mt-2 text-xs text-muted-foreground">
-                Keywords: {timingData.trendData.keywords.join(', ')}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {!timingData.trendData?.dataAvailable && (
             <div className="flex items-center gap-2 mb-4 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
@@ -882,7 +945,7 @@ function CompetitionSubTab({ competitorData, jobId, hypothesis, onNavigate }: Co
                       onClick={() => onNavigate('opportunities')}
                       className="bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50"
                     >
-                      <Sparkles className="h-4 w-4 mr-2" />
+                      <Lightbulb className="h-4 w-4 mr-2" />
                       Opportunities ({gapsCount})
                       <ChevronRight className="h-4 w-4 ml-1" />
                     </Button>
@@ -960,7 +1023,7 @@ function OpportunitiesSubTab({ gaps, onNavigate }: OpportunitiesSubTabProps) {
                 gap.difficulty === 'medium' ? 'bg-amber-100 dark:bg-amber-500/20' :
                 'bg-red-100 dark:bg-red-500/20'
               }`}>
-                <Sparkles className={`h-4 w-4 ${
+                <Lightbulb className={`h-4 w-4 ${
                   gap.difficulty === 'low' ? 'text-emerald-600 dark:text-emerald-400' :
                   gap.difficulty === 'medium' ? 'text-amber-600 dark:text-amber-400' :
                   'text-red-600 dark:text-red-400'

@@ -245,6 +245,31 @@ CC should proactively use agents when:
 - **debugger** → When encountering errors or unexpected behavior
 - **learner** → Weekly, or after incidents
 
+### IMPORTANT: Frontend Design / UI Work
+
+**ALWAYS use the `ui-specialist` agent when building or modifying anything visual.**
+
+The user may refer to it as:
+- "frontend design tool/skill"
+- "front-end design"
+- "frontend-design"
+- "design tool"
+- "UI tool"
+
+**How to invoke:**
+- Command: `/ui-review`
+- Task tool: `subagent_type="ui-specialist"`
+
+**When to use:**
+- Any new UI component
+- Modifying existing UI/aesthetics
+- Icon selection and styling
+- Color choices
+- Layout decisions
+- Before any visual PR
+
+*Do NOT guess at visual design — always consult this agent for professional aesthetics.*
+
 ### Agent Quality Focus
 
 All agents check for the **64% relevance issue** — the critical quality metric where pain signals must actually relate to the business hypothesis.

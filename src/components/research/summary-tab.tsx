@@ -22,6 +22,10 @@ import { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 import { ViabilityVerdict, RedFlag } from '@/lib/analysis/viability-calculator'
 import { AnimatedCard, StaggerContainer, staggerItem } from '@/components/ui/animated-components'
+import { DualVerdictDisplay } from '@/components/research/dual-verdict-display'
+import { DimensionScore, StatusLabels } from '@/lib/analysis/viability-calculator'
+import { cn } from '@/lib/utils'
+import { BarChart3, Info } from 'lucide-react'
 
 // ============================================
 // Types
@@ -459,6 +463,101 @@ function CompetitionCard({ competitorResult }: { competitorResult?: CompetitorIn
   )
 }
 
+function ScoreBreakdownCard({ dimensions, overallScore }: { dimensions: DimensionScore[]; overallScore: number }) {
+  if (!dimensions || dimensions.length === 0) return null
+
+  const getDimensionIcon = (name: string) => {
+    switch (name) {
+      case 'Pain Score': return Target
+      case 'Market Score': return PieChart
+      case 'Competition Score': return Shield
+      case 'Timing Score': return Timer
+      default: return Target
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            Score Breakdown
+          </CardTitle>
+          <div className="flex items-baseline gap-1">
+            <span className="text-2xl font-bold">{overallScore.toFixed(1)}</span>
+            <span className="text-sm text-muted-foreground">/10</span>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {dimensions.map((dim) => {
+            const Icon = getDimensionIcon(dim.name)
+            const barWidth = (dim.score / 10) * 100
+            return (
+              <div key={dim.name} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-medium">{dim.name}</span>
+                    <Badge variant="outline" className="text-[10px]">
+                      {Math.round(dim.weight * 100)}%
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{dim.score.toFixed(1)}</span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'text-[10px]',
+                        dim.status === 'strong' && 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400',
+                        dim.status === 'adequate' && 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400',
+                        dim.status === 'needs_work' && 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-400',
+                        dim.status === 'critical' && 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400',
+                      )}
+                    >
+                      {StatusLabels[dim.status]}
+                    </Badge>
+                  </div>
+                </div>
+                {/* Score bar */}
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      'h-full rounded-full transition-all duration-500',
+                      dim.status === 'strong' && 'bg-emerald-500',
+                      dim.status === 'adequate' && 'bg-amber-500',
+                      dim.status === 'needs_work' && 'bg-orange-500',
+                      dim.status === 'critical' && 'bg-red-500',
+                    )}
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+                {dim.summary && (
+                  <p className="text-xs text-muted-foreground line-clamp-1">{dim.summary}</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        {/* Formula note */}
+        <div className="mt-4 pt-3 border-t">
+          <div className="flex items-start gap-2 text-xs text-muted-foreground">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <p>
+              Score = Pain ({Math.round((dimensions.find(d => d.name === 'Pain Score')?.weight ?? 0.35) * 100)}%) +
+              Market ({Math.round((dimensions.find(d => d.name === 'Market Score')?.weight ?? 0.25) * 100)}%) +
+              Competition ({Math.round((dimensions.find(d => d.name === 'Competition Score')?.weight ?? 0.25) * 100)}%) +
+              Timing ({Math.round((dimensions.find(d => d.name === 'Timing Score')?.weight ?? 0.15) * 100)}%)
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ============================================
 // Main Component
 // ============================================
@@ -483,9 +582,30 @@ export function SummaryTab({
   )
   const hasRedFlags = verdict.redFlags && verdict.redFlags.length > 0
   const hasMarketData = marketData || timingData || competitorResult
+  const hasTwoAxisData = verdict.hypothesisConfidence && verdict.marketOpportunity
 
   return (
     <div className="space-y-6">
+      {/* Two-Axis Viability Assessment - when available */}
+      {hasTwoAxisData && (
+        <AnimatedCard>
+          <DualVerdictDisplay
+            hypothesisConfidence={verdict.hypothesisConfidence!}
+            marketOpportunity={verdict.marketOpportunity!}
+          />
+        </AnimatedCard>
+      )}
+
+      {/* Score Breakdown - when dimensions available */}
+      {verdict.dimensions && verdict.dimensions.length > 0 && (
+        <AnimatedCard delay={0.1}>
+          <ScoreBreakdownCard
+            dimensions={verdict.dimensions}
+            overallScore={verdict.overallScore}
+          />
+        </AnimatedCard>
+      )}
+
       {/* Top Row: Key Insights (full width or 2/3) + Quick Stats Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Key Insights - spans 2 columns on large screens */}

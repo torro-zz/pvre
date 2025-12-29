@@ -6,9 +6,23 @@ import {
   CardContent,
   CardFooter,
 } from '@/components/ui/card'
-import { ExternalLink, MessageCircle, ThumbsUp, Calendar } from 'lucide-react'
+import { ExternalLink, MessageSquare, ArrowUp, Calendar, Flame } from 'lucide-react'
 import { PainSignal } from '@/lib/analysis/pain-detector'
 import { cn } from '@/lib/utils'
+
+// Format large numbers compactly (1234 -> "1.2K")
+function formatNumber(num: number): string {
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K'
+  }
+  return num.toString()
+}
+
+// Check if engagement qualifies as "Community Validated"
+function isCommunityValidated(upvotes?: number, numComments?: number): boolean {
+  return (upvotes !== undefined && upvotes >= 100) ||
+         (numComments !== undefined && numComments >= 50)
+}
 
 interface PainScoreCardProps {
   signal: PainSignal
@@ -146,18 +160,32 @@ export function PainScoreCard({ signal }: PainScoreCardProps) {
 
       <CardFooter className="pt-0 flex items-center justify-between text-xs text-muted-foreground">
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1">
-            <ThumbsUp className="h-3 w-3" />
-            {signal.source.engagementScore.toFixed(1)}
-          </span>
+          {/* Upvotes - show actual count if available */}
+          {signal.source.upvotes !== undefined && signal.source.upvotes > 0 && (
+            <span className="flex items-center gap-1">
+              <ArrowUp className="h-3 w-3" />
+              {formatNumber(signal.source.upvotes)}
+            </span>
+          )}
+          {/* Comments - show actual count if available */}
+          {signal.source.numComments !== undefined && signal.source.numComments > 0 && (
+            <span className="flex items-center gap-1">
+              <MessageSquare className="h-3 w-3" />
+              {formatNumber(signal.source.numComments)}
+            </span>
+          )}
+          {/* Date */}
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
             {formatDate(signal.source.createdUtc)}
           </span>
-          <span className="flex items-center gap-1">
-            <MessageCircle className="h-3 w-3" />
-            {signal.source.type}
-          </span>
+          {/* Hot badge for community-validated signals */}
+          {isCommunityValidated(signal.source.upvotes, signal.source.numComments) && (
+            <Badge variant="outline" className="h-5 text-[10px] bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
+              <Flame className="h-2.5 w-2.5 mr-0.5" />
+              Hot
+            </Badge>
+          )}
         </div>
         <a
           href={signal.source.url}

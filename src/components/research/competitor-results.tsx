@@ -27,7 +27,6 @@ import {
   AlertTriangle,
   Shield,
   Info,
-  Sparkles,
   TrendingDown,
   CircleDot,
   Tag,
@@ -345,7 +344,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
               {/* Pricing Models */}
               <div className="p-4 rounded-lg bg-card border">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                  <Sparkles className="h-4 w-4" />
+                  <Tag className="h-4 w-4" />
                   Common Models
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -502,7 +501,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                 {/* Price Headroom */}
                 <div className="flex items-center justify-between py-2">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-muted-foreground" />
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">Price Headroom</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -607,7 +606,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
             <CardContent className="py-4">
               <div className="flex items-start gap-3">
                 <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg">
-                  <Sparkles className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  <Target className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-emerald-800 dark:text-emerald-300">No Direct Competitors Identified</h3>
