@@ -1,6 +1,6 @@
 # Known Issues
 
-Last updated: December 28, 2025
+Last updated: December 29, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
@@ -140,11 +140,16 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 **Source:** CEO review
 **Fixed:** Removed "Completed" and "Success Rate" stat cards from QuickStats. Dashboard now shows only "Total Research" and "This Week" (2 stats instead of 4).
 
-### ⚠️ Update Landing Page Content - NEEDS REWORK
+### ✅ Update Landing Page Content
 **Source:** CEO review
-**Status:** Partial — Copy is low-effort, needs proper rewrite
-**What was done:** Added app gap analysis mentions to hero, steps, and feature cards.
-**Issue:** The copy changes are not satisfactory. Simply adding "or analyze app store gaps" is not compelling enough. Needs discussion with Claude for a proper messaging rewrite that integrates app analysis naturally.
+**Fixed:** Complete landing page overhaul (Dec 29, 2025):
+- Added "Who this is for" targeting line and visceral pain point copy
+- Created ProductPreview component with accurate mockup of research results
+- Redesigned features section as clean 2x2 bento grid
+- Added FAQ accordion section
+- Styled "The Switch" bar with dark gradient and green accent glow
+- Updated light mode to cool gray palette (#F8FAFC) for modern SaaS feel
+- Removed placeholder testimonials section
 
 ### ⚠️ Redesign Research Page Layout - INCOMPLETE
 **Source:** CEO review
@@ -405,6 +410,46 @@ curl -s -X POST http://localhost:3000/api/research/community-voice \
 - Cache AI results when possible to ensure consistency per hypothesis
 
 **Decision:** Defer until post-launch when usage patterns are clearer.
+
+### App Analysis Results Parity (Dec 29, 2025)
+**Status:** Open — Backlog
+**Impact:** Inconsistent UX between hypothesis validation and app analysis modes
+
+**Problem:** App-side results don't have the same polish as hypothesis-side results. Need to ensure consistency between both research modes in terms of UI treatment, data display, and feature parity.
+
+**Files:** `src/app/(dashboard)/research/[id]/page.tsx`, components in `src/components/research/`
+
+### PDF Exports Professional Redesign (Dec 29, 2025)
+**Status:** Open — Backlog
+**Impact:** Reports look too casual for business use
+
+**Problem:** Current PDF exports are too colorful and not professional enough. Need sharper, more business-appropriate design.
+
+**Files:** `src/lib/pdf/report-generator.ts`
+
+### TAM/SAM/SOM External Data Sources (Dec 29, 2025)
+**Status:** Open — Backlog
+**Impact:** Market sizing estimates lack grounded data
+
+**Problem:** Current TAM/SAM/SOM estimates are Fermi-based calculations. Need to research and integrate reliable external data sources for more realistic market sizing.
+
+**Files:** `src/lib/analysis/market-sizing.ts`
+
+### TikTok Data Source Wrapper (Dec 29, 2025)
+**Status:** Open — Backlog
+**Impact:** Missing popular social platform for pain signal discovery
+
+**Problem:** TikTok is a major source of user-generated content about problems and pain points. Need to research API options and create adapter following `DataSourceAdapter` pattern.
+
+**Files:** `src/lib/data-sources/`
+
+### Google Trends API Expansion (Dec 29, 2025)
+**Status:** Open — Backlog
+**Impact:** Underutilizing available Google Trends data
+
+**Problem:** Currently Google Trends is only used for timing analysis. Could leverage additional features: related queries, regional interest, rising topics.
+
+**Files:** `src/lib/data-sources/google-trends.ts`
 
 ---
 

@@ -1,94 +1,94 @@
-# Resume Point - December 27, 2025 (Late Evening)
+# Resume Point - December 29, 2025
 
-## ⚠️ UNCOMMITTED CHANGES
+## What Was Just Completed
 
-You have 8 uncommitted files from earlier sessions:
+### Session 3: Landing Page Overhaul
+Complete landing page redesign committed in `359174c`.
 
-| File | Changes | Purpose |
-|------|---------|---------|
-| src/app/(dashboard)/research/[id]/page.tsx | +1/-1 | Width change max-w-4xl → max-w-6xl |
-| src/app/page.tsx | +40/-23 | Landing page copy rewrite |
-| src/components/research/action-tab.tsx | +24/-8 | Action recommendations |
-| src/components/research/ask-anything-sidebar.tsx | +6/-3 | Sidebar polish |
-| src/components/research/chat-panel.tsx | +12/-5 | Chat panel polish |
-| src/components/research/search-coverage-section.tsx | +3/-2 | Coverage section |
-| src/components/research/summary-tab.tsx | +248/-58 | Grid layout + compact cards |
-| src/lib/utils/coverage-helpers.ts | +4/-2 | Coverage helpers |
+**Changes Made:**
+1. **Hero Section** - Added "Who this is for" targeting line, rewrote subheadline
+2. **Pain Points** - Visceral, relatable copy that speaks to founder struggles
+3. **Product Preview** - Stylized browser mockup showing actual research results
+4. **Features Grid** - Clean 2x2 bento layout with consistent cards
+5. **FAQ Section** - Accordion with key questions answered
+6. **"The Switch" Bar** - Dark gradient with green accent glow
+7. **Light Mode Colors** - Cool gray palette (#F8FAFC) for modern SaaS feel
+8. **Removed** - Placeholder testimonials section
 
-**Action:** Review and commit these changes, or discard if superseded.
+### Session 2: Backlog Organization
+Brief session to organize backlog items into KNOWN_ISSUES.md for future work tracking.
 
----
+### Session 1: Short Title Display Feature
+Implemented in commit `0e0bfe6`.
 
-## Next Session: Evidence Tab - Themes Sub-tab Fixes
+## Files Modified This Session
 
-**IMPORTANT:** Use FRONTEND-DESIGN SKILL for all UI improvements.
+| File | Status | Purpose |
+|------|--------|---------|
+| `src/app/page.tsx` | Committed | Landing page overhaul |
+| `src/app/globals.css` | Committed | Light mode color palette |
+| `docs/KNOWN_ISSUES.md` | Modified | Marked landing page as complete |
+| `docs/RESUME_HERE.md` | Modified | Session state (this file) |
 
-### P1 - High Priority (Do First)
+## Uncommitted Changes
 
-| # | Fix | Problem | Solution |
-|---|-----|---------|----------|
-| 1 | Consolidate Theme Card Badges | 3 badges per card is noisy | Reduce to 2 max |
-| 2 | Fix Inconsistent Badge Labels | "Most resonance" vs "Med resonance" | Use "High/Medium/Low" |
-| 3 | Make Sub-tabs Sticky | Sub-tabs hidden below Executive Summary | position: sticky |
-| 4 | Rename "Alternatives Mentioned" | Lists platforms not alternatives | "Platforms Mentioned" |
+- `CLAUDE.md` - Documentation updates
+- `docs/KNOWN_ISSUES.md` - Marked landing page complete
+- `docs/RESUME_HERE.md` - Session state
 
-### P2 - Polish (After P1)
-
-| # | Fix | Problem | Solution |
-|---|-----|---------|----------|
-| 5 | Copy Button for Customer Language | Phrases hard to copy | Add "Copy All" button |
-| 6 | Collapsible Theme Cards | 4 expanded = scrolling | Card 1 expanded, 2-4 collapsed |
-| 7 | Strategic Recommendations Readability | Text too small (12px) | Increase to 14px |
-| 8 | Verify Mention Count Math | 16 mentions but 15 signals | Add note or fix counting |
-
----
-
-## Today's Commits (Dec 27)
-
-| Commit | Description |
-|--------|-------------|
-| aa584ad | docs: Add Evidence Tab fixes to Known Issues + update RESUME_HERE |
-| 6e6c528 | feat: Add interpretive labels to metrics + Edit & Re-run pre-fill |
-| 56bd51d | feat: Declutter dashboard + compact research layout |
-| 41e9848 | feat: Add chat drawer + improve exports |
-| baf858d | fix: Balanced action menu |
-| d2fde99 | fix: Make action menu compact |
-| 37ef16b | fix: Remove duplicate option from research card actions |
-| 311b3b0 | fix: Replace swipe actions with kebab menu |
-| 0349b86 | feat: iOS-style swipe actions for research cards |
-| 05489d9 | fix: UI polish from CEO review |
-| 71c5cf7 | feat: Folder organization for research projects |
-
----
+**Untracked:**
+- `.playwright-mcp/` - MCP config directory
+- `src/components/research/evidence-tab.tsx` - May be orphaned, verify if needed
 
 ## Build & Test Status
 
-- **Build:** ✅ Passing
+- **Build:** Passing
 - **Tests:** 128 passing, 6 skipped
 - **Dev Server:** Running on :3000
 
----
+## What Needs To Be Done Next
+
+### From Known Issues - Still Open
+
+| Priority | Issue | Notes |
+|----------|-------|-------|
+| **Research Page Bento Grid** | Still single column, needs grid layout |
+| P1 | Direct API Calls Don't Persist | API calls without jobId don't save |
+| Low | Connect Help to Canny | External service config |
+| Low | Clarify API Keys Purpose | Document or remove feature |
+
+### From Known Issues - P3 Backlog
+
+| Item | Impact | Files |
+|------|--------|-------|
+| App Analysis Results Parity | Inconsistent UX between modes | `research/[id]/page.tsx` |
+| PDF Exports Redesign | Reports too casual | `src/lib/pdf/report-generator.ts` |
+| TAM/SAM/SOM Data Sources | Estimates lack grounded data | `src/lib/analysis/market-sizing.ts` |
+| TikTok Wrapper | Missing social platform | `src/lib/data-sources/` |
+| Google Trends Expansion | Underutilized data | `src/lib/data-sources/google-trends.ts` |
 
 ## Key Files Reference
 
 | Purpose | File |
 |---------|------|
-| Full issue list | docs/KNOWN_ISSUES.md |
-| Project instructions | CLAUDE.md |
-| Original CEO instructions | /Users/julientorriani/Downloads/CEO Review Instructions.md |
-
----
+| Project instructions | `CLAUDE.md` |
+| Known bugs & UX backlog | `docs/KNOWN_ISSUES.md` |
+| Landing page | `src/app/page.tsx` |
+| Global styles | `src/app/globals.css` |
 
 ## Quick Start Commands
 
 ```bash
+# Start dev server
 cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine PVRE"
 npm run dev
-npm run build
-open http://localhost:3000/dashboard
-```
 
----
+# Run tests
+npm run test:run
+
+# Build
+npm run build
+```
 
 ## User Notes
 
@@ -96,4 +96,4 @@ None
 
 ---
 
-*Last updated: December 27, 2025 (Late Evening)*
+*Last updated: December 29, 2025*
