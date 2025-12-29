@@ -38,7 +38,7 @@ Serialize complex objects with `JSON.parse(JSON.stringify(data))` before DB save
 
 ### Before Committing
 Run `npm run build` - catches type errors that `npm run dev` misses.
-Run `npm run test:run` - ensures 66+ tests pass.
+Run `npm run test:run` - ensures 128+ tests pass.
 
 *Why: Dev mode is permissive. Build mode catches issues before they reach users.*
 
@@ -309,6 +309,42 @@ NEXT_PUBLIC_WHATSAPP_SUPPORT_URL
 STRIPE_SECRET_KEY
 STRIPE_WEBHOOK_SECRET
 ```
+
+---
+
+## Documentation Updates
+
+**On every significant push**, update `docs/TECHNICAL_OVERVIEW.md`:
+
+### What to Update
+- New features or major changes (add to relevant section)
+- Test count if changed (currently 128)
+- New API endpoints or behavior changes
+- Architecture decisions
+- Date in header (format: `*Last updated: YYYY-MM-DD (Brief description)*`)
+
+### When to Update
+- After pushing changes that affect:
+  - Data models/interfaces
+  - API behavior
+  - New UI components
+  - Filtering pipeline
+  - Cost-impacting changes
+
+### Quick Update Checklist
+```
+1. Update date: `*Last updated: 2025-XX-XX (Your change)*`
+2. Add section if new feature
+3. Update test count if changed
+4. Update Implementation Status table if applicable
+```
+
+### Related Docs to Consider
+| Doc | Update When |
+|-----|-------------|
+| `docs/TECHNICAL_OVERVIEW.md` | Architecture, features, APIs |
+| `docs/KNOWN_ISSUES.md` | Bugs, fixes, backlog changes |
+| `docs/RESUME_HERE.md` | Session handoffs (use `/goodnight`) |
 
 ---
 
