@@ -35,24 +35,25 @@ export interface PricingScenario {
   isUserPrice: boolean; // True if this is the user's selected price
 }
 
+// Market size estimate with range to communicate uncertainty
+export interface MarketSizeEstimate {
+  value: number;
+  description: string;
+  reasoning: string;
+  // Range to communicate uncertainty (AI estimates can be 2-10x off)
+  range?: {
+    min: number;  // Conservative estimate (value / 3)
+    max: number;  // Optimistic estimate (value * 3)
+  };
+  isAiEstimate?: boolean;  // Flag that this is pure AI estimation with no external data
+}
+
 export interface MarketSizingResult {
   score: number; // 0-10
   confidence: 'high' | 'medium' | 'low' | 'very_low';
-  tam: {
-    value: number;
-    description: string;
-    reasoning: string;
-  };
-  sam: {
-    value: number;
-    description: string;
-    reasoning: string;
-  };
-  som: {
-    value: number;
-    description: string;
-    reasoning: string;
-  };
+  tam: MarketSizeEstimate;
+  sam: MarketSizeEstimate;
+  som: MarketSizeEstimate;
   mscAnalysis: {
     customersNeeded: number;
     penetrationRequired: number; // percentage
@@ -62,6 +63,8 @@ export interface MarketSizingResult {
   suggestions: string[];
   // New: Pricing scenarios for comparison
   pricingScenarios?: PricingScenario[];
+  // Meta: Flag that all market sizing is AI-estimated
+  isAiEstimate?: boolean;
 }
 
 export async function calculateMarketSize(
@@ -197,12 +200,22 @@ Respond with ONLY valid JSON in this exact format:
   const somValue = data.som.value;
   const pricingScenarios = generatePricingScenarios(price, msc, somValue);
 
+  // Add ranges to communicate uncertainty (AI estimates can be 2-10x off)
+  const addRange = (estimate: { value: number; description: string; reasoning: string }): MarketSizeEstimate => ({
+    ...estimate,
+    range: {
+      min: Math.round(estimate.value / 3),  // Conservative: 1/3 of estimate
+      max: Math.round(estimate.value * 3),  // Optimistic: 3x of estimate
+    },
+    isAiEstimate: true,  // All market sizing is currently AI-estimated
+  });
+
   return {
     score: data.market_score,
     confidence: data.confidence,
-    tam: data.tam,
-    sam: data.sam,
-    som: data.som,
+    tam: addRange(data.tam),
+    sam: addRange(data.sam),
+    som: addRange(data.som),
     mscAnalysis: {
       customersNeeded: data.customers_needed,
       penetrationRequired: data.penetration_required * 100,
@@ -211,6 +224,7 @@ Respond with ONLY valid JSON in this exact format:
     },
     suggestions: data.suggestions || [],
     pricingScenarios,
+    isAiEstimate: true,  // Flag that all values are AI estimates
   };
 }
 

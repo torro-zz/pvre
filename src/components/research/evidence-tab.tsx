@@ -56,6 +56,17 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
   const displayedSignals = showAllSignals ? painSignals : painSignals.slice(0, 5)
   const totalSignals = results.painSummary?.totalSignals ?? 0
 
+  // Theme frequency threshold - themes with <5 mentions are grouped into "Other mentions"
+  const MIN_THEME_FREQUENCY = 5
+  const { mainThemes, otherThemes } = useMemo(() => {
+    const allThemes = results.themeAnalysis?.themes ?? []
+    return {
+      mainThemes: allThemes.filter(t => t.frequency >= MIN_THEME_FREQUENCY),
+      otherThemes: allThemes.filter(t => t.frequency < MIN_THEME_FREQUENCY),
+    }
+  }, [results.themeAnalysis?.themes])
+  const [showOtherThemes, setShowOtherThemes] = useState(false)
+
   // Calculate pain score
   const defaultEmotions = { frustration: 0, anxiety: 0, disappointment: 0, confusion: 0, hope: 0, neutral: 0 }
   const emotionsBreakdown = results.painSummary?.emotionsBreakdown ?? defaultEmotions
@@ -308,14 +319,14 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
           {/* Header with expand/collapse controls */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
-              {results.themeAnalysis.themes.length} themes identified from {totalSignals} signals
-              {results.themeAnalysis.themes.length > 1 && totalSignals > 0 && (
-                <span className="text-muted-foreground/70"> (some signals relate to multiple themes)</span>
+              {mainThemes.length} significant themes from {totalSignals} signals
+              {otherThemes.length > 0 && (
+                <span className="text-muted-foreground/70"> (+{otherThemes.length} minor)</span>
               )}
             </span>
             <div className="flex gap-2">
               <button
-                onClick={() => setExpandedThemes(new Set(results.themeAnalysis.themes.map((_, i) => i)))}
+                onClick={() => setExpandedThemes(new Set(mainThemes.map((_, i) => i)))}
                 className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
               >
                 Expand All
@@ -330,9 +341,9 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
             </div>
           </div>
 
-          {/* Theme Cards */}
+          {/* Main Theme Cards (frequency >= 5) */}
           <div className="grid gap-4">
-            {results.themeAnalysis.themes.map((theme, index) => {
+            {mainThemes.map((theme, index) => {
               const isExpanded = expandedThemes.has(index)
               return (
                 <Card key={index} className="overflow-hidden">
@@ -408,6 +419,53 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
               )
             })}
           </div>
+
+          {/* Other Mentions Section (frequency < 5) */}
+          {otherThemes.length > 0 && (
+            <Card className="border-dashed">
+              <button
+                onClick={() => setShowOtherThemes(!showOtherThemes)}
+                className="w-full text-left"
+              >
+                <CardContent className="py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {showOtherThemes ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="text-sm font-medium text-muted-foreground">
+                        Other mentions ({otherThemes.length})
+                      </span>
+                    </div>
+                    <Badge variant="outline" className="text-xs text-muted-foreground border-muted-foreground/30">
+                      &lt;5 mentions each
+                    </Badge>
+                  </div>
+                </CardContent>
+              </button>
+              {showOtherThemes && (
+                <CardContent className="pt-0 pb-4">
+                  <div className="flex flex-wrap gap-2">
+                    {otherThemes.map((theme, i) => (
+                      <Badge
+                        key={i}
+                        variant="secondary"
+                        className="text-xs font-normal"
+                        title={theme.description}
+                      >
+                        {theme.name} ({theme.frequency})
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2 italic">
+                    These topics appeared fewer than 5 times and may not represent statistically significant patterns.
+                  </p>
+                </CardContent>
+              )}
+            </Card>
+          )}
 
           {/* Customer Language */}
           {results.themeAnalysis.customerLanguage.length > 0 && (
@@ -671,6 +729,7 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
                   const source = isLegacyString ? 'Reddit' : signal.source
                   const signalType = isLegacyString ? 'explicit' : signal.type
                   const url = isLegacyString ? undefined : signal.url
+                  const sourceReliability = isLegacyString ? 'low' : signal.sourceReliability
 
                   return (
                     <WtpQuoteCard
@@ -679,6 +738,7 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
                       source={source}
                       signalType={signalType}
                       url={url}
+                      sourceReliability={sourceReliability}
                     />
                   )
                 })}

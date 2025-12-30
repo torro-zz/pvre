@@ -27,10 +27,27 @@ function formatNumber(num: number): string {
   return num.toString()
 }
 
+// Minimum engagement threshold - quotes below this are flagged as low confidence
+const MIN_ENGAGEMENT_THRESHOLD = 2  // upvotes <= 1 are considered low engagement
+
 // Check if engagement qualifies as "Community Validated"
 function isCommunityValidated(upvotes?: number, numComments?: number): boolean {
   return (upvotes !== undefined && upvotes >= 100) ||
          (numComments !== undefined && numComments >= 50)
+}
+
+// Check if engagement is below minimum threshold
+function isLowEngagement(upvotes?: number, numComments?: number): boolean {
+  // If we have upvotes data and it's <= 1, it's low engagement
+  // If we don't have upvotes data but have comments, use that instead
+  if (upvotes !== undefined) {
+    return upvotes < MIN_ENGAGEMENT_THRESHOLD
+  }
+  if (numComments !== undefined) {
+    return numComments < MIN_ENGAGEMENT_THRESHOLD
+  }
+  // No engagement data at all - can't determine
+  return false
 }
 
 // Engagement display component
@@ -132,11 +149,13 @@ export function QuoteCard({
 
   if (variant === 'compact') {
     const isValidated = isCommunityValidated(data.upvotes, data.numComments)
+    const lowEngagement = isLowEngagement(data.upvotes, data.numComments)
     return (
       <div
         className={cn(
           'flex items-start gap-2 p-3 rounded-lg bg-muted/30 border-l-3',
           painLevel ? painColors[painLevel] : 'border-l-muted',
+          lowEngagement && 'opacity-75',
           className
         )}
       >
@@ -150,6 +169,11 @@ export function QuoteCard({
               <Badge variant="outline" className="h-5 text-[10px] bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
                 <Flame className="h-2.5 w-2.5 mr-0.5" />
                 Hot
+              </Badge>
+            )}
+            {lowEngagement && (
+              <Badge variant="outline" className="h-5 text-[10px] bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-950/30 dark:text-slate-400 dark:border-slate-700">
+                Low signal
               </Badge>
             )}
             {data.isWtp && (
@@ -166,11 +190,13 @@ export function QuoteCard({
 
   if (variant === 'featured') {
     const isValidated = isCommunityValidated(data.upvotes, data.numComments)
+    const lowEngagement = isLowEngagement(data.upvotes, data.numComments)
     return (
       <div
         className={cn(
           'relative p-5 rounded-xl border-2 bg-gradient-to-br from-card to-muted/20',
           painLevel === 'high' ? 'border-red-200 dark:border-red-900/50' : 'border-border',
+          lowEngagement && 'opacity-75',
           className
         )}
       >
@@ -182,6 +208,11 @@ export function QuoteCard({
               <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
                 <Flame className="h-3 w-3 mr-1" />
                 Community Validated
+              </Badge>
+            )}
+            {lowEngagement && (
+              <Badge variant="outline" className="bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-950/30 dark:text-slate-400 dark:border-slate-700">
+                Low signal
               </Badge>
             )}
           </div>
@@ -250,11 +281,13 @@ export function QuoteCard({
 
   // Default variant
   const isValidated = isCommunityValidated(data.upvotes, data.numComments)
+  const lowEngagement = isLowEngagement(data.upvotes, data.numComments)
   return (
     <div
       className={cn(
         'p-4 rounded-lg border bg-card border-l-4',
         painLevel ? painColors[painLevel] : 'border-l-muted',
+        lowEngagement && 'opacity-75',  // Slightly mute low-engagement quotes
         className
       )}
     >
@@ -283,6 +316,11 @@ export function QuoteCard({
             <Badge variant="outline" className="h-5 text-[10px] bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
               <Flame className="h-2.5 w-2.5 mr-0.5" />
               Hot
+            </Badge>
+          )}
+          {lowEngagement && (
+            <Badge variant="outline" className="h-5 text-[10px] bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-950/30 dark:text-slate-400 dark:border-slate-700">
+              Low signal
             </Badge>
           )}
           {data.isWtp && (
@@ -368,16 +406,19 @@ interface WtpQuoteCardProps {
   source: string
   signalType?: 'explicit' | 'inferred'  // explicit = clear payment language, inferred = AI interpretation
   url?: string  // Original post/comment URL
+  sourceReliability?: 'high' | 'medium' | 'low'  // high=app reviews, medium=HN, low=Reddit
   className?: string
 }
 
-export function WtpQuoteCard({ quote, source, signalType = 'explicit', url, className }: WtpQuoteCardProps) {
+export function WtpQuoteCard({ quote, source, signalType = 'explicit', url, sourceReliability, className }: WtpQuoteCardProps) {
   const isInferred = signalType === 'inferred'
+  const isLowReliability = sourceReliability === 'low'
 
   return (
     <div className={cn(
       'p-4 rounded-lg border bg-card border-l-4',
       isInferred ? 'border-l-green-400 border-dashed' : 'border-l-green-500',
+      isLowReliability && 'opacity-80',
       className
     )}>
       {/* Header with source and signal type badge */}
@@ -398,6 +439,15 @@ export function WtpQuoteCard({ quote, source, signalType = 'explicit', url, clas
           )}
         </div>
         <div className="flex items-center gap-2">
+          {isLowReliability && (
+            <Badge
+              variant="outline"
+              className="h-5 text-[10px] bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700"
+              title="WTP signals from Reddit are less reliable than app reviews"
+            >
+              Unverified
+            </Badge>
+          )}
           <Badge
             variant="outline"
             className={cn(
@@ -420,8 +470,15 @@ export function WtpQuoteCard({ quote, source, signalType = 'explicit', url, clas
         <p className="text-sm italic leading-relaxed">"{quote}"</p>
       </div>
 
+      {/* Reliability note for low-reliability sources */}
+      {isLowReliability && (
+        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 pl-6 italic">
+          Reddit WTP signals are less reliable - validate with customer interviews
+        </p>
+      )}
+
       {/* Inferred signal note */}
-      {isInferred && (
+      {isInferred && !isLowReliability && (
         <p className="text-xs text-muted-foreground mt-2 pl-6 italic">
           Behavior suggests willingness to pay (not explicit statement)
         </p>

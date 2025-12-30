@@ -19,6 +19,7 @@ import { extractSearchKeywords } from '@/lib/reddit/keyword-extractor'
 import { StructuredHypothesis } from '@/types/research'
 import { sampleQualityCheck, QualitySampleResult } from '@/lib/research/relevance-filter'
 import { redditAdapter } from '@/lib/data-sources'
+import { searchSubreddits } from '@/lib/arctic-shift/client'
 
 export interface CoverageCheckRequest {
   hypothesis: string
@@ -31,6 +32,7 @@ export interface SubredditCoverage {
   estimatedPosts: number
   relevanceScore: 'high' | 'medium' | 'low'
   postsPerDay?: number  // Posting velocity for adaptive time-stratified fetching
+  subscribers?: number  // Subreddit subscriber count (verified from Reddit)
 }
 
 export interface SamplePost {
@@ -43,6 +45,7 @@ export interface SamplePost {
 export interface CoverageCheckResponse {
   subreddits: SubredditCoverage[]
   totalEstimatedPosts: number
+  totalSubscribers?: number  // Sum of subscriber counts across all subreddits (verified)
   dataConfidence: 'high' | 'medium' | 'low' | 'very_low'
   recommendation: 'proceed' | 'caution' | 'refine'
   refinementSuggestions?: string[]
@@ -211,6 +214,31 @@ export async function POST(req: Request) {
       }
     })
 
+    // Fetch subscriber counts for each subreddit (verified data)
+    // Run in parallel for speed, with error handling per subreddit
+    const subredditNames = subredditCoverage.map(s => s.name)
+    const subscriberResults = await Promise.all(
+      subredditNames.map(async (name) => {
+        try {
+          const results = await searchSubreddits({ subreddit_prefix: name, limit: 1 })
+          const match = results.find(r => r.name.toLowerCase() === name.toLowerCase())
+          return { name, subscribers: match?.subscribers || null }
+        } catch (error) {
+          console.warn(`[CoverageCheck] Failed to fetch subscribers for r/${name}:`, error)
+          return { name, subscribers: null }
+        }
+      })
+    )
+
+    // Merge subscriber counts into coverage data
+    const subscriberMap = new Map(subscriberResults.map(r => [r.name.toLowerCase(), r.subscribers]))
+    subredditCoverage.forEach(sub => {
+      const subscribers = subscriberMap.get(sub.name.toLowerCase())
+      if (subscribers) {
+        sub.subscribers = subscribers
+      }
+    })
+
     // Sort by estimated posts (highest first)
     subredditCoverage.sort((a, b) => b.estimatedPosts - a.estimatedPosts)
 
@@ -353,9 +381,16 @@ export async function POST(req: Request) {
 
     console.log(`[CoverageCheck] qualityPreview is ${qualityPreview ? 'set' : 'undefined'}`)
 
+    // Calculate total subscribers across all subreddits (verified data)
+    const totalSubscribers = subredditCoverage.reduce(
+      (sum, sub) => sum + (sub.subscribers || 0),
+      0
+    )
+
     return NextResponse.json({
       subreddits: subredditCoverage,
       totalEstimatedPosts,
+      totalSubscribers: totalSubscribers > 0 ? totalSubscribers : undefined,
       dataConfidence: coverageResult.dataConfidence,
       recommendation: coverageResult.recommendation,
       refinementSuggestions: coverageResult.refinementSuggestions,

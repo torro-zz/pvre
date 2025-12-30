@@ -157,6 +157,7 @@ export interface SubredditCoverage {
   estimatedPosts: number
   relevanceScore?: 'high' | 'medium' | 'low'
   postsPerDay?: number  // Posting velocity (calculated from sample timestamps)
+  subscribers?: number  // Subreddit subscriber count (verified from Reddit)
 }
 
 export interface CoverageResult {

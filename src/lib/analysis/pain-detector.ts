@@ -303,6 +303,7 @@ export interface PainSignal {
   solutionSeeking: boolean
   willingnessToPaySignal: boolean
   wtpConfidence: 'none' | 'low' | 'medium' | 'high'
+  wtpSourceReliability?: 'high' | 'medium' | 'low'  // high=app reviews, medium=HN, low=Reddit
   tier?: RelevanceTier  // CORE = intersection match, RELATED = single-domain match
   emotion: EmotionType  // Primary emotion detected in the signal
   source: {
@@ -375,11 +376,12 @@ export interface PainSummary {
   emotionsBreakdown?: EmotionsBreakdown
   // v5.0: Discussion velocity - CALCULATED from timestamps
   discussionVelocity?: {
-    percentageChange: number  // e.g., +36 or -20
-    trend: 'rising' | 'stable' | 'declining'
+    percentageChange: number | null  // e.g., +36 or -20, null if insufficient data
+    trend: 'rising' | 'stable' | 'declining' | 'insufficient_data'
     recentCount: number       // Posts in last 90 days
     previousCount: number     // Posts in 91-180 days
-    confidence: 'low' | 'medium' | 'high'  // Based on sample size
+    confidence: 'low' | 'medium' | 'high' | 'none'  // Based on sample size
+    insufficientData?: boolean  // True if base period too small for meaningful comparison
   }
 }
 
@@ -481,7 +483,12 @@ function getAgeBucket(createdUtc: number): 'last30Days' | 'last90Days' | 'last18
  * Calculate discussion velocity from temporal distribution
  * Compares recent activity (0-90 days) vs previous period (91-180 days)
  * Returns percentage change and trend classification
+ *
+ * v5.1: Added minimum threshold check - if previousCount < 5, velocity is
+ * statistically meaningless (e.g., +4100% from base of 1 is noise, not signal)
  */
+const MIN_VELOCITY_BASE_THRESHOLD = 5 // Minimum signals in comparison period for meaningful velocity
+
 function calculateDiscussionVelocity(temporalDistribution: {
   last30Days: number
   last90Days: number
@@ -493,6 +500,19 @@ function calculateDiscussionVelocity(temporalDistribution: {
   // Previous = 91-180 days (just the last180Days bucket)
   const previousCount = temporalDistribution.last180Days
 
+  // v5.1: Check for minimum threshold - velocity is meaningless with tiny base
+  // A +4100% increase from 1 to 42 signals is statistically noise
+  if (previousCount < MIN_VELOCITY_BASE_THRESHOLD) {
+    return {
+      percentageChange: null,
+      trend: 'insufficient_data',
+      recentCount,
+      previousCount,
+      confidence: 'none',
+      insufficientData: true,
+    }
+  }
+
   // Determine confidence based on sample size
   const totalRecent = recentCount + previousCount
   let confidence: 'low' | 'medium' | 'high' = 'low'
@@ -503,20 +523,12 @@ function calculateDiscussionVelocity(temporalDistribution: {
   let percentageChange = 0
   let trend: 'rising' | 'stable' | 'declining' = 'stable'
 
-  if (previousCount === 0) {
-    // No previous data - if we have recent data, it's a new/rising topic
-    if (recentCount > 0) {
-      percentageChange = 100 // Represents "new topic"
-      trend = 'rising'
-    }
-  } else {
-    percentageChange = Math.round(((recentCount - previousCount) / previousCount) * 100)
+  percentageChange = Math.round(((recentCount - previousCount) / previousCount) * 100)
 
-    // Classify trend (±15% is considered stable)
-    if (percentageChange > 15) trend = 'rising'
-    else if (percentageChange < -15) trend = 'declining'
-    else trend = 'stable'
-  }
+  // Classify trend (±15% is considered stable)
+  if (percentageChange > 15) trend = 'rising'
+  else if (percentageChange < -15) trend = 'declining'
+  else trend = 'stable'
 
   return {
     percentageChange,
@@ -524,6 +536,7 @@ function calculateDiscussionVelocity(temporalDistribution: {
     recentCount,
     previousCount,
     confidence,
+    insufficientData: false,
   }
 }
 
@@ -735,6 +748,30 @@ function calculateEngagementScore(score: number, numComments: number): number {
 }
 
 /**
+ * Determine WTP source reliability based on source type
+ * App reviews > Hacker News > Reddit for purchase intent signals
+ *
+ * Rationale: People discussing payment intent in app reviews have actually used/considered
+ * the product. Reddit discussions are often hypothetical or generic.
+ */
+function getWtpSourceReliability(subreddit: string): 'high' | 'medium' | 'low' {
+  const lower = subreddit.toLowerCase()
+
+  // High reliability: App store reviews (actual purchase context)
+  if (lower === 'google_play' || lower === 'app_store' || lower === 'trustpilot') {
+    return 'high'
+  }
+
+  // Medium reliability: Hacker News (tech-savvy, more specific discussions)
+  if (lower === 'hackernews' || lower === 'hacker news' || lower === 'askhn' || lower === 'showhn') {
+    return 'medium'
+  }
+
+  // Low reliability: Reddit (generic discussions, often hypothetical)
+  return 'low'
+}
+
+/**
  * Determine data confidence based on post count
  * v2.0: This is the volume-based confidence (used for basic summary)
  */
@@ -869,6 +906,9 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
         solutionSeeking: scoreResult.solutionSeekingCount > 0,
         willingnessToPaySignal: scoreResult.willingnessToPayCount > 0,
         wtpConfidence: scoreResult.wtpConfidence,
+        wtpSourceReliability: scoreResult.willingnessToPayCount > 0
+          ? getWtpSourceReliability(post.subreddit)
+          : undefined,
         emotion: detectEmotion(textForAnalysis),
         source: {
           type: 'post',
@@ -918,6 +958,9 @@ export function analyzeComments(comments: RedditComment[]): PainSignal[] {
         solutionSeeking: scoreResult.solutionSeekingCount > 0,
         willingnessToPaySignal: scoreResult.willingnessToPayCount > 0,
         wtpConfidence: scoreResult.wtpConfidence,
+        wtpSourceReliability: scoreResult.willingnessToPayCount > 0
+          ? getWtpSourceReliability(comment.subreddit)
+          : undefined,
         emotion: detectEmotion(comment.body),
         source: {
           type: 'comment',

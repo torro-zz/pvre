@@ -647,6 +647,140 @@ function applyCompetitionCap(
   }
 }
 
+/**
+ * Apply Market Reality Warnings.
+ *
+ * Checks market sizing results for unrealistic expectations:
+ * - Penetration > 25%: Challenging market dynamics
+ * - Penetration > 50%: Unrealistic market expectations
+ * - All market data is AI-estimated (no external validation)
+ */
+function applyMarketRealityWarnings(
+  marketScore: MarketScoreInput | null,
+  existingRedFlags: RedFlag[]
+): RedFlag[] {
+  const redFlags = [...existingRedFlags]
+
+  if (!marketScore) return redFlags
+
+  // Check penetration requirements
+  const penetration = marketScore.penetrationRequired
+  if (penetration > 50) {
+    redFlags.push({
+      severity: 'HIGH',
+      title: 'Unrealistic Market Expectations',
+      message: `Requires ${penetration.toFixed(0)}% market penetration — rarely achievable. Consider higher pricing or narrower niche.`,
+    })
+  } else if (penetration > 25) {
+    redFlags.push({
+      severity: 'MEDIUM',
+      title: 'Challenging Market Dynamics',
+      message: `Requires ${penetration.toFixed(0)}% penetration — ambitious target. Validate with customer discovery.`,
+    })
+  }
+
+  // Check achievability rating
+  if (marketScore.achievability === 'unlikely') {
+    redFlags.push({
+      severity: 'HIGH',
+      title: 'Unlikely to Achieve Goals',
+      message: 'Market math suggests revenue goals may be unrealistic at current pricing.',
+    })
+  } else if (marketScore.achievability === 'difficult') {
+    // Only add if we haven't already flagged high penetration
+    const hasPenetrationWarning = redFlags.some(f => f.title.includes('Market'))
+    if (!hasPenetrationWarning) {
+      redFlags.push({
+        severity: 'MEDIUM',
+        title: 'Difficult Market Path',
+        message: 'Achieving revenue goals will require exceptional execution.',
+      })
+    }
+  }
+
+  return redFlags
+}
+
+/**
+ * Market Warning Type for export to UI
+ */
+export interface MarketWarning {
+  type: 'ai_estimate' | 'high_penetration' | 'saturated_market' | 'no_wtp' | 'declining_trend'
+  severity: 'HIGH' | 'MEDIUM' | 'LOW'
+  message: string
+}
+
+/**
+ * Generate market-specific warnings for UI display.
+ * Returns structured warnings that components can render appropriately.
+ */
+export function generateMarketWarnings(
+  marketScore: MarketScoreInput | null,
+  timingScore: TimingScoreInput | null,
+  painScore: PainScoreInput | null,
+  competitionScore: CompetitionScoreInput | null
+): MarketWarning[] {
+  const warnings: MarketWarning[] = []
+
+  // AI Estimate warning (always show - all TAM/SAM/SOM is AI-estimated)
+  if (marketScore) {
+    warnings.push({
+      type: 'ai_estimate',
+      severity: 'LOW',
+      message: 'Market size estimates are AI-generated. Actual markets may vary 2-10x from estimates.',
+    })
+  }
+
+  // High penetration warning
+  if (marketScore && marketScore.penetrationRequired > 25) {
+    const severity = marketScore.penetrationRequired > 50 ? 'HIGH' : 'MEDIUM'
+    warnings.push({
+      type: 'high_penetration',
+      severity,
+      message: `${marketScore.penetrationRequired.toFixed(0)}% penetration required — ${severity === 'HIGH' ? 'rarely achievable' : 'ambitious target'}.`,
+    })
+  }
+
+  // Market saturation warning
+  if (competitionScore) {
+    const hasFreeAlts = competitionScore.hasFreeAlternatives ?? false
+    const saturated = competitionScore.marketMaturity === 'mature' || competitionScore.competitorCount >= 5
+    if (hasFreeAlts && saturated) {
+      warnings.push({
+        type: 'saturated_market',
+        severity: 'HIGH',
+        message: 'Multiple free alternatives exist in a mature market.',
+      })
+    } else if (saturated) {
+      warnings.push({
+        type: 'saturated_market',
+        severity: 'MEDIUM',
+        message: `${competitionScore.competitorCount} competitors in a ${competitionScore.marketMaturity || 'competitive'} market.`,
+      })
+    }
+  }
+
+  // No WTP warning
+  if (painScore && painScore.willingnessToPayCount === 0 && painScore.totalSignals > 0) {
+    warnings.push({
+      type: 'no_wtp',
+      severity: 'HIGH',
+      message: 'No purchase intent signals found. Users may not pay for this solution.',
+    })
+  }
+
+  // Declining trend warning
+  if (timingScore && timingScore.trend === 'falling') {
+    warnings.push({
+      type: 'declining_trend',
+      severity: 'MEDIUM',
+      message: 'Market interest appears to be declining based on search trends.',
+    })
+  }
+
+  return warnings
+}
+
 // =============================================================================
 // TWO-AXIS VERDICT CALCULATORS (v6 - Report Redesign)
 // =============================================================================
@@ -1206,6 +1340,9 @@ export function calculateViability(
   const competitionCapResult = applyCompetitionCap(calibratedScore, competitionScore, redFlags)
   calibratedScore = competitionCapResult.score
   redFlags = competitionCapResult.redFlags
+
+  // Apply Market Reality Warnings (penetration thresholds, achievability)
+  redFlags = applyMarketRealityWarnings(marketScore, redFlags)
 
   // Always recommend user interviews as the key next step
   if (dimensions.length >= 2) {

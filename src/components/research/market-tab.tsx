@@ -38,6 +38,8 @@ import {
 } from 'lucide-react'
 import type { CompetitorGap, PositioningRecommendation } from '@/types/research'
 import type { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
+import { MarketSignals } from '@/components/research/market-signals'
+import type { MarketWarning } from '@/lib/analysis/viability-calculator'
 
 type MarketSubTab = 'overview' | 'sizing' | 'timing' | 'competition' | 'opportunities' | 'positioning'
 
@@ -92,6 +94,8 @@ export function MarketTab({ jobId, hypothesis }: MarketTabProps) {
           marketData={marketData}
           timingData={timingData}
           competitorData={competitorResult?.data}
+          communityVoiceData={communityVoiceResult}
+          filteringMetrics={data.filteringMetrics}
           onNavigate={setActiveSubTab}
         />
       )}
@@ -136,10 +140,16 @@ interface MarketOverviewDashboardProps {
   marketData: ReturnType<typeof useResearchData>['marketData']
   timingData: ReturnType<typeof useResearchData>['timingData']
   competitorData: CompetitorIntelligenceResult | undefined
+  communityVoiceData: ReturnType<typeof useResearchData>['communityVoiceResult']
+  filteringMetrics: ReturnType<typeof useResearchData>['filteringMetrics']
   onNavigate: (tab: MarketSubTab) => void
 }
 
-function MarketOverviewDashboard({ marketData, timingData, competitorData, onNavigate }: MarketOverviewDashboardProps) {
+function MarketOverviewDashboard({ marketData, timingData, competitorData, communityVoiceData, filteringMetrics, onNavigate }: MarketOverviewDashboardProps) {
+  // Extract verified data for MarketSignals
+  const painSummary = communityVoiceData?.data?.painSummary
+  const metadata = communityVoiceData?.data?.metadata
+
   // Helper for "Why This Matters" context on each card
   const getSizingContext = (score: number) => {
     if (score >= 8) return 'Large opportunity - room to scale'
@@ -200,6 +210,18 @@ function MarketOverviewDashboard({ marketData, timingData, competitorData, onNav
         <h2 className="text-lg font-semibold">Market Overview</h2>
         <Badge variant="outline" className="text-xs">Quick Summary</Badge>
       </div>
+
+      {/* Verified Market Signals - placed prominently at top */}
+      <MarketSignals
+        communitiesCount={painSummary?.topSubreddits?.length}
+        communityNames={painSummary?.topSubreddits?.map((s: { name: string }) => s.name)}
+        totalPostsFound={filteringMetrics?.postsFound}
+        postsAnalyzed={filteringMetrics?.postsAnalyzed}
+        commentsAnalyzed={metadata?.commentsAnalyzed}
+        googleTrendsYoY={timingData?.trendData?.percentageChange}
+        googleTrendsAvailable={timingData?.trendData?.dataAvailable}
+        dataSources={metadata?.dataSources}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Sizing Card */}
@@ -438,6 +460,55 @@ interface SizingSubTabProps {
 function SizingSubTab({ marketData }: SizingSubTabProps) {
   const [showMethodology, setShowMethodology] = useState(false)
 
+  // Generate market-specific warnings based on penetration requirements
+  const getMarketWarnings = (): MarketWarning[] => {
+    if (!marketData) return []
+
+    const warnings: MarketWarning[] = []
+    const penetration = marketData.mscAnalysis.penetrationRequired
+
+    // AI Estimate warning (always shown)
+    warnings.push({
+      type: 'ai_estimate',
+      severity: 'LOW',
+      message: 'All market size estimates are AI-generated via Fermi analysis. Actual markets may vary 2-10x.',
+    })
+
+    // High penetration warning
+    if (penetration > 50) {
+      warnings.push({
+        type: 'high_penetration',
+        severity: 'HIGH',
+        message: `Requires ${penetration.toFixed(0)}% market penetration — rarely achievable. Consider higher pricing or a narrower niche.`,
+      })
+    } else if (penetration > 25) {
+      warnings.push({
+        type: 'high_penetration',
+        severity: 'MEDIUM',
+        message: `Requires ${penetration.toFixed(0)}% penetration — an ambitious target. Validate with customer discovery.`,
+      })
+    }
+
+    // Achievability warnings
+    if (marketData.mscAnalysis.achievability === 'unlikely') {
+      warnings.push({
+        type: 'high_penetration',
+        severity: 'HIGH',
+        message: 'Market math suggests revenue goals may be unrealistic at current pricing.',
+      })
+    } else if (marketData.mscAnalysis.achievability === 'difficult') {
+      warnings.push({
+        type: 'high_penetration',
+        severity: 'MEDIUM',
+        message: 'Achieving revenue goals will require exceptional execution.',
+      })
+    }
+
+    return warnings
+  }
+
+  const warnings = getMarketWarnings()
+
   if (!marketData) {
     return (
       <Card>
@@ -513,6 +584,13 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
               </div>
             )}
           </div>
+
+          {/* Market Reality Warnings */}
+          {warnings.length > 0 && (
+            <div className="mb-6">
+              <MarketWarningsSection warnings={warnings} />
+            </div>
+          )}
 
           {/* TAM/SAM/SOM Funnel Visualization */}
           <div className="flex flex-col items-center space-y-3">
@@ -630,11 +708,12 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
 interface TimingSubTabProps {
   timingData: ReturnType<typeof useResearchData>['timingData']
   discussionVelocity?: {
-    percentageChange: number
-    trend: 'rising' | 'stable' | 'declining'
+    percentageChange: number | null
+    trend: 'rising' | 'stable' | 'declining' | 'insufficient_data'
     recentCount: number
     previousCount: number
-    confidence: 'low' | 'medium' | 'high'
+    confidence: 'low' | 'medium' | 'high' | 'none'
+    insufficientData?: boolean
   }
 }
 
@@ -733,7 +812,9 @@ function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
             {/* Discussion Velocity - CALCULATED from posts */}
             {discussionVelocity && (discussionVelocity.recentCount > 0 || discussionVelocity.previousCount > 0) && (
               <div className={`p-4 rounded-xl border ${
-                discussionVelocity.trend === 'rising'
+                discussionVelocity.insufficientData
+                  ? 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800'
+                  : discussionVelocity.trend === 'rising'
                   ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800'
                   : discussionVelocity.trend === 'declining'
                   ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'
@@ -742,30 +823,42 @@ function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <BarChart3 className={`h-4 w-4 ${
+                      discussionVelocity.insufficientData ? 'text-slate-400' :
                       discussionVelocity.trend === 'rising' ? 'text-emerald-600' :
                       discussionVelocity.trend === 'declining' ? 'text-red-600' : 'text-slate-600'
                     }`} />
                     <span className={`text-sm font-semibold ${
+                      discussionVelocity.insufficientData ? 'text-slate-600 dark:text-slate-400' :
                       discussionVelocity.trend === 'rising' ? 'text-emerald-900 dark:text-emerald-100' :
                       discussionVelocity.trend === 'declining' ? 'text-red-900 dark:text-red-100' : 'text-slate-900 dark:text-slate-100'
                     }`}>Discussion Velocity</span>
                   </div>
                   <TrustBadge level="calculated" size="sm" tooltip="Calculated from post timestamps" />
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className={`text-2xl font-bold ${
-                    discussionVelocity.percentageChange > 0 ? 'text-emerald-600' :
-                    discussionVelocity.percentageChange < 0 ? 'text-red-600' : 'text-slate-600'
-                  }`}>
-                    {discussionVelocity.percentageChange > 0 ? '+' : ''}{discussionVelocity.percentageChange}%
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {discussionVelocity.trend === 'rising' ? '↑' : discussionVelocity.trend === 'declining' ? '↓' : '→'}
-                  </span>
-                </div>
+                {discussionVelocity.insufficientData ? (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400">
+                      Insufficient data
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-2xl font-bold ${
+                      (discussionVelocity.percentageChange ?? 0) > 0 ? 'text-emerald-600' :
+                      (discussionVelocity.percentageChange ?? 0) < 0 ? 'text-red-600' : 'text-slate-600'
+                    }`}>
+                      {(discussionVelocity.percentageChange ?? 0) > 0 ? '+' : ''}{discussionVelocity.percentageChange ?? 0}%
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {discussionVelocity.trend === 'rising' ? '↑' : discussionVelocity.trend === 'declining' ? '↓' : '→'}
+                    </span>
+                  </div>
+                )}
                 <div className="mt-2 text-xs text-muted-foreground">
                   {discussionVelocity.recentCount} posts (90d) vs {discussionVelocity.previousCount} prior
-                  {discussionVelocity.confidence !== 'high' && (
+                  {discussionVelocity.insufficientData ? (
+                    <span className="ml-1 text-amber-600">• Need 5+ baseline posts for reliable trend</span>
+                  ) : discussionVelocity.confidence !== 'high' && discussionVelocity.confidence !== 'none' && (
                     <span className="ml-1 text-amber-600">• {discussionVelocity.confidence} sample</span>
                   )}
                 </div>
@@ -1138,6 +1231,79 @@ function PositioningSubTab({ positioning, gapsCount = 0, onNavigate }: Positioni
           </CardContent>
         </Card>
       ))}
+    </div>
+  )
+}
+
+// =============================================================================
+// Market Warnings Section
+// =============================================================================
+
+interface MarketWarningsSectionProps {
+  warnings: MarketWarning[]
+}
+
+function MarketWarningsSection({ warnings }: MarketWarningsSectionProps) {
+  if (!warnings || warnings.length === 0) return null
+
+  // Separate by severity
+  const highSeverity = warnings.filter(w => w.severity === 'HIGH')
+  const mediumSeverity = warnings.filter(w => w.severity === 'MEDIUM')
+  const lowSeverity = warnings.filter(w => w.severity === 'LOW')
+
+  return (
+    <div className="space-y-3">
+      {/* High severity warnings */}
+      {highSeverity.length > 0 && (
+        <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <span className="font-semibold text-red-800 dark:text-red-200">Critical Concerns</span>
+          </div>
+          <ul className="space-y-1">
+            {highSeverity.map((warning, i) => (
+              <li key={i} className="text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
+                {warning.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Medium severity warnings */}
+      {mediumSeverity.length > 0 && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <span className="font-semibold text-amber-800 dark:text-amber-200">Market Considerations</span>
+          </div>
+          <ul className="space-y-1">
+            {mediumSeverity.map((warning, i) => (
+              <li key={i} className="text-sm text-amber-700 dark:text-amber-300 flex items-start gap-2">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                {warning.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Low severity (info) warnings */}
+      {lowSeverity.length > 0 && (
+        <div className="p-3 bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-700 rounded-lg">
+          <div className="flex items-start gap-2">
+            <Info className="h-4 w-4 text-slate-500 dark:text-slate-400 mt-0.5" />
+            <div className="space-y-1">
+              {lowSeverity.map((warning, i) => (
+                <p key={i} className="text-sm text-slate-600 dark:text-slate-400">
+                  {warning.message}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

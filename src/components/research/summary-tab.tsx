@@ -26,6 +26,7 @@ import { DualVerdictDisplay } from '@/components/research/dual-verdict-display'
 import { DimensionScore, StatusLabels } from '@/lib/analysis/viability-calculator'
 import { cn } from '@/lib/utils'
 import { BarChart3, Info } from 'lucide-react'
+import { DataSourceBadge } from '@/components/ui/data-source-badge'
 
 // ============================================
 // Types
@@ -54,6 +55,12 @@ interface SummaryTabProps {
     trend: string
     growthRate?: number
     timingWindow?: string
+    // Google Trends data (verified)
+    trendData?: {
+      keywords: string[]
+      percentageChange: number
+      dataAvailable: boolean
+    } | null
   }
   filteringMetrics?: {
     postsFound: number
@@ -121,11 +128,14 @@ function extractTopInsights(
     }
   }
 
-  // Market growth
-  if (timing?.growthRate && timing.growthRate > 10) {
+  // Market growth - prefer Google Trends (verified) over AI estimate
+  const googleTrendsYoY = timing?.trendData?.dataAvailable ? timing.trendData.percentageChange : null
+  const growthRate = googleTrendsYoY ?? timing?.growthRate
+
+  if (growthRate !== null && growthRate !== undefined && growthRate > 10) {
     insights.push({
       type: 'timing',
-      text: `Market growing ${timing.growthRate}% YoY - strong timing`,
+      text: `Market growing ${growthRate > 0 ? '+' : ''}${growthRate}% YoY${googleTrendsYoY !== null ? ' (Google Trends)' : ''} - strong timing`,
       icon: TrendingUp,
       color: 'green'
     })
@@ -323,10 +333,13 @@ function MarketCard({ marketData }: { marketData: SummaryTabProps['marketData'] 
   return (
     <Card className="h-full">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <PieChart className="h-4 w-4 text-blue-500" />
-          Market Size
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <PieChart className="h-4 w-4 text-blue-500" />
+            Market Size
+          </CardTitle>
+          <DataSourceBadge type="estimate" showLabel={false} />
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex items-baseline gap-2 mb-1">
@@ -340,13 +353,17 @@ function MarketCard({ marketData }: { marketData: SummaryTabProps['marketData'] 
           {marketData.sam && (
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">SAM</span>
-              <span className="font-medium">{formatNumber(marketData.sam.value)} users</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium">{formatNumber(marketData.sam.value)} users</span>
+              </div>
             </div>
           )}
           {marketData.som && (
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">SOM</span>
-              <span className="font-medium">{formatNumber(marketData.som.value)} users</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium">{formatNumber(marketData.som.value)} users</span>
+              </div>
             </div>
           )}
         </div>
@@ -370,6 +387,12 @@ function TimingCard({ timingData }: { timingData: SummaryTabProps['timingData'] 
     return '↓'
   }
 
+  // Check for Google Trends data (verified source)
+  const hasGoogleTrends = timingData.trendData?.dataAvailable
+  const googleTrendsYoY = hasGoogleTrends ? timingData.trendData?.percentageChange : null
+  // Use Google Trends if available, otherwise fall back to AI estimate
+  const displayGrowthRate = googleTrendsYoY ?? timingData.growthRate
+
   return (
     <Card className="h-full">
       <CardHeader className="pb-2">
@@ -384,20 +407,28 @@ function TimingCard({ timingData }: { timingData: SummaryTabProps['timingData'] 
           <span className="text-muted-foreground">/10</span>
         </div>
         <div className="space-y-2 text-sm">
+          {/* Google Trends YoY - prominently displayed when available */}
+          {displayGrowthRate !== undefined && displayGrowthRate !== null && (
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground">YoY Growth</span>
+                {hasGoogleTrends ? (
+                  <DataSourceBadge type="verified" showLabel={false} />
+                ) : (
+                  <DataSourceBadge type="estimate" showLabel={false} />
+                )}
+              </div>
+              <span className={`font-semibold ${displayGrowthRate > 0 ? 'text-emerald-600 dark:text-emerald-400' : displayGrowthRate < 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+                {displayGrowthRate > 0 ? '+' : ''}{displayGrowthRate}%
+              </span>
+            </div>
+          )}
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">Trend</span>
             <span className={`font-medium ${getTrendColor(timingData.trend)}`}>
               {getTrendIcon(timingData.trend)} {timingData.trend.charAt(0).toUpperCase() + timingData.trend.slice(1)}
             </span>
           </div>
-          {timingData.growthRate !== undefined && (
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Growth</span>
-              <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                +{timingData.growthRate}%
-              </span>
-            </div>
-          )}
           {timingData.timingWindow && (
             <div className="pt-1">
               <Badge variant="secondary" className="text-xs">
@@ -429,10 +460,13 @@ function CompetitionCard({ competitorResult }: { competitorResult?: CompetitorIn
   return (
     <Card className="h-full">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <Shield className="h-4 w-4 text-orange-500" />
-          Competition
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Shield className="h-4 w-4 text-orange-500" />
+            Competition
+          </CardTitle>
+          <DataSourceBadge type="calculated" showLabel={false} />
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex items-baseline gap-2 mb-1">

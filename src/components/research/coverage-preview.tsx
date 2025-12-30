@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink, Sparkles, Database, Smartphone, SlidersHorizontal, Info, Search } from 'lucide-react'
+import { AlertCircle, CheckCircle, AlertTriangle, Loader2, MessageCircle, Plus, X, Globe, MapPin, Building2, DollarSign, Target, FileText, ExternalLink, Sparkles, Database, Smartphone, SlidersHorizontal, Info, Search, Users } from 'lucide-react'
+import { DataSourceBadge } from '@/components/ui/data-source-badge'
 import { QualityPreviewModal, QualityPreviewData, shouldShowQualityWarning } from './quality-preview-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,7 @@ export interface SubredditCoverage {
   estimatedPosts: number
   relevanceScore: 'high' | 'medium' | 'low'
   postsPerDay?: number  // Posting velocity for adaptive time-stratified fetching
+  subscribers?: number  // Subreddit subscriber count (verified from Reddit)
 }
 
 export interface SamplePost {
@@ -27,6 +29,7 @@ export interface SamplePost {
 export interface CoverageData {
   subreddits: SubredditCoverage[]
   totalEstimatedPosts: number
+  totalSubscribers?: number  // Sum of subscriber counts across all subreddits (verified)
   dataConfidence: 'high' | 'medium' | 'low' | 'very_low'
   recommendation: 'proceed' | 'refine' | 'caution'
   refinementSuggestions?: string[]
@@ -124,6 +127,13 @@ const confidenceConfig = {
     badge: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
     label: 'Very limited',
   },
+}
+
+// Helper to format large numbers compactly
+function formatNumber(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`
+  return n.toString()
 }
 
 export function CoveragePreview({
@@ -600,6 +610,19 @@ export function CoveragePreview({
       {/* Communities Section */}
       {coverage.subreddits.length > 0 && (
         <div className="space-y-3">
+          {/* Total Community Members - Verified Data */}
+          {coverage.totalSubscribers && coverage.totalSubscribers > 0 && (
+            <div className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg border">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Total community members</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{formatNumber(coverage.totalSubscribers)}</span>
+                <DataSourceBadge type="verified" showLabel={false} />
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Communities

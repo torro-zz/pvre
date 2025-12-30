@@ -1,7 +1,8 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Database, Calendar, Clock, Users, Info, DollarSign } from 'lucide-react'
+import { Database, Calendar, Clock, Users, Info, DollarSign, Filter } from 'lucide-react'
+import { DataSourceBadge } from '@/components/ui/data-source-badge'
 import { ScoreGauge } from '@/components/ui/score-gauge'
 import { StatBlock } from '@/components/ui/stat-card'
 import { StatusBadge } from '@/components/ui/metric-row'
@@ -224,6 +225,17 @@ export function ResearchHeroStats({
           <Users className="w-3.5 h-3.5" />
           <span>{communitiesCount} communities</span>
         </div>
+
+        {/* Filtering transparency - shows how many posts were found vs matched */}
+        {totalPostsFound > 0 && postsAnalyzed > 0 && (
+          <div className="flex items-center gap-1.5">
+            <Filter className="w-3.5 h-3.5" />
+            <span>
+              {totalPostsFound.toLocaleString()} found → {postsAnalyzed.toLocaleString()} matched ({((postsAnalyzed / totalPostsFound) * 100).toFixed(1)}%)
+            </span>
+            <DataSourceBadge type="verified" showLabel={false} />
+          </div>
+        )}
 
         {dateRange && (
           <div className="flex items-center gap-1.5">

@@ -191,18 +191,25 @@ export interface PreScoreResult {
  * Calculate pre-score for a Reddit post to rank before AI filtering
  * This is a FREE filter (no API calls) that helps select the best candidates
  *
- * Formula: preScore = baseScore * painBoost
+ * Phase 0 Data Quality Initiative: Strengthened first-person requirement
+ * - First-person language gets 35% weight (up from 25%)
+ * - Third-person observations get 40% penalty (new)
+ * - Posts without any perspective markers get 15% penalty
+ *
+ * Formula: preScore = baseScore * painBoost * firstPersonMultiplier
  * where baseScore = (
- *   normalizedUpvotes * 0.35 +
- *   normalizedComments * 0.25 +
- *   (hasFirstPerson ? 0.25 : 0) +
+ *   normalizedUpvotes * 0.30 +
+ *   normalizedComments * 0.20 +
+ *   (hasFirstPerson ? 0.35 : 0) +
  *   recencyBonus * 0.15
  * )
  * and painBoost = 0.7 (curiosity) to 1.5 (high pain)
+ * and firstPersonMultiplier = 1.0 (first person), 0.6 (third person), 0.85 (neutral)
  */
 export function calculatePreScore(post: RedditPost): PreScoreResult {
   const text = `${post.title} ${post.body || ''}`
   const hasFirstPerson = hasFirstPersonLanguage(text)
+  const hasThirdPerson = isThirdPersonObservation(text)
 
   // Normalize upvotes: logarithmic scale (1 upvote = 0.0, 1000+ = 1.0)
   // Using log10: 1 → 0, 10 → 0.33, 100 → 0.67, 1000 → 1.0
@@ -231,15 +238,28 @@ export function calculatePreScore(post: RedditPost): PreScoreResult {
   }
 
   // Calculate base score (weighted sum of factors)
+  // First-person gets higher weight (35% vs 25% before)
   const baseScore =
-    normalizedUpvotes * 0.35 +
-    normalizedComments * 0.25 +
-    (hasFirstPerson ? 0.25 : 0) +
+    normalizedUpvotes * 0.30 +
+    normalizedComments * 0.20 +
+    (hasFirstPerson ? 0.35 : 0) +
     recencyBonus * 0.15
 
   // Apply pain language boost (0.7 - 1.5 multiplier)
   const painBoost = getPainLanguageBoost(text)
-  const score = baseScore * painBoost
+
+  // Apply first-person perspective multiplier (new in Phase 0)
+  // First-person = 1.0 (no change)
+  // Third-person observations = 0.6 (40% penalty - these are rarely useful)
+  // Neutral (no clear perspective) = 0.85 (15% penalty)
+  let firstPersonMultiplier = 1.0
+  if (hasThirdPerson) {
+    firstPersonMultiplier = 0.6  // Strong penalty for "people say..." style posts
+  } else if (!hasFirstPerson) {
+    firstPersonMultiplier = 0.85  // Mild penalty for ambiguous perspective
+  }
+
+  const score = baseScore * painBoost * firstPersonMultiplier
 
   return {
     score,
@@ -1463,22 +1483,30 @@ export async function filterRelevantComments(
 
     const summaries = batch.map((c, idx) => `[${idx + 1}] ${c.body.slice(0, 200)}`).join('\n\n')
 
-    // Use asymmetric matching: STRICT on problem, LOOSE on audience
+    // Phase 0 Data Quality Initiative: Tightened from loose "discusses problem"
+    // to strict first-person + explicit problem expression matching
     const problemDescription = structured?.problem || hypothesis
     const audienceDescription = structured?.audience || ''
 
-    const prompt = `ASYMMETRIC RELEVANCE CHECK for comments:
+    const prompt = `STRICT RELEVANCE CHECK for comments - require FIRSTHAND EXPERIENCE.
 
-PROBLEM (must match): ${problemDescription}
+THE SPECIFIC PROBLEM: ${problemDescription}
 TARGET AUDIENCE: ${audienceDescription}${structured?.problemLanguage ? `
-PHRASES: ${structured.problemLanguage}` : ''}
+PHRASES THAT INDICATE A MATCH: ${structured.problemLanguage}` : ''}
 
-DECISION RULE:
-- Y if comment discusses the problem (even if demographics unstated)
-- N if comment is about a different topic
-- N if comment explicitly states conflicting demographics (e.g., "23F" for "men in 40s")
+Y (PASS) REQUIRES ALL:
+1. First-person language ("I", "we", "my") describing their OWN experience
+2. EXPLICIT expression of THIS SPECIFIC PROBLEM (not just related topics)
+3. Evidence of pain, frustration, or active solution-seeking
 
-CRITICAL: Accept comments about the problem even if author doesn't state their demographics.
+N (REJECT) IF:
+- Generic advice or opinions ("you should...", "people usually...")
+- Third-party observations ("many users say...", "it's common to...")
+- Related topic but DIFFERENT problem
+- Curiosity questions without personal experience
+- Explicitly conflicting demographics (e.g., "23F" for hypothesis about "men in 40s")
+
+When in doubt, classify as N - only pass comments with clear firsthand pain signals.
 
 Comments:
 ${summaries}
@@ -1486,15 +1514,18 @@ ${summaries}
 Respond with ${batch.length} letters (Y or N):`
 
     try {
+      // Phase 0 Data Quality Initiative: Upgraded from Haiku to Sonnet
+      // Comments often contain the highest-pain signals, so accuracy here is critical
+      // Haiku was causing ~64% irrelevance in detected pain signals
       const response = await anthropic.messages.create({
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 100,
         messages: [{ role: 'user', content: prompt }],
       })
 
       const tracker = getCurrentTracker()
       if (tracker && response.usage) {
-        trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
+        trackUsage(tracker, response.usage, 'claude-sonnet-4-20250514')
       }
 
       const content = response.content[0]

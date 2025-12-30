@@ -40,6 +40,42 @@ function parseThemeTier(theme: Theme): Theme {
   }
 }
 
+/**
+ * Determine WTP source reliability based on source type
+ * App reviews > Hacker News > Reddit for purchase intent signals
+ */
+function getWtpSourceReliability(source: string): 'high' | 'medium' | 'low' {
+  const lower = source.toLowerCase()
+
+  // High reliability: App store reviews (actual purchase context)
+  if (lower === 'google_play' || lower === 'app_store' || lower === 'trustpilot') {
+    return 'high'
+  }
+
+  // Medium reliability: Hacker News (tech-savvy, more specific discussions)
+  if (lower === 'hackernews' || lower === 'hacker news' || lower === 'askhn' || lower === 'showhn') {
+    return 'medium'
+  }
+
+  // Low reliability: Reddit (generic discussions, often hypothetical)
+  return 'low'
+}
+
+/**
+ * Enrich WTP signals with source reliability
+ */
+function enrichWtpSignals(signals: (string | WtpSignal)[]): (string | WtpSignal)[] {
+  return signals.map(signal => {
+    if (typeof signal === 'string') {
+      return signal  // Legacy string format, can't enrich
+    }
+    return {
+      ...signal,
+      sourceReliability: getWtpSourceReliability(signal.source),
+    }
+  })
+}
+
 export interface CompetitorInsight {
   name: string
   type: 'direct_competitor' | 'adjacent_solution' | 'workaround'
@@ -61,6 +97,7 @@ export interface WtpSignal {
   source: string  // Actual subreddit name like "entrepreneur" or "google_play"
   type: 'explicit' | 'inferred'  // explicit = clear payment language, inferred = AI interpretation
   url?: string  // Original post/comment URL
+  sourceReliability?: 'high' | 'medium' | 'low'  // high=app reviews, medium=HN, low=Reddit
 }
 
 export interface ThemeAnalysis {
@@ -337,7 +374,7 @@ Identify 3-7 themes, 5-10 customer language phrases, 3-5 key quotes, and 2-3 str
       themes: (parsed.themes || []).map(parseThemeTier),
       customerLanguage: parsed.customerLanguage || [],
       alternativesMentioned: parsed.alternativesMentioned || [],
-      willingnessToPaySignals: parsed.willingnessToPaySignals || [],
+      willingnessToPaySignals: enrichWtpSignals(parsed.willingnessToPaySignals || []),
       overallPainScore: Math.min(10, Math.max(0, parsed.overallPainScore || 0)),
       keyQuotes: enrichedKeyQuotes,
       summary: parsed.summary || 'Analysis complete.',
@@ -552,7 +589,7 @@ Return JSON:
       themes: (parsed.themes || []).map(parseThemeTier),
       customerLanguage: parsed.customerLanguage || [],
       alternativesMentioned: parsed.alternativesMentioned || [],
-      willingnessToPaySignals: parsed.willingnessToPaySignals || [],
+      willingnessToPaySignals: enrichWtpSignals(parsed.willingnessToPaySignals || []),
       overallPainScore: Math.min(10, Math.max(0, parsed.overallPainScore || 0)),
       keyQuotes: enrichedKeyQuotes,
       summary: parsed.summary || 'Analysis complete.',
@@ -657,6 +694,11 @@ function truncateText(text: string, maxLength: number): string {
 
 /**
  * Generate interview questions based on theme analysis
+ *
+ * Phase 0 Data Quality: Added prioritization
+ * - Questions ordered by importance (most critical first)
+ * - Top 2 questions in each category marked with ⭐ prefix (must-ask)
+ * - Questions tied to high-intensity themes get priority
  */
 export async function generateInterviewQuestions(
   themeAnalysis: ThemeAnalysis,
@@ -666,6 +708,12 @@ export async function generateInterviewQuestions(
   problemQuestions: string[]
   solutionQuestions: string[]
 }> {
+  // Get high-intensity themes to inform prioritization
+  const highIntensityThemes = themeAnalysis.themes
+    .filter(t => t.intensity === 'high')
+    .map(t => t.name)
+  const topTheme = themeAnalysis.themes[0]?.name || ''
+
   const systemPrompt = `You are an expert customer interviewer following "The Mom Test" principles.
 
 Generate interview questions that:
@@ -673,12 +721,19 @@ Generate interview questions that:
 - Avoid leading questions
 - Get specific stories and examples
 - Uncover the true severity of problems
-- Identify current solutions and workarounds`
+- Identify current solutions and workarounds
+
+PRIORITIZATION RULES:
+1. Questions about HIGH-INTENSITY pain themes come first
+2. Questions that can quickly validate/invalidate the hypothesis come first
+3. Specific behavior questions beat vague opinion questions
+4. Mark the TOP 2 questions in each category with "⭐ " prefix (these are MUST-ASK)
+5. Order remaining questions by importance (most important first)`
 
   const userPrompt = `Based on this research for the hypothesis: "${hypothesis}"
 
-Top Pain Themes:
-${themeAnalysis.themes.map((t) => `- ${t.name}: ${t.description}`).join('\n')}
+Top Pain Themes (${highIntensityThemes.length > 0 ? `HIGH INTENSITY: ${highIntensityThemes.join(', ')}` : 'none marked high intensity'}):
+${themeAnalysis.themes.map((t) => `- ${t.name} (${t.intensity}): ${t.description}`).join('\n')}
 
 Customer Language:
 ${themeAnalysis.customerLanguage.join(', ')}
@@ -688,12 +743,16 @@ ${themeAnalysis.alternativesMentioned.join(', ') || 'None identified'}
 
 Generate interview questions in JSON format:
 {
-  "contextQuestions": ["5 questions to understand the person's context and background"],
-  "problemQuestions": ["5 questions to explore the problem deeply"],
-  "solutionQuestions": ["5 questions to test solution ideas without leading"]
+  "contextQuestions": ["5 questions ORDERED by importance - first 2 prefixed with ⭐"],
+  "problemQuestions": ["5 questions ORDERED by importance - first 2 prefixed with ⭐, focus on ${topTheme || 'top theme'}"],
+  "solutionQuestions": ["5 questions ORDERED by importance - first 2 prefixed with ⭐"]
 }
 
-Questions should directly relate to the themes and use customer language where appropriate.`
+CRITICAL:
+- Prefix the 2 MOST IMPORTANT questions in each category with "⭐ " (star + space)
+- Order all questions by importance (most critical first, nice-to-have last)
+- Questions about high-intensity themes (${highIntensityThemes.join(', ') || 'N/A'}) should be prioritized
+- Questions should directly relate to the themes and use customer language`
 
   try {
     const response = await anthropic.messages.create({
@@ -731,7 +790,7 @@ Questions should directly relate to the themes and use customer language where a
 }
 
 /**
- * Fallback interview questions
+ * Fallback interview questions (with prioritization markers)
  */
 function getFallbackQuestions(themeAnalysis: ThemeAnalysis): {
   contextQuestions: string[]
@@ -742,22 +801,22 @@ function getFallbackQuestions(themeAnalysis: ThemeAnalysis): {
 
   return {
     contextQuestions: [
-      'Tell me about your typical day/week related to this area.',
-      'How long have you been dealing with this?',
+      '⭐ Tell me about your typical day/week related to this area.',
+      '⭐ How long have you been dealing with this?',
       'What first got you interested in solving this problem?',
       'Who else in your life is affected by this?',
       'What does success look like for you in this area?',
     ],
     problemQuestions: [
-      `When was the last time you experienced ${topTheme}? Walk me through what happened.`,
-      'What have you tried so far to solve this problem?',
+      `⭐ When was the last time you experienced ${topTheme}? Walk me through what happened.`,
+      '⭐ What have you tried so far to solve this problem?',
       'How much time/money have you spent trying to fix this?',
       'What would happen if you never solved this problem?',
       "What's the most frustrating part of dealing with this?",
     ],
     solutionQuestions: [
-      'If you could wave a magic wand, what would the ideal solution look like?',
-      'What would make you switch from your current approach?',
+      '⭐ If you could wave a magic wand, what would the ideal solution look like?',
+      '⭐ What would make you switch from your current approach?',
       'How much would you expect to pay for something that solved this?',
       'Who would you want to build this solution?',
       'What features would be must-haves vs nice-to-haves?',

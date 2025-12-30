@@ -1,71 +1,82 @@
-# Resume Point - December 29, 2025
+# Resume Point - December 30, 2025
 
 ## What Was Just Completed
 
-### Session 3: Landing Page Overhaul
-Complete landing page redesign committed in `359174c`.
+### PVRE Documentation Agent Created
+Created comprehensive agent for deep documentation of PVRE research flow with brutal honesty about data sources.
 
-**Changes Made:**
-1. **Hero Section** - Added "Who this is for" targeting line, rewrote subheadline
-2. **Pain Points** - Visceral, relatable copy that speaks to founder struggles
-3. **Product Preview** - Stylized browser mockup showing actual research results
-4. **Features Grid** - Clean 2x2 bento layout with consistent cards
-5. **FAQ Section** - Accordion with key questions answered
-6. **"The Switch" Bar** - Dark gradient with green accent glow
-7. **Light Mode Colors** - Cool gray palette (#F8FAFC) for modern SaaS feel
-8. **Removed** - Placeholder testimonials section
+**Files created:**
+- `.claude/agents/pvre-documenter.md` — Full agent definition (528 lines)
+- `.claude/commands/document-pvre.md` — Slash command trigger
 
-### Session 2: Backlog Organization
-Brief session to organize backlog items into KNOWN_ISSUES.md for future work tracking.
-
-### Session 1: Short Title Display Feature
-Implemented in commit `0e0bfe6`.
+**Agent includes:**
+- Data classification system (✓/⚠️/=/❌/?)
+- 7-phase execution checkpoints
+- API cost tracking
+- Data freshness checks
+- WTP detection patterns documentation
+- Final file verification script
 
 ## Files Modified This Session
 
 | File | Status | Purpose |
 |------|--------|---------|
-| `src/app/page.tsx` | Committed | Landing page overhaul |
-| `src/app/globals.css` | Committed | Light mode color palette |
-| `docs/KNOWN_ISSUES.md` | Modified | Marked landing page as complete |
-| `docs/RESUME_HERE.md` | Modified | Session state (this file) |
+| `.claude/agents/pvre-documenter.md` | New | Documentation agent with all requirements |
+| `.claude/commands/document-pvre.md` | New | /document-pvre slash command |
+| `.claude/settings.local.json` | Modified | Added permissions for new skill |
+| `docs/RESUME_HERE.md` | Modified | Session state |
 
 ## Uncommitted Changes
 
-- `CLAUDE.md` - Documentation updates
-- `docs/KNOWN_ISSUES.md` - Marked landing page complete
-- `docs/RESUME_HERE.md` - Session state
-
-**Untracked:**
-- `.playwright-mcp/` - MCP config directory
-- `src/components/research/evidence-tab.tsx` - May be orphaned, verify if needed
+⚠️ **WARNING: You have uncommitted changes!**
+- `docs/RESUME_HERE.md` (modified)
+- `.claude/agents/pvre-documenter.md` (new)
+- `.claude/commands/document-pvre.md` (new)
 
 ## Build & Test Status
 
-- **Build:** Passing
+- **Build:** ✅ Passing
 - **Tests:** 128 passing, 6 skipped
 - **Dev Server:** Running on :3000
 
 ## What Needs To Be Done Next
 
-### From Known Issues - Still Open
+### Immediate: Run the Documentation Agent
 
-| Priority | Issue | Notes |
-|----------|-------|-------|
-| **Research Page Bento Grid** | Still single column, needs grid layout |
-| P1 | Direct API Calls Don't Persist | API calls without jobId don't save |
-| Low | Connect Help to Canny | External service config |
-| Low | Clarify API Keys Purpose | Document or remove feature |
+```
+/document-pvre
+```
 
-### From Known Issues - P3 Backlog
+This will run two searches and create 7 output files in ~/Downloads/:
+1. `HYPOTHESIS_SEARCH_DEEP_DIVE.md`
+2. `APP_GAP_SEARCH_DEEP_DIVE.md`
+3. `RAW_DATA_SAMPLES.json`
+4. `CALCULATION_FORMULAS.md`
+5. `INTERVIEW_QUESTIONS_GENERATED.md`
+6. `ONE_PAGE_SUMMARY.md`
+7. `DATA_QUALITY_AUDIT.md`
 
-| Item | Impact | Files |
-|------|--------|-------|
-| App Analysis Results Parity | Inconsistent UX between modes | `research/[id]/page.tsx` |
-| PDF Exports Redesign | Reports too casual | `src/lib/pdf/report-generator.ts` |
-| TAM/SAM/SOM Data Sources | Estimates lack grounded data | `src/lib/analysis/market-sizing.ts` |
-| TikTok Wrapper | Missing social platform | `src/lib/data-sources/` |
-| Google Trends Expansion | Underutilized data | `src/lib/data-sources/google-trends.ts` |
+### From Known Issues (Open Items)
+
+| Issue | Priority | Status |
+|-------|----------|--------|
+| Connect Help Button to Canny | P2 | Deferred |
+| Clarify API Keys Purpose | P2 | Open |
+| Investigate Two-Panel Section | P2 | Open |
+| Redesign Research Page Layout (bento grid) | P1 | Incomplete |
+
+### P3 Backlog
+
+- AI vs Code Audit (determinism)
+- App Analysis Results Parity
+- PDF Exports Professional Redesign
+- TAM/SAM/SOM External Data Sources
+- TikTok Data Source Wrapper
+- Google Trends API Expansion
+
+## User Notes
+
+None
 
 ## Key Files Reference
 
@@ -73,8 +84,9 @@ Implemented in commit `0e0bfe6`.
 |---------|------|
 | Project instructions | `CLAUDE.md` |
 | Known bugs & UX backlog | `docs/KNOWN_ISSUES.md` |
-| Landing page | `src/app/page.tsx` |
-| Global styles | `src/app/globals.css` |
+| Technical overview | `docs/TECHNICAL_OVERVIEW.md` |
+| Documentation agent | `.claude/agents/pvre-documenter.md` |
+| Documentation command | `.claude/commands/document-pvre.md` |
 
 ## Quick Start Commands
 
@@ -83,17 +95,19 @@ Implemented in commit `0e0bfe6`.
 cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine PVRE"
 npm run dev
 
+# Run documentation agent
+/document-pvre
+
 # Run tests
 npm run test:run
 
 # Build
 npm run build
+
+# Add credits if needed
+SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s -X PATCH "$SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H "Content-Type: application/json" -d '{"credits_balance": 10}'
 ```
-
-## User Notes
-
-None
 
 ---
 
-*Last updated: December 29, 2025*
+*Last updated: December 29, 2025 11:15 PM*
