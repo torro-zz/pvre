@@ -1,15 +1,24 @@
 /**
- * 3-Stage Relevance Filter
+ * 4-Stage Relevance Filter (with Embeddings)
  *
+ * Stage 0 (Embedding Gate): Semantic similarity filter using OpenAI embeddings
  * Stage 1 (Domain Gate): Fast AI filter - "Is this post about [domain]?"
  * Stage 2 (Problem Match): Detailed filter - "Does this discuss THIS SPECIFIC problem?"
  * Stage 3 (Quality Gate): Code-only filters - removed/deleted, short, non-English, spam
  *
+ * Pipeline flow:
+ * 1. Quality Gate (FREE) - removes deleted, short, spam
+ * 2. PreFilter Rank (FREE) - engagement + first-person sort
+ * 3. Embedding Gate (~$0.01) - semantic similarity to hypothesis
+ * 4. Domain Gate (cheap Haiku) - only on high-similarity posts
+ * 5. Problem Match (Haiku) - final relevance check
+ *
  * Expected outcomes:
  * - Stage 3 filters 10-20% (garbage removal, no AI cost)
- * - Stage 1 filters 60-70% of remainder (domain mismatch, cheap AI)
- * - Stage 2 filters 30-40% of remainder (problem mismatch)
- * - Final: ~15-25% of original posts retained, but HIGH QUALITY
+ * - Stage 0 filters 50-70% (embedding similarity, ~$0.01)
+ * - Stage 1 filters 30-50% of remainder (domain mismatch)
+ * - Stage 2 filters 20-30% of remainder (problem mismatch)
+ * - Final: ~15-25% of original posts retained, but HIGH QUALITY + RELEVANT
  */
 
 import Anthropic from '@anthropic-ai/sdk'
@@ -17,6 +26,14 @@ import { RedditPost, RedditComment } from '@/lib/data-sources'
 import { StructuredHypothesis } from '@/types/research'
 import { getCurrentTracker } from '@/lib/anthropic'
 import { trackUsage } from '@/lib/analysis/token-tracker'
+import {
+  generateEmbedding,
+  generateEmbeddings,
+  cosineSimilarity,
+  classifySimilarity,
+  isEmbeddingServiceAvailable,
+  SIMILARITY_THRESHOLDS,
+} from '@/lib/embeddings'
 
 const anthropic = new Anthropic()
 
@@ -454,6 +471,9 @@ export interface FilterMetrics {
   filteredOut: number
   filterRate: number
   preFilterSkipped: number  // Low-quality posts skipped before AI processing
+  embeddingFiltered: number  // Embedding gate (Stage 0)
+  embeddingHighSimilarity: number  // Posts with HIGH similarity
+  embeddingMediumSimilarity: number  // Posts with MEDIUM similarity
   stage3Filtered: number  // Quality gate
   stage1Filtered: number  // Domain gate
   stage2Filtered: number  // Problem match
@@ -1247,6 +1267,9 @@ export async function filterRelevantPosts(
     filteredOut: 0,
     filterRate: 0,
     preFilterSkipped: 0,
+    embeddingFiltered: 0,
+    embeddingHighSimilarity: 0,
+    embeddingMediumSimilarity: 0,
     stage3Filtered: 0,
     stage1Filtered: 0,
     stage2Filtered: 0,
@@ -1261,7 +1284,7 @@ export async function filterRelevantPosts(
     return { items: [], coreItems: [], relatedItems: [], metrics, decisions: [] }
   }
 
-  sendProgress?.(`Starting 3-stage relevance filter on ${posts.length} posts...`)
+  sendProgress?.(`Starting 4-stage relevance filter on ${posts.length} posts...`)
 
   // STAGE 3: Quality Gate (run first - free, removes garbage)
   const stage3 = qualityGateFilter(posts, 50)
@@ -1280,12 +1303,94 @@ export async function filterRelevantPosts(
 
   // PRE-FILTER: Rank posts by pre-score before AI processing
   // This prioritizes first-person language, engagement, and recency
-  // Reduces AI costs by only sending top candidates to domain gate
-  const MAX_CANDIDATES_FOR_AI = 150
-  const { posts: rankedPosts } = preFilterAndRank(stage3.passed, MAX_CANDIDATES_FOR_AI)
+  // Reduces AI costs by only sending top candidates to embedding gate
+  const MAX_CANDIDATES_FOR_EMBEDDING = 300  // Increased since embeddings are cheap
+  const { posts: rankedPosts } = preFilterAndRank(stage3.passed, MAX_CANDIDATES_FOR_EMBEDDING)
   metrics.preFilterSkipped = stage3.passed.length - rankedPosts.length
   if (metrics.preFilterSkipped > 0) {
-    sendProgress?.(`Pre-filter: ranked ${stage3.passed.length} posts, sending top ${rankedPosts.length} to AI (${metrics.preFilterSkipped} low-quality skipped)`)
+    sendProgress?.(`Pre-filter: ranked ${stage3.passed.length} posts, sending top ${rankedPosts.length} to embedding gate (${metrics.preFilterSkipped} low-quality skipped)`)
+  }
+
+  // STAGE 0: Embedding Gate (semantic similarity filter)
+  // Only posts with similarity >= MEDIUM threshold (0.55) pass to AI filtering
+  let postsForDomainGate = rankedPosts
+  let hypothesisEmbedding: number[] | null = null
+
+  if (isEmbeddingServiceAvailable()) {
+    sendProgress?.(`Stage 0 (Embedding): generating hypothesis embedding...`)
+
+    // Generate hypothesis embedding
+    // For short hypotheses (app gap searches like "Slack"), expand to capture pain/problem context
+    let hypothesisText = structured
+      ? `${structured.audience} ${structured.problem} ${structured.problemLanguage || ''}`
+      : hypothesis
+
+    // Expand short hypotheses to create better embeddings
+    const wordCount = hypothesisText.trim().split(/\s+/).length
+    if (wordCount <= 3) {
+      // Short query - likely an app name or single concept
+      // Expand to capture problem/pain context for better matching
+      hypothesisText = `Problems, frustrations, and pain points with ${hypothesisText}. Users complaining about ${hypothesisText}.`
+      sendProgress?.(`Stage 0 (Embedding): expanded short query to: "${hypothesisText.slice(0, 60)}..."`)
+    }
+
+    hypothesisEmbedding = await generateEmbedding(hypothesisText)
+
+    if (hypothesisEmbedding && hypothesisEmbedding.length > 0) {
+      // Generate embeddings for all ranked posts
+      const postTexts = rankedPosts.map(p => `${p.title} ${p.body || ''}`.slice(0, 500))
+      sendProgress?.(`Stage 0 (Embedding): generating embeddings for ${postTexts.length} posts...`)
+
+      const postEmbeddings = await generateEmbeddings(postTexts)
+
+      // Compare similarities and filter
+      const highSimilarity: RedditPost[] = []
+      const mediumSimilarity: RedditPost[] = []
+      let lowFiltered = 0
+
+      for (let i = 0; i < rankedPosts.length; i++) {
+        const embedding = postEmbeddings[i]?.embedding
+        if (!embedding || embedding.length === 0) {
+          // If embedding failed, pass through to AI filter
+          mediumSimilarity.push(rankedPosts[i])
+          continue
+        }
+
+        const similarity = cosineSimilarity(hypothesisEmbedding, embedding)
+        const tier = classifySimilarity(similarity)
+
+        if (tier === 'HIGH') {
+          highSimilarity.push(rankedPosts[i])
+        } else if (tier === 'MEDIUM') {
+          mediumSimilarity.push(rankedPosts[i])
+        } else {
+          lowFiltered++
+          // Add decision for filtered posts
+          allDecisions.push({
+            reddit_id: rankedPosts[i].id,
+            title: rankedPosts[i].title,
+            body_preview: (rankedPosts[i].body || '').slice(0, 200),
+            subreddit: rankedPosts[i].subreddit,
+            decision: 'N',
+            stage: 'quality',  // Using 'quality' for embedding stage since no 'embedding' option
+            reason: `low_similarity_${similarity.toFixed(2)}`,
+          })
+        }
+      }
+
+      metrics.embeddingHighSimilarity = highSimilarity.length
+      metrics.embeddingMediumSimilarity = mediumSimilarity.length
+      metrics.embeddingFiltered = lowFiltered
+
+      // Combine HIGH and MEDIUM for domain gate (HIGH first for priority)
+      postsForDomainGate = [...highSimilarity, ...mediumSimilarity]
+
+      sendProgress?.(`Stage 0 (Embedding): ${highSimilarity.length} HIGH + ${mediumSimilarity.length} MEDIUM similarity, ${lowFiltered} filtered (< ${SIMILARITY_THRESHOLDS.MEDIUM})`)
+    } else {
+      sendProgress?.(`Stage 0 (Embedding): hypothesis embedding failed, falling back to AI-only filtering`)
+    }
+  } else {
+    sendProgress?.(`Stage 0 (Embedding): OPENAI_API_KEY not set, skipping embedding filter`)
   }
 
   // STAGE 1: Domain Gate (fast, cheap AI filter)
@@ -1293,7 +1398,7 @@ export async function filterRelevantPosts(
   sendProgress?.(`Extracted problem domain: "${domain}"`)
 
   const stage1 = await domainGateFilter(
-    rankedPosts,
+    postsForDomainGate,
     domain,
     antiDomains,
     sendProgress
@@ -1442,6 +1547,9 @@ export async function filterRelevantComments(
     filteredOut: 0,
     filterRate: 0,
     preFilterSkipped: 0,  // Low-quality comments skipped before AI processing
+    embeddingFiltered: 0,  // Not used for comments yet
+    embeddingHighSimilarity: 0,
+    embeddingMediumSimilarity: 0,
     stage3Filtered: 0,
     stage1Filtered: 0,
     stage2Filtered: 0,
@@ -1514,18 +1622,17 @@ ${summaries}
 Respond with ${batch.length} letters (Y or N):`
 
     try {
-      // Phase 0 Data Quality Initiative: Upgraded from Haiku to Sonnet
-      // Comments often contain the highest-pain signals, so accuracy here is critical
-      // Haiku was causing ~64% irrelevance in detected pain signals
+      // Reverted to Haiku: Embeddings pre-filter will handle relevance,
+      // Haiku does final pass on already-filtered candidates
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-3-5-haiku-latest',
         max_tokens: 100,
         messages: [{ role: 'user', content: prompt }],
       })
 
       const tracker = getCurrentTracker()
       if (tracker && response.usage) {
-        trackUsage(tracker, response.usage, 'claude-sonnet-4-20250514')
+        trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
       }
 
       const content = response.content[0]

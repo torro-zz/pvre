@@ -329,6 +329,39 @@ export type Database = {
         }
         Relationships: []
       }
+      embedding_cache: {
+        Row: {
+          id: string
+          text_hash: string
+          text_preview: string
+          embedding: string  // pgvector returns as string
+          model: string
+          created_at: string | null
+          last_used_at: string | null
+          use_count: number | null
+        }
+        Insert: {
+          id?: string
+          text_hash: string
+          text_preview: string
+          embedding: string
+          model?: string
+          created_at?: string | null
+          last_used_at?: string | null
+          use_count?: number | null
+        }
+        Update: {
+          id?: string
+          text_hash?: string
+          text_preview?: string
+          embedding?: string
+          model?: string
+          created_at?: string | null
+          last_used_at?: string | null
+          use_count?: number | null
+        }
+        Relationships: []
+      }
       credit_transactions: {
         Row: {
           amount: number
@@ -764,6 +797,7 @@ export type Database = {
           error_source: string | null
           folder_id: string | null
           hypothesis: string
+          hypothesis_embedding: string | null  // pgvector
           id: string
           idempotency_key: string | null
           interview_guide: Json | null
@@ -784,6 +818,7 @@ export type Database = {
           error_source?: string | null
           folder_id?: string | null
           hypothesis: string
+          hypothesis_embedding?: string | null
           id?: string
           idempotency_key?: string | null
           interview_guide?: Json | null
@@ -804,6 +839,7 @@ export type Database = {
           error_source?: string | null
           folder_id?: string | null
           hypothesis?: string
+          hypothesis_embedding?: string | null
           id?: string
           idempotency_key?: string | null
           interview_guide?: Json | null
