@@ -519,13 +519,11 @@ export function passesKeywordGate(text: string, keywords: string[]): boolean {
     return true
   }
 
-  // Check 2: Does the text contain 2+ single words AND at least 1 problem indicator?
-  // This prevents matching generic payment discussions (taxes, salaries)
-  const matchedWords = singleWords.filter(word => lowerText.includes(word))
-  if (matchedWords.length >= 2) {
-    // At least one matched word must indicate a PROBLEM (late, owed, delay, etc.)
-    const hasProblemIndicator = matchedWords.some(word => PROBLEM_INDICATORS.has(word))
-    if (hasProblemIndicator) {
+  // Check 2: Does the text contain ANY problem indicator word?
+  // Problem indicators are strong enough signals on their own (late, unpaid, owed, etc.)
+  // The embedding filter will catch false positives
+  for (const word of singleWords) {
+    if (PROBLEM_INDICATORS.has(word) && lowerText.includes(word)) {
       return true
     }
   }

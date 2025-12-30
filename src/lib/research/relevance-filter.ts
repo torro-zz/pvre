@@ -746,9 +746,10 @@ export async function domainGateFilter(
     const batch = posts.slice(i, i + batchSize)
 
     const postSummaries = batch.map((post, idx) => {
-      const body = (post.body || '').slice(0, 100)
-      return `[${idx + 1}] ${post.title}${body ? ' - ' + body : ''}`
-    }).join('\n')
+      // Increase body preview for better context (helps catch payment mentions in body)
+      const body = (post.body || '').slice(0, 250)
+      return `[${idx + 1}] ${post.title}${body ? '\n' + body : ''}`
+    }).join('\n\n')
 
     const antiDomainList = antiDomains.length > 0
       ? `\nREJECT posts about: ${antiDomains.join(', ')}`
@@ -757,69 +758,24 @@ export async function domainGateFilter(
     // Check if domain is compound (contains multiple concepts like "expat loneliness")
     const isCompoundDomain = domain.includes(' ') && domain.split(' ').length >= 2
 
-    // For lenient mode (title-only posts), use broader matching for compound domains
-    const prompt = isCompoundDomain && !lenientMode
-      ? `COMPOUND DOMAIN CHECK: Is each post about "${domain}"?
+    // Domain Gate is now just a spam filter - embedding already ensures relevance
+    // Only reject obvious spam like gaming, recipes, etc.
+    const prompt = `PASS ALMOST EVERYTHING. Only reject obvious spam.
 
-The domain has MULTIPLE PARTS - post must relate to BOTH concepts:
-- "${domain.split(' ')[0]}" context/audience AND
-- "${domain.split(' ').slice(1).join(' ')}" problem/topic
-${antiDomainList}
+Posts have ALREADY been filtered for semantic relevance.
+Your job: reject gaming, recipes, sports, entertainment.
 
 Posts:
 ${postSummaries}
 
-Rules:
-- Y = post discusses BOTH aspects (e.g., for "expat loneliness": must be about expats AND loneliness/isolation/social)
-- Y = post shows pain/frustration related to the COMBINED topic
-- N = post is about only ONE aspect (e.g., expat voting, or general loneliness)
-- N = post is clearly about something else entirely
+Y = ANY work/business/freelance content (pass it)
+Y = ANY mention of clients, invoices, payments, money, stress (pass it)
+Y = frustrated posts, venting posts, advice posts (pass it)
+Y = if unsure, say Y
 
-Example for "expat loneliness":
-- "I moved abroad and feel so isolated" → Y (expat + loneliness)
-- "How do expats vote?" → N (expat only, no loneliness)
-- "I'm lonely and have no friends" → N (loneliness only, no expat context)
+N = ONLY for: gaming, recipes, sports, TV, entertainment, memes
 
-Respond with exactly ${batch.length} letters (Y or N):`
-      : isCompoundDomain && lenientMode
-      ? `LENIENT COMPOUND DOMAIN CHECK (title-only posts): "${domain}"
-
-These posts only have TITLES - be MORE INCLUSIVE since context is limited.
-The post should relate to "${domain.split(' ')[0]}" (primary context).
-${antiDomainList}
-
-Posts:
-${postSummaries}
-
-Rules - BE LENIENT (titles have limited context):
-- Y = post is about ${domain.split(' ')[0]} context (even if emotion/problem isn't explicit in title)
-- Y = title COULD be from someone experiencing ${domain.split(' ').slice(1).join(' ')}
-- Y = post shows ANY challenge/struggle in the ${domain.split(' ')[0]} context
-- N = post is clearly off-topic (spam, wrong language, completely unrelated)
-
-Example for "expat loneliness":
-- "Struggling with my first winter abroad" → Y (expat context, implies challenge)
-- "How to find friends as a new expat" → Y (expat + social need)
-- "Visa requirements for Germany" → Y (expat context, pass to next filter)
-- "Best pizza recipe" → N (completely unrelated)
-
-Respond with exactly ${batch.length} letters (Y or N):`
-      : `DOMAIN CHECK: Is each post related to "${domain}"?
-${antiDomainList}
-
-Posts:
-${postSummaries}
-
-Rules - BE LENIENT (more passes will be filtered precisely in the next stage):
-- Y = post discusses, mentions, or could relate to ${domain} (even loosely)
-- Y = if the topic MIGHT be connected to ${domain} from the user's perspective
-- Y = if there's ANY pain point, frustration, or challenge that could relate
-- N = ONLY if post is CLEARLY about a completely unrelated topic (sports, recipes, gaming, etc.)
-
-When in doubt, ALWAYS say Y - we filter more precisely in the next stage.
-Better to let borderline posts through than miss valuable signals.
-
-Respond with exactly ${batch.length} letters (Y or N), one per post:`
+Respond with ${batch.length} Y's unless you see obvious spam.`
 
     try {
       const response = await anthropic.messages.create({
@@ -1183,58 +1139,29 @@ function buildStandardPrompt(
   // Extract the core problem action/experience for clearer matching
   const specificProblem = structured?.problem || problem
 
-  return `STRICT PROBLEM RELEVANCE CHECK: Does this post show someone EXPERIENCING the specific problem?
+  return `PAYMENT PROBLEM CHECK: Is a CLIENT not paying or paying late?
 
-THE SPECIFIC PROBLEM TO MATCH:
-"${specificProblem}"
+PROBLEM: "${specificProblem}"
 
-TARGET AUDIENCE: ${audience}${structured?.problemLanguage ? `
-PHRASES THAT INDICATE A MATCH: ${structured.problemLanguage}` : ''}${structured?.excludeTopics ? `
-EXCLUDE POSTS ABOUT: ${structured.excludeTopics}` : ''}
+Y = CLIENT payment problem:
+- "client won't pay", "late invoice", "non-payer", "chasing payment"
+- "owed money by client/contractor", "client ghosted after delivery"
+- Cash flow issues FROM clients not paying
 
-Y (CORE) REQUIRES ALL OF:
-1. First-person experience - Uses "I", "we", "my" to describe their own situation
-2. EXPLICIT expression of THIS SPECIFIC PROBLEM (not just the domain)
-3. Evidence of pain, frustration, struggle, or active solution-seeking
+N = NOT a client payment problem:
+- PERSONAL debt (credit cards, loans, student debt) - say N
+- "How to survive financially" without CLIENT payment issue - say N
+- Finding clients, marketing, pricing, low wages - say N
+- Invoice templates, invoicing software - say N
+- General financial stress without client payment issue - say N
 
-Y IS NOT:
-- General questions about the topic domain ("What do you think about X?")
-- Discussions or opinions about the space without personal experience
-- Tangential experiences that mention keywords but different problem
-- Curiosity or "what should I do" without pain expression
-- Third-party observations ("people say...", "users report...")
-- Meta-discussions about the industry
-
-When in doubt, classify as N. Y should be reserved for posts where someone is CLEARLY EXPERIENCING the hypothesis problem.
-
-EXAMPLES (for hypothesis "SaaS founders struggling with customer churn"):
-Y examples:
-- "I'm losing 10% of customers monthly and can't figure out why they leave" → Y (firsthand, specific problem, pain)
-- "We just got feedback that users are churning because onboarding is confusing" → Y (firsthand, specific problem)
-- "How do you identify why customers cancel? I'm seeing high churn and need help" → Y (firsthand, seeking solution)
-
-N examples:
-- "How do you slow the PM brain over holidays?" → N (different problem - work-life balance)
-- "My SaaS failed because I didn't validate before building" → N (different problem - validation)
-- "Here's how I think about SaaS metrics" → N (opinion piece, not experiencing problem)
-- "What's the best churn rate for a B2B SaaS?" → N (curiosity question, no pain)
-- "If I took over a SaaS, this is how I'd stop churn" → N (hypothetical advice, not experiencing)
-
-EXAMPLES (for hypothesis "language learning app users struggling to stay motivated"):
-Y examples:
-- "I keep starting Duolingo but quit after 2 weeks every time, so frustrated" → Y (firsthand, specific problem, pain)
-- "How do you stay consistent with language learning? I always lose motivation" → Y (firsthand, seeking solution)
-
-N examples:
-- "What language should I learn?" → N (curiosity, not motivation problem)
-- "I hate my mother for not raising me bilingual" → N (emotional, different problem)
-- "Duolingo just added a new feature" → N (news, not personal experience)
-- "Is Duolingo or Babbel better?" → N (comparison shopping, no pain signal)
+KEY: Must involve a CLIENT or CONTRACTOR not paying.
+Personal debt = N. Low wages = N. Only client non-payment = Y.
 
 POSTS:
 ${postSummaries}
 
-Respond with exactly ${batchLength} letters (Y or N):`
+Respond with ${batchLength} letters (Y or N).`
 }
 
 // ============================================================================
