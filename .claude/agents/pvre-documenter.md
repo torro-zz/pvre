@@ -102,13 +102,16 @@ Use these throughout to verify data persisted:
 
 ```bash
 # Check recent jobs
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s "$SUPABASE_URL/rest/v1/research_jobs?order=created_at.desc&limit=3&select=id,hypothesis,status,created_at" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
+# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?order=created_at.desc&limit=3&select=id,hypothesis,status,created_at" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 
 # Check specific job has data (replace JOB_ID)
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.JOB_ID" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" | jq '.[0] | {status, pain_signals_count: (.pain_signals | length), has_coverage: (.coverage_data != null)}'
+# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.JOB_ID" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" | jq '.[0] | {status, pain_signals_count: (.pain_signals | length), has_coverage: (.coverage_data != null)}'
 
 # Check research_results table for job
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s "$SUPABASE_URL/rest/v1/research_results?job_id=eq.JOB_ID&select=module_name,created_at" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
+# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_results?job_id=eq.JOB_ID&select=module_name,created_at" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 ```
 
 ---
@@ -141,12 +144,14 @@ curl -s http://localhost:3000 > /dev/null && echo "Server: OK" || echo "Server: 
 
 ### Step 1.2: Check test user credits
 ```bash
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s "$SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d&select=credits_balance" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
+# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d&select=credits_balance" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 ```
 
 **BLOCKING GATE:** If credits < 2, add credits first:
 ```bash
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s -X PATCH "$SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H "Content-Type: application/json" -d '{"credits_balance": 10}'
+# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s -X PATCH "$SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H "Content-Type: application/json" -d '{"credits_balance": 10}'
 ```
 
 **PROOF REQUIRED:** Paste credits check output:
@@ -168,7 +173,8 @@ Note the count. After searches, you must have MORE screenshots than this baselin
 
 ### Step 1.4: Note most recent job in database (for comparison later)
 ```bash
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s "$SUPABASE_URL/rest/v1/research_jobs?order=created_at.desc&limit=1&select=id,created_at" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
+# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?order=created_at.desc&limit=1&select=id,created_at" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 ```
 
 **PROOF REQUIRED:** Most recent job before we start:
@@ -363,7 +369,8 @@ Using the job_id from Step 2.6, verify the data actually saved:
 
 ```bash
 # Replace JOB_ID with actual ID from Step 2.6
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[JOB_ID]" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
+# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[JOB_ID]" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 ```
 
 **BLOCKING GATE:** The response MUST show:
@@ -424,7 +431,8 @@ Use `app-00-*.png`, `app-01-*.png`, etc. naming.
 
 ```bash
 # Replace JOB_ID with actual ID from this search
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[JOB_ID]" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
+# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[JOB_ID]" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 ```
 
 **PROOF REQUIRED:**
@@ -512,7 +520,8 @@ Now that we verified data persisted, query the actual pain signals:
 
 ```bash
 # Get actual pain signals from hypothesis search
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[HYP_JOB_ID]&select=pain_signals" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" | jq '.[0].pain_signals[:5]'
+# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[HYP_JOB_ID]&select=pain_signals" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" | jq '.[0].pain_signals[:5]'
 ```
 
 **PROOF REQUIRED:** List 5 ACTUAL pain signal titles from the database:
@@ -629,7 +638,8 @@ ls ~/Downloads/hyp-*.png ~/Downloads/app-*.png 2>/dev/null | wc -l
 
 ```bash
 echo "=== PERSISTENCE VERIFICATION ===" && \
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" && \
+# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && && \
 echo "Hypothesis job:" && \
 curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[HYP_JOB_ID]" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" | jq '.[0] | {id, status, pain_signals_count: (.pain_signals | length), has_coverage: (.coverage_data != null)}' && \
 echo "App Gap job:" && \
