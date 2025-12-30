@@ -2,36 +2,34 @@
 
 ## What Was Just Completed
 
-### PVRE Documentation Agent Created
-Created comprehensive agent for deep documentation of PVRE research flow with brutal honesty about data sources.
+### Security Incident Response - Leaked Supabase Service Key
+GitHub detected a Supabase service_role key committed to the repository. Full remediation completed:
 
-**Files created:**
-- `.claude/agents/pvre-documenter.md` — Full agent definition (528 lines)
-- `.claude/commands/document-pvre.md` — Slash command trigger
-
-**Agent includes:**
-- Data classification system (✓/⚠️/=/❌/?)
-- 7-phase execution checkpoints
-- API cost tracking
-- Data freshness checks
-- WTP detection patterns documentation
-- Final file verification script
+1. **JWT Secret Rotated** — Old leaked key now returns 401 (invalid)
+2. **New Key Verified** — API calls succeed with new service_role key
+3. **Pre-commit Hook Installed** — `.githooks/pre-commit` now blocks:
+   - Long JWT tokens (Supabase keys)
+   - AWS access keys (`AKIA...`)
+   - Anthropic API keys (`sk-ant-...`)
+   - OpenAI API keys (`sk-...`)
+   - Private key blocks
+   - Hardcoded `SERVICE_KEY=` assignments
+4. **Git History Purged** — BFG replaced secret with `***REMOVED***` in all commits
+5. **Force Pushed** — GitHub now has clean history
+6. **Agent Files Fixed** — `pvre-documenter.md` updated to use env vars
 
 ## Files Modified This Session
 
 | File | Status | Purpose |
 |------|--------|---------|
-| `.claude/agents/pvre-documenter.md` | New | Documentation agent with all requirements |
-| `.claude/commands/document-pvre.md` | New | /document-pvre slash command |
-| `.claude/settings.local.json` | Modified | Added permissions for new skill |
-| `docs/RESUME_HERE.md` | Modified | Session state |
+| `.githooks/pre-commit` | New | Pre-commit hook to block secrets |
+| `.githooks/setup.sh` | New | Setup script for hooks |
+| `docs/RESUME_HERE.md` | Modified | Removed hardcoded key |
+| `.claude/agents/pvre-documenter.md` | Modified | Replaced `***REMOVED***` with env vars |
 
 ## Uncommitted Changes
 
-⚠️ **WARNING: You have uncommitted changes!**
-- `docs/RESUME_HERE.md` (modified)
-- `.claude/agents/pvre-documenter.md` (new)
-- `.claude/commands/document-pvre.md` (new)
+✅ All changes committed
 
 ## Build & Test Status
 
@@ -41,22 +39,22 @@ Created comprehensive agent for deep documentation of PVRE research flow with br
 
 ## What Needs To Be Done Next
 
-### Immediate: Run the Documentation Agent
+### Priority: Embedding Pre-Filter Implementation
+**Previous session planned this** — see `~/Downloads/Haiku and Embeddings Review.md`
 
-```
-/document-pvre
-```
+| Step | Description |
+|------|-------------|
+| 1 | Revert comment filter from Sonnet → Haiku |
+| 2 | Supabase pgvector setup |
+| 3 | Create embedding service (OpenAI `text-embedding-3-large`) |
+| 4 | Pipeline integration |
+| 5 | WTP verification |
+| 6 | Testing & calibration |
 
-This will run two searches and create 7 output files in ~/Downloads/:
-1. `HYPOTHESIS_SEARCH_DEEP_DIVE.md`
-2. `APP_GAP_SEARCH_DEEP_DIVE.md`
-3. `RAW_DATA_SAMPLES.json`
-4. `CALCULATION_FORMULAS.md`
-5. `INTERVIEW_QUESTIONS_GENERATED.md`
-6. `ONE_PAGE_SUMMARY.md`
-7. `DATA_QUALITY_AUDIT.md`
+**Requires:** `OPENAI_API_KEY` environment variable (already in .env.local)
+**Target:** 64% irrelevance → <10%
 
-### From Known Issues (Open Items)
+### From Known Issues (Remaining)
 
 | Issue | Priority | Status |
 |-------|----------|--------|
@@ -66,7 +64,6 @@ This will run two searches and create 7 output files in ~/Downloads/:
 | Redesign Research Page Layout (bento grid) | P1 | Incomplete |
 
 ### P3 Backlog
-
 - AI vs Code Audit (determinism)
 - App Analysis Results Parity
 - PDF Exports Professional Redesign
@@ -74,9 +71,18 @@ This will run two searches and create 7 output files in ~/Downloads/:
 - TikTok Data Source Wrapper
 - Google Trends API Expansion
 
+## Security Note
+
+**Pre-commit hooks are now active.** Future commits will be scanned for secrets.
+
+For new clones, run:
+```bash
+./.githooks/setup.sh
+```
+
 ## User Notes
 
-None
+**At startup:** Go over what was done this session as a summary, then review what else needs to be done.
 
 ## Key Files Reference
 
@@ -85,8 +91,9 @@ None
 | Project instructions | `CLAUDE.md` |
 | Known bugs & UX backlog | `docs/KNOWN_ISSUES.md` |
 | Technical overview | `docs/TECHNICAL_OVERVIEW.md` |
-| Documentation agent | `.claude/agents/pvre-documenter.md` |
-| Documentation command | `.claude/commands/document-pvre.md` |
+| Pre-commit hook | `.githooks/pre-commit` |
+| Embedding plan | `~/Downloads/Haiku and Embeddings Review.md` |
+| Data quality brief | `docs/data-quality/DATA_QUALITY_BRIEF.md` |
 
 ## Quick Start Commands
 
@@ -95,17 +102,17 @@ None
 cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine PVRE"
 npm run dev
 
-# Run documentation agent
-/document-pvre
-
 # Run tests
 npm run test:run
 
 # Build
 npm run build
 
+# Setup git hooks (for new clones)
+./.githooks/setup.sh
+
 # Add credits if needed (source .env.local first)
-curl -s -X PATCH "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d" \
+source .env.local && curl -s -X PATCH "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d" \
   -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
@@ -114,4 +121,4 @@ curl -s -X PATCH "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d
 
 ---
 
-*Last updated: December 29, 2025 11:15 PM*
+*Last updated: December 30, 2025 (Security remediation - leaked key rotated, pre-commit hooks added)*
