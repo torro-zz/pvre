@@ -10,7 +10,13 @@ export {
   filterByMultiFacetSimilarity,
   isEmbeddingServiceAvailable,
   SIMILARITY_THRESHOLDS,
+  // New problem-focused embedding functions
+  extractProblemFocus,
+  passesKeywordGate,
+  applyKeywordGate,
+  generateProblemFocusedEmbeddings,
   type EmbeddingResult,
   type SimilarityResult,
   type SimilarityTier,
+  type ProblemFocus,
 } from './embedding-service'

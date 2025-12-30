@@ -28,12 +28,15 @@ import { getCurrentTracker } from '@/lib/anthropic'
 import { trackUsage } from '@/lib/analysis/token-tracker'
 import {
   generateEmbeddings,
-  cosineSimilarity,
   classifySimilarity,
   generateMultiFacetEmbeddings,
   maxSimilarityAcrossFacets,
   isEmbeddingServiceAvailable,
   SIMILARITY_THRESHOLDS,
+  // New problem-focused embedding functions (Dec 2025)
+  extractProblemFocus,
+  passesKeywordGate,
+  generateProblemFocusedEmbeddings,
 } from '@/lib/embeddings'
 
 const anthropic = new Anthropic()
@@ -1312,27 +1315,61 @@ export async function filterRelevantPosts(
     sendProgress?.(`Pre-filter: ranked ${stage3.passed.length} posts, sending top ${rankedPosts.length} to embedding gate (${metrics.preFilterSkipped} low-quality skipped)`)
   }
 
-  // STAGE 0: Embedding Gate (multi-facet semantic similarity filter)
-  // Uses 3 embeddings (pain, solution, experience) and takes MAX similarity
-  // Only posts with max similarity >= MEDIUM threshold (0.35) pass to AI filtering
+  // STAGE 0: Problem-Focused Embedding Gate (Dec 2025 Quality Improvement)
+  // TWO-STAGE filter:
+  // 1. KEYWORD GATE: Posts must contain at least one problem-specific keyword
+  // 2. EMBEDDING GATE: Compare against problem-focused embeddings (not full hypothesis)
+  //
+  // This solves the 64% irrelevance problem by separating AUDIENCE from PROBLEM:
+  // - Old: "Freelancers struggling to get paid" → "freelancer" vocabulary dominates embedding
+  // - New: Extract "paid, payment, invoice, late" keywords + "not getting paid" problem text
   let postsForDomainGate = rankedPosts
 
+  // Extract problem focus BEFORE embedding check - we need keywords for title-only posts too
+  sendProgress?.(`Stage 0 (Embedding): extracting problem focus from hypothesis...`)
+  const problemFocus = await extractProblemFocus(hypothesis)
+  sendProgress?.(`Stage 0 (Embedding): extracted ${problemFocus.keywords.length} keywords: ${problemFocus.keywords.slice(0, 5).join(', ')}...`)
+
   if (isEmbeddingServiceAvailable()) {
-    sendProgress?.(`Stage 0 (Embedding): generating multi-facet hypothesis embeddings...`)
 
-    // Build hypothesis text for embedding
-    // Multi-facet embeddings handle expansion internally (pain/solution/experience angles)
-    const hypothesisText = structured
-      ? `${structured.audience} ${structured.problem} ${structured.problemLanguage || ''}`
-      : hypothesis
+    // Step 2: KEYWORD GATE - filter posts that don't mention the problem at all
+    // This is a FREE filter that removes posts about "freelancer + wrong problem"
+    let keywordGateFiltered = 0
+    const postsWithKeywords: RedditPost[] = []
 
-    // Generate multi-facet embeddings (3 facets: pain, complaint, solution-seeking)
-    const facetResult = await generateMultiFacetEmbeddings(hypothesisText)
+    for (const post of rankedPosts) {
+      const postText = `${post.title} ${post.body || ''}`.toLowerCase()
+      if (passesKeywordGate(postText, problemFocus.keywords)) {
+        postsWithKeywords.push(post)
+      } else {
+        keywordGateFiltered++
+        allDecisions.push({
+          reddit_id: post.id,
+          title: post.title,
+          body_preview: (post.body || '').slice(0, 200),
+          subreddit: post.subreddit,
+          decision: 'N',
+          stage: 'quality',
+          reason: 'no_problem_keywords',
+        })
+      }
+    }
 
-    if (facetResult && facetResult.embeddings.some(e => e.length > 0)) {
-      // Generate embeddings for all ranked posts
-      const postTexts = rankedPosts.map(p => `${p.title} ${p.body || ''}`.slice(0, 500))
-      sendProgress?.(`Stage 0 (Embedding): generating embeddings for ${postTexts.length} posts (3-facet comparison)...`)
+    const phrases = problemFocus.keywords.filter(k => k.includes(' '))
+    const singleWords = problemFocus.keywords.filter(k => !k.includes(' '))
+    console.log(`[KeywordGate] Posts: ${postsWithKeywords.length}/${rankedPosts.length} passed (${keywordGateFiltered} filtered)`)
+    console.log(`[KeywordGate] Phrases (${phrases.length}): ${phrases.slice(0, 5).join(', ')}...`)
+    console.log(`[KeywordGate] SingleWords (${singleWords.length}): ${singleWords.join(', ')}`)
+    sendProgress?.(`Stage 0 (Keyword Gate): ${postsWithKeywords.length}/${rankedPosts.length} posts contain problem keywords (${keywordGateFiltered} filtered)`)
+
+    // Step 3: Generate PROBLEM-FOCUSED embeddings (not hypothesis-focused)
+    // These embed the PROBLEM ACTION only, not the audience
+    const facetResult = await generateProblemFocusedEmbeddings(problemFocus)
+
+    if (facetResult && facetResult.embeddings.some(e => e.length > 0) && postsWithKeywords.length > 0) {
+      // Generate embeddings for posts that passed keyword gate
+      const postTexts = postsWithKeywords.map(p => `${p.title} ${p.body || ''}`.slice(0, 500))
+      sendProgress?.(`Stage 0 (Embedding): generating embeddings for ${postTexts.length} posts (problem-focused 3-facet)...`)
 
       const postEmbeddings = await generateEmbeddings(postTexts)
 
@@ -1341,33 +1378,43 @@ export async function filterRelevantPosts(
       const mediumSimilarity: RedditPost[] = []
       let lowFiltered = 0
 
-      for (let i = 0; i < rankedPosts.length; i++) {
+      for (let i = 0; i < postsWithKeywords.length; i++) {
         const embedding = postEmbeddings[i]?.embedding
         if (!embedding || embedding.length === 0) {
           // If embedding failed, pass through to AI filter
-          mediumSimilarity.push(rankedPosts[i])
+          mediumSimilarity.push(postsWithKeywords[i])
           continue
         }
 
-        // Take MAX similarity across all 3 facets (pain, solution, experience)
-        // This improves recall by catching posts that match ANY angle
+        // Take MAX similarity across all 3 facets (pain, complaint, solution)
+        // Problem-focused facets give more precise matching
         const similarity = maxSimilarityAcrossFacets(facetResult.embeddings, embedding)
         const tier = classifySimilarity(similarity)
 
         if (tier === 'HIGH') {
-          highSimilarity.push(rankedPosts[i])
+          highSimilarity.push(postsWithKeywords[i])
+          // Log HIGH matches for debugging
+          const matchedKw = problemFocus.keywords.filter(kw =>
+            `${postsWithKeywords[i].title} ${postsWithKeywords[i].body || ''}`.toLowerCase().includes(kw)
+          )
+          console.log(`[EmbeddingPass] HIGH (${similarity.toFixed(3)}) "${postsWithKeywords[i].title?.slice(0, 50)}..." keywords=[${matchedKw.join(', ')}]`)
         } else if (tier === 'MEDIUM') {
-          mediumSimilarity.push(rankedPosts[i])
+          mediumSimilarity.push(postsWithKeywords[i])
+          // Log MEDIUM matches for debugging
+          const matchedKw = problemFocus.keywords.filter(kw =>
+            `${postsWithKeywords[i].title} ${postsWithKeywords[i].body || ''}`.toLowerCase().includes(kw)
+          )
+          console.log(`[EmbeddingPass] MEDIUM (${similarity.toFixed(3)}) "${postsWithKeywords[i].title?.slice(0, 50)}..." keywords=[${matchedKw.join(', ')}]`)
         } else {
           lowFiltered++
           // Add decision for filtered posts
           allDecisions.push({
-            reddit_id: rankedPosts[i].id,
-            title: rankedPosts[i].title,
-            body_preview: (rankedPosts[i].body || '').slice(0, 200),
-            subreddit: rankedPosts[i].subreddit,
+            reddit_id: postsWithKeywords[i].id,
+            title: postsWithKeywords[i].title,
+            body_preview: (postsWithKeywords[i].body || '').slice(0, 200),
+            subreddit: postsWithKeywords[i].subreddit,
             decision: 'N',
-            stage: 'quality',  // Using 'quality' for embedding stage since no 'embedding' option
+            stage: 'quality',
             reason: `low_similarity_${similarity.toFixed(2)}`,
           })
         }
@@ -1375,14 +1422,22 @@ export async function filterRelevantPosts(
 
       metrics.embeddingHighSimilarity = highSimilarity.length
       metrics.embeddingMediumSimilarity = mediumSimilarity.length
-      metrics.embeddingFiltered = lowFiltered
+      metrics.embeddingFiltered = keywordGateFiltered + lowFiltered  // Both gates combined
 
       // Combine HIGH and MEDIUM for domain gate (HIGH first for priority)
       postsForDomainGate = [...highSimilarity, ...mediumSimilarity]
 
-      sendProgress?.(`Stage 0 (Embedding): ${highSimilarity.length} HIGH + ${mediumSimilarity.length} MEDIUM (multi-facet), ${lowFiltered} filtered (< ${SIMILARITY_THRESHOLDS.MEDIUM})`)
+      sendProgress?.(`Stage 0 (Embedding): ${highSimilarity.length} HIGH + ${mediumSimilarity.length} MEDIUM (problem-focused), ${lowFiltered} similarity filtered, ${keywordGateFiltered} keyword filtered`)
+    } else if (postsWithKeywords.length > 0) {
+      // Embedding failed but keyword gate passed - use keyword-filtered posts
+      postsForDomainGate = postsWithKeywords
+      metrics.embeddingFiltered = keywordGateFiltered
+      sendProgress?.(`Stage 0 (Embedding): embedding failed, using ${postsWithKeywords.length} keyword-filtered posts`)
     } else {
-      sendProgress?.(`Stage 0 (Embedding): multi-facet embedding failed, falling back to AI-only filtering`)
+      // No posts passed keyword gate
+      postsForDomainGate = []
+      metrics.embeddingFiltered = keywordGateFiltered
+      sendProgress?.(`Stage 0 (Embedding): no posts contain problem keywords - check hypothesis specificity`)
     }
   } else {
     sendProgress?.(`Stage 0 (Embedding): OPENAI_API_KEY not set, skipping embedding filter`)
@@ -1401,6 +1456,16 @@ export async function filterRelevantPosts(
   metrics.stage1Filtered = stage1.filtered.length
   allDecisions.push(...stage1.decisions)
 
+  // Log Domain Gate results
+  console.log(`[DomainGate] ${stage1.passed.length} passed, ${stage1.filtered.length} filtered`)
+  for (const post of stage1.passed) {
+    console.log(`[DomainGate] PASS: "${post.title?.slice(0, 60)}..."`)
+  }
+  for (const post of stage1.filtered.slice(0, 5)) {
+    const decision = stage1.decisions.find(d => d.reddit_id === post.id)
+    console.log(`[DomainGate] FAIL: "${post.title?.slice(0, 60)}..." reason=${decision?.reason || 'unknown'}`)
+  }
+
   // STAGE 2: Problem Match (tiered filter) - for full posts
   let stage2Core: RedditPost[] = []
   let stage2Related: RedditPost[] = []
@@ -1415,6 +1480,19 @@ export async function filterRelevantPosts(
     allDecisions.push(...stage2.decisions)
     stage2Core = stage2.core
     stage2Related = stage2.related
+
+    // Log Problem Match results
+    console.log(`[ProblemMatch] ${stage2.core.length} CORE, ${stage2.related.length} RELATED, ${stage2.filtered.length} filtered`)
+    for (const post of stage2.core) {
+      console.log(`[ProblemMatch] CORE: "${post.title?.slice(0, 60)}..."`)
+    }
+    for (const post of stage2.related) {
+      console.log(`[ProblemMatch] RELATED: "${post.title?.slice(0, 60)}..."`)
+    }
+    for (const post of stage2.filtered.slice(0, 3)) {
+      const decision = stage2.decisions.find(d => d.reddit_id === post.id)
+      console.log(`[ProblemMatch] FAIL: "${post.title?.slice(0, 60)}..." reason=${decision?.reason || 'unknown'}`)
+    }
   }
 
   // P0 FIX: ALWAYS include removed posts (not just when sparse)
@@ -1424,9 +1502,19 @@ export async function filterRelevantPosts(
   if (stage3.titleOnly.length > 0) {
     sendProgress?.(`Including ${stage3.titleOnly.length} posts with [removed] bodies (title only)...`)
 
+    // Dec 2025: Add keyword gate for title-only posts to close loophole
+    // Title-only posts were bypassing embedding filter and letting irrelevant signals through
+    const titleOnlyWithKeywords = (stage3.titleOnly as RedditPost[]).filter(post =>
+      passesKeywordGate(post.title, problemFocus.keywords)
+    )
+    const titleOnlyKeywordFiltered = stage3.titleOnly.length - titleOnlyWithKeywords.length
+    if (titleOnlyKeywordFiltered > 0) {
+      console.log(`[Title-only] Keyword gate: ${titleOnlyWithKeywords.length}/${stage3.titleOnly.length} passed (${titleOnlyKeywordFiltered} filtered)`)
+    }
+
     // Run domain gate on title-only posts with lenient mode (titles have less context)
     const titleOnlyDomain = await domainGateFilter(
-      stage3.titleOnly as RedditPost[],
+      titleOnlyWithKeywords,
       domain,
       antiDomains,
       (msg) => sendProgress?.(`[Title-only] ${msg}`),
@@ -1576,30 +1664,49 @@ export async function filterRelevantComments(
   const { comments: rankedComments } = preFilterAndRankComments(stage3.passed, MAX_COMMENT_CANDIDATES_FOR_AI)
   metrics.preFilterSkipped = stage3.passed.length - rankedComments.length
 
-  // STAGE 0: Embedding Gate for comments (semantic similarity filter)
-  // Uses multi-facet embeddings to filter out comments not related to hypothesis
+  // STAGE 0: Problem-Focused Embedding Gate for comments (Dec 2025 Quality Improvement)
+  // Same two-stage approach as posts: keyword gate + problem-focused embeddings
   let commentsForAI = rankedComments
 
   if (isEmbeddingServiceAvailable()) {
+    // Step 1: Extract problem keywords and problem-focused text
+    const problemFocus = await extractProblemFocus(hypothesis)
 
-    const hypothesisText = structured
-      ? `${structured.audience} ${structured.problem} ${structured.problemLanguage || ''}`
-      : hypothesis
+    // Step 2: KEYWORD GATE - filter comments that don't mention the problem
+    let keywordGateFiltered = 0
+    const commentsWithKeywords: RedditComment[] = []
 
-    const facetResult = await generateMultiFacetEmbeddings(hypothesisText)
+    for (const comment of rankedComments) {
+      if (passesKeywordGate(comment.body, problemFocus.keywords)) {
+        commentsWithKeywords.push(comment)
+      } else {
+        keywordGateFiltered++
+        allDecisions.push({
+          reddit_id: comment.id,
+          body_preview: comment.body.slice(0, 200),
+          subreddit: comment.subreddit,
+          decision: 'N',
+          stage: 'quality',
+          reason: 'no_problem_keywords',
+        })
+      }
+    }
 
-    if (facetResult && facetResult.embeddings.some(e => e.length > 0)) {
-      const commentTexts = rankedComments.map(c => c.body.slice(0, 500))
+    // Step 3: Generate PROBLEM-FOCUSED embeddings
+    const facetResult = await generateProblemFocusedEmbeddings(problemFocus)
+
+    if (facetResult && facetResult.embeddings.some(e => e.length > 0) && commentsWithKeywords.length > 0) {
+      const commentTexts = commentsWithKeywords.map(c => c.body.slice(0, 500))
       const commentEmbeddings = await generateEmbeddings(commentTexts)
 
       const highSimilarity: RedditComment[] = []
       const mediumSimilarity: RedditComment[] = []
       let embeddingFiltered = 0
 
-      for (let i = 0; i < rankedComments.length; i++) {
+      for (let i = 0; i < commentsWithKeywords.length; i++) {
         const embedding = commentEmbeddings[i]?.embedding
         if (!embedding || embedding.length === 0) {
-          mediumSimilarity.push(rankedComments[i])
+          mediumSimilarity.push(commentsWithKeywords[i])
           continue
         }
 
@@ -1607,15 +1714,15 @@ export async function filterRelevantComments(
         const tier = classifySimilarity(similarity)
 
         if (tier === 'HIGH') {
-          highSimilarity.push(rankedComments[i])
+          highSimilarity.push(commentsWithKeywords[i])
         } else if (tier === 'MEDIUM') {
-          mediumSimilarity.push(rankedComments[i])
+          mediumSimilarity.push(commentsWithKeywords[i])
         } else {
           embeddingFiltered++
           allDecisions.push({
-            reddit_id: rankedComments[i].id,
-            body_preview: rankedComments[i].body.slice(0, 200),
-            subreddit: rankedComments[i].subreddit,
+            reddit_id: commentsWithKeywords[i].id,
+            body_preview: commentsWithKeywords[i].body.slice(0, 200),
+            subreddit: commentsWithKeywords[i].subreddit,
             decision: 'N',
             stage: 'quality',
             reason: `low_similarity_${similarity.toFixed(2)}`,
@@ -1625,9 +1732,17 @@ export async function filterRelevantComments(
 
       metrics.embeddingHighSimilarity = highSimilarity.length
       metrics.embeddingMediumSimilarity = mediumSimilarity.length
-      metrics.embeddingFiltered = embeddingFiltered
+      metrics.embeddingFiltered = keywordGateFiltered + embeddingFiltered
 
       commentsForAI = [...highSimilarity, ...mediumSimilarity]
+    } else if (commentsWithKeywords.length > 0) {
+      // Embedding failed but keyword gate passed
+      commentsForAI = commentsWithKeywords
+      metrics.embeddingFiltered = keywordGateFiltered
+    } else {
+      // No comments passed keyword gate
+      commentsForAI = []
+      metrics.embeddingFiltered = keywordGateFiltered
     }
   }
 

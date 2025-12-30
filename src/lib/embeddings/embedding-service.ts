@@ -12,8 +12,18 @@
  */
 
 import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import crypto from 'crypto'
+
+// Lazy-initialized Anthropic client for problem extraction
+let anthropicClient: Anthropic | null = null
+function getAnthropicClient(): Anthropic {
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic()
+  }
+  return anthropicClient
+}
 
 // Configuration
 const EMBEDDING_MODEL = 'text-embedding-3-large'
@@ -21,22 +31,34 @@ const EMBEDDING_DIMENSIONS = 1536  // Reduced for HNSW index compatibility
 const MAX_BATCH_SIZE = 100  // OpenAI limit per request
 
 // Similarity thresholds (calibrated from testing)
-// Test hypothesis: "Freelancers struggling to get paid on time by clients"
-// - Direct pain posts scored 0.54-0.77
-// - Tangential (invoicing tools) scored 0.44-0.46
-// - Borderline relevant scored 0.35-0.40
-// - Irrelevant (pizza, dogs) scored 0.04-0.15
-//
-// Dec 2025: Lowered MEDIUM from 0.40 to 0.35, but quality was 0/15.
-// Raised back to 0.40 - borderline posts (0.35-0.40) are often irrelevant
-// to the SPECIFIC problem even if they're in the same general topic.
+// Dec 2025: With keyword gating ensuring lexical relevance,
+// we can use higher thresholds for semantic similarity.
+// Keyword gate catches "must mention payment/invoice/etc."
+// Embedding catches semantic similarity to the problem context.
 export const SIMILARITY_THRESHOLDS = {
-  HIGH: 0.50,    // CORE candidate - directly about the problem
-  MEDIUM: 0.40,  // RELATED candidate - same domain, might be relevant
-  LOW: 0.40,     // Below this = reject without AI call
+  HIGH: 0.40,    // CORE candidate - strong semantic match to problem
+  MEDIUM: 0.28,  // RELATED candidate - moderate semantic match (lowered since keyword gate pre-filters)
+  LOW: 0.28,     // Below this = reject (keyword gate already ensures lexical relevance)
 } as const
 
 export type SimilarityTier = 'HIGH' | 'MEDIUM' | 'LOW'
+
+/**
+ * Problem focus extraction result
+ * Used for keyword gating + problem-focused embeddings
+ */
+export interface ProblemFocus {
+  // Keywords that MUST appear in a post for it to be relevant
+  // E.g., for "late payments": ["paid", "pay", "payment", "invoice", "owed", "late", "overdue"]
+  keywords: string[]
+
+  // Problem-dense text for embedding (excludes audience, focuses on the ACTION)
+  // E.g., "Late payment from client. Invoice overdue. Not getting paid on time. Chasing payments."
+  problemText: string
+
+  // The original hypothesis for reference
+  originalHypothesis: string
+}
 
 export interface EmbeddingResult {
   text: string
@@ -346,6 +368,240 @@ export async function filterBySimilarity(
   return { high, medium, filtered, hypothesisEmbedding }
 }
 
+// Cache for problem focus extraction (hypothesis -> ProblemFocus)
+const problemFocusCache = new Map<string, ProblemFocus>()
+
+/**
+ * Extract problem-specific keywords and embedding text from a hypothesis.
+ *
+ * This is the KEY function for quality filtering:
+ * 1. Keywords are used for KEYWORD GATING (posts must contain at least 1)
+ * 2. ProblemText is used for EMBEDDING (focuses on the action, not audience)
+ *
+ * Dec 2025 IMPROVEMENT: Now extracts more specific keywords and phrases
+ * to avoid matching generic posts about the domain.
+ *
+ * Example:
+ * Input: "Freelancers struggling to get paid on time by clients"
+ * Output:
+ *   keywords: ["late payment", "overdue", "not paid", "unpaid invoice", "chasing payment", "owed", "delayed payment"]
+ *   problemText: "Not getting paid on time. Client payment is late or overdue. Invoice remains unpaid..."
+ */
+export async function extractProblemFocus(hypothesis: string): Promise<ProblemFocus> {
+  // Check cache first
+  const cached = problemFocusCache.get(hypothesis)
+  if (cached) {
+    return cached
+  }
+
+  const prompt = `Extract PROBLEM-SPECIFIC keywords from this hypothesis.
+
+HYPOTHESIS: "${hypothesis}"
+
+I need TWO things:
+
+1. KEYWORDS: A list of 8-15 keywords/phrases that indicate THIS SPECIFIC PROBLEM (not just the domain).
+
+   CRITICAL RULES:
+   - Include MULTI-WORD PHRASES where they're more specific (e.g., "late payment" not just "late" or "payment")
+   - Focus on PROBLEM INDICATORS - words that show frustration, delay, difficulty
+   - EXCLUDE generic audience terms (e.g., don't include "freelancer", "client", "business")
+   - Include both the problem state AND solution-seeking terms
+
+   Good examples for "late payment" problem:
+   - "late payment", "not paid", "overdue", "unpaid invoice", "chasing payment", "owed money"
+   - "payment delay", "waiting to be paid", "still haven't paid", "won't pay"
+
+   BAD examples (too generic):
+   - "pay" (matches "payday", "paying rent", "pay taxes")
+   - "payment" (matches any financial discussion)
+   - "money" (matches everything)
+
+2. PROBLEM_TEXT: A dense paragraph (3-5 sentences) describing the PROBLEM using problem-specific vocabulary.
+   - DO NOT mention the audience
+   - Focus on the ACTION/STATE that causes frustration
+   - Use first-person expressions of the problem
+
+Example for "Freelancers struggling to get paid on time by clients":
+KEYWORDS: late payment, not paid, unpaid invoice, owed money, won't pay, invoice, payment, paid, late, unpaid, owed, overdue, delay, chase, outstanding
+PROBLEM_TEXT: Not getting paid on time. Client payment is late or overdue. Invoice remains unpaid for weeks or months. Chasing payments from clients who owe money. Waiting to be paid while bills pile up. Haven't been paid for work completed. The client won't pay.
+
+CRITICAL: You MUST include BOTH types:
+1. Multi-word phrases (5-7): "late payment", "not paid", "unpaid invoice", "owed money", "won't pay"
+2. Single words (8-10): MUST include common words like "invoice", "payment", "paid" plus problem indicators like "late", "unpaid", "owed", "overdue", "delay"
+
+The single words are ESSENTIAL - they let us match posts that say things like "can't get paid" + "invoice" or "payment" + "delay".
+
+Now extract for the given hypothesis:
+
+Respond in this exact JSON format:
+{
+  "keywords": ["phrase1", "phrase2", ...],
+  "problemText": "Problem description..."
+}`
+
+  try {
+    const anthropic = getAnthropicClient()
+    const response = await anthropic.messages.create({
+      model: 'claude-3-5-haiku-latest',
+      max_tokens: 500,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const content = response.content[0]
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type')
+    }
+
+    // Parse JSON from response
+    const jsonMatch = content.text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      throw new Error('No JSON found in response')
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as { keywords: string[]; problemText: string }
+
+    const result: ProblemFocus = {
+      keywords: parsed.keywords.map(k => k.toLowerCase()),
+      problemText: parsed.problemText,
+      originalHypothesis: hypothesis,
+    }
+
+    // Cache the result
+    problemFocusCache.set(hypothesis, result)
+    console.log(`[ProblemFocus] Extracted ${result.keywords.length} keywords for: "${hypothesis.slice(0, 50)}..."`)
+    console.log(`[ProblemFocus] Keywords: ${result.keywords.join(', ')}`)
+
+    return result
+  } catch (error) {
+    console.error('[ProblemFocus] Extraction failed:', error)
+    // Fallback: use simple word extraction
+    const words = hypothesis.toLowerCase()
+      .replace(/[^a-z\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 3)
+
+    return {
+      keywords: words,
+      problemText: hypothesis,
+      originalHypothesis: hypothesis,
+    }
+  }
+}
+
+// Problem indicator words - posts MUST contain at least one to be relevant
+const PROBLEM_INDICATORS = new Set([
+  'late', 'overdue', 'unpaid', 'owed', 'delay', 'delayed', 'chase', 'chasing',
+  'outstanding', 'waiting', 'waited', 'won\'t pay', 'didn\'t pay', 'hasn\'t paid',
+  'never paid', 'not paying', 'slow', 'behind', 'miss', 'missed', 'missing'
+])
+
+/**
+ * Check if a text passes the keyword gate.
+ *
+ * Dec 2025: Smarter matching that handles both specific phrases and word combinations:
+ * - Multi-word phrases (e.g., "late payment"): Match if any phrase is found
+ * - Single words: Require 2+ matches AND at least 1 must be a PROBLEM INDICATOR
+ *
+ * This prevents matching posts about generic payment topics (taxes, salaries).
+ */
+export function passesKeywordGate(text: string, keywords: string[]): boolean {
+  const lowerText = text.toLowerCase()
+
+  // Separate multi-word phrases from single words
+  const phrases = keywords.filter(k => k.includes(' '))
+  const singleWords = keywords.filter(k => !k.includes(' '))
+
+  // Check 1: Does the text contain ANY multi-word phrase?
+  // Multi-word phrases are specific enough to be trusted individually
+  const matchedPhrases = phrases.filter(phrase => lowerText.includes(phrase))
+  if (matchedPhrases.length > 0) {
+    return true
+  }
+
+  // Check 2: Does the text contain 2+ single words AND at least 1 problem indicator?
+  // This prevents matching generic payment discussions (taxes, salaries)
+  const matchedWords = singleWords.filter(word => lowerText.includes(word))
+  if (matchedWords.length >= 2) {
+    // At least one matched word must indicate a PROBLEM (late, owed, delay, etc.)
+    const hasProblemIndicator = matchedWords.some(word => PROBLEM_INDICATORS.has(word))
+    if (hasProblemIndicator) {
+      return true
+    }
+  }
+
+  // Check 3: Does the text contain a problem indicator phrase directly?
+  // e.g., "hasn't paid", "won't pay" anywhere in text
+  for (const indicator of PROBLEM_INDICATORS) {
+    if (indicator.includes(' ') && lowerText.includes(indicator)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Filter an array of texts using the keyword gate.
+ * Returns texts that contain at least one problem keyword.
+ */
+export function applyKeywordGate<T extends { text: string }>(
+  items: T[],
+  keywords: string[]
+): { passed: T[]; filtered: number } {
+  const passed: T[] = []
+  let filtered = 0
+
+  for (const item of items) {
+    if (passesKeywordGate(item.text, keywords)) {
+      passed.push(item)
+    } else {
+      filtered++
+    }
+  }
+
+  return { passed, filtered }
+}
+
+/**
+ * Generate problem-focused embeddings for semantic comparison.
+ *
+ * Unlike the old approach that embedded the full hypothesis,
+ * this creates embeddings focused on the PROBLEM ACTION only.
+ *
+ * Creates 3 facets:
+ * - Pain: First-person frustration with the problem
+ * - Complaint: Third-person complaints about the issue
+ * - Solution: Seeking help with the specific problem
+ */
+export async function generateProblemFocusedEmbeddings(
+  problemFocus: ProblemFocus
+): Promise<{ embeddings: number[][]; facets: string[] } | null> {
+  const { problemText } = problemFocus
+
+  // Create facets focused on the PROBLEM, not the audience
+  const facets = [
+    // Pain facet: First-person frustration
+    `I am so frustrated. ${problemText} This keeps happening to me and I don't know what to do.`,
+    // Complaint facet: General complaints
+    `${problemText} This is such a common problem. Why does this keep happening? So tired of dealing with this.`,
+    // Solution facet: Looking for help
+    `How do I deal with this? ${problemText} Looking for any advice or tips. Need help solving this problem.`,
+  ]
+
+  const results = await generateEmbeddings(facets)
+
+  const validEmbeddings = results.filter(r => r.embedding.length > 0)
+  if (validEmbeddings.length === 0) {
+    return null
+  }
+
+  return {
+    embeddings: results.map(r => r.embedding),
+    facets,
+  }
+}
+
 /**
  * Generate multi-facet embeddings for a hypothesis
  * Creates 3 embeddings capturing different angles:
@@ -355,6 +611,8 @@ export async function filterBySimilarity(
  *
  * This improves recall by matching posts that express the problem
  * in different ways (some express pain, some seek solutions, some share experiences)
+ *
+ * @deprecated Use generateProblemFocusedEmbeddings with extractProblemFocus instead
  */
 export async function generateMultiFacetEmbeddings(
   hypothesisText: string
