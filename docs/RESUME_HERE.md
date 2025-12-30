@@ -104,8 +104,12 @@ npm run test:run
 # Build
 npm run build
 
-# Add credits if needed
-SUPABASE_URL="https://mgrnghjjsllwuphyrjtw.supabase.co" SERVICE_KEY="***REMOVED***" curl -s -X PATCH "$SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H "Content-Type: application/json" -d '{"credits_balance": 10}'
+# Add credits if needed (source .env.local first)
+curl -s -X PATCH "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d" \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"credits_balance": 10}'
 ```
 
 ---
