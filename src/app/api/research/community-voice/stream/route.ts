@@ -157,10 +157,11 @@ export async function POST(request: NextRequest) {
           structuredHypothesis = coverageData.structuredHypothesis as StructuredHypothesis
         }
 
-        // Get sample size from coverage data (default 100, max 300 for now)
+        // Get sample size from coverage data (default 300, max 1000)
+        // Dec 2025: Increased defaults to improve recall; embedding filter handles cost control
         const sampleSizePerSource = Math.min(
-          (coverageData?.sampleSizePerSource as number) || 100,
-          300 // Hard cap for now - will be configurable later
+          (coverageData?.sampleSizePerSource as number) || 300,
+          1000 // Raised cap since embedding filter makes larger fetches cost-effective
         )
 
         // Extract target geography for market sizing scoping
@@ -195,7 +196,7 @@ export async function POST(request: NextRequest) {
         // Step 2: Discover subreddits
         send('subreddits', 'Discovering relevant communities...')
         const { subreddits: discoveredSubreddits } = await discoverSubreddits(hypothesis)
-        const subredditsToSearch = discoveredSubreddits.slice(0, 10) // Increased to 10 for more data
+        const subredditsToSearch = discoveredSubreddits.slice(0, 15) // Dec 2025: Increased from 10 to 15 for better recall
         send('subreddits', `Found ${subredditsToSearch.length} relevant subreddits: ${subredditsToSearch.join(', ')}`, {
           subreddits: subredditsToSearch,
         })

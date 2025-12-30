@@ -27,13 +27,13 @@ const MAX_BATCH_SIZE = 100  // OpenAI limit per request
 // - Borderline relevant scored 0.35-0.40
 // - Irrelevant (pizza, dogs) scored 0.04-0.15
 //
-// Dec 2025: Lowered MEDIUM from 0.40 to 0.35 after testing showed
-// too aggressive filtering (44 signals → 3). Posts in 0.35-0.40 range
-// often contain relevant content.
+// Dec 2025: Lowered MEDIUM from 0.40 to 0.35, but quality was 0/15.
+// Raised back to 0.40 - borderline posts (0.35-0.40) are often irrelevant
+// to the SPECIFIC problem even if they're in the same general topic.
 export const SIMILARITY_THRESHOLDS = {
   HIGH: 0.50,    // CORE candidate - directly about the problem
-  MEDIUM: 0.35,  // RELATED candidate - same domain, might be relevant
-  LOW: 0.35,     // Below this = reject without AI call
+  MEDIUM: 0.40,  // RELATED candidate - same domain, might be relevant
+  LOW: 0.40,     // Below this = reject without AI call
 } as const
 
 export type SimilarityTier = 'HIGH' | 'MEDIUM' | 'LOW'
@@ -344,6 +344,137 @@ export async function filterBySimilarity(
   sendProgress?.(`Embedding filter: ${high.length} HIGH, ${medium.length} MEDIUM, ${filtered} filtered`)
 
   return { high, medium, filtered, hypothesisEmbedding }
+}
+
+/**
+ * Generate multi-facet embeddings for a hypothesis
+ * Creates 3 embeddings capturing different angles:
+ * - Pain facet: "People struggling with X, frustrated by X"
+ * - Solution facet: "Looking for solutions to X, need help with X"
+ * - Experience facet: "My experience with X, dealing with X"
+ *
+ * This improves recall by matching posts that express the problem
+ * in different ways (some express pain, some seek solutions, some share experiences)
+ */
+export async function generateMultiFacetEmbeddings(
+  hypothesisText: string
+): Promise<{ embeddings: number[][]; facets: string[] } | null> {
+  // Create 3 facets that capture different angles of experiencing the problem
+  // Each facet emphasizes the SPECIFIC PROBLEM, not just the domain/audience
+  const facets = [
+    // Pain facet: First-person frustration with THIS problem
+    `I am frustrated because ${hypothesisText}. This is a major problem for me. I am struggling with ${hypothesisText} and it's affecting my work.`,
+    // Complaint facet: Explicit complaints about the specific issue
+    `${hypothesisText} is a huge issue. Why does ${hypothesisText} keep happening? So tired of dealing with ${hypothesisText}.`,
+    // Solution-seeking facet: Looking for help with THIS specific problem
+    `How do I solve ${hypothesisText}? Any tips for ${hypothesisText}? Looking for advice on ${hypothesisText} because I'm stuck.`,
+  ]
+
+  const results = await generateEmbeddings(facets)
+
+  // Check if all embeddings were generated successfully
+  const validEmbeddings = results.filter(r => r.embedding.length > 0)
+  if (validEmbeddings.length === 0) {
+    return null
+  }
+
+  return {
+    embeddings: results.map(r => r.embedding),
+    facets,
+  }
+}
+
+/**
+ * Compare a candidate against multiple facet embeddings and return max similarity
+ * This ensures posts expressing the problem in ANY way (pain, solution-seeking, experience)
+ * get matched, improving recall
+ */
+export function maxSimilarityAcrossFacets(
+  facetEmbeddings: number[][],
+  candidateEmbedding: number[]
+): number {
+  if (facetEmbeddings.length === 0 || candidateEmbedding.length === 0) {
+    return 0
+  }
+
+  let maxSim = 0
+  for (const facetEmb of facetEmbeddings) {
+    if (facetEmb.length > 0) {
+      const sim = cosineSimilarity(facetEmb, candidateEmbedding)
+      if (sim > maxSim) {
+        maxSim = sim
+      }
+    }
+  }
+  return maxSim
+}
+
+/**
+ * Filter texts by multi-facet semantic similarity to hypothesis
+ * Uses 3 facets (pain, solution, experience) and takes MAX similarity
+ * Returns texts grouped by tier (HIGH, MEDIUM) - LOW is filtered out
+ *
+ * This is the main entry point for multi-facet filtering, improving recall
+ * over single-embedding filtering
+ */
+export async function filterByMultiFacetSimilarity(
+  hypothesisText: string,
+  candidateTexts: string[],
+  sendProgress?: (msg: string) => void
+): Promise<{
+  high: Array<{ text: string; similarity: number }>
+  medium: Array<{ text: string; similarity: number }>
+  filtered: number
+  hypothesisEmbeddings: number[][]
+}> {
+  sendProgress?.(`Generating multi-facet embeddings for hypothesis...`)
+
+  // Generate multi-facet hypothesis embeddings
+  const facetResult = await generateMultiFacetEmbeddings(hypothesisText)
+  if (!facetResult || facetResult.embeddings.every(e => e.length === 0)) {
+    // Fallback: return all as medium tier if embedding fails
+    console.warn('[EmbeddingService] Multi-facet embedding failed, passing all candidates')
+    return {
+      high: [],
+      medium: candidateTexts.map(text => ({ text, similarity: 0.5 })),
+      filtered: 0,
+      hypothesisEmbeddings: [],
+    }
+  }
+
+  sendProgress?.(`Generating embeddings for ${candidateTexts.length} candidates...`)
+
+  // Generate candidate embeddings
+  const candidateResults = await generateEmbeddings(candidateTexts)
+
+  // Compare against all facets and take max similarity
+  const high: Array<{ text: string; similarity: number }> = []
+  const medium: Array<{ text: string; similarity: number }> = []
+  let filtered = 0
+
+  for (let i = 0; i < candidateResults.length; i++) {
+    const candidate = candidateResults[i]
+    if (candidate.embedding.length === 0) {
+      // If candidate embedding failed, pass through as medium
+      medium.push({ text: candidate.text, similarity: 0.4 })
+      continue
+    }
+
+    const similarity = maxSimilarityAcrossFacets(facetResult.embeddings, candidate.embedding)
+    const tier = classifySimilarity(similarity)
+
+    if (tier === 'HIGH') {
+      high.push({ text: candidate.text, similarity })
+    } else if (tier === 'MEDIUM') {
+      medium.push({ text: candidate.text, similarity })
+    } else {
+      filtered++
+    }
+  }
+
+  sendProgress?.(`Multi-facet filter: ${high.length} HIGH, ${medium.length} MEDIUM, ${filtered} filtered`)
+
+  return { high, medium, filtered, hypothesisEmbeddings: facetResult.embeddings }
 }
 
 /**

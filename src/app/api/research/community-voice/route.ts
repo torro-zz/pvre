@@ -334,8 +334,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract sample size and subreddit velocities from coverage data for adaptive fetching
-    // Default to Quick (150) if not specified
-    let sampleSizePerSource = 150
+    // Default to 300 (doubled from 150) for better recall after embedding filter added
+    // Dec 2025: Increased default to cast wider net; embedding filter handles cost control
+    let sampleSizePerSource = 300
     let subredditVelocities: Map<string, number> | undefined
 
     if (jobId) {
@@ -415,13 +416,13 @@ export async function POST(request: NextRequest) {
     if (userSelectedSubreddits && userSelectedSubreddits.length > 0) {
       // User has selected specific subreddits from coverage preview
       console.log('Step 2: Using user-selected subreddits:', userSelectedSubreddits)
-      subredditsToSearch = userSelectedSubreddits.slice(0, 12) // Increased to 12 subreddits for more data
+      subredditsToSearch = userSelectedSubreddits.slice(0, 15) // Dec 2025: Increased from 12 to 15 for better recall
       discoveryResult = { subreddits: subredditsToSearch }
     } else {
       // Discover using Claude
       console.log('Step 2: Discovering subreddits for:', searchContext.slice(0, 50))
       discoveryResult = await discoverSubreddits(searchContext)
-      subredditsToSearch = discoveryResult.subreddits.slice(0, 10) // Increased to 10 subreddits for more data
+      subredditsToSearch = discoveryResult.subreddits.slice(0, 15) // Dec 2025: Increased from 10 to 15 for better recall
     }
 
     if (subredditsToSearch.length === 0) {
@@ -567,16 +568,26 @@ export async function POST(request: NextRequest) {
     console.log(`  Input: ${postFilterResult.metrics.before} posts`)
     console.log(`  Stage 3 (Quality Gate - FREE): ${postFilterResult.metrics.stage3Filtered} filtered`)
     console.log(`  PreFilter (Rank - FREE): ${postFilterResult.metrics.preFilterSkipped} skipped (low engagement/no first-person)`)
-    console.log(`  → Sent to AI: ${postFilterResult.metrics.before - postFilterResult.metrics.stage3Filtered - postFilterResult.metrics.preFilterSkipped}`)
+    if (postFilterResult.metrics.embeddingFiltered > 0) {
+      console.log(`  Stage 0 (Embedding - $0.01): ${postFilterResult.metrics.embeddingFiltered} filtered (${postFilterResult.metrics.embeddingHighSimilarity} HIGH + ${postFilterResult.metrics.embeddingMediumSimilarity} MEDIUM passed)`)
+    }
+    const postsSentToAI = postFilterResult.metrics.embeddingHighSimilarity + postFilterResult.metrics.embeddingMediumSimilarity ||
+      (postFilterResult.metrics.before - postFilterResult.metrics.stage3Filtered - postFilterResult.metrics.preFilterSkipped)
+    console.log(`  → Sent to AI: ${postsSentToAI}`)
     console.log(`  Stage 1 (Domain Gate - Haiku): ${postFilterResult.metrics.stage1Filtered} filtered`)
-    console.log(`  Stage 2 (Problem Match - Haiku): ${postFilterResult.metrics.stage2Filtered} filtered`)
+    console.log(`  Stage 2 (Problem Match - Sonnet): ${postFilterResult.metrics.stage2Filtered} filtered`)
     console.log(`  Output: ${posts.length} relevant posts (${postFilterResult.metrics.filterRate.toFixed(1)}% total filtered)`)
 
     console.log(`\n=== COMMENT FILTER PIPELINE ===`)
     console.log(`  Input: ${commentFilterResult.metrics.before} comments`)
     console.log(`  Stage 3 (Quality Gate - FREE): ${commentFilterResult.metrics.stage3Filtered} filtered`)
     console.log(`  PreFilter (Rank - FREE): ${commentFilterResult.metrics.preFilterSkipped} skipped (low engagement/no first-person)`)
-    console.log(`  → Sent to AI: ${commentFilterResult.metrics.before - commentFilterResult.metrics.stage3Filtered - commentFilterResult.metrics.preFilterSkipped}`)
+    if (commentFilterResult.metrics.embeddingFiltered > 0) {
+      console.log(`  Stage 0 (Embedding - $0.01): ${commentFilterResult.metrics.embeddingFiltered} filtered (${commentFilterResult.metrics.embeddingHighSimilarity} HIGH + ${commentFilterResult.metrics.embeddingMediumSimilarity} MEDIUM passed)`)
+    }
+    const commentsSentToAI = commentFilterResult.metrics.embeddingHighSimilarity + commentFilterResult.metrics.embeddingMediumSimilarity ||
+      (commentFilterResult.metrics.before - commentFilterResult.metrics.stage3Filtered - commentFilterResult.metrics.preFilterSkipped)
+    console.log(`  → Sent to AI: ${commentsSentToAI}`)
     console.log(`  Stage 2 (Problem Match - Haiku): ${commentFilterResult.metrics.stage2Filtered} filtered`)
     console.log(`  Output: ${comments.length} relevant comments (${commentFilterResult.metrics.filterRate.toFixed(1)}% total filtered)\n`)
 

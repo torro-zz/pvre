@@ -68,8 +68,9 @@ export class ArcticShiftSource implements DataSource {
     // Don't use query param - multi-word queries cause Arctic Shift timeouts (422 errors)
     // Fetch by subreddit + time range only, let Claude relevance filter do the filtering
 
-    // Determine target per subreddit ('auto' defaults to 100 for predictability)
-    const targetPerSubreddit = limit === 'auto' ? 100 : limit
+    // Determine target per subreddit ('auto' defaults to 200 for better recall)
+    // Dec 2025: Increased from 100 to 200 to improve signal recall after embedding filter added
+    const targetPerSubreddit = limit === 'auto' ? 200 : limit
 
     for (const subreddit of subreddits) {
       try {
@@ -176,8 +177,9 @@ export class ArcticShiftSource implements DataSource {
     // Don't use body param - multi-word queries cause Arctic Shift timeouts (422 errors)
     // Fetch by subreddit + time range only, let Claude relevance filter do the filtering
 
-    // Determine target per subreddit ('auto' defaults to 100 for predictability)
-    const targetPerSubreddit = limit === 'auto' ? 100 : limit
+    // Determine target per subreddit ('auto' defaults to 200 for better recall)
+    // Dec 2025: Increased from 100 to 200 to improve signal recall after embedding filter added
+    const targetPerSubreddit = limit === 'auto' ? 200 : limit
 
     for (const subreddit of subreddits) {
       try {

@@ -27,10 +27,11 @@ import { StructuredHypothesis } from '@/types/research'
 import { getCurrentTracker } from '@/lib/anthropic'
 import { trackUsage } from '@/lib/analysis/token-tracker'
 import {
-  generateEmbedding,
   generateEmbeddings,
   cosineSimilarity,
   classifySimilarity,
+  generateMultiFacetEmbeddings,
+  maxSimilarityAcrossFacets,
   isEmbeddingServiceAvailable,
   SIMILARITY_THRESHOLDS,
 } from '@/lib/embeddings'
@@ -1311,39 +1312,31 @@ export async function filterRelevantPosts(
     sendProgress?.(`Pre-filter: ranked ${stage3.passed.length} posts, sending top ${rankedPosts.length} to embedding gate (${metrics.preFilterSkipped} low-quality skipped)`)
   }
 
-  // STAGE 0: Embedding Gate (semantic similarity filter)
-  // Only posts with similarity >= MEDIUM threshold (0.55) pass to AI filtering
+  // STAGE 0: Embedding Gate (multi-facet semantic similarity filter)
+  // Uses 3 embeddings (pain, solution, experience) and takes MAX similarity
+  // Only posts with max similarity >= MEDIUM threshold (0.35) pass to AI filtering
   let postsForDomainGate = rankedPosts
-  let hypothesisEmbedding: number[] | null = null
 
   if (isEmbeddingServiceAvailable()) {
-    sendProgress?.(`Stage 0 (Embedding): generating hypothesis embedding...`)
+    sendProgress?.(`Stage 0 (Embedding): generating multi-facet hypothesis embeddings...`)
 
-    // Generate hypothesis embedding
-    // For short hypotheses (app gap searches like "Slack"), expand to capture pain/problem context
-    let hypothesisText = structured
+    // Build hypothesis text for embedding
+    // Multi-facet embeddings handle expansion internally (pain/solution/experience angles)
+    const hypothesisText = structured
       ? `${structured.audience} ${structured.problem} ${structured.problemLanguage || ''}`
       : hypothesis
 
-    // Expand short hypotheses to create better embeddings
-    const wordCount = hypothesisText.trim().split(/\s+/).length
-    if (wordCount <= 3) {
-      // Short query - likely an app name or single concept
-      // Expand to capture problem/pain context for better matching
-      hypothesisText = `Problems, frustrations, and pain points with ${hypothesisText}. Users complaining about ${hypothesisText}.`
-      sendProgress?.(`Stage 0 (Embedding): expanded short query to: "${hypothesisText.slice(0, 60)}..."`)
-    }
+    // Generate multi-facet embeddings (3 facets: pain, complaint, solution-seeking)
+    const facetResult = await generateMultiFacetEmbeddings(hypothesisText)
 
-    hypothesisEmbedding = await generateEmbedding(hypothesisText)
-
-    if (hypothesisEmbedding && hypothesisEmbedding.length > 0) {
+    if (facetResult && facetResult.embeddings.some(e => e.length > 0)) {
       // Generate embeddings for all ranked posts
       const postTexts = rankedPosts.map(p => `${p.title} ${p.body || ''}`.slice(0, 500))
-      sendProgress?.(`Stage 0 (Embedding): generating embeddings for ${postTexts.length} posts...`)
+      sendProgress?.(`Stage 0 (Embedding): generating embeddings for ${postTexts.length} posts (3-facet comparison)...`)
 
       const postEmbeddings = await generateEmbeddings(postTexts)
 
-      // Compare similarities and filter
+      // Compare against all facets and take MAX similarity for each post
       const highSimilarity: RedditPost[] = []
       const mediumSimilarity: RedditPost[] = []
       let lowFiltered = 0
@@ -1356,7 +1349,9 @@ export async function filterRelevantPosts(
           continue
         }
 
-        const similarity = cosineSimilarity(hypothesisEmbedding, embedding)
+        // Take MAX similarity across all 3 facets (pain, solution, experience)
+        // This improves recall by catching posts that match ANY angle
+        const similarity = maxSimilarityAcrossFacets(facetResult.embeddings, embedding)
         const tier = classifySimilarity(similarity)
 
         if (tier === 'HIGH') {
@@ -1385,9 +1380,9 @@ export async function filterRelevantPosts(
       // Combine HIGH and MEDIUM for domain gate (HIGH first for priority)
       postsForDomainGate = [...highSimilarity, ...mediumSimilarity]
 
-      sendProgress?.(`Stage 0 (Embedding): ${highSimilarity.length} HIGH + ${mediumSimilarity.length} MEDIUM similarity, ${lowFiltered} filtered (< ${SIMILARITY_THRESHOLDS.MEDIUM})`)
+      sendProgress?.(`Stage 0 (Embedding): ${highSimilarity.length} HIGH + ${mediumSimilarity.length} MEDIUM (multi-facet), ${lowFiltered} filtered (< ${SIMILARITY_THRESHOLDS.MEDIUM})`)
     } else {
-      sendProgress?.(`Stage 0 (Embedding): hypothesis embedding failed, falling back to AI-only filtering`)
+      sendProgress?.(`Stage 0 (Embedding): multi-facet embedding failed, falling back to AI-only filtering`)
     }
   } else {
     sendProgress?.(`Stage 0 (Embedding): OPENAI_API_KEY not set, skipping embedding filter`)
@@ -1581,13 +1576,68 @@ export async function filterRelevantComments(
   const { comments: rankedComments } = preFilterAndRankComments(stage3.passed, MAX_COMMENT_CANDIDATES_FOR_AI)
   metrics.preFilterSkipped = stage3.passed.length - rankedComments.length
 
+  // STAGE 0: Embedding Gate for comments (semantic similarity filter)
+  // Uses multi-facet embeddings to filter out comments not related to hypothesis
+  let commentsForAI = rankedComments
+
+  if (isEmbeddingServiceAvailable()) {
+
+    const hypothesisText = structured
+      ? `${structured.audience} ${structured.problem} ${structured.problemLanguage || ''}`
+      : hypothesis
+
+    const facetResult = await generateMultiFacetEmbeddings(hypothesisText)
+
+    if (facetResult && facetResult.embeddings.some(e => e.length > 0)) {
+      const commentTexts = rankedComments.map(c => c.body.slice(0, 500))
+      const commentEmbeddings = await generateEmbeddings(commentTexts)
+
+      const highSimilarity: RedditComment[] = []
+      const mediumSimilarity: RedditComment[] = []
+      let embeddingFiltered = 0
+
+      for (let i = 0; i < rankedComments.length; i++) {
+        const embedding = commentEmbeddings[i]?.embedding
+        if (!embedding || embedding.length === 0) {
+          mediumSimilarity.push(rankedComments[i])
+          continue
+        }
+
+        const similarity = maxSimilarityAcrossFacets(facetResult.embeddings, embedding)
+        const tier = classifySimilarity(similarity)
+
+        if (tier === 'HIGH') {
+          highSimilarity.push(rankedComments[i])
+        } else if (tier === 'MEDIUM') {
+          mediumSimilarity.push(rankedComments[i])
+        } else {
+          embeddingFiltered++
+          allDecisions.push({
+            reddit_id: rankedComments[i].id,
+            body_preview: rankedComments[i].body.slice(0, 200),
+            subreddit: rankedComments[i].subreddit,
+            decision: 'N',
+            stage: 'quality',
+            reason: `low_similarity_${similarity.toFixed(2)}`,
+          })
+        }
+      }
+
+      metrics.embeddingHighSimilarity = highSimilarity.length
+      metrics.embeddingMediumSimilarity = mediumSimilarity.length
+      metrics.embeddingFiltered = embeddingFiltered
+
+      commentsForAI = [...highSimilarity, ...mediumSimilarity]
+    }
+  }
+
   // Stage 2 directly (skip domain gate for comments)
   const passed: RedditComment[] = []
   const filtered: RedditComment[] = []
   const batchSize = 25
 
-  for (let i = 0; i < rankedComments.length; i += batchSize) {
-    const batch = rankedComments.slice(i, i + batchSize)
+  for (let i = 0; i < commentsForAI.length; i += batchSize) {
+    const batch = commentsForAI.slice(i, i + batchSize)
 
     const summaries = batch.map((c, idx) => `[${idx + 1}] ${c.body.slice(0, 200)}`).join('\n\n')
 
@@ -1622,8 +1672,8 @@ ${summaries}
 Respond with ${batch.length} letters (Y or N):`
 
     try {
-      // Reverted to Haiku: Embeddings pre-filter will handle relevance,
-      // Haiku does final pass on already-filtered candidates
+      // Embeddings pre-filter handles semantic relevance (Stage 0 above)
+      // Haiku does final strict problem-match pass
       const response = await anthropic.messages.create({
         model: 'claude-3-5-haiku-latest',
         max_tokens: 100,
