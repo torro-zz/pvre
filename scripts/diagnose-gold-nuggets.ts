@@ -52,9 +52,12 @@ async function main() {
   console.log(`Problem Text: "${problemFocus.problemText}"`)
   console.log('')
 
-  // Step 2: Generate hypothesis embedding
-  console.log('## Step 2: Generate Hypothesis Embedding')
-  const hypothesisEmbedding = await generateEmbedding(problemFocus.problemText)
+  // Step 2: Generate hypothesis embedding using DETERMINISTIC method
+  // Dec 2025: Use hypothesis + keywords (not problemFocus.problemText which varies)
+  console.log('## Step 2: Generate Hypothesis Embedding (DETERMINISTIC)')
+  const embeddingText = `${hypothesis}. ${problemFocus.keywords.join(', ')}`
+  console.log(`Embedding text: "${embeddingText}"`)
+  const hypothesisEmbedding = await generateEmbedding(embeddingText)
   console.log(`Embedding generated: ${hypothesisEmbedding.length} dimensions`)
   console.log('')
 
