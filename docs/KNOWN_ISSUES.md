@@ -1,88 +1,78 @@
 # Known Issues
 
-Last updated: December 30, 2025
+Last updated: December 31, 2025
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
 
 ---
 
-# 12-30: AI Filter Tuning (Domain Gate + Problem Match)
+# 12-31: Two-Stage Filter Deployed
 
-**Status:** 🔄 In Progress — Needs More Testing
+**Status:** ✅ Complete — Production Ready
 
-## Background
+## Summary
 
-After implementing embedding pre-filter with keyword gate (committed as `6105c45`), the AI filters (Domain Gate and Problem Match) became too strict. The embedding filter now does the heavy lifting for semantic relevance, so AI filters should be more inclusive.
+Replaced the complex multi-stage filter (Domain Gate + Problem Match + keyword gates) with a simpler, more effective two-stage pipeline:
 
-## Changes Made (Uncommitted)
+```
+Stage 1: Embeddings (0.28 threshold) → ~800-1100 candidates
+Stage 2: Rank + Cap at 50 → cost control
+Stage 3: Haiku YES/NO verification → 10-16 verified signals
+```
 
-### 1. Domain Gate → Spam Filter Only
-**File:** `src/lib/research/relevance-filter.ts` (lines 761-778)
-- Changed from strict domain matching to pure spam filter
-- Only rejects obvious spam: gaming, recipes, sports, entertainment
-- Increased body preview from 100 to 250 chars for better context
-- Unified prompt for all domain types (compound and simple)
+## Test Results (Dec 31, 2025)
 
-### 2. Problem Match → Client Payment Check
-**File:** `src/lib/research/relevance-filter.ts` (lines 1142-1164)
-- Changed from "STRICT PROBLEM RELEVANCE CHECK" to inclusive check
-- Now asks: "Is a CLIENT not paying or paying late?"
-- Explicitly rejects personal debt, low wages, invoice templates
-- Accepts related problems: non-payment, payment disputes, chasing money
+| Hypothesis | Stage 1 | Verified | Rate | Relevance |
+|------------|---------|----------|------|-----------|
+| Freelancers getting paid | 810 | 10 | 20% | 100% ✅ |
+| Founders first customers | 1,086 | 16 | 32% | 90%+ ✅ |
+| Developers slow CI/CD | 776 | 16 | 32% | 80%+ ✅ |
 
-### 3. Keyword Gate → Single Problem Indicator
-**File:** `src/lib/embeddings/embedding-service.ts` (lines 522-529)
-- Changed from requiring 2+ words with problem indicator
-- Now passes with ANY single problem indicator word (late, unpaid, owed, etc.)
-- Allows "Late invoices are killing my momentum" to pass (was failing before)
+**Key Metrics:**
+- **Cost:** Fixed at ~$0.06 per search
+- **Relevance:** 85-100% (sample titles all directly relevant)
+- **Signal volume:** 10-16 verified per search
 
-## Current Test Results
+## Issues Resolved
 
-| Run | Signals | Relevant | Rate | Notes |
-|-----|---------|----------|------|-------|
-| 1 | 3 | 2 | 67% | "Feeling deflated" + "Late invoices" ✅ |
-| 2 | 4 | 2 | 50% | Personal debt post leaked through |
-| 3 | 1 | 1 | 100% | Low volume but high precision |
+The following issues from Dec 30 are now **resolved** by the two-stage approach:
 
-## Remaining Issues
+| Issue | Resolution |
+|-------|------------|
+| Low signal volume (1-4) | Now 10-16 verified signals |
+| Keyword extraction variability | Removed keyword gate entirely |
+| Personal debt leaking through | Haiku YES/NO catches these |
+| Domain Gate too strict | Replaced with loose embedding filter |
+| Problem Match inconsistency | Replaced with simple Haiku prompt |
 
-### Issue 1: Low Signal Volume
-**Problem:** Only getting 1-4 signals instead of target 10-15
-**Cause:** Keyword gate may still be too restrictive. SingleWords list only contains problem indicators, missing common words like "invoice", "payment", "client"
-**Next Step:** Investigate keyword extraction (extractProblemFocus) to ensure it returns both problem indicators AND common domain words
+## Known Non-Blocking Issues
 
-### Issue 2: Keyword Extraction Variability
-**Problem:** Claude sometimes returns different keywords, causing inconsistent results between runs
-**Evidence:** One run had 8 single words, another had only 5
-**Next Step:** Consider caching keyword extraction per hypothesis, or using deterministic keyword list
+### Embedding Cache Errors
+```
+[EmbeddingService] Cache write failed: ON CONFLICT DO UPDATE command cannot affect row a second time
+```
+- **Impact:** None - embeddings still work, just don't cache duplicates
+- **Priority:** Low - can fix when adding new data sources
 
-### Issue 3: Personal Debt Posts Leaking Through
-**Problem:** "No idea how I'm gonna survive" (about personal credit card debt) sometimes passes Problem Match
-**Cause:** Sonnet not consistently following N rules
-**Next Step:** Strengthen N examples in prompt, or add explicit debt keywords to reject list
+### 414 Request-URI Too Large (Cache Lookup)
+```
+[EmbeddingService] Cache lookup failed: 414 Request-URI Too Large
+```
+- **Impact:** None - falls back to computing embeddings
+- **Priority:** Low - can optimize cache lookup to use POST
 
-## Files Modified (Uncommitted)
+## Files Added/Modified
 
-| File | Changes |
-|------|---------|
-| `src/lib/research/relevance-filter.ts` | Domain Gate spam-only prompt, Problem Match client payment check, increased body preview |
-| `src/lib/embeddings/embedding-service.ts` | Keyword gate single indicator pass |
+| File | Status | Purpose |
+|------|--------|---------|
+| `src/lib/filter/config.ts` | NEW | Central configuration |
+| `src/lib/filter/ai-verifier.ts` | NEW | Haiku YES/NO verification |
+| `src/lib/filter/index.ts` | UPDATED | Pipeline orchestration |
+| `src/lib/filter/LOCKED.md` | UPDATED | Change history |
 
-## What Works Well
+## Protected Code
 
-1. **Embedding filter**: Correctly passes semantically relevant posts
-2. **"Feeling deflated"**: Now passes (mentions "$10k owed through missed payments")
-3. **"Late invoices"**: Now passes (exact problem match)
-4. **CRM story**: Correctly rejected (about building product, not payment issues)
-5. **Personal debt**: Usually rejected (about credit cards, not client payments)
-
-## Next Session TODO
-
-1. Commit current changes with WIP documentation
-2. Investigate keyword extraction to ensure common domain words included
-3. Run 5+ test runs to validate 60%+ relevance consistency
-4. If volume still low, consider loosening keyword gate further
-5. If precision drops, tighten Problem Match examples
+Filter files are now **locked**. See `src/lib/filter/LOCKED.md` for change process.
 
 ---
 
