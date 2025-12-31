@@ -3,6 +3,7 @@ export {
   generateEmbeddings,
   cosineSimilarity,
   classifySimilarity,
+  classifySimilarityWithThreshold,
   compareSimilarities,
   filterBySimilarity,
   generateMultiFacetEmbeddings,
@@ -10,7 +11,12 @@ export {
   filterByMultiFacetSimilarity,
   isEmbeddingServiceAvailable,
   SIMILARITY_THRESHOLDS,
-  // New problem-focused embedding functions
+  // Coverage boost for thin-data hypotheses (Dec 2025)
+  COVERAGE_BOOST_CONFIG,
+  generateHypothesisKeywords,
+  calculateKeywordBoost,
+  calculateBoostedSimilarity,
+  // Problem-focused embedding functions
   extractProblemFocus,
   passesKeywordGate,
   applyKeywordGate,

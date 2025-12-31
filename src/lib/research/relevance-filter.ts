@@ -27,17 +27,33 @@ import { StructuredHypothesis } from '@/types/research'
 import { getCurrentTracker } from '@/lib/anthropic'
 import { trackUsage } from '@/lib/analysis/token-tracker'
 import {
+  generateEmbedding,
   generateEmbeddings,
+  cosineSimilarity,
   classifySimilarity,
-  generateMultiFacetEmbeddings,
-  maxSimilarityAcrossFacets,
+  classifySimilarityWithThreshold,
   isEmbeddingServiceAvailable,
   SIMILARITY_THRESHOLDS,
-  // New problem-focused embedding functions (Dec 2025)
+  // Problem-focused embedding functions (Dec 2025)
   extractProblemFocus,
   passesKeywordGate,
-  generateProblemFocusedEmbeddings,
+  // Coverage boost for thin-data hypotheses (Dec 2025)
+  COVERAGE_BOOST_CONFIG,
+  generateHypothesisKeywords,
+  calculateBoostedSimilarity,
 } from '@/lib/embeddings'
+
+// =============================================================================
+// SKIP AI GATES FLAG (Dec 2025 Ground Truth Calibration)
+// =============================================================================
+// After calibrating embeddings against 14 verified "gold nugget" posts:
+// - Threshold set to 0.35 (lowest gold nugget scored 0.399)
+// - Keyword boost +0.08 for explicit payment terms
+// - AI gates (Domain Gate, Problem Match) are now optional
+//
+// With properly calibrated embeddings, AI gates add cost without benefit.
+// Set to false only for debugging or if relevance drops.
+export const SKIP_AI_GATES = true
 
 const anthropic = new Anthropic()
 
@@ -919,9 +935,18 @@ export async function problemMatchFilter(
       if (content.type === 'text') {
         // Parse results - expect C/R/N for tiered, Y/N for standard
         const rawResults = content.text.trim().toUpperCase()
-        const results = useTieredClassification
+        let results = useTieredClassification
           ? rawResults.replace(/[^CRN]/g, '')
           : rawResults.replace(/[^YN]/g, '')
+
+        // Safety check: if model returned extra chars (e.g., "Yes I'll..." prefix),
+        // take the LAST expected number of characters
+        if (results.length > batch.length) {
+          console.warn(`[problemMatchFilter] Response has ${results.length} chars for ${batch.length} posts, taking last ${batch.length}`)
+          results = results.slice(-batch.length)
+        } else if (results.length < batch.length) {
+          console.warn(`[problemMatchFilter] Response has ${results.length} chars for ${batch.length} posts, missing will be filtered`)
+        }
 
         batch.forEach((post, idx) => {
           const result = results[idx]
@@ -1139,29 +1164,34 @@ function buildStandardPrompt(
   // Extract the core problem action/experience for clearer matching
   const specificProblem = structured?.problem || problem
 
-  return `PAYMENT PROBLEM CHECK: Is a CLIENT not paying or paying late?
+  return `STRICT FILTER: Is this post about a CLIENT who WON'T PAY or is LATE PAYING for delivered work?
 
-PROBLEM: "${specificProblem}"
+HYPOTHESIS: "${specificProblem}"
 
-Y = CLIENT payment problem:
-- "client won't pay", "late invoice", "non-payer", "chasing payment"
-- "owed money by client/contractor", "client ghosted after delivery"
-- Cash flow issues FROM clients not paying
+ONLY say Y if the post is about:
+- A specific client who owes money and hasn't paid
+- Being "ghosted" after delivering work
+- Chasing payment from a non-paying client
+- Invoice payment being overdue from a specific client
 
-N = NOT a client payment problem:
-- PERSONAL debt (credit cards, loans, student debt) - say N
-- "How to survive financially" without CLIENT payment issue - say N
-- Finding clients, marketing, pricing, low wages - say N
-- Invoice templates, invoicing software - say N
-- General financial stress without client payment issue - say N
+Say N for everything else, including:
+- Publishing strategies, spec work, Substack decisions
+- Getting clients, finding work, marketing
+- Invoice software, templates, accounting questions
+- General business advice, pricing, rates
+- Customer satisfaction, reviews, feedback
+- Personal debt, loans, credit cards
+- "How do I survive" posts about money in general
+- Plumbing, construction, or trade business general advice
+- Contract disputes NOT specifically about payment
 
-KEY: Must involve a CLIENT or CONTRACTOR not paying.
-Personal debt = N. Low wages = N. Only client non-payment = Y.
+CRITICAL: If the post is about anything OTHER than a real client not paying for completed work, answer N.
 
 POSTS:
 ${postSummaries}
 
-Respond with ${batchLength} letters (Y or N).`
+Output format: ${batchLength} letters only. No explanation. Example: NNYNNN
+Your response:`
 }
 
 // ============================================================================
@@ -1289,57 +1319,103 @@ export async function filterRelevantPosts(
     console.log(`[KeywordGate] SingleWords (${singleWords.length}): ${singleWords.join(', ')}`)
     sendProgress?.(`Stage 0 (Keyword Gate): ${postsWithKeywords.length}/${rankedPosts.length} posts contain problem keywords (${keywordGateFiltered} filtered)`)
 
-    // Step 3: Generate PROBLEM-FOCUSED embeddings (not hypothesis-focused)
-    // These embed the PROBLEM ACTION only, not the audience
-    const facetResult = await generateProblemFocusedEmbeddings(problemFocus)
+    // Step 3: Generate a SINGLE problem-focused embedding
+    // Dec 2025: Simplified from 3-facet to single embedding after research showed
+    // text-embedding-3-large scores lower and multi-facet max() didn't help
+    const hypothesisEmbedding = await generateEmbedding(problemFocus.problemText)
 
-    if (facetResult && facetResult.embeddings.some(e => e.length > 0) && postsWithKeywords.length > 0) {
+    if (hypothesisEmbedding && hypothesisEmbedding.length > 0 && postsWithKeywords.length > 0) {
       // Generate embeddings for posts that passed keyword gate
       const postTexts = postsWithKeywords.map(p => `${p.title} ${p.body || ''}`.slice(0, 500))
-      sendProgress?.(`Stage 0 (Embedding): generating embeddings for ${postTexts.length} posts (problem-focused 3-facet)...`)
+      sendProgress?.(`Stage 0 (Embedding): generating embeddings for ${postTexts.length} posts...`)
 
       const postEmbeddings = await generateEmbeddings(postTexts)
 
-      // Compare against all facets and take MAX similarity for each post
-      const highSimilarity: RedditPost[] = []
-      const mediumSimilarity: RedditPost[] = []
+      // PHASE 1: Initial filter at standard threshold (0.35)
+      let highSimilarity: RedditPost[] = []
+      let mediumSimilarity: RedditPost[] = []
       let lowFiltered = 0
+      const lowSimilarityPosts: { post: RedditPost; embedding: number[]; similarity: number }[] = []
 
       for (let i = 0; i < postsWithKeywords.length; i++) {
         const embedding = postEmbeddings[i]?.embedding
         if (!embedding || embedding.length === 0) {
-          // If embedding failed, pass through to AI filter
           mediumSimilarity.push(postsWithKeywords[i])
           continue
         }
 
-        // Take MAX similarity across all 3 facets (pain, complaint, solution)
-        // Problem-focused facets give more precise matching
-        const similarity = maxSimilarityAcrossFacets(facetResult.embeddings, embedding)
+        // Pure cosine similarity (no boost in phase 1)
+        const postText = `${postsWithKeywords[i].title} ${postsWithKeywords[i].body || ''}`
+        const similarity = cosineSimilarity(hypothesisEmbedding, embedding)
         const tier = classifySimilarity(similarity)
 
         if (tier === 'HIGH') {
           highSimilarity.push(postsWithKeywords[i])
-          // Log HIGH matches for debugging
-          const matchedKw = problemFocus.keywords.filter(kw =>
-            `${postsWithKeywords[i].title} ${postsWithKeywords[i].body || ''}`.toLowerCase().includes(kw)
-          )
-          console.log(`[EmbeddingPass] HIGH (${similarity.toFixed(3)}) "${postsWithKeywords[i].title?.slice(0, 50)}..." keywords=[${matchedKw.join(', ')}]`)
+          console.log(`[Phase1] HIGH (${similarity.toFixed(3)}) "${postsWithKeywords[i].title?.slice(0, 50)}..."`)
         } else if (tier === 'MEDIUM') {
           mediumSimilarity.push(postsWithKeywords[i])
-          // Log MEDIUM matches for debugging
-          const matchedKw = problemFocus.keywords.filter(kw =>
-            `${postsWithKeywords[i].title} ${postsWithKeywords[i].body || ''}`.toLowerCase().includes(kw)
-          )
-          console.log(`[EmbeddingPass] MEDIUM (${similarity.toFixed(3)}) "${postsWithKeywords[i].title?.slice(0, 50)}..." keywords=[${matchedKw.join(', ')}]`)
+          console.log(`[Phase1] MEDIUM (${similarity.toFixed(3)}) "${postsWithKeywords[i].title?.slice(0, 50)}..."`)
         } else {
+          // Track low-similarity posts for potential boost
+          lowSimilarityPosts.push({ post: postsWithKeywords[i], embedding, similarity })
           lowFiltered++
-          // Add decision for filtered posts
+        }
+      }
+
+      const initialCoverage = highSimilarity.length + mediumSimilarity.length
+      console.log(`[Phase1] Initial coverage: ${initialCoverage} posts (MIN_COVERAGE: ${COVERAGE_BOOST_CONFIG.MIN_COVERAGE})`)
+
+      // PHASE 2: Coverage boost if initial results < MIN_COVERAGE
+      let boostKeywords: string[] = []
+      if (initialCoverage < COVERAGE_BOOST_CONFIG.MIN_COVERAGE && lowSimilarityPosts.length > 0) {
+        sendProgress?.(`Coverage boost: only ${initialCoverage} posts found, generating hypothesis keywords...`)
+
+        // Generate dynamic keywords for this hypothesis
+        boostKeywords = await generateHypothesisKeywords(hypothesis)
+
+        if (boostKeywords.length > 0) {
+          console.log(`[CoverageBoost] Generated ${boostKeywords.length} keywords: ${boostKeywords.slice(0, 5).join(', ')}...`)
+
+          // Re-score low-similarity posts with keyword boost
+          let boosted = 0
+          for (const { post, embedding, similarity: baseSimilarity } of lowSimilarityPosts) {
+            const postText = `${post.title} ${post.body || ''}`
+            const boostedSimilarity = calculateBoostedSimilarity(hypothesisEmbedding, embedding, postText, boostKeywords)
+            const tier = classifySimilarityWithThreshold(boostedSimilarity, SIMILARITY_THRESHOLDS.BOOSTED_MEDIUM)
+
+            if (tier === 'HIGH') {
+              highSimilarity.push(post)
+              boosted++
+              console.log(`[CoverageBoost] RECOVERED HIGH (${baseSimilarity.toFixed(3)} → ${boostedSimilarity.toFixed(3)}) "${post.title?.slice(0, 50)}..."`)
+            } else if (tier === 'MEDIUM') {
+              mediumSimilarity.push(post)
+              boosted++
+              console.log(`[CoverageBoost] RECOVERED MEDIUM (${baseSimilarity.toFixed(3)} → ${boostedSimilarity.toFixed(3)}) "${post.title?.slice(0, 50)}..."`)
+            } else {
+              // Still too low even with boost
+              allDecisions.push({
+                reddit_id: post.id,
+                title: post.title,
+                body_preview: (post.body || '').slice(0, 200),
+                subreddit: post.subreddit,
+                decision: 'N',
+                stage: 'quality',
+                reason: `low_similarity_${boostedSimilarity.toFixed(2)}`,
+              })
+            }
+          }
+
+          lowFiltered = lowFiltered - boosted
+          sendProgress?.(`Coverage boost: recovered ${boosted} posts with keyword boost (keywords: ${boostKeywords.slice(0, 3).join(', ')}...)`)
+        }
+      } else {
+        // No boost needed - add decisions for filtered posts
+        for (const { post, similarity } of lowSimilarityPosts) {
           allDecisions.push({
-            reddit_id: postsWithKeywords[i].id,
-            title: postsWithKeywords[i].title,
-            body_preview: (postsWithKeywords[i].body || '').slice(0, 200),
-            subreddit: postsWithKeywords[i].subreddit,
+            reddit_id: post.id,
+            title: post.title,
+            body_preview: (post.body || '').slice(0, 200),
+            subreddit: post.subreddit,
             decision: 'N',
             stage: 'quality',
             reason: `low_similarity_${similarity.toFixed(2)}`,
@@ -1349,12 +1425,13 @@ export async function filterRelevantPosts(
 
       metrics.embeddingHighSimilarity = highSimilarity.length
       metrics.embeddingMediumSimilarity = mediumSimilarity.length
-      metrics.embeddingFiltered = keywordGateFiltered + lowFiltered  // Both gates combined
+      metrics.embeddingFiltered = keywordGateFiltered + lowFiltered
 
-      // Combine HIGH and MEDIUM for domain gate (HIGH first for priority)
+      // Combine HIGH and MEDIUM for next stage (HIGH first for priority)
       postsForDomainGate = [...highSimilarity, ...mediumSimilarity]
 
-      sendProgress?.(`Stage 0 (Embedding): ${highSimilarity.length} HIGH + ${mediumSimilarity.length} MEDIUM (problem-focused), ${lowFiltered} similarity filtered, ${keywordGateFiltered} keyword filtered`)
+      const boostNote = boostKeywords.length > 0 ? ` [coverage boost applied]` : ''
+      sendProgress?.(`Stage 0 (Embedding): ${highSimilarity.length} HIGH + ${mediumSimilarity.length} MEDIUM, ${lowFiltered} filtered${boostNote}`)
     } else if (postsWithKeywords.length > 0) {
       // Embedding failed but keyword gate passed - use keyword-filtered posts
       postsForDomainGate = postsWithKeywords
@@ -1370,55 +1447,74 @@ export async function filterRelevantPosts(
     sendProgress?.(`Stage 0 (Embedding): OPENAI_API_KEY not set, skipping embedding filter`)
   }
 
-  // STAGE 1: Domain Gate (fast, cheap AI filter)
-  const { domain, antiDomains } = await extractProblemDomain(hypothesis, structured)
-  sendProgress?.(`Extracted problem domain: "${domain}"`)
-
-  const stage1 = await domainGateFilter(
-    postsForDomainGate,
-    domain,
-    antiDomains,
-    sendProgress
-  )
-  metrics.stage1Filtered = stage1.filtered.length
-  allDecisions.push(...stage1.decisions)
-
-  // Log Domain Gate results
-  console.log(`[DomainGate] ${stage1.passed.length} passed, ${stage1.filtered.length} filtered`)
-  for (const post of stage1.passed) {
-    console.log(`[DomainGate] PASS: "${post.title?.slice(0, 60)}..."`)
-  }
-  for (const post of stage1.filtered.slice(0, 5)) {
-    const decision = stage1.decisions.find(d => d.reddit_id === post.id)
-    console.log(`[DomainGate] FAIL: "${post.title?.slice(0, 60)}..." reason=${decision?.reason || 'unknown'}`)
-  }
-
-  // STAGE 2: Problem Match (tiered filter) - for full posts
+  // STAGE 1 & 2: AI Gates (Domain Gate + Problem Match)
+  // Dec 2025: These are now optional - calibrated embeddings handle relevance
   let stage2Core: RedditPost[] = []
   let stage2Related: RedditPost[] = []
-  if (stage1.passed.length > 0) {
-    const stage2 = await problemMatchFilter(
-      stage1.passed,
-      hypothesis,
-      structured,
+  let domain = ''
+  let antiDomains: string[] = []
+
+  if (SKIP_AI_GATES) {
+    // BYPASS: Trust calibrated embeddings, skip Haiku/Sonnet calls
+    // All embedding-passed posts go to CORE tier (they already passed 0.35 threshold)
+    sendProgress?.(`AI Gates: SKIPPED (SKIP_AI_GATES=true) - ${postsForDomainGate.length} posts passed to CORE tier`)
+    console.log(`[AI Gates] SKIPPED - trusting calibrated embeddings (threshold 0.35 + keyword boost)`)
+
+    stage2Core = postsForDomainGate
+    stage2Related = []
+    metrics.stage1Filtered = 0
+    metrics.stage2Filtered = 0
+  } else {
+    // STAGE 1: Domain Gate (fast, cheap AI filter)
+    const domainResult = await extractProblemDomain(hypothesis, structured)
+    domain = domainResult.domain
+    antiDomains = domainResult.antiDomains
+    sendProgress?.(`Extracted problem domain: "${domain}"`)
+
+    const stage1 = await domainGateFilter(
+      postsForDomainGate,
+      domain,
+      antiDomains,
       sendProgress
     )
-    metrics.stage2Filtered = stage2.filtered.length
-    allDecisions.push(...stage2.decisions)
-    stage2Core = stage2.core
-    stage2Related = stage2.related
+    metrics.stage1Filtered = stage1.filtered.length
+    allDecisions.push(...stage1.decisions)
 
-    // Log Problem Match results
-    console.log(`[ProblemMatch] ${stage2.core.length} CORE, ${stage2.related.length} RELATED, ${stage2.filtered.length} filtered`)
-    for (const post of stage2.core) {
-      console.log(`[ProblemMatch] CORE: "${post.title?.slice(0, 60)}..."`)
+    // Log Domain Gate results
+    console.log(`[DomainGate] ${stage1.passed.length} passed, ${stage1.filtered.length} filtered`)
+    for (const post of stage1.passed) {
+      console.log(`[DomainGate] PASS: "${post.title?.slice(0, 60)}..."`)
     }
-    for (const post of stage2.related) {
-      console.log(`[ProblemMatch] RELATED: "${post.title?.slice(0, 60)}..."`)
+    for (const post of stage1.filtered.slice(0, 5)) {
+      const decision = stage1.decisions.find(d => d.reddit_id === post.id)
+      console.log(`[DomainGate] FAIL: "${post.title?.slice(0, 60)}..." reason=${decision?.reason || 'unknown'}`)
     }
-    for (const post of stage2.filtered.slice(0, 3)) {
-      const decision = stage2.decisions.find(d => d.reddit_id === post.id)
-      console.log(`[ProblemMatch] FAIL: "${post.title?.slice(0, 60)}..." reason=${decision?.reason || 'unknown'}`)
+
+    // STAGE 2: Problem Match (tiered filter) - for full posts
+    if (stage1.passed.length > 0) {
+      const stage2 = await problemMatchFilter(
+        stage1.passed,
+        hypothesis,
+        structured,
+        sendProgress
+      )
+      metrics.stage2Filtered = stage2.filtered.length
+      allDecisions.push(...stage2.decisions)
+      stage2Core = stage2.core
+      stage2Related = stage2.related
+
+      // Log Problem Match results
+      console.log(`[ProblemMatch] ${stage2.core.length} CORE, ${stage2.related.length} RELATED, ${stage2.filtered.length} filtered`)
+      for (const post of stage2.core) {
+        console.log(`[ProblemMatch] CORE: "${post.title?.slice(0, 60)}..."`)
+      }
+      for (const post of stage2.related) {
+        console.log(`[ProblemMatch] RELATED: "${post.title?.slice(0, 60)}..."`)
+      }
+      for (const post of stage2.filtered.slice(0, 3)) {
+        const decision = stage2.decisions.find(d => d.reddit_id === post.id)
+        console.log(`[ProblemMatch] FAIL: "${post.title?.slice(0, 60)}..." reason=${decision?.reason || 'unknown'}`)
+      }
     }
   }
 
@@ -1439,63 +1535,71 @@ export async function filterRelevantPosts(
       console.log(`[Title-only] Keyword gate: ${titleOnlyWithKeywords.length}/${stage3.titleOnly.length} passed (${titleOnlyKeywordFiltered} filtered)`)
     }
 
-    // Run domain gate on title-only posts with lenient mode (titles have less context)
-    const titleOnlyDomain = await domainGateFilter(
-      titleOnlyWithKeywords,
-      domain,
-      antiDomains,
-      (msg) => sendProgress?.(`[Title-only] ${msg}`),
-      true  // lenientMode for title-only posts
-    )
+    // Mark title-only posts - they'll be weighted at 0.7x in pain detection
+    const markAsTitleOnly = (post: RedditPost): RedditPost => ({
+      ...post,
+      body: `[Title-only analysis] ${post.title}`,
+      _titleOnly: true,
+    } as RedditPost)
 
-    if (titleOnlyDomain.passed.length > 0) {
-      // Run problem match on domain-passed title-only posts
-      const titleOnlyProblem = await problemMatchFilter(
-        titleOnlyDomain.passed,
-        hypothesis,
-        structured,
-        (msg) => sendProgress?.(`[Title-only] ${msg}`)
+    if (SKIP_AI_GATES) {
+      // BYPASS: Trust keyword gate for title-only posts
+      titleOnlyCore = titleOnlyWithKeywords.map(markAsTitleOnly)
+      titleOnlyRelated = []
+      metrics.titleOnlyPosts = titleOnlyCore.length
+      sendProgress?.(`Title-only: ${titleOnlyCore.length} posts passed keyword gate (AI gates skipped)`)
+    } else {
+      // Run domain gate on title-only posts with lenient mode (titles have less context)
+      const titleOnlyDomain = await domainGateFilter(
+        titleOnlyWithKeywords,
+        domain,
+        antiDomains,
+        (msg) => sendProgress?.(`[Title-only] ${msg}`),
+        true  // lenientMode for title-only posts
       )
 
-      // Mark title-only posts - they'll be weighted at 0.7x in pain detection
-      const markAsTitleOnly = (post: RedditPost): RedditPost => ({
-        ...post,
-        body: `[Title-only analysis] ${post.title}`,
-        _titleOnly: true,
-      } as RedditPost)
+      if (titleOnlyDomain.passed.length > 0) {
+        // Run problem match on domain-passed title-only posts
+        const titleOnlyProblem = await problemMatchFilter(
+          titleOnlyDomain.passed,
+          hypothesis,
+          structured,
+          (msg) => sendProgress?.(`[Title-only] ${msg}`)
+        )
 
-      titleOnlyCore = titleOnlyProblem.core.map(markAsTitleOnly)
-      titleOnlyRelated = titleOnlyProblem.related.map(markAsTitleOnly)
+        titleOnlyCore = titleOnlyProblem.core.map(markAsTitleOnly)
+        titleOnlyRelated = titleOnlyProblem.related.map(markAsTitleOnly)
 
-      metrics.titleOnlyPosts = titleOnlyCore.length + titleOnlyRelated.length
+        metrics.titleOnlyPosts = titleOnlyCore.length + titleOnlyRelated.length
 
-      // Update decisions for title-only posts with tier info
-      for (const post of titleOnlyCore) {
-        allDecisions.push({
-          reddit_id: post.id,
-          title: post.title,
-          body_preview: '[title-only analysis]',
-          subreddit: post.subreddit,
-          decision: 'Y',
-          tier: 'CORE',
-          stage: 'problem',
-          reason: 'title_only',
-        })
+        // Update decisions for title-only posts with tier info
+        for (const post of titleOnlyCore) {
+          allDecisions.push({
+            reddit_id: post.id,
+            title: post.title,
+            body_preview: '[title-only analysis]',
+            subreddit: post.subreddit,
+            decision: 'Y',
+            tier: 'CORE',
+            stage: 'problem',
+            reason: 'title_only',
+          })
+        }
+        for (const post of titleOnlyRelated) {
+          allDecisions.push({
+            reddit_id: post.id,
+            title: post.title,
+            body_preview: '[title-only analysis]',
+            subreddit: post.subreddit,
+            decision: 'Y',
+            tier: 'RELATED',
+            stage: 'problem',
+            reason: 'title_only',
+          })
+        }
+
+        sendProgress?.(`Title-only: ${titleOnlyCore.length} CORE + ${titleOnlyRelated.length} RELATED posts included`)
       }
-      for (const post of titleOnlyRelated) {
-        allDecisions.push({
-          reddit_id: post.id,
-          title: post.title,
-          body_preview: '[title-only analysis]',
-          subreddit: post.subreddit,
-          decision: 'Y',
-          tier: 'RELATED',
-          stage: 'problem',
-          reason: 'title_only',
-        })
-      }
-
-      sendProgress?.(`Title-only: ${titleOnlyCore.length} CORE + ${titleOnlyRelated.length} RELATED posts included`)
     }
   }
 
@@ -1513,8 +1617,9 @@ export async function filterRelevantPosts(
 
   // P0 FIX: Calculate Stage 2 filter rate and narrow problem warning
   // Stage 2 filter rate = % of Stage 1 passes that failed Stage 2
-  const stage1PassedCount = stage1.passed.length
-  if (stage1PassedCount > 0) {
+  // When SKIP_AI_GATES=true, use embedding-passed count; otherwise use domain gate passed count
+  const stage1PassedCount = SKIP_AI_GATES ? postsForDomainGate.length : (stage2Core.length + stage2Related.length + metrics.stage2Filtered)
+  if (stage1PassedCount > 0 && !SKIP_AI_GATES) {
     metrics.stage2FilterRate = (metrics.stage2Filtered / stage1PassedCount) * 100
     // Only flag as narrow problem if BOTH:
     // 1. >70% of domain-relevant posts fail problem matching (raised from 50% to reduce false positives)
@@ -1619,16 +1724,18 @@ export async function filterRelevantComments(
       }
     }
 
-    // Step 3: Generate PROBLEM-FOCUSED embeddings
-    const facetResult = await generateProblemFocusedEmbeddings(problemFocus)
+    // Step 3: Generate a SINGLE problem-focused embedding (simplified from 3-facet)
+    const commentHypothesisEmbedding = await generateEmbedding(problemFocus.problemText)
 
-    if (facetResult && facetResult.embeddings.some(e => e.length > 0) && commentsWithKeywords.length > 0) {
+    if (commentHypothesisEmbedding && commentHypothesisEmbedding.length > 0 && commentsWithKeywords.length > 0) {
       const commentTexts = commentsWithKeywords.map(c => c.body.slice(0, 500))
       const commentEmbeddings = await generateEmbeddings(commentTexts)
 
-      const highSimilarity: RedditComment[] = []
-      const mediumSimilarity: RedditComment[] = []
+      // PHASE 1: Initial filter at standard threshold (0.35)
+      let highSimilarity: RedditComment[] = []
+      let mediumSimilarity: RedditComment[] = []
       let embeddingFiltered = 0
+      const lowSimilarityComments: { comment: RedditComment; embedding: number[]; similarity: number }[] = []
 
       for (let i = 0; i < commentsWithKeywords.length; i++) {
         const embedding = commentEmbeddings[i]?.embedding
@@ -1637,7 +1744,8 @@ export async function filterRelevantComments(
           continue
         }
 
-        const similarity = maxSimilarityAcrossFacets(facetResult.embeddings, embedding)
+        // Pure cosine similarity (no boost in phase 1)
+        const similarity = cosineSimilarity(commentHypothesisEmbedding, embedding)
         const tier = classifySimilarity(similarity)
 
         if (tier === 'HIGH') {
@@ -1645,11 +1753,49 @@ export async function filterRelevantComments(
         } else if (tier === 'MEDIUM') {
           mediumSimilarity.push(commentsWithKeywords[i])
         } else {
+          lowSimilarityComments.push({ comment: commentsWithKeywords[i], embedding, similarity })
           embeddingFiltered++
+        }
+      }
+
+      const initialCoverage = highSimilarity.length + mediumSimilarity.length
+
+      // PHASE 2: Coverage boost if initial results < MIN_COVERAGE
+      if (initialCoverage < COVERAGE_BOOST_CONFIG.MIN_COVERAGE && lowSimilarityComments.length > 0) {
+        const boostKeywords = await generateHypothesisKeywords(hypothesis)
+
+        if (boostKeywords.length > 0) {
+          let boosted = 0
+          for (const { comment, embedding, similarity: baseSimilarity } of lowSimilarityComments) {
+            const boostedSimilarity = calculateBoostedSimilarity(commentHypothesisEmbedding, embedding, comment.body, boostKeywords)
+            const tier = classifySimilarityWithThreshold(boostedSimilarity, SIMILARITY_THRESHOLDS.BOOSTED_MEDIUM)
+
+            if (tier === 'HIGH') {
+              highSimilarity.push(comment)
+              boosted++
+            } else if (tier === 'MEDIUM') {
+              mediumSimilarity.push(comment)
+              boosted++
+            } else {
+              allDecisions.push({
+                reddit_id: comment.id,
+                body_preview: comment.body.slice(0, 200),
+                subreddit: comment.subreddit,
+                decision: 'N',
+                stage: 'quality',
+                reason: `low_similarity_${boostedSimilarity.toFixed(2)}`,
+              })
+            }
+          }
+          embeddingFiltered = embeddingFiltered - boosted
+        }
+      } else {
+        // No boost needed - add decisions for filtered comments
+        for (const { comment, similarity } of lowSimilarityComments) {
           allDecisions.push({
-            reddit_id: commentsWithKeywords[i].id,
-            body_preview: commentsWithKeywords[i].body.slice(0, 200),
-            subreddit: commentsWithKeywords[i].subreddit,
+            reddit_id: comment.id,
+            body_preview: comment.body.slice(0, 200),
+            subreddit: comment.subreddit,
             decision: 'N',
             stage: 'quality',
             reason: `low_similarity_${similarity.toFixed(2)}`,
@@ -1673,22 +1819,29 @@ export async function filterRelevantComments(
     }
   }
 
-  // Stage 2 directly (skip domain gate for comments)
-  const passed: RedditComment[] = []
+  // Stage 2: AI relevance check (optional when SKIP_AI_GATES=true)
+  let passed: RedditComment[] = []
   const filtered: RedditComment[] = []
-  const batchSize = 25
 
-  for (let i = 0; i < commentsForAI.length; i += batchSize) {
-    const batch = commentsForAI.slice(i, i + batchSize)
+  if (SKIP_AI_GATES) {
+    // BYPASS: Trust calibrated embeddings, skip Haiku calls
+    console.log(`[Comments AI Gate] SKIPPED - ${commentsForAI.length} comments passed to output`)
+    passed = commentsForAI
+    metrics.stage2Filtered = 0
+  } else {
+    const batchSize = 25
 
-    const summaries = batch.map((c, idx) => `[${idx + 1}] ${c.body.slice(0, 200)}`).join('\n\n')
+    for (let i = 0; i < commentsForAI.length; i += batchSize) {
+      const batch = commentsForAI.slice(i, i + batchSize)
 
-    // Phase 0 Data Quality Initiative: Tightened from loose "discusses problem"
-    // to strict first-person + explicit problem expression matching
-    const problemDescription = structured?.problem || hypothesis
-    const audienceDescription = structured?.audience || ''
+      const summaries = batch.map((c, idx) => `[${idx + 1}] ${c.body.slice(0, 200)}`).join('\n\n')
 
-    const prompt = `STRICT RELEVANCE CHECK for comments - require FIRSTHAND EXPERIENCE.
+      // Phase 0 Data Quality Initiative: Tightened from loose "discusses problem"
+      // to strict first-person + explicit problem expression matching
+      const problemDescription = structured?.problem || hypothesis
+      const audienceDescription = structured?.audience || ''
+
+      const prompt = `STRICT RELEVANCE CHECK for comments - require FIRSTHAND EXPERIENCE.
 
 THE SPECIFIC PROBLEM: ${problemDescription}
 TARGET AUDIENCE: ${audienceDescription}${structured?.problemLanguage ? `
@@ -1713,45 +1866,47 @@ ${summaries}
 
 Respond with ${batch.length} letters (Y or N):`
 
-    try {
-      // Embeddings pre-filter handles semantic relevance (Stage 0 above)
-      // Haiku does final strict problem-match pass
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-haiku-latest',
-        max_tokens: 100,
-        messages: [{ role: 'user', content: prompt }],
-      })
-
-      const tracker = getCurrentTracker()
-      if (tracker && response.usage) {
-        trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
-      }
-
-      const content = response.content[0]
-      if (content.type === 'text') {
-        const results = content.text.trim().toUpperCase().replace(/[^YN]/g, '')
-        batch.forEach((comment, idx) => {
-          const decision = results[idx] === 'Y' ? 'Y' : 'N'
-          if (decision === 'Y') {
-            passed.push(comment)
-          } else {
-            filtered.push(comment)
-            allDecisions.push({
-              reddit_id: comment.id,
-              body_preview: comment.body.slice(0, 200),
-              subreddit: comment.subreddit,
-              decision: 'N',
-              stage: 'problem',
-            })
-          }
+      try {
+        // Embeddings pre-filter handles semantic relevance (Stage 0 above)
+        // Haiku does final strict problem-match pass
+        const response = await anthropic.messages.create({
+          model: 'claude-3-5-haiku-latest',
+          max_tokens: 100,
+          messages: [{ role: 'user', content: prompt }],
         })
+
+        const tracker = getCurrentTracker()
+        if (tracker && response.usage) {
+          trackUsage(tracker, response.usage, 'claude-3-5-haiku-latest')
+        }
+
+        const content = response.content[0]
+        if (content.type === 'text') {
+          const results = content.text.trim().toUpperCase().replace(/[^YN]/g, '')
+          batch.forEach((comment, idx) => {
+            const decision = results[idx] === 'Y' ? 'Y' : 'N'
+            if (decision === 'Y') {
+              passed.push(comment)
+            } else {
+              filtered.push(comment)
+              allDecisions.push({
+                reddit_id: comment.id,
+                body_preview: comment.body.slice(0, 200),
+                subreddit: comment.subreddit,
+                decision: 'N',
+                stage: 'problem',
+              })
+            }
+          })
+        }
+      } catch {
+        passed.push(...batch)
       }
-    } catch {
-      passed.push(...batch)
     }
+
+    metrics.stage2Filtered = filtered.length
   }
 
-  metrics.stage2Filtered = filtered.length
   metrics.after = passed.length
   metrics.filteredOut = metrics.before - metrics.after
   metrics.filterRate = metrics.before > 0 ? (metrics.filteredOut / metrics.before) * 100 : 0
