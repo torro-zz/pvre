@@ -1,6 +1,6 @@
 # PVRE - Technical Overview
 
-*Last updated: 2025-12-31 (Two-Stage Filter with Haiku AI Verification)*
+*Last updated: 2025-12-31 (Clarified production vs planned filter pipelines)*
 
 > **Auto-Update**: This document should be updated on every significant push. See CLAUDE.md → "Documentation Updates" section.
 
@@ -823,11 +823,84 @@ See "Engagement Transparency (Dec 29, 2025)" section above for full technical de
 
 **CRITICAL**: This section documents the filtering pipeline that controls AI costs. Bugs here cause cost overruns.
 
-### Two-Stage Filter Pipeline (Dec 31, 2025)
+### Current Production Pipeline
 
-**Status:** ✅ Production ready
+**Status:** ✅ In production (`src/lib/research/relevance-filter.ts`)
 
-The filtering pipeline uses a two-stage approach with cost-controlled AI verification:
+The production pipeline uses embeddings with AI gates DISABLED:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│               CURRENT PRODUCTION PIPELINE                               │
+│               (SKIP_AI_GATES = true)                                    │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  Raw posts from data sources                                           │
+│       ↓                                                                │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │ STEP 1: PRE-FILTER RANK (Code only, FREE)                        │ │
+│  │                                                                  │ │
+│  │ preFilterAndRank():                                              │ │
+│  │ - Score by first-person language (40% weight)                    │ │
+│  │ - Score by engagement (upvotes, comments)                        │ │
+│  │ - Score by recency                                               │ │
+│  │ - Take top 150 candidates                                        │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│       ↓ ~150 posts                                                     │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │ STEP 2: KEYWORD GATE (Code only, FREE)                           │ │
+│  │                                                                  │ │
+│  │ extractProblemFocus(hypothesis) → keywords + problemText         │ │
+│  │ passesKeywordGate(post, keywords) → must contain 1+ keyword      │ │
+│  │                                                                  │ │
+│  │ Filters posts that don't mention the problem at all              │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│       ↓ ~80-120 posts                                                  │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │ STEP 3: EMBEDDING FILTER (OpenAI, ~$0.01)                        │ │
+│  │                                                                  │ │
+│  │ generateEmbedding(hypothesis) — HYPOTHESIS ONLY (deterministic)  │ │
+│  │ generateEmbeddings(posts) — Batch, cached in pgvector            │ │
+│  │                                                                  │ │
+│  │ Thresholds:                                                      │ │
+│  │ - HIGH (≥0.50): Strong match → CORE tier                         │ │
+│  │ - MEDIUM (0.35-0.50): Related → CORE tier                        │ │
+│  │ - LOW (<0.35): Filtered out                                      │ │
+│  │                                                                  │ │
+│  │ Coverage boost: +0.08 for thin-data hypotheses                   │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│       ↓ ~50-150 embedding-filtered posts                               │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │ AI GATES — SKIPPED (SKIP_AI_GATES = true)                        │ │
+│  │                                                                  │ │
+│  │ Domain Gate (Haiku) — DISABLED                                   │ │
+│  │ Problem Match (Haiku) — DISABLED                                 │ │
+│  │                                                                  │ │
+│  │ Reason: Calibrated embeddings handle relevance sufficiently      │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│       ↓ All posts pass to analysis (all in CORE tier)                  │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Files (ACTUAL production):**
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `src/lib/research/relevance-filter.ts` | `filterRelevantPosts()` | Main pipeline |
+| `src/lib/research/relevance-filter.ts` | `filterRelevantComments()` | Comments pipeline |
+| `src/lib/embeddings/embedding-service.ts` | `generateEmbedding()` | Embedding generation |
+
+**Cost:** ~$0.01 per search (embeddings only, no Haiku calls)
+
+---
+
+### Planned: Two-Stage Filter Module (NOT YET INTEGRATED)
+
+**Status:** ⏳ Built & tested, NOT integrated into production
+
+The `src/lib/filter/` module adds Haiku verification as a final quality check. Currently NOT used in production.
+
+The two-stage pipeline uses embeddings PLUS cost-controlled AI verification:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -899,7 +972,9 @@ export const FILTER_CONFIG = {
 | `src/lib/adapters/types.ts` | `NormalizedPost` | Universal post interface |
 | `src/lib/adapters/reddit-adapter.ts` | `normalizeRedditPosts()` | Reddit → NormalizedPost |
 
-### Test Results (Dec 31, 2025)
+### Test Results (Dec 31, 2025 - ISOLATED TESTING)
+
+These results are from testing the `src/lib/filter/` module in isolation, NOT from production use.
 
 | Hypothesis | Stage 1 | Stage 2 | Stage 3 | Rate |
 |------------|---------|---------|---------|------|
@@ -907,10 +982,12 @@ export const FILTER_CONFIG = {
 | Founders getting first customers | 1,086 | 50 | 16 | 32% |
 | Developers frustrated with CI/CD | 776 | 50 | 16 | 32% |
 
-**Key Metrics:**
+**Key Metrics (from isolated testing):**
 - **Cost per search:** ~$0.06 (fixed)
 - **Relevance:** 85-100% (based on sample title review)
 - **Processing time:** ~33 seconds
+
+**To Deploy:** Replace `filterRelevantPosts()` import in `community-voice/route.ts` with `filterSignals()` from `src/lib/filter/`
 
 ### Cost Impact by Stage
 
@@ -935,9 +1012,9 @@ export const FILTER_CONFIG = {
 - **High relevance:** Haiku filters false positives from embeddings
 - **Scalability:** Can add more data sources without cost explosion
 
-### Protected Code
+### Protected Code (Planned Module)
 
-The filter is locked to prevent accidental changes. See `src/lib/filter/LOCKED.md`.
+The planned filter module is locked to prevent accidental changes. See `src/lib/filter/LOCKED.md`.
 
 **Files Protected:**
 - `universal-filter.ts` — Core embedding filter
@@ -950,6 +1027,8 @@ The filter is locked to prevent accidental changes. See `src/lib/filter/LOCKED.m
 3. Wait for approval
 4. Run full calibration test BEFORE and AFTER
 5. Document results in LOCKED.md
+
+**Note:** The production filter (`src/lib/research/relevance-filter.ts`) is separate and actively used.
 
 ### Adapter Pattern
 
