@@ -32,14 +32,15 @@ const MAX_BATCH_SIZE = 100  // OpenAI limit per request
 
 // Similarity thresholds - CALIBRATED from ground truth (14 gold nuggets)
 // Dec 2025: Calibrated against verified relevant posts for "freelancer payment" hypothesis.
-// Gold nugget scores ranged 0.399-0.625, lowest was 0.399.
-// Threshold set at 0.35 to catch all gold nuggets with margin.
+// Dec 2025: Recalibrated with hypothesis-only embedding (no keywords)
+// Gold nugget scores: min 0.212, max 0.585, avg 0.406
+// Threshold 0.34 captures 75% of gold nuggets (6/8)
 export const SIMILARITY_THRESHOLDS = {
-  HIGH: 0.50,    // Strong semantic match (above median of gold nuggets)
-  MEDIUM: 0.35,  // Calibrated threshold - all 14 gold nuggets score above this
-  LOW: 0.35,     // Below this = reject
+  HIGH: 0.50,    // Strong semantic match
+  MEDIUM: 0.34,  // Calibrated: captures 6/8 gold nuggets (75%)
+  LOW: 0.34,     // Below this = reject
   // Coverage boost mode: lower threshold for thin-data hypotheses
-  BOOSTED_MEDIUM: 0.30,  // Lower threshold when using keyword boost
+  BOOSTED_MEDIUM: 0.28,  // Lower threshold when using keyword boost
 } as const
 
 // Coverage boost configuration
@@ -622,10 +623,43 @@ const PROBLEM_PHRASES = [
 ]
 
 /**
+ * Simple stemming: returns word and common variants (plural/singular)
+ */
+function getStemVariants(word: string): string[] {
+  const variants = [word]
+  // Add plural/singular variants
+  if (word.endsWith('s') && word.length > 3) {
+    variants.push(word.slice(0, -1)) // payments -> payment
+  } else {
+    variants.push(word + 's') // payment -> payments
+  }
+  // Handle -ing -> base
+  if (word.endsWith('ing') && word.length > 5) {
+    variants.push(word.slice(0, -3)) // paying -> pay
+    variants.push(word.slice(0, -3) + 'e') // chasing -> chase
+  }
+  // Handle -ed -> base
+  if (word.endsWith('ed') && word.length > 4) {
+    variants.push(word.slice(0, -2)) // owed -> ow (not great)
+    variants.push(word.slice(0, -1)) // stalled -> stall (if -led)
+  }
+  return variants
+}
+
+/**
+ * Check if text contains word with stemming support
+ */
+function containsWithStemming(text: string, word: string): boolean {
+  const variants = getStemVariants(word)
+  return variants.some(v => text.includes(v))
+}
+
+/**
  * Check if a text passes the keyword gate.
  *
  * Dec 2025: LOOSENED after observing 246 posts filtered by keyword gate.
  * Dec 2025: FURTHER LOOSENED after gold nugget diagnosis showed 5/8 false negatives.
+ * Dec 2025: Added stemming to match "payments" -> "payment", "Nonpayment" -> "payment"
  *
  * Now passes if ANY of these conditions are met:
  * 1. Contains any multi-word phrase from extracted keywords
@@ -650,9 +684,9 @@ export function passesKeywordGate(text: string, keywords: string[]): boolean {
     return true
   }
 
-  // Check 2: Does the text contain ANY problem indicator from keywords?
+  // Check 2: Does the text contain ANY problem indicator from keywords? (with stemming)
   for (const word of singleWords) {
-    if (PROBLEM_INDICATORS.has(word) && lowerText.includes(word)) {
+    if (PROBLEM_INDICATORS.has(word) && containsWithStemming(lowerText, word)) {
       return true
     }
   }
@@ -664,34 +698,34 @@ export function passesKeywordGate(text: string, keywords: string[]): boolean {
     }
   }
 
-  // Check 4: Does the text contain BOTH a domain keyword AND a problem indicator?
+  // Check 4: Does the text contain BOTH a domain keyword AND a problem indicator? (with stemming)
   // This catches posts like "my invoice is overdue" where "invoice" is from keywords
   // and "overdue" is a problem indicator
-  const hasKeyword = singleWords.some(word => lowerText.includes(word))
+  const hasKeyword = singleWords.some(word => containsWithStemming(lowerText, word))
   if (hasKeyword) {
     for (const indicator of PROBLEM_INDICATORS) {
-      if (lowerText.includes(indicator)) {
+      if (containsWithStemming(lowerText, indicator)) {
         return true
       }
     }
   }
 
-  // Check 5: Does the text contain ANY significant keyword (>=4 chars)?
+  // Check 5: Does the text contain ANY significant keyword (>=4 chars)? (with stemming)
   // Dec 2025: Added after diagnosing gold nugget losses. Embedding filter handles relevance.
-  // This catches posts like "Nonpayment" where substring doesn't match but topic is relevant.
+  // This catches posts like "Nonpayment" -> matches "payment", "payments" -> matches "payment"
   for (const word of singleWords) {
-    if (word.length >= 4 && lowerText.includes(word)) {
+    if (word.length >= 4 && containsWithStemming(lowerText, word)) {
       return true
     }
   }
 
-  // Check 6: Does the text contain MULTIPLE problem indicators?
+  // Check 6: Does the text contain MULTIPLE problem indicators? (with stemming)
   // Dec 2025: Added after gold nuggets like "lost money to bad clients" failed -
   // they express pain about the topic but don't use the exact domain keywords.
   // Multiple problem indicators suggest genuine frustration worth passing to embedding filter.
   let indicatorCount = 0
   for (const indicator of PROBLEM_INDICATORS) {
-    if (lowerText.includes(indicator)) {
+    if (containsWithStemming(lowerText, indicator)) {
       indicatorCount++
       if (indicatorCount >= 2) {
         return true

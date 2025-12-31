@@ -1319,10 +1319,12 @@ export async function filterRelevantPosts(
     console.log(`[KeywordGate] SingleWords (${singleWords.length}): ${singleWords.join(', ')}`)
     sendProgress?.(`Stage 0 (Keyword Gate): ${postsWithKeywords.length}/${rankedPosts.length} posts contain problem keywords (${keywordGateFiltered} filtered)`)
 
-    // Step 3: Generate a SINGLE problem-focused embedding
-    // Dec 2025: Simplified from 3-facet to single embedding after research showed
-    // text-embedding-3-large scores lower and multi-facet max() didn't help
-    const hypothesisEmbedding = await generateEmbedding(problemFocus.problemText)
+    // Step 3: Generate embedding from ORIGINAL hypothesis ONLY
+    // Dec 2025: CRITICAL FIX - Use hypothesis only, not hypothesis + keywords
+    // Keywords vary between runs (Claude generates different ones each time)
+    // Pure hypothesis is truly deterministic and generalizes to any hypothesis
+    const hypothesisEmbedding = await generateEmbedding(hypothesis)
+    console.log(`[Embedding] Using hypothesis only: "${hypothesis.slice(0, 80)}..."`)
 
     if (hypothesisEmbedding && hypothesisEmbedding.length > 0 && postsWithKeywords.length > 0) {
       // Generate embeddings for posts that passed keyword gate
@@ -1724,8 +1726,10 @@ export async function filterRelevantComments(
       }
     }
 
-    // Step 3: Generate a SINGLE problem-focused embedding (simplified from 3-facet)
-    const commentHypothesisEmbedding = await generateEmbedding(problemFocus.problemText)
+    // Step 3: Generate embedding from ORIGINAL hypothesis ONLY
+    // Dec 2025: CRITICAL FIX - Same as posts filter, use hypothesis only
+    const commentHypothesisEmbedding = await generateEmbedding(hypothesis)
+    console.log(`[Comments Embedding] Using hypothesis only: "${hypothesis.slice(0, 80)}..."`)
 
     if (commentHypothesisEmbedding && commentHypothesisEmbedding.length > 0 && commentsWithKeywords.length > 0) {
       const commentTexts = commentsWithKeywords.map(c => c.body.slice(0, 500))
