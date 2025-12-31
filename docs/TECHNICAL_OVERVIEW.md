@@ -280,7 +280,7 @@ Calculated from Reddit post analysis:
 | Data confidence "High" | Rare | When deserved |
 
 **Key Files for Data Quality:**
-- `src/lib/research/relevance-filter.ts` - 3-stage filtering
+- `src/lib/filter/` - Two-stage filtering (embeddings + Haiku verification)
 - `src/lib/analysis/pain-detector.ts` - Pain scoring + engagement
 - `src/lib/analysis/theme-extractor.ts` - Quote selection (lines 517-524)
 
