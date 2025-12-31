@@ -18,6 +18,17 @@ export {
   normalizeRedditComments,
 } from './reddit-adapter'
 
+// Bridge adapter (RedditPost → NormalizedPost)
+// Used to connect production pipeline to two-stage filter
+export {
+  bridgeRedditPostToNormalized,
+  bridgeRedditPostsToNormalized,
+  mapVerifiedToRedditPosts,
+  getBridgeMetrics,
+  type RedditPost,
+  type BridgeMetrics,
+} from './reddit-post-bridge'
+
 // Future adapters:
 // export { AppStoreAdapter } from './appstore-adapter'
 // export { PlayStoreAdapter } from './playstore-adapter'

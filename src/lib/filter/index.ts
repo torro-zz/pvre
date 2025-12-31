@@ -26,7 +26,7 @@ export {
 export { verifyWithHaiku, type VerifiedSignal } from './ai-verifier'
 
 // Re-export config
-export { FILTER_CONFIG } from './config'
+export { FILTER_CONFIG, USE_TWO_STAGE_FILTER } from './config'
 
 // Re-export types
 export type { FilterConfig as EmbeddingFilterConfig } from './universal-filter'

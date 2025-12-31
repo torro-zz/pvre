@@ -5,6 +5,15 @@
  * Changes here affect the entire filtering pipeline.
  */
 
+/**
+ * Feature flag to enable/disable two-stage filter in production.
+ * Set to false for instant rollback to old filter path.
+ *
+ * When true: Uses filterSignals() with Haiku AI verification
+ * When false: Uses filterRelevantPosts() (embedding-only)
+ */
+export const USE_TWO_STAGE_FILTER = true
+
 export const FILTER_CONFIG = {
   // =============================================================================
   // Stage 1: Embedding Filter

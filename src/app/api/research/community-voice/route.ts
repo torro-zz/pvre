@@ -53,6 +53,11 @@ import {
   filterRelevantComments,
   RelevanceDecision,
 } from '@/lib/research/relevance-filter'
+import { filterSignals, USE_TWO_STAGE_FILTER, type PipelineResult } from '@/lib/filter'
+import {
+  bridgeRedditPostsToNormalized,
+  mapVerifiedToRedditPosts,
+} from '@/lib/adapters'
 import { StructuredHypothesis, TargetGeography } from '@/types/research'
 import { AppDetails } from '@/lib/data-sources/types'
 import { googlePlayAdapter } from '@/lib/data-sources/adapters/google-play-adapter'
@@ -99,6 +104,14 @@ export interface FilteringMetrics {
   expansionAttempts?: ExpansionAttempt[]  // What we tried to get more data
   timeRangeMonths?: number               // Final time range used
   communitiesSearched?: string[]         // All communities searched
+  // Two-stage filter metrics (when enabled)
+  twoStageMetrics?: {
+    stage1Candidates: number    // After embedding filter
+    stage2Candidates: number    // After cap (always ≤50)
+    stage3Verified: number      // After Haiku verification
+    verificationRate: number    // stage3 / stage2
+    processingTimeMs: number
+  }
 }
 
 export interface CommunityVoiceResult {
@@ -552,32 +565,166 @@ export async function POST(request: NextRequest) {
       console.log(`Pre-filtered: ${originalPostCount - rawPosts.length} posts, ${originalCommentCount - rawComments.length} comments removed by exclude keywords`)
     }
 
-    // Step 4: Filter posts and comments for relevance using Claude (strict Y/N filtering)
-    console.log('Step 4: Filtering for relevance to hypothesis (strict Y/N)')
+    // Step 4: Filter posts and comments for relevance
+    console.log('Step 4: Filtering for relevance to hypothesis')
     lastErrorSource = 'anthropic' // Claude API for filtering
-    const [postFilterResult, commentFilterResult] = await Promise.all([
-      filterRelevantPosts(rawPosts, hypothesis, structuredHypothesis),
-      filterRelevantComments(rawComments, hypothesis, structuredHypothesis),
-    ])
 
-    const posts = postFilterResult.items
-    const comments = commentFilterResult.items
+    // Track expansion attempts for adaptive fetching
+    const expansionAttempts: ExpansionAttempt[] = []
 
-    // Detailed filter pipeline logging for cost analysis
-    console.log(`\n=== POST FILTER PIPELINE ===`)
-    console.log(`  Input: ${postFilterResult.metrics.before} posts`)
-    console.log(`  Stage 3 (Quality Gate - FREE): ${postFilterResult.metrics.stage3Filtered} filtered`)
-    console.log(`  PreFilter (Rank - FREE): ${postFilterResult.metrics.preFilterSkipped} skipped (low engagement/no first-person)`)
-    if (postFilterResult.metrics.embeddingFiltered > 0) {
-      console.log(`  Stage 0 (Embedding - $0.01): ${postFilterResult.metrics.embeddingFiltered} filtered (${postFilterResult.metrics.embeddingHighSimilarity} HIGH + ${postFilterResult.metrics.embeddingMediumSimilarity} MEDIUM passed)`)
+    // Variables to hold filter results (either path)
+    let posts: typeof rawPosts
+    let comments: typeof rawComments
+    let postCoreItems: typeof rawPosts
+    let postRelatedItems: typeof rawPosts
+    let filteringMetrics: FilteringMetrics
+    let twoStageResult: PipelineResult | null = null
+    let postRelevanceDecisions: RelevanceDecision[] = []
+
+    // Comments always use the old filter (per plan decision)
+    const commentFilterResult = await filterRelevantComments(rawComments, hypothesis, structuredHypothesis)
+    comments = commentFilterResult.items
+
+    if (USE_TWO_STAGE_FILTER) {
+      // =========================================================================
+      // NEW: Two-Stage Filter Pipeline (Embeddings → Cap 50 → Haiku Verify)
+      // =========================================================================
+      console.log('[TwoStage] Using two-stage filter with Haiku verification')
+
+      // Bridge RedditPost[] to NormalizedPost[]
+      const normalizedPosts = bridgeRedditPostsToNormalized(rawPosts)
+      console.log(`[TwoStage] Normalized ${normalizedPosts.length} posts`)
+
+      // Run the two-stage filter
+      twoStageResult = await filterSignals(normalizedPosts, hypothesis, {
+        onProgress: (msg) => console.log(msg),
+      })
+
+      // Map verified signals back to RedditPost format
+      posts = mapVerifiedToRedditPosts(twoStageResult.verified, rawPosts)
+
+      // All verified posts are CORE (they passed strict Haiku verification)
+      postCoreItems = posts
+      postRelatedItems = []
+
+      // Log the pipeline results
+      console.log(`\n=== TWO-STAGE POST FILTER PIPELINE ===`)
+      console.log(`  Input: ${rawPosts.length} posts`)
+      console.log(`  Stage 1 (Embedding 0.28): ${twoStageResult.stage1Candidates} candidates`)
+      console.log(`  Stage 2 (Cap at 50): ${twoStageResult.stage2Candidates} sent to Haiku`)
+      console.log(`  Stage 3 (Haiku YES/NO): ${twoStageResult.stage3Verified} verified`)
+      console.log(`  Verification rate: ${(twoStageResult.verificationRate * 100).toFixed(1)}%`)
+      console.log(`  Processing time: ${twoStageResult.processingTimeMs}ms`)
+      console.log(`  Output: ${posts.length} verified posts\n`)
+
+      // Build filtering metrics
+      const postFilterRate = rawPosts.length > 0
+        ? ((rawPosts.length - posts.length) / rawPosts.length) * 100
+        : 0
+
+      filteringMetrics = {
+        postsFound: rawPosts.length,
+        postsAnalyzed: posts.length,
+        postsFiltered: rawPosts.length - posts.length,
+        postFilterRate,
+        commentsFound: commentFilterResult.metrics.before,
+        commentsAnalyzed: commentFilterResult.metrics.after,
+        commentsFiltered: commentFilterResult.metrics.filteredOut,
+        commentFilterRate: commentFilterResult.metrics.filterRate,
+        qualityLevel: calculateQualityLevel(postFilterRate, commentFilterResult.metrics.filterRate),
+        coreSignals: posts.length, // All verified = CORE
+        relatedSignals: 0, // No RELATED in two-stage filter
+        titleOnlyPosts: 0, // Not tracked in two-stage
+        preFilterSkipped: 0, // Not applicable
+        expansionAttempts,
+        timeRangeMonths: 24,
+        communitiesSearched: [...subredditsToSearch],
+        twoStageMetrics: {
+          stage1Candidates: twoStageResult.stage1Candidates,
+          stage2Candidates: twoStageResult.stage2Candidates,
+          stage3Verified: twoStageResult.stage3Verified,
+          verificationRate: twoStageResult.verificationRate,
+          processingTimeMs: twoStageResult.processingTimeMs,
+        },
+      }
+
+      console.log(`[TwoStage] Complete: ${posts.length} verified CORE signals`)
+
+      // Convert verified signals to RelevanceDecision format for audit trail
+      postRelevanceDecisions = twoStageResult.verified.map(signal => ({
+        reddit_id: signal.post.id,
+        title: signal.post.title,
+        body_preview: signal.post.body.slice(0, 100),
+        subreddit: signal.post.metadata?.subreddit as string || 'unknown',
+        decision: signal.verified ? 'Y' : 'N',
+        tier: signal.verified ? 'CORE' : undefined,
+        stage: 'problem' as const,  // Haiku verification is the problem-match stage
+        reason: signal.verified
+          ? `Haiku verified (score: ${signal.embeddingScore.toFixed(2)})`
+          : signal.aiResponse || 'Failed Haiku verification',
+      } satisfies RelevanceDecision))
+
+    } else {
+      // =========================================================================
+      // OLD: Legacy Filter Pipeline (embedding + domain gate + problem match)
+      // =========================================================================
+      console.log('[Legacy] Using legacy filter with SKIP_AI_GATES')
+
+      const postFilterResult = await filterRelevantPosts(rawPosts, hypothesis, structuredHypothesis)
+      posts = postFilterResult.items
+      postCoreItems = postFilterResult.coreItems
+      postRelatedItems = postFilterResult.relatedItems
+
+      // Detailed filter pipeline logging for cost analysis
+      console.log(`\n=== POST FILTER PIPELINE (Legacy) ===`)
+      console.log(`  Input: ${postFilterResult.metrics.before} posts`)
+      console.log(`  Stage 3 (Quality Gate - FREE): ${postFilterResult.metrics.stage3Filtered} filtered`)
+      console.log(`  PreFilter (Rank - FREE): ${postFilterResult.metrics.preFilterSkipped} skipped (low engagement/no first-person)`)
+      if (postFilterResult.metrics.embeddingFiltered > 0) {
+        console.log(`  Stage 0 (Embedding - $0.01): ${postFilterResult.metrics.embeddingFiltered} filtered (${postFilterResult.metrics.embeddingHighSimilarity} HIGH + ${postFilterResult.metrics.embeddingMediumSimilarity} MEDIUM passed)`)
+      }
+      const postsSentToAI = postFilterResult.metrics.embeddingHighSimilarity + postFilterResult.metrics.embeddingMediumSimilarity ||
+        (postFilterResult.metrics.before - postFilterResult.metrics.stage3Filtered - postFilterResult.metrics.preFilterSkipped)
+      console.log(`  → Sent to AI: ${postsSentToAI}`)
+      console.log(`  Stage 1 (Domain Gate - Haiku): ${postFilterResult.metrics.stage1Filtered} filtered`)
+      console.log(`  Stage 2 (Problem Match - Sonnet): ${postFilterResult.metrics.stage2Filtered} filtered`)
+      console.log(`  Output: ${posts.length} relevant posts (${postFilterResult.metrics.filterRate.toFixed(1)}% total filtered)`)
+
+      // Build filtering metrics
+      filteringMetrics = {
+        postsFound: postFilterResult.metrics.before,
+        postsAnalyzed: postFilterResult.metrics.after,
+        postsFiltered: postFilterResult.metrics.filteredOut,
+        postFilterRate: postFilterResult.metrics.filterRate,
+        commentsFound: commentFilterResult.metrics.before,
+        commentsAnalyzed: commentFilterResult.metrics.after,
+        commentsFiltered: commentFilterResult.metrics.filteredOut,
+        commentFilterRate: commentFilterResult.metrics.filterRate,
+        qualityLevel: calculateQualityLevel(postFilterResult.metrics.filterRate, commentFilterResult.metrics.filterRate),
+        coreSignals: postFilterResult.metrics.coreSignals,
+        relatedSignals: postFilterResult.metrics.relatedSignals,
+        titleOnlyPosts: postFilterResult.metrics.titleOnlyPosts,
+        preFilterSkipped: postFilterResult.metrics.preFilterSkipped,
+        stage2FilterRate: postFilterResult.metrics.stage2FilterRate,
+        narrowProblemWarning: postFilterResult.metrics.narrowProblemWarning,
+        expansionAttempts,
+        timeRangeMonths: 24,
+        communitiesSearched: [...subredditsToSearch],
+      }
+
+      if (filteringMetrics.preFilterSkipped && filteringMetrics.preFilterSkipped > 0) {
+        console.log(`Pre-filter: ${filteringMetrics.preFilterSkipped} low-quality posts skipped before AI`)
+      }
+      if (filteringMetrics.narrowProblemWarning) {
+        console.log(`⚠️ NARROW PROBLEM WARNING: ${filteringMetrics.stage2FilterRate?.toFixed(1)}% of domain-relevant posts failed problem-specific filter`)
+      }
+      console.log(`Signal tiers: ${postFilterResult.metrics.coreSignals} CORE, ${postFilterResult.metrics.relatedSignals} RELATED`)
+
+      // Store decisions for audit trail
+      postRelevanceDecisions = postFilterResult.decisions
     }
-    const postsSentToAI = postFilterResult.metrics.embeddingHighSimilarity + postFilterResult.metrics.embeddingMediumSimilarity ||
-      (postFilterResult.metrics.before - postFilterResult.metrics.stage3Filtered - postFilterResult.metrics.preFilterSkipped)
-    console.log(`  → Sent to AI: ${postsSentToAI}`)
-    console.log(`  Stage 1 (Domain Gate - Haiku): ${postFilterResult.metrics.stage1Filtered} filtered`)
-    console.log(`  Stage 2 (Problem Match - Sonnet): ${postFilterResult.metrics.stage2Filtered} filtered`)
-    console.log(`  Output: ${posts.length} relevant posts (${postFilterResult.metrics.filterRate.toFixed(1)}% total filtered)`)
 
+    // Comment filter logging (same for both paths)
     console.log(`\n=== COMMENT FILTER PIPELINE ===`)
     console.log(`  Input: ${commentFilterResult.metrics.before} comments`)
     console.log(`  Stage 3 (Quality Gate - FREE): ${commentFilterResult.metrics.stage3Filtered} filtered`)
@@ -591,56 +738,20 @@ export async function POST(request: NextRequest) {
     console.log(`  Stage 2 (Problem Match - Haiku): ${commentFilterResult.metrics.stage2Filtered} filtered`)
     console.log(`  Output: ${comments.length} relevant comments (${commentFilterResult.metrics.filterRate.toFixed(1)}% total filtered)\n`)
 
-    // Track expansion attempts for adaptive fetching
-    const expansionAttempts: ExpansionAttempt[] = []
-
-    // Build filtering metrics for transparency
-    const filteringMetrics: FilteringMetrics = {
-      postsFound: postFilterResult.metrics.before,
-      postsAnalyzed: postFilterResult.metrics.after,
-      postsFiltered: postFilterResult.metrics.filteredOut,
-      postFilterRate: postFilterResult.metrics.filterRate,
-      commentsFound: commentFilterResult.metrics.before,
-      commentsAnalyzed: commentFilterResult.metrics.after,
-      commentsFiltered: commentFilterResult.metrics.filteredOut,
-      commentFilterRate: commentFilterResult.metrics.filterRate,
-      qualityLevel: calculateQualityLevel(postFilterResult.metrics.filterRate, commentFilterResult.metrics.filterRate),
-      // Signal tiering for multi-domain hypotheses
-      coreSignals: postFilterResult.metrics.coreSignals,
-      relatedSignals: postFilterResult.metrics.relatedSignals,
-      // Title-only posts (recovered from [removed] content)
-      titleOnlyPosts: postFilterResult.metrics.titleOnlyPosts,
-      // Pre-filter ranking (first-person language + engagement)
-      preFilterSkipped: postFilterResult.metrics.preFilterSkipped,
-      // P0 FIX: Include Stage 2 filter metrics
-      stage2FilterRate: postFilterResult.metrics.stage2FilterRate,
-      narrowProblemWarning: postFilterResult.metrics.narrowProblemWarning,
-      // Diagnostic data for UI
-      expansionAttempts,
-      timeRangeMonths: 24, // Initial: 2 years
-      communitiesSearched: [...subredditsToSearch],
-    }
-
     console.log(`Data quality level: ${filteringMetrics.qualityLevel}`)
-    if (filteringMetrics.preFilterSkipped && filteringMetrics.preFilterSkipped > 0) {
-      console.log(`Pre-filter: ${filteringMetrics.preFilterSkipped} low-quality posts skipped before AI`)
-    }
-    if (filteringMetrics.narrowProblemWarning) {
-      console.log(`⚠️ NARROW PROBLEM WARNING: ${filteringMetrics.stage2FilterRate?.toFixed(1)}% of domain-relevant posts failed problem-specific filter`)
-    }
-    console.log(`Signal tiers: ${postFilterResult.metrics.coreSignals} CORE, ${postFilterResult.metrics.relatedSignals} RELATED`)
+    console.log(`Signal tiers: ${filteringMetrics.coreSignals} CORE, ${filteringMetrics.relatedSignals} RELATED`)
 
     // Step 4.5: Adaptive fetching - try to get more data if below threshold
     let finalPosts = posts
     let finalComments = comments
-    let finalCoreItems = postFilterResult.coreItems
-    let finalRelatedItems = postFilterResult.relatedItems
+    let finalCoreItems = postCoreItems
+    let finalRelatedItems = postRelatedItems
 
-    const totalSignals = postFilterResult.metrics.coreSignals + postFilterResult.metrics.relatedSignals
-    const needsMoreData = postFilterResult.metrics.coreSignals < MIN_CORE_SIGNALS || totalSignals < MIN_TOTAL_SIGNALS
+    const totalSignals = filteringMetrics.coreSignals + filteringMetrics.relatedSignals
+    const needsMoreData = filteringMetrics.coreSignals < MIN_CORE_SIGNALS || totalSignals < MIN_TOTAL_SIGNALS
 
     if (needsMoreData && !userSelectedSubreddits) {
-      console.log(`Step 4.5: Below threshold (${postFilterResult.metrics.coreSignals} core, ${totalSignals} total). Attempting adaptive fetch...`)
+      console.log(`Step 4.5: Below threshold (${filteringMetrics.coreSignals} core, ${totalSignals} total). Attempting adaptive fetch...`)
 
       try {
         // Discover additional subreddits using Claude
@@ -695,8 +806,8 @@ export async function POST(request: NextRequest) {
               // Merge post results
               if (postSignalsGained > 0) {
                 finalPosts = [...posts, ...additionalPostFilter.items]
-                finalCoreItems = [...postFilterResult.coreItems, ...additionalPostFilter.coreItems]
-                finalRelatedItems = [...postFilterResult.relatedItems, ...additionalPostFilter.relatedItems]
+                finalCoreItems = [...postCoreItems, ...additionalPostFilter.coreItems]
+                finalRelatedItems = [...postRelatedItems, ...additionalPostFilter.relatedItems]
                 filteringMetrics.postsFound += additionalData.posts.length
                 filteringMetrics.postsAnalyzed += additionalPostFilter.metrics.after
                 filteringMetrics.coreSignals += additionalPostFilter.metrics.coreSignals
@@ -840,7 +951,7 @@ export async function POST(request: NextRequest) {
         tokenUsage: tokenUsage || undefined,
         // Include all Y/N decisions for quality audit
         relevanceDecisions: {
-          posts: postFilterResult.decisions,
+          posts: postRelevanceDecisions,
           comments: commentFilterResult.decisions,
         },
       },
