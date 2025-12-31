@@ -49,8 +49,8 @@ When a user submits a research query through the Community Voice Research page, 
 
 1. Take 40 random posts from selected communities
 2. Run quality gate (free code-based filters)
-3. Run domain gate filter (Claude Haiku - ~$0.01)
-4. Calculate predicted relevance: `(domainPassed / sampleSize) × 100`
+3. Run embedding similarity check (OpenAI - ~$0.005)
+4. Calculate predicted relevance: `(embeddingPassed / sampleSize) × 100`
 
 **Displays to user:**
 | Field | Purpose |
@@ -508,22 +508,21 @@ USER INPUT (hypothesis text)
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  FILTERING PIPELINE (3 stages)                              │
+│  TWO-STAGE FILTERING PIPELINE                               │
 │                                                             │
 │  Step 4: Quality Gate (code only, free)                     │
 │  → Remove deleted, short, non-English, spam                 │
 │  → Keep title-only posts (marked, weighted 0.7x)            │
 │                                                             │
-│  Step 5: Domain Gate (Claude Haiku, cheap)                  │
-│  → Remove off-topic posts (right audience, wrong subject)   │
-│  → Compound domain detection for multi-aspect hypotheses    │
-│  → Lenient mode for title-only posts                        │
+│  Step 5: Embedding Filter (OpenAI, ~$0.01)                  │
+│  → Semantic similarity at 0.28 threshold (loose)            │
+│  → Rank by score, cap at 50 candidates                      │
 │                                                             │
-│  Step 6: Problem Gate (Claude Haiku)                        │
-│  → Tiered classification: CORE vs RELATED                   │
-│  → Narrow problem detection                                 │
+│  Step 6: Haiku Verification (Claude Haiku, ~$0.05)          │
+│  → YES/NO: "Is this SPECIFICALLY about [hypothesis]?"       │
+│  → Only "YES" passes (strict mode)                          │
 │                                                             │
-│  Result: 100-200 highly relevant posts from 500-1000 raw    │
+│  Result: 10-16 verified signals with 85-100% relevance      │
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -563,7 +562,7 @@ USER INPUT (app URL)
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  SAME FILTERING + ANALYSIS PIPELINE (Steps 4-11)            │
+│  SAME TWO-STAGE FILTER + ANALYSIS PIPELINE (Steps 4-11)     │
 └─────────────────────────────────────────────────────────────┘
     ↓
 RESULTS PAGE (App-Centric tabs: App, Feedback, Market, Gaps, Verdict)
