@@ -1287,6 +1287,10 @@ export async function filterRelevantPosts(
   const problemFocus = await extractProblemFocus(hypothesis)
   sendProgress?.(`Stage 0 (Embedding): extracted ${problemFocus.keywords.length} keywords: ${problemFocus.keywords.slice(0, 5).join(', ')}...`)
 
+  // Dec 2025: CRITICAL FIX - Generate hypothesis embedding EARLY and store in outer scope
+  // So title-only posts can also use it for embedding check (same 0.34 threshold)
+  let hypothesisEmbedding: number[] | null = null
+
   if (isEmbeddingServiceAvailable()) {
 
     // Step 2: KEYWORD GATE - filter posts that don't mention the problem at all
@@ -1323,7 +1327,7 @@ export async function filterRelevantPosts(
     // Dec 2025: CRITICAL FIX - Use hypothesis only, not hypothesis + keywords
     // Keywords vary between runs (Claude generates different ones each time)
     // Pure hypothesis is truly deterministic and generalizes to any hypothesis
-    const hypothesisEmbedding = await generateEmbedding(hypothesis)
+    hypothesisEmbedding = await generateEmbedding(hypothesis)
     console.log(`[Embedding] Using hypothesis only: "${hypothesis.slice(0, 80)}..."`)
 
     if (hypothesisEmbedding && hypothesisEmbedding.length > 0 && postsWithKeywords.length > 0) {
@@ -1545,11 +1549,73 @@ export async function filterRelevantPosts(
     } as RedditPost)
 
     if (SKIP_AI_GATES) {
-      // BYPASS: Trust keyword gate for title-only posts
-      titleOnlyCore = titleOnlyWithKeywords.map(markAsTitleOnly)
-      titleOnlyRelated = []
-      metrics.titleOnlyPosts = titleOnlyCore.length
-      sendProgress?.(`Title-only: ${titleOnlyCore.length} posts passed keyword gate (AI gates skipped)`)
+      // Dec 2025: CRITICAL FIX - Title-only posts MUST go through embedding check
+      // Same 0.34 threshold as regular posts. Keyword gate is secondary.
+      // This fixes the loophole where "deflated" matched "late" and low-relevance posts passed.
+      if (hypothesisEmbedding && hypothesisEmbedding.length > 0 && titleOnlyWithKeywords.length > 0) {
+        // Generate embeddings for title-only posts (title only, no body)
+        const titleTexts = titleOnlyWithKeywords.map(p => p.title)
+        sendProgress?.(`Title-only: generating embeddings for ${titleTexts.length} posts...`)
+
+        const titleEmbeddings = await generateEmbeddings(titleTexts)
+
+        let embeddingPassed = 0
+        let embeddingFiltered = 0
+
+        for (let i = 0; i < titleOnlyWithKeywords.length; i++) {
+          const embedding = titleEmbeddings[i]?.embedding
+          const post = titleOnlyWithKeywords[i]
+
+          if (!embedding || embedding.length === 0) {
+            // Embedding failed - skip this post (conservative)
+            embeddingFiltered++
+            allDecisions.push({
+              reddit_id: post.id,
+              title: post.title,
+              body_preview: '[title-only]',
+              subreddit: post.subreddit,
+              decision: 'N',
+              stage: 'quality',
+              reason: 'title_only_embedding_failed',
+            })
+            continue
+          }
+
+          const similarity = cosineSimilarity(hypothesisEmbedding, embedding)
+          const tier = classifySimilarity(similarity)
+
+          if (tier === 'HIGH' || tier === 'MEDIUM') {
+            // Passed embedding threshold - include as CORE
+            titleOnlyCore.push(markAsTitleOnly(post))
+            embeddingPassed++
+            console.log(`[Title-only] PASS (${similarity.toFixed(3)}) "${post.title?.slice(0, 50)}..."`)
+          } else {
+            // Below threshold - filter out
+            embeddingFiltered++
+            allDecisions.push({
+              reddit_id: post.id,
+              title: post.title,
+              body_preview: '[title-only]',
+              subreddit: post.subreddit,
+              decision: 'N',
+              stage: 'quality',
+              reason: `title_only_low_similarity_${similarity.toFixed(2)}`,
+            })
+            console.log(`[Title-only] FAIL (${similarity.toFixed(3)}) "${post.title?.slice(0, 50)}..."`)
+          }
+        }
+
+        titleOnlyRelated = []
+        metrics.titleOnlyPosts = titleOnlyCore.length
+        sendProgress?.(`Title-only: ${embeddingPassed} passed embedding check, ${embeddingFiltered} filtered (threshold 0.34)`)
+      } else {
+        // No embedding available - fall back to keyword-only (rare case)
+        console.log(`[Title-only] WARNING: No hypothesis embedding available, using keyword gate only`)
+        titleOnlyCore = titleOnlyWithKeywords.map(markAsTitleOnly)
+        titleOnlyRelated = []
+        metrics.titleOnlyPosts = titleOnlyCore.length
+        sendProgress?.(`Title-only: ${titleOnlyCore.length} posts passed keyword gate (no embedding available)`)
+      }
     } else {
       // Run domain gate on title-only posts with lenient mode (titles have less context)
       const titleOnlyDomain = await domainGateFilter(

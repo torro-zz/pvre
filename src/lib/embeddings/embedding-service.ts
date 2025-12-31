@@ -604,6 +604,8 @@ Respond in this exact JSON format:
 // Problem indicator words - words that strongly suggest frustration or issues
 // Dec 2025: Added "lost", "kill", "killed", "bad", "red flag", "stall", "learned"
 // after diagnosing gold nugget losses (5/8 filtered by keyword gate)
+// Dec 2025: Added "payment" - core domain word for payment-related hypotheses
+// With stemming, this matches "payment", "payments", "Nonpayment" etc.
 const PROBLEM_INDICATORS = new Set([
   'late', 'overdue', 'unpaid', 'owed', 'delay', 'delayed', 'chase', 'chasing',
   'outstanding', 'waiting', 'waited', 'slow', 'behind', 'miss', 'missed', 'missing',
@@ -612,14 +614,18 @@ const PROBLEM_INDICATORS = new Set([
   'help', 'advice', 'tips', 'how do', 'anyone else', 'am i', 'is this normal',
   // Added Dec 2025 - common pain expressions missed in gold nuggets:
   'lost', 'lose', 'losing', 'kill', 'killed', 'killing', 'bad', 'red flag',
-  'stall', 'stalled', 'learned', 'lesson', 'zero', '$0', 'nothing', 'never'
+  'stall', 'stalled', 'learned', 'lesson', 'zero', '$0', 'nothing', 'never',
+  // Added Dec 2025 - core domain words (with stemming: payment/payments/nonpayment)
+  'payment', 'invoice', 'client', 'freelance'
 ])
 
 // Problem indicator phrases - multi-word expressions of frustration
+// Dec 2025: REMOVED "can't get" - too broad, matches "can't get my first client" (wrong problem)
+// REMOVED "any advice" - too generic, matches any advice-seeking post
 const PROBLEM_PHRASES = [
   "won't pay", "didn't pay", "hasn't paid", "haven't paid", "never paid",
-  "not paying", "not paid", "still waiting", "can't get", "won't respond",
-  "no response", "ghosted", "ignored", "what do i do", "any advice"
+  "not paying", "not paid", "still waiting", "won't respond",
+  "no response", "ghosted", "ignored", "what do i do"
 ]
 
 /**
@@ -647,11 +653,24 @@ function getStemVariants(word: string): string[] {
 }
 
 /**
- * Check if text contains word with stemming support
+ * Check if text contains word with stemming support and word boundary matching.
+ * Dec 2025: CRITICAL FIX - Use word boundaries to prevent false positives like
+ * "deflated" matching "late" or "isolated" matching "late".
  */
 function containsWithStemming(text: string, word: string): boolean {
   const variants = getStemVariants(word)
-  return variants.some(v => text.includes(v))
+  // Use word boundary regex to prevent substring false positives
+  return variants.some(v => {
+    const regex = new RegExp(`\\b${escapeRegex(v)}\\b`, 'i')
+    return regex.test(text)
+  })
+}
+
+/**
+ * Escape special regex characters in a string
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
