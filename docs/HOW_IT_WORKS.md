@@ -292,86 +292,93 @@ This prevents API overload when multiple users run research simultaneously.
 
 ---
 
-### Step 4.5-6: Two-Stage Filter Pipeline — NEW Dec 31, 2025
+### Step 4.5-6: Embedding-Based Filtering Pipeline (CURRENT)
 
 **Files involved:**
-- `src/lib/filter/config.ts` → All thresholds and caps
-- `src/lib/filter/universal-filter.ts` → Embedding filter
-- `src/lib/filter/ai-verifier.ts` → Haiku verification
-- `src/lib/filter/index.ts` → `filterSignals()` orchestration
+- `src/lib/research/relevance-filter.ts` → Main pipeline (`filterRelevantPosts()`)
+- `src/lib/embeddings/embedding-service.ts` → Embedding generation + caching
 
 **Who talks to who:**
-- Stage 1: Server → OpenAI Embeddings API → Supabase pgvector cache
-- Stage 2: Code-only (sorting)
-- Stage 3: Server → Claude Haiku
+- Server → OpenAI Embeddings API → Supabase pgvector cache
 
-**The Pipeline:**
+**The ACTUAL Production Pipeline:**
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ STAGE 1: EMBEDDING FILTER (Loose, ~$0.01)                       │
+│ PRE-FILTER (Code-only, FREE)                                    │
 │                                                                 │
-│ Threshold: 0.28 (loose to catch candidates)                     │
-│ - Generate hypothesis embedding (problem-focused)               │
-│ - Generate post embeddings (batch, cached in pgvector)          │
-│ - Cosine similarity ≥ 0.28 → PASS                               │
-│                                                                 │
-│ Output: ~800-1100 candidates from 2500 posts                    │
+│ preFilterAndRank():                                             │
+│ - Score by first-person language (40% weight)                   │
+│ - Score by engagement (upvotes, comments)                       │
+│ - Score by recency                                              │
+│ - Take top 150 candidates                                       │
 ├─────────────────────────────────────────────────────────────────┤
-│ STAGE 2: RANK + CAP (Cost Control, FREE)                        │
+│ KEYWORD GATE (Code-only, FREE)                                  │
 │                                                                 │
-│ 1. Sort by embedding score (descending)                         │
-│ 2. Take top 50 (AI_VERIFICATION_CAP)                            │
+│ extractProblemFocus(hypothesis) → keywords + problemText        │
+│ passesKeywordGate(post, keywords) → must contain 1+ keyword     │
 │                                                                 │
-│ Guarantees fixed cost regardless of data volume                 │
+│ Filters posts that don't mention the problem at all             │
 ├─────────────────────────────────────────────────────────────────┤
-│ STAGE 3: HAIKU AI VERIFICATION (~$0.05)                         │
+│ EMBEDDING FILTER (OpenAI, ~$0.01)                               │
 │                                                                 │
-│ Model: claude-3-5-haiku-latest                                  │
-│ Prompt: "Is this post SPECIFICALLY about [hypothesis]?"         │
-│ Response: YES / NO only                                         │
+│ generateEmbedding(hypothesis) → HYPOTHESIS ONLY (deterministic) │
+│ generateEmbeddings(posts) → Batch, cached in pgvector           │
 │                                                                 │
-│ Output: ~10-16 verified signals (20-32% pass rate)              │
+│ Thresholds:                                                     │
+│ - HIGH (≥0.50): Strong match → CORE tier                        │
+│ - MEDIUM (0.35-0.50): Related → CORE tier (AI gates skipped)    │
+│ - LOW (<0.35): Filtered out                                     │
+│                                                                 │
+│ Coverage boost: Thin-data hypotheses get +0.08 keyword boost    │
+├─────────────────────────────────────────────────────────────────┤
+│ AI GATES - CURRENTLY SKIPPED (SKIP_AI_GATES=true)               │
+│                                                                 │
+│ Domain Gate (Haiku) - DISABLED                                  │
+│ Problem Match (Haiku) - DISABLED                                │
+│                                                                 │
+│ Reason: Calibrated embeddings handle relevance sufficiently     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Why Two-Stage?**
+**Key Design Decision (Dec 2025):**
 
-| Old Approach | Problem |
-|--------------|---------|
-| Domain Gate + Problem Match | Complex, inconsistent, expensive |
-| Single embedding threshold (0.34) | 30-50% irrelevant signals |
+Embeddings use `hypothesis` ONLY, not `problemText` or keywords:
+```typescript
+hypothesisEmbedding = await generateEmbedding(hypothesis)
+// NOT: generateEmbedding(problemFocus.problemText)
+```
 
-| New Approach | Benefit |
-|--------------|---------|
-| Loose embeddings (0.28) + AI verify | Simple, strict, cheap |
-| Cap at 50 | Fixed cost regardless of data volume |
+**Why?** Keywords vary between runs (Claude generates different ones each time). Pure hypothesis is deterministic and generalizes to any hypothesis.
 
-**Test Results (Dec 31, 2025):**
+**Output:** ~50-150 embedding-filtered posts, all assigned to CORE tier
 
+---
+
+### Planned: Two-Stage Filter Module (NOT YET INTEGRATED)
+
+**Files (built, tested, NOT in production):**
+- `src/lib/filter/config.ts` → Thresholds and caps
+- `src/lib/filter/universal-filter.ts` → Embedding filter
+- `src/lib/filter/ai-verifier.ts` → Haiku YES/NO verification
+- `src/lib/filter/index.ts` → `filterSignals()` pipeline
+- `src/lib/adapters/types.ts` → `NormalizedPost` interface
+
+**Architecture:**
+```
+Stage 1: Embeddings (0.28 threshold) → ~800-1100 candidates
+Stage 2: Rank + cap at 50 → cost control
+Stage 3: Haiku YES/NO verification → 10-16 verified signals
+```
+
+**Test Results (Dec 31, 2025 - isolated testing):**
 | Hypothesis | Stage 1 | Verified | Relevance |
 |------------|---------|----------|-----------|
 | Freelancers getting paid | 810 | 10 | 100% |
 | Founders first customers | 1,086 | 16 | 90%+ |
 | Developers slow CI/CD | 776 | 16 | 80%+ |
 
-**Query Expansion for Short Hypotheses:**
-- Hypotheses with ≤3 words auto-expand for better embeddings
-- "Slack" → "Problems, frustrations, and pain points with Slack..."
-
-**Verification Prompt:**
-```
-Hypothesis: "Freelancers struggling to get paid on time by clients"
-
-Post:
-Title: "We Lost $120k to Client Nonpayment: our story"
-Body: "After 3 years of freelancing..."
-
-Is this post SPECIFICALLY about the problem described in the hypothesis?
-Answer ONLY "YES" or "NO".
-```
-
-**Result:** 10-16 highly relevant signals with 85-100% relevance rate
+**Status:** Built and tested in isolation. Needs integration into `community-voice/route.ts` to replace current `filterRelevantPosts()`
 
 ---
 
@@ -494,35 +501,48 @@ USER INPUT (hypothesis text)
 │  COVERAGE CHECK + QUALITY PREVIEW                           │
 │                                                             │
 │  → Fetch sample posts from each source                      │
-│  → Run sampleQualityCheck() for relevance prediction        │
+│  → Run sampleQualityCheck() (Haiku domain gate on sample)   │
 │  → Show Quality Preview Modal to user                       │
 │  → User confirms or refines hypothesis                      │
+│                                                             │
+│  ⚠️  Note: Preview uses OLD Haiku-based check, not embeddings│
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  Step 3: Fetch Multi-Source Data                            │
-│  ├── Reddit (Arctic Shift): 500-800 posts, adaptive windows │
-│  ├── Google Play: Reviews from matching apps (LLM-scored)   │
-│  ├── App Store: Reviews from matching apps (LLM-scored)     │
-│  └── Hacker News: Stories + comments (if enabled)           │
+│  ├── Reddit (Arctic Shift) ✅ 500-800 posts                 │
+│  ├── Google Play ✅ Reviews from matching apps              │
+│  ├── App Store ✅ Reviews from matching apps                │
+│  ├── Hacker News ✅ Stories + comments (if enabled)         │
+│  └── Trustpilot ❌ Adapter exists, NOT integrated           │
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  TWO-STAGE FILTERING PIPELINE                               │
+│  CURRENT FILTERING PIPELINE (relevance-filter.ts)           │
+│  SKIP_AI_GATES = true (Haiku gates disabled)                │
 │                                                             │
-│  Step 4: Quality Gate (code only, free)                     │
+│  Step 4: Quality Gate (code only, FREE)                     │
 │  → Remove deleted, short, non-English, spam                 │
 │  → Keep title-only posts (marked, weighted 0.7x)            │
 │                                                             │
-│  Step 5: Embedding Filter (OpenAI, ~$0.01)                  │
-│  → Semantic similarity at 0.28 threshold (loose)            │
-│  → Rank by score, cap at 50 candidates                      │
+│  Step 4.5: PreFilter Rank (code only, FREE)                 │
+│  → Score by first-person language + engagement              │
+│  → Take top 150 candidates                                  │
 │                                                             │
-│  Step 6: Haiku Verification (Claude Haiku, ~$0.05)          │
-│  → YES/NO: "Is this SPECIFICALLY about [hypothesis]?"       │
-│  → Only "YES" passes (strict mode)                          │
+│  Step 5: Keyword Gate (code only, FREE)                     │
+│  → extractProblemFocus(hypothesis) → keywords               │
+│  → Filter posts without ANY problem keywords                │
 │                                                             │
-│  Result: 10-16 verified signals with 85-100% relevance      │
+│  Step 6: Embedding Filter (OpenAI, ~$0.01)                  │
+│  → generateEmbedding(hypothesis) - HYPOTHESIS ONLY          │
+│  → Threshold: 0.35 (HIGH ≥0.50, MEDIUM 0.35-0.50)           │
+│  → Coverage boost for thin-data hypotheses                  │
+│                                                             │
+│  Step 7: AI Gates - SKIPPED (SKIP_AI_GATES=true)            │
+│  → Domain Gate (Haiku) - DISABLED                           │
+│  → Problem Match (Haiku) - DISABLED                         │
+│                                                             │
+│  Result: ~50-150 embedding-filtered posts, all in CORE tier │
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -562,7 +582,7 @@ USER INPUT (app URL)
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  SAME TWO-STAGE FILTER + ANALYSIS PIPELINE (Steps 4-11)     │
+│  SAME FILTERING + ANALYSIS PIPELINE (Steps 4-11)            │
 └─────────────────────────────────────────────────────────────┘
     ↓
 RESULTS PAGE (App-Centric tabs: App, Feedback, Market, Gaps, Verdict)
@@ -626,7 +646,7 @@ const appStoreSignals = signals.filter(
 
 ---
 
-## Why the Two-Stage Filter Matters
+## Why Embedding-Based Filtering Matters
 
 **The Problem:** Early testing showed 64% of "pain signals" were completely irrelevant to the business hypothesis.
 
@@ -636,37 +656,55 @@ const appStoreSignals = signals.filter(
 - Financial issues
 - Health issues unrelated to skin
 
-**The Solution (Dec 31, 2025):** The two-stage filter:
-1. **Loose embedding filter** (0.28 threshold) catches broad candidates
-2. **Cap at 50** ensures fixed cost regardless of data volume
-3. **Haiku YES/NO verification** filters false positives
+**The Current Solution (Production):**
+1. **Keyword gate** - Filter posts that don't mention problem keywords at all
+2. **Embedding filter** (0.35 threshold) - Semantic similarity to hypothesis
+3. **AI gates SKIPPED** - Haiku calls disabled, trusting embeddings
 
-**Why This Works Better:**
-- **Simple:** One threshold + one AI prompt (vs. domain gate + problem match + keyword gate)
-- **Cheap:** Fixed $0.06 cost (vs. variable $0.10-0.20)
-- **Accurate:** 85-100% relevance (vs. 60-70% with old approach)
+**Why Embeddings + Keyword Gate:**
+- **Deterministic:** Same hypothesis → same embedding → consistent results
+- **Cheap:** ~$0.01 for embeddings vs. $0.05+ for Haiku calls
+- **Fast:** No AI round-trips for filtering
 
-**Result:** 10-16 highly relevant signals per search with 85-100% relevance rate
+**Planned Improvement (Not Yet Integrated):**
+
+The `src/lib/filter/` module adds Haiku YES/NO verification as a final quality check:
+1. Loose embedding filter (0.28) catches broad candidates
+2. Cap at 50 for cost control
+3. Haiku verification filters false positives
+
+**Status:** Built and tested. Integration pending into `community-voice/route.ts`
 
 ---
 
 ## Cost Structure
+
+### Current Production (SKIP_AI_GATES=true)
 
 | Step | AI Model | Cost per Research |
 |------|----------|-------------------|
 | Hypothesis Interpretation | Sonnet | ~$0.02 |
 | Subreddit Discovery | Haiku × 3 | ~$0.003 |
 | Quality Sampling (preview) | Haiku | ~$0.01 |
-| **Embedding Filter** | OpenAI | ~$0.01 |
-| **Haiku Verification (50 calls)** | Haiku | ~$0.05 |
+| Embedding Filter | OpenAI | ~$0.01 |
+| AI Gates (Domain + Problem) | ~~Haiku~~ | **SKIPPED** |
 | Pain Detection | Code | Free |
 | Themes | Sonnet | ~$0.02 |
 | Competitors | Sonnet | ~$0.02 |
 | Questions | Sonnet | ~$0.01 |
 | Market/Timing | Sonnet | ~$0.02 |
-| **Total** | | **~$0.11** |
+| **Total** | | **~$0.09** |
 
-**Dec 31, 2025:** Two-stage filter provides fixed, predictable cost (~$0.06 for filtering) regardless of data volume.
+### With Two-Stage Filter (PLANNED)
+
+| Step | AI Model | Cost per Research |
+|------|----------|-------------------|
+| ... (same as above) | | |
+| Embedding Filter | OpenAI | ~$0.01 |
+| **Haiku Verification (50 calls)** | Haiku | ~$0.05 |
+| **Total** | | **~$0.14** |
+
+**Trade-off:** +$0.05 cost → better relevance (85-100% vs current 60-70%)
 
 ---
 
