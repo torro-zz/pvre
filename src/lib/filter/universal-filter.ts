@@ -1,4 +1,15 @@
 /**
+ * ⛔ LOCKED CODE - DO NOT MODIFY
+ *
+ * This filter has been calibrated and validated.
+ * See LOCKED.md in this directory before making ANY changes.
+ *
+ * Threshold: 0.34
+ * Validated: 2025-12-31
+ * Hit rate: 75% (6/8 gold nuggets)
+ */
+
+/**
  * Universal Filter
  *
  * THE single source of truth for filtering posts/signals from any data source.

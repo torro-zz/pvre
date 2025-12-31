@@ -57,6 +57,21 @@ This project uses **LemonSqueezy** (not Stripe). See `docs/KNOWN_ISSUES.md`.
 
 ---
 
+## Protected Code
+
+The following files are **LOCKED** and must not be modified without explicit approval:
+- `src/lib/filter/universal-filter.ts`
+- `src/lib/filter/LOCKED.md`
+- `src/lib/adapters/types.ts`
+
+**Before modifying any file**, check if a `LOCKED.md` exists in that directory.
+If it does, **READ IT** and follow the process. Do not modify locked code.
+
+The universal filter was calibrated against 14 gold nuggets with a 75% hit rate at threshold 0.34.
+Any changes risk breaking this calibration and must go through the approval process in `LOCKED.md`.
+
+---
+
 ## Critical Quality Metric: Relevance
 
 **The 64% Problem:** Testing revealed 64% of detected pain signals were completely irrelevant to business hypotheses, with 0% directly relevant.
