@@ -71,6 +71,15 @@ export interface FilteringMetrics {
   expansionAttempts?: ExpansionAttempt[]
   communitiesSearched?: string[]
   timeRangeMonths?: number
+  // Tiered filter metrics (when USE_TIERED_FILTER is enabled)
+  tieredMetrics?: {
+    core: number       // Score >= 0.45
+    strong: number     // Score >= 0.35
+    related: number    // Score >= 0.25
+    adjacent: number   // Score >= 0.15
+    total: number      // Total signals across all tiers
+    processingTimeMs: number
+  }
 }
 
 // Raw result from Supabase (before type casting)

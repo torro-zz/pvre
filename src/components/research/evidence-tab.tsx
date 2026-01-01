@@ -34,6 +34,7 @@ import { PainScoreCard } from './pain-score-card'
 import { PainScoreDisplay } from './pain-score-display'
 import { QuoteList, WtpQuoteCard } from '@/components/ui/quote-card'
 import { DataQualityInsights } from './data-quality-insights'
+import { TieredMetricsDisplay } from './tiered-metrics-display'
 import type { CommunityVoiceResult } from '@/app/api/research/community-voice/route'
 import type { FilteringMetrics } from '@/lib/research/fetch-research-data'
 import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
@@ -294,6 +295,11 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
             </CardContent>
           </Card>
 
+          {/* Tiered Signal Breakdown (when tiered filter enabled) */}
+          {filteringMetrics?.tieredMetrics && (
+            <TieredMetricsDisplay metrics={filteringMetrics.tieredMetrics} />
+          )}
+
           {/* Data Quality Insights (compact) */}
           {filteringMetrics && (
             <DataQualityInsights
@@ -307,6 +313,8 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
                 expansionAttempts: filteringMetrics.expansionAttempts ?? undefined,
                 communitiesSearched: filteringMetrics.communitiesSearched || results.subreddits?.analyzed,
                 timeRangeMonths: filteringMetrics.timeRangeMonths,
+                // Tiered metrics (when tiered filter is enabled)
+                tieredMetrics: filteringMetrics.tieredMetrics,
               }}
             />
           )}

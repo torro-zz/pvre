@@ -11,14 +11,26 @@ import {
   XCircle,
   Search,
   Clock,
-  Users
+  Users,
+  Layers,
 } from 'lucide-react'
+import { TieredMetricsBadges } from './tiered-metrics-display'
 
 export interface ExpansionAttempt {
   type: 'time_range' | 'fetch_limit' | 'communities'
   value: string
   success: boolean
   signalsGained: number
+}
+
+// Tiered filter metrics (when USE_TIERED_FILTER is enabled)
+export interface TieredMetrics {
+  core: number
+  strong: number
+  related: number
+  adjacent: number
+  total: number
+  processingTimeMs: number
 }
 
 export interface DataQualityDiagnostics {
@@ -31,6 +43,8 @@ export interface DataQualityDiagnostics {
   expansionAttempts?: ExpansionAttempt[]
   communitiesSearched?: string[]
   timeRangeMonths?: number
+  // Tiered filter metrics (when enabled)
+  tieredMetrics?: TieredMetrics
 }
 
 interface DataQualityInsightsProps {
@@ -148,6 +162,22 @@ export function DataQualityInsights({ diagnostics }: DataQualityInsightsProps) {
                 </p>
               </div>
             </div>
+
+            {/* Tiered Signal Breakdown (when tiered filter is enabled) */}
+            {diagnostics.tieredMetrics && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+                  Signal Tiers
+                </div>
+                <div className="pl-5.5">
+                  <TieredMetricsBadges metrics={diagnostics.tieredMetrics} />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    CORE + STRONG signals used for analysis. ADJACENT signals may reveal pivot opportunities.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Search Parameters */}
             <div className="space-y-1">
