@@ -20,6 +20,11 @@ import { StructuredHypothesis } from '@/types/research'
 import { sampleQualityCheck, QualitySampleResult } from '@/lib/research/relevance-filter'
 import { redditAdapter } from '@/lib/data-sources'
 import { searchSubreddits } from '@/lib/arctic-shift/client'
+import {
+  USE_TIERED_FILTER,
+  tieredSampleQualityCheck,
+  type TieredQualitySampleResult,
+} from '@/lib/filter'
 
 export interface CoverageCheckRequest {
   hypothesis: string
@@ -322,7 +327,7 @@ export async function POST(req: Request) {
     // Step 4: Quality sampling - fetch actual posts and run relevance prediction
     // This helps users understand expected quality BEFORE they pay
     // Use cached posts if provided (for consistent scoring during refinement)
-    let qualityPreview: QualitySampleResult | undefined
+    let qualityPreview: QualitySampleResult | TieredQualitySampleResult | undefined
     let allSamplePosts: SamplePost[] = []
 
     try {
@@ -363,11 +368,19 @@ export async function POST(req: Request) {
           numComments: 0,
         }))
 
-        qualityPreview = await sampleQualityCheck(
-          postsForSampling,
-          hypothesis,
-          structuredHypothesis
-        )
+        // Choose quality check method based on feature flag
+        if (USE_TIERED_FILTER) {
+          // Tiered: embeddings-only, no AI calls (~$0.001)
+          console.log('[QualityPreview] Using tiered embedding-based quality check')
+          qualityPreview = await tieredSampleQualityCheck(postsForSampling, hypothesis)
+        } else {
+          // Legacy: Haiku domain gate (~$0.01)
+          qualityPreview = await sampleQualityCheck(
+            postsForSampling,
+            hypothesis,
+            structuredHypothesis
+          )
+        }
 
         console.log(`[QualityPreview] Predicted relevance: ${qualityPreview.predictedRelevance}%, Warning: ${qualityPreview.qualityWarning}`)
         console.log(`[QualityPreview] Sample relevant: ${qualityPreview.sampleRelevant?.length || 0}, filtered: ${qualityPreview.sampleFiltered?.length || 0}`)

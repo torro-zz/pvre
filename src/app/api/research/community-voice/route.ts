@@ -53,7 +53,15 @@ import {
   filterRelevantComments,
   RelevanceDecision,
 } from '@/lib/research/relevance-filter'
-import { filterSignals, USE_TWO_STAGE_FILTER, type PipelineResult } from '@/lib/filter'
+import {
+  filterSignals,
+  USE_TWO_STAGE_FILTER,
+  USE_TIERED_FILTER,
+  filterSignalsTiered,
+  getSignalsForAnalysis,
+  type PipelineResult,
+  type TieredSignals,
+} from '@/lib/filter'
 import {
   bridgeRedditPostsToNormalized,
   mapVerifiedToRedditPosts,
@@ -110,6 +118,15 @@ export interface FilteringMetrics {
     stage2Candidates: number    // After cap (always ≤50)
     stage3Verified: number      // After Haiku verification
     verificationRate: number    // stage3 / stage2
+    processingTimeMs: number
+  }
+  // Tiered filter metrics (when enabled)
+  tieredMetrics?: {
+    core: number       // Score >= 0.45
+    strong: number     // Score >= 0.35
+    related: number    // Score >= 0.25
+    adjacent: number   // Score >= 0.15
+    total: number      // Total signals
     processingTimeMs: number
   }
 }
@@ -579,13 +596,105 @@ export async function POST(request: NextRequest) {
     let postRelatedItems: typeof rawPosts
     let filteringMetrics: FilteringMetrics
     let twoStageResult: PipelineResult | null = null
+    let tieredResult: TieredSignals | null = null
     let postRelevanceDecisions: RelevanceDecision[] = []
 
     // Comments always use the old filter (per plan decision)
     const commentFilterResult = await filterRelevantComments(rawComments, hypothesis, structuredHypothesis)
     comments = commentFilterResult.items
 
-    if (USE_TWO_STAGE_FILTER) {
+    if (USE_TIERED_FILTER) {
+      // =========================================================================
+      // NEW: Tiered Filter Pipeline (Embeddings only, no AI gatekeeping)
+      // =========================================================================
+      console.log('[Tiered] Using tiered filter (embeddings only)')
+
+      // Bridge RedditPost[] to NormalizedPost[]
+      const normalizedPosts = bridgeRedditPostsToNormalized(rawPosts)
+      console.log(`[Tiered] Normalized ${normalizedPosts.length} posts`)
+
+      // Run the tiered filter
+      tieredResult = await filterSignalsTiered(normalizedPosts, hypothesis, {
+        onProgress: (msg) => console.log(msg),
+      })
+
+      // Get analysis signals (CORE + STRONG only)
+      const analysisSignals = getSignalsForAnalysis(tieredResult)
+
+      // Map tiered signals back to RedditPost format for compatibility
+      posts = analysisSignals
+        .map(signal => {
+          // Find the original post by ID
+          return rawPosts.find(p => p.id === signal.post.id)
+        })
+        .filter((p): p is typeof rawPosts[0] => p !== undefined)
+
+      // CORE = score >= 0.45, STRONG = score >= 0.35
+      postCoreItems = tieredResult.core
+        .map(s => rawPosts.find(p => p.id === s.post.id))
+        .filter((p): p is typeof rawPosts[0] => p !== undefined)
+      postRelatedItems = tieredResult.strong
+        .map(s => rawPosts.find(p => p.id === s.post.id))
+        .filter((p): p is typeof rawPosts[0] => p !== undefined)
+
+      // Log the pipeline results
+      console.log(`\n=== TIERED POST FILTER PIPELINE ===`)
+      console.log(`  Input: ${rawPosts.length} posts`)
+      console.log(`  CORE (≥0.45): ${tieredResult.core.length}`)
+      console.log(`  STRONG (≥0.35): ${tieredResult.strong.length}`)
+      console.log(`  RELATED (≥0.25): ${tieredResult.related.length}`)
+      console.log(`  ADJACENT (≥0.15): ${tieredResult.adjacent.length}`)
+      console.log(`  Noise (filtered): ${rawPosts.length - tieredResult.stats.total}`)
+      console.log(`  Processing time: ${tieredResult.stats.processingTimeMs}ms`)
+      console.log(`  Output: ${posts.length} signals for analysis (CORE + STRONG)\n`)
+
+      // Build filtering metrics
+      const postFilterRate = rawPosts.length > 0
+        ? ((rawPosts.length - posts.length) / rawPosts.length) * 100
+        : 0
+
+      filteringMetrics = {
+        postsFound: rawPosts.length,
+        postsAnalyzed: posts.length,
+        postsFiltered: rawPosts.length - posts.length,
+        postFilterRate,
+        commentsFound: commentFilterResult.metrics.before,
+        commentsAnalyzed: commentFilterResult.metrics.after,
+        commentsFiltered: commentFilterResult.metrics.filteredOut,
+        commentFilterRate: commentFilterResult.metrics.filterRate,
+        qualityLevel: calculateQualityLevel(postFilterRate, commentFilterResult.metrics.filterRate),
+        coreSignals: tieredResult.core.length,
+        relatedSignals: tieredResult.strong.length, // STRONG maps to relatedSignals for UI compatibility
+        titleOnlyPosts: 0, // Not tracked in tiered
+        preFilterSkipped: 0, // Not applicable
+        expansionAttempts,
+        timeRangeMonths: 24,
+        communitiesSearched: [...subredditsToSearch],
+        tieredMetrics: {
+          core: tieredResult.core.length,
+          strong: tieredResult.strong.length,
+          related: tieredResult.related.length,
+          adjacent: tieredResult.adjacent.length,
+          total: tieredResult.stats.total,
+          processingTimeMs: tieredResult.stats.processingTimeMs,
+        },
+      }
+
+      console.log(`[Tiered] Complete: ${posts.length} signals for analysis`)
+
+      // Convert tiered signals to RelevanceDecision format for audit trail
+      postRelevanceDecisions = analysisSignals.map(signal => ({
+        reddit_id: signal.post.id,
+        title: signal.post.title,
+        body_preview: signal.post.body.slice(0, 100),
+        subreddit: signal.post.metadata?.subreddit as string || 'unknown',
+        decision: 'Y',
+        tier: signal.tier === 'core' ? 'CORE' : 'RELATED', // STRONG maps to RELATED for compatibility
+        stage: 'problem' as const, // Tiered filtering is conceptually similar to problem-match
+        reason: `Tiered filter (score: ${signal.score.toFixed(2)}, tier: ${signal.tier})`,
+      } satisfies RelevanceDecision))
+
+    } else if (USE_TWO_STAGE_FILTER) {
       // =========================================================================
       // NEW: Two-Stage Filter Pipeline (Embeddings → Cap 50 → Haiku Verify)
       // =========================================================================

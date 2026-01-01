@@ -36,13 +36,15 @@ export {
   TIERED_SYNTHESIS_CAPS,
 } from './config'
 
-// Re-export tiered filter (Phase 1)
+// Re-export tiered filter (Phase 1 + Phase 3)
 export {
   filterSignalsTiered,
   getSignalsForAnalysis,
   getSignalsForCompetitors,
   getAllSignals,
+  tieredSampleQualityCheck,
   type TieredFilterConfig,
+  type TieredQualitySampleResult,
 } from './tiered-filter'
 
 // Re-export types
