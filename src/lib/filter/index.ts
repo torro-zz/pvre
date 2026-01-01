@@ -26,7 +26,24 @@ export {
 export { verifyWithHaiku, type VerifiedSignal } from './ai-verifier'
 
 // Re-export config
-export { FILTER_CONFIG, USE_TWO_STAGE_FILTER } from './config'
+export {
+  FILTER_CONFIG,
+  USE_TWO_STAGE_FILTER,
+  USE_TIERED_FILTER,
+  TIER_THRESHOLDS,
+  SOURCE_WEIGHTS,
+  WTP_SOURCE_WEIGHTS,
+  TIERED_SYNTHESIS_CAPS,
+} from './config'
+
+// Re-export tiered filter (Phase 1)
+export {
+  filterSignalsTiered,
+  getSignalsForAnalysis,
+  getSignalsForCompetitors,
+  getAllSignals,
+  type TieredFilterConfig,
+} from './tiered-filter'
 
 // Re-export types
 export type { FilterConfig as EmbeddingFilterConfig } from './universal-filter'
@@ -35,6 +52,11 @@ export type {
   ScoredSignal,
   FilterResult,
   FilterMetrics,
+  // Tiered filter types (Phase 1)
+  TieredSignals,
+  TieredScoredSignal,
+  TieredFilterStats,
+  SignalTier,
 } from '@/lib/adapters/types'
 
 /**
