@@ -1,10 +1,19 @@
 /**
  * AI Verifier
  *
- * Stage 3 of the filtering pipeline.
+ * @deprecated This module is deprecated in favor of tiered-filter.ts.
+ * It will be removed once USE_TIERED_FILTER becomes the default (set to true).
+ * Currently kept for backward compatibility with the legacy pipeline.
+ *
+ * Stage 3 of the filtering pipeline (LEGACY).
  * Uses Haiku for fast YES/NO verification of candidate signals.
  *
  * Cost: ~$0.001 per call, capped at 50 calls = ~$0.05 max
+ *
+ * Migration path:
+ * - When USE_TIERED_FILTER = true, use tiered-filter.ts instead
+ * - Tiered filter uses embedding-based scoring (cheaper, no AI calls for filtering)
+ * - Delete this file when USE_TIERED_FILTER is enabled by default
  */
 
 import Anthropic from '@anthropic-ai/sdk'

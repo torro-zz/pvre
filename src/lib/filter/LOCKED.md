@@ -64,4 +64,24 @@
 
 ---
 
+## Migration: Tiered Filter (in progress)
+
+A new tiered filter pipeline is being developed in `tiered-filter.ts`:
+
+| Feature | Legacy (current) | Tiered (future) |
+|---------|-----------------|-----------------|
+| Feature flag | `USE_TIERED_FILTER = false` | `USE_TIERED_FILTER = true` |
+| AI calls | 50 Haiku calls (~$0.05) | 0 AI calls for filtering |
+| Output | Binary pass/fail | Tiered: CORE/STRONG/RELATED/ADJACENT |
+| Cost | ~$0.06/search | ~$0.01/search |
+
+**Files affected when migration completes:**
+- `ai-verifier.ts` → DELETE (marked @deprecated)
+- `universal-filter.ts` → Keep (still used for scoring)
+- `tiered-filter.ts` → Primary pipeline
+
+**Do not delete ai-verifier.ts until USE_TIERED_FILTER is enabled by default.**
+
+---
+
 **If you're reading this, DO NOT MODIFY the filter without following the process above.**
