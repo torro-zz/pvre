@@ -143,6 +143,79 @@ export interface FilterMetrics {
   processingTimeMs: number
 }
 
+// =============================================================================
+// TIERED FILTER TYPES (Phase 0 - Additive, Feature Flagged)
+// =============================================================================
+
+/**
+ * Signal tier based on embedding similarity score.
+ * Higher tiers = more directly relevant to hypothesis.
+ */
+export type SignalTier = 'core' | 'strong' | 'related' | 'adjacent'
+
+/**
+ * Extended scored signal with tier classification and source weighting.
+ * Used by tiered filter pipeline (when USE_TIERED_FILTER = true).
+ */
+export interface TieredScoredSignal {
+  /** The normalized post */
+  post: NormalizedPost
+
+  /** Embedding similarity score (0-1) */
+  score: number
+
+  /** Tier classification based on score thresholds */
+  tier: SignalTier
+
+  /** Weight for general analysis (by source type) */
+  sourceWeight: number
+
+  /** Weight for WTP analysis (lower for Reddit, higher for app reviews) */
+  wtpWeight: number
+}
+
+/**
+ * Tiered filter output - signals organized by relevance tier.
+ * Replaces binary pass/fail with graduated relevance levels.
+ */
+export interface TieredSignals {
+  /** Score >= 0.45 - Direct match to hypothesis */
+  core: TieredScoredSignal[]
+
+  /** Score 0.35-0.45 - Highly relevant */
+  strong: TieredScoredSignal[]
+
+  /** Score 0.25-0.35 - Same problem space */
+  related: TieredScoredSignal[]
+
+  /** Score 0.15-0.25 - Nearby problems (stored, not displayed by default) */
+  adjacent: TieredScoredSignal[]
+
+  /** Aggregate statistics */
+  stats: TieredFilterStats
+}
+
+/**
+ * Statistics from tiered filtering
+ */
+export interface TieredFilterStats {
+  /** Total signals processed */
+  total: number
+
+  /** Count by data source */
+  bySource: Record<string, number>
+
+  /** Count by tier */
+  byTier: Record<SignalTier, number>
+
+  /** Processing time in ms */
+  processingTimeMs: number
+}
+
+// =============================================================================
+// ADAPTER INTERFACE
+// =============================================================================
+
 /**
  * Adapter interface - all data source adapters must implement this
  */

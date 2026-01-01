@@ -6,6 +6,87 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 
 ---
 
+# 12-31: Tiered Filter Redesign (PLANNED)
+
+**Status:** 🔵 PLANNING — CEO Approval Required Before Implementation
+
+## Overview
+
+Major redesign to remove Haiku gatekeeping and implement tiered signal output with AI synthesis.
+
+**Current Flow (wasteful):**
+```
+Posts → Embeddings → Top 150 → Haiku YES/NO (150 calls) → 21 signals → Analysis
+```
+
+**Proposed Flow (efficient):**
+```
+Posts → Embeddings → Tiered Output (all signals) → AI Synthesis (3-5 calls) → Rich Results
+```
+
+## Key Changes
+
+1. **Remove Haiku Verification** — Delete `ai-verifier.ts` entirely
+2. **Tiered Output** — Four tiers instead of pass/fail:
+   - CORE (≥0.45): Direct match
+   - STRONG (0.35-0.45): Highly relevant
+   - RELATED (0.25-0.35): Same problem space
+   - ADJACENT (0.15-0.25): Nearby problems (for pivot opportunities)
+
+3. **Source Weighting** — Different reliability for different sources:
+   - App Store/Trustpilot: 1.0 (verified purchasers)
+   - Reddit posts: 0.9
+   - HN: 0.85
+   - Comments: 0.7
+
+4. **AI Budget → Synthesis** — Instead of 150 Haiku calls for verification, use 5 Sonnet calls for deeper analysis
+
+## Cost Comparison
+
+| Component | Current | Proposed |
+|-----------|---------|----------|
+| Embeddings | $0.02 | $0.02 |
+| Haiku verification | $0.15 | $0.00 |
+| AI Synthesis | $0.04 | $0.10 |
+| **TOTAL** | **$0.21** | **$0.12** |
+
+## Expected Results
+
+| Metric | Current | Proposed |
+|--------|---------|----------|
+| Signals preserved | 21 | 300+ (tiered) |
+| User value | 21 flat signals | Organized tiers + deep analysis |
+| Opportunities | None | AI-identified from ADJACENT |
+| WTP reliability | All equal | Source-weighted |
+
+## Files to Modify
+
+| File | Action |
+|------|--------|
+| `src/lib/filter/ai-verifier.ts` | DELETE |
+| `src/lib/filter/config.ts` | Add tier thresholds, source weights |
+| `src/lib/filter/index.ts` | Return TieredSignals |
+| `src/lib/filter/types.ts` (adapters) | Add TieredSignals interface |
+| `src/lib/analysis/theme-extractor.ts` | Use CORE + STRONG only |
+| `src/lib/analysis/opportunity-detector.ts` | CREATE (uses ADJACENT) |
+| `src/lib/analysis/viability-calculator.ts` | Use tiered inputs |
+| UI components | Tier badges, collapsible sections |
+
+## Full Plan
+
+See `docs/TIERED_FILTER_REDESIGN_PLAN.md` for complete implementation details.
+
+## Approval Checklist
+
+- [ ] CEO approves approach
+- [ ] Update LOCKED.md with change reason
+- [ ] Run full calibration test BEFORE changes
+- [ ] Implement in feature branch
+- [ ] Run full calibration test AFTER changes
+- [ ] Document results in LOCKED.md
+
+---
+
 # 12-31: Two-Stage Filter Deployed
 
 **Status:** ✅ Complete — Production Ready

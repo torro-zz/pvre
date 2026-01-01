@@ -80,3 +80,100 @@ export const FILTER_CONFIG = {
  * Type for filter configuration
  */
 export type FilterConfig = typeof FILTER_CONFIG
+
+// =============================================================================
+// TIERED FILTER CONFIGURATION (Phase 0 - Not Yet Active)
+// =============================================================================
+
+/**
+ * Feature flag to enable/disable tiered filter pipeline.
+ * Set to false - tiered filter is not yet implemented.
+ *
+ * When true: Uses filterSignalsTiered() with graduated relevance tiers
+ * When false: Uses existing two-stage filter (current behavior)
+ */
+export const USE_TIERED_FILTER = false
+
+/**
+ * Tier thresholds for signal classification.
+ * Based on embedding similarity scores (0-1).
+ *
+ * Calibration notes:
+ * - CORE 0.45: Direct matches to hypothesis (highest relevance)
+ * - STRONG 0.35: Clearly relevant, same problem
+ * - RELATED 0.25: Same problem space, useful context
+ * - ADJACENT 0.15: Nearby problems, pivot opportunities
+ */
+export const TIER_THRESHOLDS = {
+  CORE: 0.45,
+  STRONG: 0.35,
+  RELATED: 0.25,
+  ADJACENT: 0.15,
+} as const
+
+/**
+ * Source reliability weights for general analysis.
+ * Higher weight = more reliable signal.
+ *
+ * Weighting rationale:
+ * - App stores: Verified purchasers, real users
+ * - Trustpilot: Real customers, verified reviews
+ * - Reddit posts: Community discussion, some noise
+ * - Comments: Shorter, more reactive
+ */
+export const SOURCE_WEIGHTS: Record<string, number> = {
+  // High reliability (verified users/purchasers)
+  appstore: 1.0,
+  playstore: 1.0,
+  trustpilot: 1.0,
+
+  // Medium-high reliability (community discussion)
+  reddit: 0.9,        // Posts
+  hackernews: 0.85,
+
+  // Medium reliability (shorter/reactive content)
+  reddit_comment: 0.7,
+  tiktok: 0.6,
+  youtube_comment: 0.6,
+
+  // Default for unknown sources
+  other: 0.5,
+}
+
+/**
+ * Source weights specifically for WTP (Willingness to Pay) analysis.
+ * People express WTP differently on different platforms.
+ *
+ * Reddit WTP is often hyperbolic ("take my money!") vs
+ * App Store WTP is from actual purchasers ("worth every penny").
+ */
+export const WTP_SOURCE_WEIGHTS: Record<string, number> = {
+  // Real purchasers - highest WTP reliability
+  appstore: 1.0,
+  playstore: 1.0,
+  trustpilot: 1.0,
+
+  // Sometimes hypothetical
+  hackernews: 0.7,
+
+  // Often hyperbolic ("shut up and take my money")
+  reddit: 0.5,
+  reddit_comment: 0.4,
+
+  // Rarely serious about payment
+  tiktok: 0.3,
+  youtube_comment: 0.3,
+
+  // Default
+  other: 0.3,
+}
+
+/**
+ * Maximum signals per AI synthesis call.
+ * Token cap: 50 CORE + 50 STRONG = 100 max.
+ */
+export const TIERED_SYNTHESIS_CAPS = {
+  CORE_MAX: 50,
+  STRONG_MAX: 50,
+  TOTAL_MAX: 100,
+} as const
