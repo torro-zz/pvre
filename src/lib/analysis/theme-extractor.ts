@@ -824,3 +824,147 @@ function getFallbackQuestions(themeAnalysis: ThemeAnalysis): {
   }
 }
 
+// =============================================================================
+// TIERED FILTER INTEGRATION (Phase 2)
+// =============================================================================
+
+import { TieredSignals, TieredScoredSignal, getSignalsForAnalysis } from '@/lib/filter'
+
+/**
+ * Extract themes from TieredSignals (Phase 2 tiered filter integration).
+ *
+ * Uses CORE + STRONG signals only for theme extraction, with source weighting.
+ * This is the preferred entry point when USE_TIERED_FILTER = true.
+ *
+ * @param tieredSignals - Output from filterSignalsTiered()
+ * @param hypothesis - Business hypothesis
+ * @returns ThemeAnalysis with source-weighted themes
+ */
+export async function extractThemesFromTiered(
+  tieredSignals: TieredSignals,
+  hypothesis: string
+): Promise<ThemeAnalysis> {
+  // Get CORE + STRONG signals for analysis
+  const signalsForAnalysis = getSignalsForAnalysis(tieredSignals)
+
+  if (signalsForAnalysis.length === 0) {
+    return getEmptyAnalysis()
+  }
+
+  // Convert TieredScoredSignal to PainSignal format
+  const painSignals = signalsForAnalysis.map((signal) => convertToPainSignal(signal))
+
+  // Sort by weighted score (embedding score * source weight * tier weight)
+  painSignals.sort((a, b) => b.score - a.score)
+
+  // Use existing extractThemes with converted signals
+  return extractThemes(painSignals, hypothesis)
+}
+
+/**
+ * Convert a TieredScoredSignal to PainSignal format for theme extraction.
+ * Applies tier and source weighting to the score.
+ */
+function convertToPainSignal(signal: TieredScoredSignal): PainSignal {
+  const post = signal.post
+
+  // Calculate weighted score
+  // Tier weight: CORE = 1.0, STRONG = 0.7
+  const tierWeight = signal.tier === 'core' ? 1.0 : 0.7
+  const weightedScore = signal.score * signal.sourceWeight * tierWeight
+
+  // Detect WTP keywords
+  const text = `${post.title} ${post.body}`.toLowerCase()
+  const wtpKeywords = ['would pay', 'willing to pay', 'take my money', 'worth paying', 'paid for']
+  const hasWtp = wtpKeywords.some(kw => text.includes(kw))
+
+  // Detect pain signals from text
+  const painIndicators = detectPainIndicators(text)
+
+  // Determine intensity from score
+  const intensity: 'low' | 'medium' | 'high' =
+    weightedScore >= 0.6 ? 'high' : weightedScore >= 0.4 ? 'medium' : 'low'
+
+  // Determine WTP confidence from source weight
+  const wtpConfidence: 'none' | 'low' | 'medium' | 'high' =
+    !hasWtp ? 'none' :
+    signal.wtpWeight >= 0.8 ? 'high' :
+    signal.wtpWeight >= 0.5 ? 'medium' : 'low'
+
+  // Determine primary emotion from pain indicators
+  // EmotionType: 'frustration' | 'anxiety' | 'disappointment' | 'confusion' | 'hope' | 'neutral'
+  const emotion: 'frustration' | 'anxiety' | 'disappointment' | 'confusion' | 'hope' | 'neutral' =
+    painIndicators.includes('frustration') ? 'frustration' :
+    painIndicators.includes('strong_negative') ? 'frustration' :
+    painIndicators.includes('struggle') ? 'frustration' :
+    painIndicators.includes('difficulty') ? 'confusion' :
+    painIndicators.includes('annoyance') ? 'disappointment' :
+    painIndicators.includes('wish') ? 'hope' : 'neutral'
+
+  return {
+    text: post.body || post.title,
+    title: post.title,
+    score: weightedScore,
+    intensity,
+    signals: painIndicators,
+    solutionSeeking: text.includes('looking for') || text.includes('need') || text.includes('want'),
+    willingnessToPaySignal: hasWtp,
+    wtpConfidence,
+    wtpSourceReliability: signal.wtpWeight >= 0.8 ? 'high' : signal.wtpWeight >= 0.5 ? 'medium' : 'low',
+    tier: signal.tier.toUpperCase() as 'CORE' | 'RELATED',
+    emotion,
+    source: {
+      type: 'post' as const,
+      id: post.id,
+      subreddit: getSourceName(post),
+      author: (post.metadata?.author as string) || 'unknown',
+      url: (post.metadata?.url as string) || '',
+      createdUtc: post.timestamp.getTime() / 1000,
+      engagementScore: (post.metadata?.score as number) || 0,
+      rating: post.metadata?.rating as number | undefined,
+      upvotes: post.metadata?.score as number | undefined,
+      numComments: post.metadata?.numComments as number | undefined,
+    },
+  }
+}
+
+/**
+ * Get human-readable source name from post.
+ */
+function getSourceName(post: TieredScoredSignal['post']): string {
+  if (post.source === 'appstore') return 'app_store'
+  if (post.source === 'playstore') return 'google_play'
+  if (post.source === 'reddit' && post.metadata?.subreddit) {
+    return post.metadata.subreddit as string
+  }
+  return post.source
+}
+
+/**
+ * Detect pain indicators in text.
+ */
+function detectPainIndicators(text: string): string[] {
+  const indicators: string[] = []
+
+  const patterns: { pattern: RegExp; label: string }[] = [
+    { pattern: /frustrat/i, label: 'frustration' },
+    { pattern: /annoying|annoy/i, label: 'annoyance' },
+    { pattern: /struggle|struggling/i, label: 'struggle' },
+    { pattern: /difficult|hard to/i, label: 'difficulty' },
+    { pattern: /waste|wasting/i, label: 'waste' },
+    { pattern: /expensive|cost/i, label: 'cost_concern' },
+    { pattern: /time.consuming|takes too long/i, label: 'time_consuming' },
+    { pattern: /broken|doesn't work/i, label: 'broken' },
+    { pattern: /hate|can't stand/i, label: 'strong_negative' },
+    { pattern: /wish|if only/i, label: 'wish' },
+  ]
+
+  for (const { pattern, label } of patterns) {
+    if (pattern.test(text)) {
+      indicators.push(label)
+    }
+  }
+
+  return indicators
+}
+

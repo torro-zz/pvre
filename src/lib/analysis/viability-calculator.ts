@@ -1463,3 +1463,144 @@ export const StatusLabels = {
   needs_work: 'Needs Work',
   critical: 'Critical',
 }
+
+// =============================================================================
+// TIERED FILTER INTEGRATION (Phase 2)
+// =============================================================================
+
+import { TieredSignals, TieredScoredSignal } from '@/lib/adapters/types'
+
+/**
+ * Extract filtering metrics from TieredSignals for two-axis calculation.
+ *
+ * Converts tiered signal stats into the format needed by calculateViability().
+ *
+ * @param tieredSignals - Output from filterSignalsTiered()
+ * @returns TwoAxisInput.filteringMetrics object
+ */
+export function extractFilteringMetrics(
+  tieredSignals: TieredSignals
+): TwoAxisInput['filteringMetrics'] {
+  // Core signals = CORE tier
+  const coreSignals = tieredSignals.stats.byTier.core
+
+  // Related signals = STRONG + RELATED tiers (broader relevance)
+  const relatedSignals = tieredSignals.stats.byTier.strong + tieredSignals.stats.byTier.related
+
+  // Posts analyzed = total signals processed
+  const postsAnalyzed = tieredSignals.stats.total
+
+  // Extract unique sources from stats
+  const sources = Object.keys(tieredSignals.stats.bySource)
+
+  return {
+    coreSignals,
+    relatedSignals,
+    postsAnalyzed,
+    sources,
+  }
+}
+
+/**
+ * Calculate pain score input from TieredSignals.
+ *
+ * Converts tiered signal data into PainScoreInput format for viability calculation.
+ *
+ * @param tieredSignals - Output from filterSignalsTiered()
+ * @param themeAnalysis - Optional theme analysis with WTP and intensity data
+ * @returns PainScoreInput for calculateViability()
+ */
+export function extractPainScoreFromTiered(
+  tieredSignals: TieredSignals,
+  themeAnalysis?: { overallPainScore: number; willingnessToPaySignals: unknown[] }
+): PainScoreInput {
+  const totalSignals = tieredSignals.stats.total
+  const coreCount = tieredSignals.stats.byTier.core
+  const strongCount = tieredSignals.stats.byTier.strong
+
+  // Calculate confidence based on signal volume and tier distribution
+  let confidence: 'very_low' | 'low' | 'medium' | 'high' = 'low'
+  if (totalSignals >= 100 && coreCount >= 20) {
+    confidence = 'high'
+  } else if (totalSignals >= 50 && coreCount >= 10) {
+    confidence = 'medium'
+  } else if (totalSignals >= 20) {
+    confidence = 'low'
+  } else {
+    confidence = 'very_low'
+  }
+
+  // Count WTP signals from CORE + STRONG
+  const allRelevantSignals = [...tieredSignals.core, ...tieredSignals.strong]
+  const wtpKeywords = ['would pay', 'willing to pay', 'take my money', 'worth paying', 'paid for', 'subscription']
+  const wtpCount = allRelevantSignals.filter(s => {
+    const text = `${s.post.title} ${s.post.body}`.toLowerCase()
+    return wtpKeywords.some(kw => text.includes(kw))
+  }).length
+
+  // Calculate average intensity from theme analysis or estimate from tier distribution
+  let averageIntensity = 0.5 // Default moderate
+  if (themeAnalysis?.overallPainScore) {
+    averageIntensity = themeAnalysis.overallPainScore / 10
+  } else if (coreCount > 0) {
+    // Estimate: more CORE signals = higher intensity
+    const coreRatio = coreCount / Math.max(1, coreCount + strongCount)
+    averageIntensity = 0.4 + (coreRatio * 0.4) // Range 0.4-0.8
+  }
+
+  // Calculate overall score from tier distribution
+  // CORE signals contribute more than STRONG
+  const weightedSignalScore = (coreCount * 1.0 + strongCount * 0.7) / Math.max(1, totalSignals)
+  const overallScore = themeAnalysis?.overallPainScore ??
+    Math.min(10, 3 + (weightedSignalScore * 4) + (totalSignals / 50) * 2)
+
+  return {
+    overallScore: Math.round(overallScore * 10) / 10,
+    confidence,
+    totalSignals,
+    willingnessToPayCount: themeAnalysis?.willingnessToPaySignals?.length ?? wtpCount,
+    postsAnalyzed: totalSignals,
+    averageIntensity,
+  }
+}
+
+/**
+ * Full viability calculation from TieredSignals.
+ *
+ * Convenience wrapper that:
+ * 1. Extracts filtering metrics from tiered signals
+ * 2. Calculates pain score from tiered data
+ * 3. Runs full viability calculation
+ *
+ * @param tieredSignals - Output from filterSignalsTiered()
+ * @param themeAnalysis - Optional theme analysis
+ * @param competitionScore - Optional competition score input
+ * @param marketScore - Optional market score input
+ * @param timingScore - Optional timing score input
+ * @returns ViabilityVerdict with all metrics
+ */
+export function calculateViabilityFromTiered(
+  tieredSignals: TieredSignals,
+  themeAnalysis?: { overallPainScore: number; willingnessToPaySignals: unknown[] },
+  competitionScore: CompetitionScoreInput | null = null,
+  marketScore: MarketScoreInput | null = null,
+  timingScore: TimingScoreInput | null = null
+): ViabilityVerdict {
+  // Extract pain score from tiered signals
+  const painScore = extractPainScoreFromTiered(tieredSignals, themeAnalysis)
+
+  // Extract filtering metrics for two-axis system
+  const filteringMetrics = extractFilteringMetrics(tieredSignals)
+
+  // Run full calculation with two-axis input
+  return calculateViability(
+    painScore,
+    competitionScore,
+    marketScore,
+    timingScore,
+    {
+      filteringMetrics,
+      competitorCount: competitionScore?.competitorCount,
+    }
+  )
+}
