@@ -82,30 +82,30 @@ export const FILTER_CONFIG = {
 export type FilterConfig = typeof FILTER_CONFIG
 
 // =============================================================================
-// TIERED FILTER CONFIGURATION (Phase 0 - Not Yet Active)
+// TIERED FILTER CONFIGURATION (PRODUCTION - Jan 2026)
 // =============================================================================
 
 /**
  * Feature flag to enable/disable tiered filter pipeline.
- * Set to false - tiered filter is not yet implemented.
+ * ENABLED for production after testing showed 17x more signals at 10% lower cost.
  *
  * When true: Uses filterSignalsTiered() with graduated relevance tiers
- * When false: Uses existing two-stage filter (current behavior)
+ * When false: Uses existing two-stage filter (legacy behavior)
  */
-export const USE_TIERED_FILTER = false
+export const USE_TIERED_FILTER = true
 
 /**
  * Tier thresholds for signal classification.
  * Based on embedding similarity scores (0-1).
  *
- * Calibration notes:
- * - CORE 0.45: Direct matches to hypothesis (highest relevance)
+ * Calibration notes (Jan 2026):
+ * - CORE 0.40: Direct matches to hypothesis (lowered from 0.45 to capture 35+ signals)
  * - STRONG 0.35: Clearly relevant, same problem
  * - RELATED 0.25: Same problem space, useful context
  * - ADJACENT 0.15: Nearby problems, pivot opportunities
  */
 export const TIER_THRESHOLDS = {
-  CORE: 0.45,
+  CORE: 0.40,
   STRONG: 0.35,
   RELATED: 0.25,
   ADJACENT: 0.15,
