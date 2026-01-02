@@ -137,12 +137,24 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
   type CompetitorCategory = 'direct' | 'platform' | 'adjacent'
 
   const categorizeCompetitor = (competitor: typeof results.competitors[0]): CompetitorCategory => {
+    // FIRST: Check threat level and market share - real competitors should be "direct"
+    // regardless of keywords in their description (e.g., "communication platform")
+    // Only truly minor players (low threat + small share) might be platforms or adjacent
+    if (competitor.threatLevel === 'high' ||
+        competitor.threatLevel === 'medium' ||
+        competitor.marketShareEstimate === 'dominant' ||
+        competitor.marketShareEstimate === 'significant' ||
+        competitor.marketShareEstimate === 'moderate') {
+      return 'direct'
+    }
+
     const positioningLower = competitor.positioning?.toLowerCase() || ''
     const descriptionLower = competitor.description?.toLowerCase() || ''
     const nameLower = competitor.name.toLowerCase()
     const text = `${positioningLower} ${descriptionLower} ${nameLower}`
 
     // Platform indicators - community, launch platform, forum
+    // Only checked for non-high-threat competitors
     const platformKeywords = [
       'platform', 'community', 'forum', 'launch', 'directory',
       'marketplace', 'product hunt', 'indie hackers', 'betalist',
@@ -158,7 +170,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
       'typeform', 'google forms', 'hubspot', 'stripe'
     ]
 
-    // Check for platform indicators
+    // Check for platform indicators (only for low/medium threat)
     for (const keyword of platformKeywords) {
       if (text.includes(keyword)) {
         return 'platform'
@@ -170,14 +182,6 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
       if (text.includes(keyword)) {
         return 'adjacent'
       }
-    }
-
-    // Default to direct competitor if high/medium threat level and significant market share
-    // or if we don't have clear categorization signals
-    if (competitor.threatLevel === 'high' ||
-        competitor.marketShareEstimate === 'dominant' ||
-        competitor.marketShareEstimate === 'significant') {
-      return 'direct'
     }
 
     // Default: assume direct competitor (better to be cautious)
