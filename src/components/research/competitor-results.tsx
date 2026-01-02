@@ -188,7 +188,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
     return 'direct'
   }
 
-  // Group competitors by category
+  // Group competitors by category, filtering out the analyzed app itself
   const categorizedCompetitors = useMemo(() => {
     const grouped: Record<CompetitorCategory, typeof results.competitors> = {
       direct: [],
@@ -196,13 +196,43 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
       adjacent: []
     }
 
-    results.competitors.forEach((competitor) => {
-      const category = categorizeCompetitor(competitor)
-      grouped[category].push(competitor)
-    })
+    // Extract the app name from hypothesis for App Gap mode filtering
+    // e.g., "Slack" or "slack" should filter out Slack from its own competitor list
+    const analyzedAppName = results.hypothesis?.toLowerCase().trim()
+
+    results.competitors
+      .filter((competitor) => {
+        // Filter out the analyzed app from its own competitor list
+        if (!analyzedAppName) return true
+        const competitorNameLower = competitor.name.toLowerCase().trim()
+        // Exact match or the hypothesis contains the competitor name
+        return competitorNameLower !== analyzedAppName &&
+               !analyzedAppName.includes(competitorNameLower)
+      })
+      .forEach((competitor) => {
+        const category = categorizeCompetitor(competitor)
+        grouped[category].push(competitor)
+      })
 
     return grouped
-  }, [results.competitors])
+  }, [results.competitors, results.hypothesis])
+
+  // Filter competitor matrix to exclude the analyzed app
+  const filteredCompetitorMatrix = useMemo(() => {
+    if (!results.competitorMatrix?.comparison) return results.competitorMatrix
+
+    const analyzedAppName = results.hypothesis?.toLowerCase().trim()
+    if (!analyzedAppName) return results.competitorMatrix
+
+    return {
+      ...results.competitorMatrix,
+      comparison: results.competitorMatrix.comparison.filter((comp) => {
+        const compNameLower = comp.competitorName.toLowerCase().trim()
+        return compNameLower !== analyzedAppName &&
+               !analyzedAppName.includes(compNameLower)
+      })
+    }
+  }, [results.competitorMatrix, results.hypothesis])
 
   const hasDirectCompetitors = categorizedCompetitors.direct.length > 0
   const hasPlatformCompetitors = categorizedCompetitors.platform.length > 0
@@ -648,7 +678,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
         )}
 
         {/* Comparison Matrix - Collapsible, only shown if direct competitors exist */}
-        {hasDirectCompetitors && results.competitorMatrix?.comparison?.length > 0 && (
+        {hasDirectCompetitors && filteredCompetitorMatrix?.comparison?.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
               <button
@@ -662,7 +692,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                 <div className="flex items-center gap-2">
                   {collapsedSections.has('comparisonMatrix') && (
                     <span className="text-sm text-muted-foreground">
-                      Compare across {results.competitorMatrix.categories.length} dimensions
+                      Compare across {filteredCompetitorMatrix?.categories?.length || 0} dimensions
                     </span>
                   )}
                   <ChevronDown className={`h-5 w-5 transition-transform ${!collapsedSections.has('comparisonMatrix') ? 'rotate-180' : ''}`} />
@@ -690,7 +720,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                         <th className="text-left py-3 px-4 font-semibold border-b-2 border-border sticky left-0 bg-muted/50 min-w-[140px]">
                           Competitor
                         </th>
-                        {results.competitorMatrix.categories.map((category) => (
+                        {filteredCompetitorMatrix?.categories?.map((category) => (
                           <th key={category} className="text-center py-3 px-3 font-semibold border-b-2 border-border min-w-[90px]">
                             <span className="text-xs">{category}</span>
                           </th>
@@ -701,8 +731,8 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {results.competitorMatrix.comparison.map((comp, rowIndex) => {
-                        const scores = results.competitorMatrix.categories.map(cat => {
+                      {filteredCompetitorMatrix?.comparison?.map((comp, rowIndex) => {
+                        const scores = (filteredCompetitorMatrix?.categories || []).map(cat => {
                           const scoreData = comp.scores.find(s => s.category === cat)
                           return scoreData?.score || 0
                         })
@@ -718,7 +748,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                             <td className={`py-3 px-4 font-medium border-b sticky left-0 text-foreground ${rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
                               {comp.competitorName}
                             </td>
-                            {results.competitorMatrix.categories.map((category) => {
+                            {(filteredCompetitorMatrix?.categories || []).map((category) => {
                               const scoreData = comp.scores.find(s => s.category === category)
                               const score = scoreData?.score || 0
                               const scoreColorClass = score >= 8
