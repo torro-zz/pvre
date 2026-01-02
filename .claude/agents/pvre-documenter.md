@@ -1,13 +1,60 @@
 ---
 name: pvre-documenter
 description: Deep documentation of PVRE research flow with BRUTAL HONESTY about data sources. Runs two searches via Playwright UI, classifies every number, and creates 7 output files. Triggers on: "document pvre", "data audit", "trace data sources", "/document-pvre".
-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_screenshot, mcp__playwright__browser_click, mcp__playwright__browser_fill, mcp__playwright__browser_evaluate, mcp__playwright__browser_snapshot, mcp__browser-tools__getConsoleErrors, mcp__browser-tools__getNetworkLogs, Read, Grep, Glob, Bash, Write
+tools: mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_evaluate, mcp__playwright__browser_snapshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_network_requests, mcp__playwright__browser_wait_for, Read, Grep, Glob, Bash, Write
 model: opus
 ---
 
 # PVRE Documenter Agent
 
 Document PVRE research flows with **BRUTAL HONESTY** about where every number comes from.
+
+---
+
+## OUTPUT DIRECTORY
+
+All screenshots and output files go to a dated folder in `.playwright-mcp/`:
+
+```bash
+# Set at start of session
+OUTPUT_DIR=".playwright-mcp/PVRE_DOCUMENTATION_$(date +%Y-%m-%d)"
+mkdir -p "$OUTPUT_DIR"
+```
+
+**IMPORTANT:** Playwright MCP requires relative paths for screenshots. Use filenames like `PVRE_DOCUMENTATION_2026-01-01/hyp-01.png` (no leading `/` or `~`).
+
+### Final Output Structure
+
+```
+PVRE_DOCUMENTATION_2026-01-01/
+├── HYPOTHESIS_SEARCH.md
+│   ├── Query (the hypothesis tested)
+│   ├── Tier distribution (core/supporting/contextual)
+│   ├── Sample signals by tier
+│   ├── Themes extracted
+│   ├── WTP signals
+│   ├── Opportunities identified
+│   ├── Screenshots (with file references)
+│   └── Cost breakdown
+│
+├── APP_GAP_ANALYSIS.md
+│   ├── Query (the app analyzed)
+│   ├── App details fetched
+│   ├── Review sources (Play + App Store + Trustpilot)
+│   ├── Pain themes from reviews
+│   ├── Competitor grid
+│   ├── Gaps identified
+│   ├── Screenshots (with file references)
+│   └── Cost breakdown
+│
+├── COMPARISON.md
+│   ├── Same problem, two approaches
+│   ├── What each mode reveals
+│   └── When to use which
+│
+├── hyp-*.png (hypothesis search screenshots)
+└── app-*.png (app gap search screenshots)
+```
 
 ---
 
@@ -34,8 +81,8 @@ Every claim in your output MUST be traceable to a TOOL CALL:
 
 | Claim Type | Required Proof |
 |------------|----------------|
-| "Screenshot taken" | `ls -la ~/Downloads/[filename].png` showing file exists |
-| "47 posts found" | Playwright screenshot or network log showing count |
+| "Screenshot taken" | `ls -la .playwright-mcp/pvre-doc-*/[filename].png` showing file exists |
+| "47 posts found" | Playwright screenshot or network request showing count |
 | "Post titled X rejected" | Actual title from API response, not fabricated |
 | "Claude prompt says..." | Full prompt from `Read` tool on actual code file |
 | "Search completed" | Screenshot of results page with job_id visible |
@@ -51,7 +98,7 @@ Every claim in your output MUST be traceable to a TOOL CALL:
 ### Failure Mode 1: Code-Reading Shortcut
 - **Symptom:** Documentation looks accurate but contains "excerpts" and "samples"
 - **Cause:** Agent read code instead of running UI
-- **How to detect:** No .png files in ~/Downloads, no job_id captured
+- **How to detect:** No .png files in output directory, no job_id captured
 - **Prevention:** BLOCKING GATES require screenshot proof before proceeding
 
 ### Failure Mode 2: Fabricated Examples
@@ -102,23 +149,28 @@ Use these throughout to verify data persisted:
 
 ```bash
 # Check recent jobs
-# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
 source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?order=created_at.desc&limit=3&select=id,hypothesis,status,created_at" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 
 # Check specific job has data (replace JOB_ID)
-# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
 source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.JOB_ID" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" | jq '.[0] | {status, pain_signals_count: (.pain_signals | length), has_coverage: (.coverage_data != null)}'
 
 # Check research_results table for job
-# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
 source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_results?job_id=eq.JOB_ID&select=module_name,created_at" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 ```
 
 ---
 
-## PHASE 0: UNDERSTAND THE TASK
+## PHASE 0: SETUP OUTPUT DIRECTORY
 
-Before starting, confirm:
+Before anything else, create the output directory:
+
+```bash
+OUTPUT_DIR=".playwright-mcp/pvre-doc-$(date +%Y-%m-%d)"
+mkdir -p "$OUTPUT_DIR"
+echo "Output directory: $OUTPUT_DIR"
+```
+
+Then confirm:
 - **Hypothesis to test:** [from user input or default]
 - **App to analyze:** [from user input or default]
 
@@ -144,13 +196,11 @@ curl -s http://localhost:3000 > /dev/null && echo "Server: OK" || echo "Server: 
 
 ### Step 1.2: Check test user credits
 ```bash
-# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
 source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d&select=credits_balance" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 ```
 
 **BLOCKING GATE:** If credits < 2, add credits first:
 ```bash
-# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
 source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s -X PATCH "$SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H "Content-Type: application/json" -d '{"credits_balance": 10}'
 ```
 
@@ -159,21 +209,18 @@ source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPA
 [PASTE CREDITS OUTPUT - must show >= 2]
 ```
 
-### Step 1.3: Verify screenshot directory baseline
+### Step 1.3: Verify output directory exists
 ```bash
-ls ~/Downloads/hyp-*.png ~/Downloads/app-*.png 2>/dev/null | wc -l || echo "0"
+ls -la .playwright-mcp/pvre-doc-$(date +%Y-%m-%d)/
 ```
 
-Note the count. After searches, you must have MORE screenshots than this baseline.
-
-**PROOF REQUIRED:** Baseline screenshot count:
+**PROOF REQUIRED:** Directory exists:
 ```
-[PASTE COUNT]
+[PASTE LS OUTPUT]
 ```
 
 ### Step 1.4: Note most recent job in database (for comparison later)
 ```bash
-# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
 source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?order=created_at.desc&limit=1&select=id,created_at" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 ```
 
@@ -186,7 +233,7 @@ source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPA
 
 Before proceeding to Phase 2, confirm ALL FOUR proofs are pasted above.
 
-Log: "PHASE 1 COMPLETE - Server OK, Credits >= 2, Baseline noted, Most recent job: [ID]"
+Log: "PHASE 1 COMPLETE - Server OK, Credits >= 2, Output dir ready, Most recent job: [ID]"
 
 ---
 
@@ -206,7 +253,7 @@ mcp__playwright__browser_navigate({ url: 'http://localhost:3000' })
 
 **TOOL CALL REQUIRED:**
 ```
-mcp__playwright__browser_evaluate({ script: "fetch('/api/dev/login', { method: 'POST' }).then(r => r.json())" })
+mcp__playwright__browser_evaluate({ function: "() => fetch('/api/dev/login', { method: 'POST' }).then(r => r.json())" })
 ```
 
 **PROOF REQUIRED:** Paste login response (MUST show success):
@@ -223,9 +270,9 @@ mcp__playwright__browser_evaluate({ script: "fetch('/api/dev/login', { method: '
 mcp__playwright__browser_navigate({ url: 'http://localhost:3000/dashboard' })
 ```
 
-**TOOL CALL REQUIRED:**
+**TOOL CALL REQUIRED:** (use relative path!)
 ```
-mcp__playwright__browser_screenshot({ path: '/Users/julientorriani/Downloads/hyp-00-dashboard-login-verify.png' })
+mcp__playwright__browser_take_screenshot({ filename: 'pvre-doc-YYYY-MM-DD/hyp-00-dashboard.png' })
 ```
 
 **TOOL CALL REQUIRED:** Get page content to verify login:
@@ -254,12 +301,12 @@ mcp__playwright__browser_navigate({ url: 'http://localhost:3000/research' })
 
 **TOOL CALL REQUIRED:**
 ```
-mcp__playwright__browser_screenshot({ path: '/Users/julientorriani/Downloads/hyp-01-research-form.png' })
+mcp__playwright__browser_take_screenshot({ filename: 'pvre-doc-YYYY-MM-DD/hyp-01-form.png' })
 ```
 
 **BLOCKING GATE:** Verify screenshot exists:
 ```bash
-ls -la ~/Downloads/hyp-01-research-form.png
+ls -la .playwright-mcp/pvre-doc-*/hyp-01-form.png
 ```
 
 **PROOF REQUIRED:** Paste ls output (must show file with size > 0):
@@ -269,19 +316,26 @@ ls -la ~/Downloads/hyp-01-research-form.png
 
 ### Step 2.4: Fill hypothesis and screenshot
 
-**TOOL CALL REQUIRED:**
+**TOOL CALL REQUIRED:** First dismiss cookie banner if present:
 ```
-mcp__playwright__browser_fill({ selector: 'textarea', value: '[YOUR HYPOTHESIS]' })
+mcp__playwright__browser_snapshot()
+# If cookie banner visible, click Accept All
+mcp__playwright__browser_click({ element: 'Accept All button', ref: '[ref from snapshot]' })
+```
+
+**TOOL CALL REQUIRED:** Fill the hypothesis (use browser_type with ref from snapshot):
+```
+mcp__playwright__browser_type({ element: 'Research hypothesis textbox', ref: '[ref]', text: '[YOUR HYPOTHESIS]' })
 ```
 
 **TOOL CALL REQUIRED:**
 ```
-mcp__playwright__browser_screenshot({ path: '/Users/julientorriani/Downloads/hyp-02-filled.png' })
+mcp__playwright__browser_take_screenshot({ filename: 'pvre-doc-YYYY-MM-DD/hyp-02-filled.png' })
 ```
 
 **PROOF REQUIRED:** Verify screenshot:
 ```bash
-ls -la ~/Downloads/hyp-02-filled.png
+ls -la .playwright-mcp/pvre-doc-*/hyp-02-filled.png
 ```
 ```
 [PASTE LS OUTPUT]
@@ -289,18 +343,30 @@ ls -la ~/Downloads/hyp-02-filled.png
 
 ### Step 2.5: Submit and capture processing screenshots
 
-**TOOL CALL REQUIRED:**
+**TOOL CALL REQUIRED:** Get snapshot to find Continue button:
 ```
-mcp__playwright__browser_click({ selector: 'button[type="submit"]' })
+mcp__playwright__browser_snapshot()
 ```
 
-**TOOL CALL REQUIRED:** Take screenshot every 30 seconds during processing (minimum 5 screenshots):
+**TOOL CALL REQUIRED:** Click Continue:
 ```
-mcp__playwright__browser_screenshot({ path: '/Users/julientorriani/Downloads/hyp-03-processing-1.png' })
-# Wait 30s using browser_wait_for or repeated screenshots
-mcp__playwright__browser_screenshot({ path: '/Users/julientorriani/Downloads/hyp-04-processing-2.png' })
-# Wait 30s
-mcp__playwright__browser_screenshot({ path: '/Users/julientorriani/Downloads/hyp-05-processing-3.png' })
+mcp__playwright__browser_click({ element: 'Continue button', ref: '[ref from snapshot]' })
+```
+
+**TOOL CALL REQUIRED:** Wait for coverage preview, then click Search This:
+```
+mcp__playwright__browser_wait_for({ time: 5 })
+mcp__playwright__browser_snapshot()
+mcp__playwright__browser_click({ element: 'Search This button', ref: '[ref]' })
+```
+
+**TOOL CALL REQUIRED:** Take screenshots during processing (minimum 3):
+```
+mcp__playwright__browser_take_screenshot({ filename: 'pvre-doc-YYYY-MM-DD/hyp-03-processing-1.png' })
+mcp__playwright__browser_wait_for({ time: 30 })
+mcp__playwright__browser_take_screenshot({ filename: 'pvre-doc-YYYY-MM-DD/hyp-04-processing-2.png' })
+mcp__playwright__browser_wait_for({ time: 30 })
+mcp__playwright__browser_take_screenshot({ filename: 'pvre-doc-YYYY-MM-DD/hyp-05-processing-3.png' })
 # Continue until results appear...
 ```
 
@@ -312,12 +378,12 @@ mcp__playwright__browser_screenshot({ path: '/Users/julientorriani/Downloads/hyp
 
 **TOOL CALL REQUIRED:** When results appear:
 ```
-mcp__playwright__browser_screenshot({ path: '/Users/julientorriani/Downloads/hyp-10-results.png' })
+mcp__playwright__browser_take_screenshot({ filename: 'pvre-doc-YYYY-MM-DD/hyp-10-results.png' })
 ```
 
 **TOOL CALL REQUIRED:** Get the URL to extract job_id:
 ```
-mcp__playwright__browser_evaluate({ script: "window.location.href" })
+mcp__playwright__browser_evaluate({ function: "() => window.location.href" })
 ```
 
 **PROOF REQUIRED:** Paste the URL (must contain job_id):
@@ -337,23 +403,29 @@ mcp__playwright__browser_snapshot()
 [PASTE FULL SNAPSHOT - this is your source of truth for numbers]
 ```
 
-### Step 2.7: Capture network logs for API costs
+### Step 2.7: Capture console and network info
 
 **TOOL CALL REQUIRED:**
 ```
-mcp__browser-tools__getNetworkLogs()
+mcp__playwright__browser_console_messages({ level: 'error' })
 ```
 
-**PROOF REQUIRED:** Paste network logs (look for api.anthropic.com calls):
+**TOOL CALL REQUIRED:**
 ```
-[PASTE NETWORK LOGS]
+mcp__playwright__browser_network_requests()
+```
+
+**PROOF REQUIRED:** Paste any errors and API calls (look for api.anthropic.com):
+```
+[PASTE CONSOLE ERRORS - if any]
+[PASTE NETWORK REQUESTS - note API calls]
 ```
 
 ### Step 2.8: Count hypothesis screenshots
 
 **BLOCKING GATE:**
 ```bash
-ls -la ~/Downloads/hyp-*.png | wc -l
+ls -la .playwright-mcp/pvre-doc-*/hyp-*.png | wc -l
 ```
 
 **PROOF REQUIRED:** Must be >= 5 screenshots:
@@ -369,7 +441,6 @@ Using the job_id from Step 2.6, verify the data actually saved:
 
 ```bash
 # Replace JOB_ID with actual ID from Step 2.6
-# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
 source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[JOB_ID]" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 ```
 
@@ -395,7 +466,7 @@ Before proceeding, confirm ALL of these:
 - [ ] At least 5 hyp-*.png screenshots exist
 - [ ] Job_id extracted from URL
 - [ ] Browser snapshot with results pasted
-- [ ] Network logs pasted
+- [ ] Console/network info captured
 - [ ] **DATABASE VERIFICATION PASSED** - pain_signals is NOT empty
 
 Log: "PHASE 2 COMPLETE - Hypothesis search done, [N] screenshots, job_id: [ID], DB verified: [N] pain_signals"
@@ -431,7 +502,6 @@ Use `app-00-*.png`, `app-01-*.png`, etc. naming.
 
 ```bash
 # Replace JOB_ID with actual ID from this search
-# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
 source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[JOB_ID]" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
 ```
 
@@ -520,7 +590,6 @@ Now that we verified data persisted, query the actual pain signals:
 
 ```bash
 # Get actual pain signals from hypothesis search
-# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
 source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[HYP_JOB_ID]&select=pain_signals" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" | jq '.[0].pain_signals[:5]'
 ```
 
@@ -563,62 +632,185 @@ Log: "PHASE 4 COMPLETE - All prompts extracted, real data from DB captured"
 
 ## PHASE 5: CREATE OUTPUT FILES
 
-Now and ONLY now, create the 7 output files using the PROOF artifacts collected above.
+Now and ONLY now, create the 3 output files using the PROOF artifacts collected above.
 
-### File 1: HYPOTHESIS_SEARCH_DEEP_DIVE.md
+**All files go to the output directory:** `.playwright-mcp/PVRE_DOCUMENTATION_YYYY-MM-DD/`
 
-Write to `~/Downloads/HYPOTHESIS_SEARCH_DEEP_DIVE.md`
+### File 1: HYPOTHESIS_SEARCH.md
 
-Content MUST include:
-- **Job ID** from Step 2.6
-- Every number from the browser snapshot (Phase 2 Step 2.6)
-- Each number classified with symbol
-- Screenshot filenames referenced
-- API costs from network logs
-- **Database verification result** from Step 2.9
+```markdown
+# Hypothesis Search: [HYPOTHESIS]
 
-### File 2: APP_GAP_SEARCH_DEEP_DIVE.md
+**Job ID:** [from Step 2.6]
+**Date:** [timestamp]
+**Cost:** $[from network requests]
 
-Same structure for app gap search, including job_id and DB verification.
+## Query
+> [The exact hypothesis tested]
 
-### File 3: RAW_DATA_SAMPLES.json
+## Tier Distribution
+| Tier | Count | % of Total |
+|------|-------|------------|
+| Core (0.40+) | X | Y% |
+| Supporting (0.30-0.39) | X | Y% |
+| Contextual (0.20-0.29) | X | Y% |
 
-Must contain:
-- FULL prompts (from Phase 4 Step 4.1) - NOT excerpts
-- REAL post titles from DATABASE (from Phase 4 Step 4.2) - NOT fabricated
-- Both job_ids
-- Network log samples
+## Sample Signals by Tier
 
-### File 4: CALCULATION_FORMULAS.md
+### Core Signals (Most Relevant)
+1. **"[REAL TITLE from DB]"** - r/[subreddit] - Score: X.XX
+   > "[Quote excerpt]"
 
-Extract formulas from code with file:line references.
+2. **"[REAL TITLE from DB]"** - r/[subreddit] - Score: X.XX
+   > "[Quote excerpt]"
 
-### File 5: INTERVIEW_QUESTIONS_GENERATED.md
+### Supporting Signals
+[...]
 
-Document the full chain from prompt to output.
+## Themes Extracted
+| Theme | Signal Count | Key Quote |
+|-------|-------------|-----------|
+| [Theme 1] | X | "[quote]" |
+| [Theme 2] | X | "[quote]" |
 
-### File 6: ONE_PAGE_SUMMARY.md
+## WTP Signals
+- [X] explicit willingness-to-pay indicators found
+- Example: "[quote with price mention]"
 
-Executive summary with source classification.
+## Opportunities Identified
+1. [Opportunity 1]
+2. [Opportunity 2]
 
-### File 7: DATA_QUALITY_AUDIT.md
+## Screenshots
+- `hyp-00-dashboard.png` - Login verification
+- `hyp-01-form.png` - Research form
+- `hyp-02-filled.png` - Hypothesis entered
+- `hyp-10-results.png` - Final results
 
-Tally all numbers by classification type.
-Include section on data persistence verification.
+## Cost Breakdown
+| API Call | Tokens | Cost |
+|----------|--------|------|
+| [call 1] | X | $X.XX |
+| Total | X | $X.XX |
+
+## Data Classification
+- VERIFIED: X numbers (from Arctic Shift, database)
+- AI ESTIMATE: X numbers (Claude-generated)
+- CALCULATED: X numbers (formulas applied)
+```
+
+### File 2: APP_GAP_ANALYSIS.md
+
+```markdown
+# App Gap Analysis: [APP NAME]
+
+**Job ID:** [from Step 3.6]
+**Date:** [timestamp]
+**Cost:** $[from network requests]
+
+## Query
+> [The app analyzed]
+
+## App Details
+| Field | Value | Source |
+|-------|-------|--------|
+| Name | [name] | App Store |
+| Rating | [X.X] | VERIFIED |
+| Reviews | [count] | VERIFIED |
+| Category | [cat] | App Store |
+
+## Review Sources
+| Source | Reviews Fetched | Status |
+|--------|-----------------|--------|
+| Google Play | X | VERIFIED |
+| App Store | X | VERIFIED |
+| Trustpilot | X | [VERIFIED/NOT INTEGRATED] |
+
+## Pain Themes from Reviews
+| Theme | Frequency | Sample Quote |
+|-------|-----------|--------------|
+| [Theme 1] | X mentions | "[quote]" |
+| [Theme 2] | X mentions | "[quote]" |
+
+## Competitor Grid
+| Competitor | Strength | Weakness | Gap? |
+|------------|----------|----------|------|
+| [Comp 1] | [str] | [weak] | [Y/N] |
+| [Comp 2] | [str] | [weak] | [Y/N] |
+
+## Gaps Identified
+1. **[Gap 1]**: [Description]
+2. **[Gap 2]**: [Description]
+
+## Screenshots
+- `app-00-dashboard.png` - Login verification
+- `app-01-form.png` - Research form
+- `app-10-results.png` - Final results
+
+## Cost Breakdown
+| API Call | Tokens | Cost |
+|----------|--------|------|
+| Total | X | $X.XX |
+```
+
+### File 3: COMPARISON.md
+
+```markdown
+# Comparison: Hypothesis vs App Gap
+
+## The Same Problem, Two Approaches
+
+| Aspect | Hypothesis Search | App Gap Analysis |
+|--------|-------------------|------------------|
+| Query | "[hypothesis]" | "[app name]" |
+| Primary Data | Reddit discussions | App reviews |
+| Pain Signals | X found | X found |
+| WTP Indicators | X found | X found |
+| Cost | $X.XX | $X.XX |
+| Time | Xm Xs | Xm Xs |
+
+## What Each Mode Reveals
+
+### Hypothesis Search Strengths
+- [Bullet 1]
+- [Bullet 2]
+
+### App Gap Analysis Strengths
+- [Bullet 1]
+- [Bullet 2]
+
+## When to Use Which
+
+| Scenario | Recommended Mode |
+|----------|-----------------|
+| Exploring a new problem space | Hypothesis |
+| Researching competitor weaknesses | App Gap |
+| Validating demand for solution | Hypothesis |
+| Finding feature gaps | App Gap |
+
+## Data Quality Summary
+
+| Metric | Hypothesis | App Gap |
+|--------|------------|---------|
+| VERIFIED numbers | X% | X% |
+| AI ESTIMATE numbers | X% | X% |
+| Database persistence | CONFIRMED | CONFIRMED |
+```
 
 ### PHASE 5 CHECKPOINT
 
-**BLOCKING GATE:** Verify all 7 files exist:
+**BLOCKING GATE:** Verify all 3 files exist:
 ```bash
-echo "=== FILE VERIFICATION ===" && for f in HYPOTHESIS_SEARCH_DEEP_DIVE.md APP_GAP_SEARCH_DEEP_DIVE.md RAW_DATA_SAMPLES.json CALCULATION_FORMULAS.md INTERVIEW_QUESTIONS_GENERATED.md ONE_PAGE_SUMMARY.md DATA_QUALITY_AUDIT.md; do if [ -f ~/Downloads/$f ]; then SIZE=$(wc -c < ~/Downloads/$f); echo "OK $f ($SIZE bytes)"; else echo "MISSING: $f"; fi; done && echo "========================="
+OUTPUT_DIR=".playwright-mcp/PVRE_DOCUMENTATION_$(date +%Y-%m-%d)"
+echo "=== FILE VERIFICATION ===" && for f in HYPOTHESIS_SEARCH.md APP_GAP_ANALYSIS.md COMPARISON.md; do if [ -f "$OUTPUT_DIR/$f" ]; then SIZE=$(wc -c < "$OUTPUT_DIR/$f"); echo "OK $f ($SIZE bytes)"; else echo "MISSING: $f"; fi; done && echo "========================="
 ```
 
 **PROOF REQUIRED:** Paste verification output:
 ```
-[PASTE - all 7 must show "OK" with size > 1000 bytes]
+[PASTE - all 3 must show "OK" with size > 1000 bytes]
 ```
 
-Log: "PHASE 5 COMPLETE - All 7 files created and verified"
+Log: "PHASE 5 COMPLETE - All 3 files created and verified"
 
 ---
 
@@ -626,7 +818,7 @@ Log: "PHASE 5 COMPLETE - All 7 files created and verified"
 
 ### Step 6.1: Screenshot count
 ```bash
-ls ~/Downloads/hyp-*.png ~/Downloads/app-*.png 2>/dev/null | wc -l
+ls .playwright-mcp/pvre-doc-*/hyp-*.png .playwright-mcp/pvre-doc-*/app-*.png 2>/dev/null | wc -l
 ```
 
 **PROOF REQUIRED:**
@@ -638,8 +830,7 @@ ls ~/Downloads/hyp-*.png ~/Downloads/app-*.png 2>/dev/null | wc -l
 
 ```bash
 echo "=== PERSISTENCE VERIFICATION ===" && \
-# Source .env.local first, then use $NEXT_PUBLIC_SUPABASE_URL and $SUPABASE_SERVICE_ROLE_KEY
-source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && && \
+source .env.local && SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" SERVICE_KEY="$SUPABASE_SERVICE_ROLE_KEY" && \
 echo "Hypothesis job:" && \
 curl -s "$SUPABASE_URL/rest/v1/research_jobs?id=eq.[HYP_JOB_ID]" -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" | jq '.[0] | {id, status, pain_signals_count: (.pain_signals | length), has_coverage: (.coverage_data != null)}' && \
 echo "App Gap job:" && \
@@ -690,7 +881,7 @@ Your response MUST include:
 | 2. Hypothesis Search | [DONE/FAILED] | [N] screenshots, job_id: [ID], DB: [N] signals |
 | 3. App Gap Search | [DONE/FAILED] | [N] screenshots, job_id: [ID], DB: [N] signals |
 | 4. Data Extraction | [DONE/FAILED] | [N] prompts, [N] real titles from DB |
-| 5. File Creation | [DONE/FAILED] | 7 files, total [N] bytes |
+| 5. File Creation | [DONE/FAILED] | 3 files (HYPOTHESIS_SEARCH.md, APP_GAP_ANALYSIS.md, COMPARISON.md) |
 | 6. Final Verification | [DONE/FAILED] | [N] screenshots, both jobs verified |
 | 7. Learnings | [DONE/FAILED] | Recorded to agent-learnings.md |
 
@@ -704,21 +895,22 @@ Your response MUST include:
 
 ### 6. Key findings summary
 
+### 7. Output directory location
+All artifacts saved to: `.playwright-mcp/PVRE_DOCUMENTATION_YYYY-MM-DD/`
+
 ---
 
 ## FAILURE CONDITIONS
 
 You have FAILED this task if ANY of these are true:
 
-1. Zero .png files in ~/Downloads matching hyp-* or app-*
+1. Zero .png files in output directory matching hyp-* or app-*
 2. Any PROOF block contains "[PASTE...]" placeholder
-3. File verification shows any "MISSING"
-4. Prompts in RAW_DATA_SAMPLES.json are < 500 characters
-5. Post titles in RAW_DATA_SAMPLES.json don't match database records
-6. No job_id captured from actual search
-7. **Database shows `pain_signals: []` (empty) for either job**
-8. **Database shows `status: "pending"` instead of `"completed"`**
-9. **Login verification failed (no user name visible on dashboard)**
+3. File verification shows any "MISSING" for the 3 required files
+4. No job_id captured from actual search
+5. **Database shows `pain_signals: []` (empty) for either job**
+6. **Database shows `status: "pending"` instead of `"completed"`**
+7. **Login verification failed (no user name visible on dashboard)**
 
 **If you detect a failure condition, STOP and report which condition failed.**
 
@@ -737,9 +929,10 @@ You have FAILED this task if ANY of these are true:
 
 ### If search runs but data doesn't persist:
 1. This is a critical bug - report it
-2. Check network logs for errors
-3. Check browser console for errors: `mcp__browser-tools__getConsoleErrors()`
+2. Check network requests for errors
+3. Check browser console for errors: `mcp__playwright__browser_console_messages({ level: 'error' })`
 
 ### If screenshots fail:
-1. Verify path is writable: `touch ~/Downloads/test.txt && rm ~/Downloads/test.txt`
-2. Use full absolute path: `/Users/julientorriani/Downloads/`
+1. Verify you're using RELATIVE paths (no leading `/` or `~`)
+2. Correct: `PVRE_DOCUMENTATION_2026-01-01/hyp-01.png`
+3. Wrong: `/Users/.../hyp-01.png` or `~/Downloads/hyp-01.png`

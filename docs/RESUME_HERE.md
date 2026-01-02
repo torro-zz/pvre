@@ -1,107 +1,109 @@
-# Resume Point - December 31, 2025
+# Resume Point - January 2, 2026
 
 ## What Was Just Completed
 
-### Tiered Filter Redesign - Planning Complete
+### Session Focus: Competitor Classification Fix + Automated Competitor Flow
 
-**Major redesign planned and approved** to replace Haiku gatekeeping with tiered signal output + AI synthesis.
+This session focused on fixing the competitor classification logic and verifying automated competitor analysis.
 
-**Current Flow (wasteful):**
-```
-Posts → Embeddings → Top 150 → Haiku YES/NO (150 calls) → 21 signals → Analysis
-```
+### Competitor Classification Fix (COMMITTED)
+- **Issue:** Microsoft Teams was being classified as "Platform" instead of "Direct Competitor" when analyzing Slack
+- **Root cause:** Keyword-based classification checked for "platform" keyword BEFORE checking threat level
+- **Fix:** Reordered logic in `competitor-results.tsx:139-149` to check threat level FIRST
+- **Result:** 4 direct competitors now show correctly (Teams, Slack, Discord, Google Chat)
+- **Commit:** `beda7ad fix: Competitor classification checks threat level before keywords`
 
-**Approved New Flow:**
-```
-Posts → Embeddings → Tiered Output (CORE/STRONG/RELATED/ADJACENT) → AI Synthesis (5 calls) → Rich Results
-```
+### Issues Closed This Session
+From `docs/KNOWN_ISSUES.md`:
+1. ✅ Two-Step Analysis Flow Causing Score Changes - Automated into single flow
+2. ✅ Verdict Score Inconsistent Across Tabs - Fixed with automated competitor flow
+3. ✅ Market Score 7-Point Gap - Closed (not a bug, intentionally different metrics)
+4. ✅ Competitor Classification Misclassifying High-Threat - Fixed this session
 
-**Key Documents Created:**
-1. `docs/TIERED_FILTER_REDESIGN_PLAN.md` - Full technical specification
-2. `docs/KNOWN_ISSUES.md` - Added planning entry with approval checklist
-3. `~/Downloads/PVRE_HYPOTHESIS_SEARCH_DATA_FLOW.md` - CEO data flow doc
-4. `~/Downloads/PVRE_APP_GAP_SEARCH_DATA_FLOW.md` - CEO data flow doc
-5. `~/Downloads/PVRE_EXECUTIVE_SUMMARY_DATA_FLOW.md` - CEO executive summary
-
-### Clarifications Confirmed Before Approval
-
-| Topic | Decision |
-|-------|----------|
-| WTP_SOURCE_WEIGHTS | Separate from general weights (Reddit WTP = 0.5, not 0.9) |
-| Comments | Included with 0.7 weight |
-| Coverage preview | sampleQualityCheck() added to Phase 3 |
-| Token cap | 50 CORE + 50 STRONG = 100 max per AI call |
+### New Issue Logged
+- **Analyzed App Appears in Own Competitor List** - When analyzing Slack, "Slack" appears in its own competitor list
 
 ## Files Modified This Session
 
 | File | Status | Purpose |
 |------|--------|---------|
-| `docs/TIERED_FILTER_REDESIGN_PLAN.md` | New | Full redesign specification |
-| `docs/KNOWN_ISSUES.md` | Modified | Added tiered redesign planning entry |
-| `docs/RESUME_HERE.md` | Modified | Session state (this file) |
+| `src/components/research/competitor-results.tsx` | **COMMITTED** | Competitor classification fix |
+| `docs/KNOWN_ISSUES.md` | Modified | Reorganized with closed issues, added new issue |
 
-## Uncommitted Changes
+### Uncommitted Changes (from previous sessions)
 
-⚠️ **WARNING: You have uncommitted changes!**
-- `docs/KNOWN_ISSUES.md` - Added tiered filter redesign entry
-- `docs/RESUME_HERE.md` - Session state
+⚠️ **WARNING: 17 modified files + 4 new files still uncommitted from previous sessions!**
+
+Key uncommitted work:
+- `src/lib/embeddings/clustering.ts` (NEW) - Clustering for App Gap mode
+- `src/lib/research/competitor-analyzer.ts` (NEW) - Auto competitor detection
+- `src/lib/research/known-competitors.ts` (NEW) - Known competitor database
+- `src/components/research/keyword-trend-bars.tsx` (NEW) - Google Trends UI
+- Multiple API and component updates
 
 ## Build & Test Status
 
 - **Build:** ✅ Passing
-- **Tests:** 128 passing, 6 skipped
+- **Tests:** 128 passing, 0 failing, 6 skipped
 - **Dev Server:** Running on :3000
 
 ## What Needs To Be Done Next
 
-### PRIORITY: Tiered Filter Redesign Implementation
+### 🟡 Commit Previous Session Work
+The uncommitted files from previous sessions should be reviewed and committed.
 
-**Start with Phase 0 (Additive, Non-Breaking):**
+### From KNOWN_ISSUES.md - Open Issues
 
-| Task | File | Details |
-|------|------|---------|
-| Add TieredSignals interface | `src/lib/adapters/types.ts` | Additive, no breaks |
-| Add TIER_THRESHOLDS | `src/lib/filter/config.ts` | 0.45/0.35/0.25/0.15 |
-| Add SOURCE_WEIGHTS | `src/lib/filter/config.ts` | appstore=1.0, reddit=0.9 |
-| Add WTP_SOURCE_WEIGHTS | `src/lib/filter/config.ts` | appstore=1.0, reddit=0.5 |
-| Add feature flag | `src/lib/filter/config.ts` | `USE_TIERED_FILTER = false` |
+**Critical (Score Pipeline):**
+- Timing score minor mismatch (8.2 vs 8.4) - LOW PRIORITY
+- "3.5 WTP Found" fractional signal count
 
-### Full 5-Phase Implementation Plan
+**High Priority - Data Display:**
+- App Store review count mismatch (39,668 → 16 analyzed)
+- Same comment appears in multiple categories
+- Sources header ignores App Store
+- Truncated comments not expandable
+- "45x" label undefined
+- Analyzed app appears in own competitor list (NEW)
 
-| Phase | Scope | Est. Lines |
-|-------|-------|------------|
-| Phase 0 | Types, config, feature flag | ~50 |
-| Phase 1 | Filter refactor (filterSignalsTiered) | ~200 |
-| Phase 2 | Analysis updates + opportunity-detector.ts | ~300 |
-| Phase 3 | API integration + sampleQualityCheck() | ~150 |
-| Phase 4 | UI (tier sections, opportunities) | ~500 |
-| Phase 5 | Cleanup (delete ai-verifier.ts) | -200 |
+**High Priority - Transparency:**
+- No links to original sources
+- Hover-only definitions for Core vs Supporting
+- How Feedback generates Gaps is opaque
+- Opportunities/Positioning methodology hidden
+- TAM/SAM methodology unclear
 
-### From KNOWN_ISSUES.md (Non-Blocking)
+**High Priority - Logic/Accuracy:**
+- "Ad-free experience" as top unmet need for Slack
+- WTP signals aren't actually WTP
+- Velocity "0 Prior" = statistically meaningless
+- Entry difficulty still potentially underestimated
 
-1. **Embedding Cache Errors** - Low priority, just logs
-2. **414 Request-URI Too Large** - Low priority, fallback works
+**Medium Priority - UI/UX:**
+- Verdict tab has too many score constructs
+- "Proceed with Confidence" vs "Dealbreakers Detected" contradiction
+- SAM notation confusing
+- Community Discussions section buried
+- Reddit vs App Store sources not visually distinct
+
+## Blockers or Open Questions
+
+None - ready to continue.
+
+## User Notes
+
+None
 
 ## Key Files Reference
 
 | Purpose | File |
 |---------|------|
-| **TIERED REDESIGN PLAN** | `docs/TIERED_FILTER_REDESIGN_PLAN.md` |
 | Project instructions | `CLAUDE.md` |
-| Known issues & planning | `docs/KNOWN_ISSUES.md` |
-| Current filter (to modify) | `src/lib/filter/` |
-| Adapter types (to modify) | `src/lib/adapters/types.ts` |
-| Analysis (to modify) | `src/lib/analysis/` |
-
-## User Notes
-
-Start implementing the Tiered Filter Redesign plan tomorrow. Plan is approved and saved in `docs/TIERED_FILTER_REDESIGN_PLAN.md`. Begin with Phase 0 (additive types, config changes, feature flag).
-
-Key clarifications confirmed:
-- WTP_SOURCE_WEIGHTS separate (Reddit=0.5)
-- Comments included with 0.7 weight
-- sampleQualityCheck() added to Phase 3
-- Token cap 50 CORE + 50 STRONG = 100 max per AI call
+| Known bugs & backlog | `docs/KNOWN_ISSUES.md` |
+| Score calculation | `src/lib/analysis/viability-calculator.ts` |
+| Competitor classification (fixed) | `src/components/research/competitor-results.tsx:139-149` |
+| Competitor analysis API | `src/app/api/research/competitor-intelligence/route.ts` |
+| Known competitors DB | `src/lib/research/known-competitors.ts` |
 
 ## Quick Start Commands
 
@@ -115,7 +117,13 @@ npm run test:run
 
 # Build
 npm run build
-
-# Read the plan
-cat docs/TIERED_FILTER_REDESIGN_PLAN.md
 ```
+
+## Session Summary
+
+| Item | Status |
+|------|--------|
+| Competitor classification fix | ✅ Committed |
+| 4 issues closed in KNOWN_ISSUES.md | ✅ Done |
+| 1 new issue logged (self-in-list) | ✅ Noted |
+| Previous session uncommitted work | ⚠️ Still pending |

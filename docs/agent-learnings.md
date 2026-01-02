@@ -519,3 +519,48 @@ Before taking ANY Playwright screenshots:
 ---
 
 *Last updated: 2025-12-30*
+
+## 2026-01-01 - PVRE Documentation: Complete Research Flow Verified
+
+**Agent:** pvre-documenter
+**Context:** Full documentation run with hypothesis "Founders struggling to validate business ideas before building" and app "Lunchclub"
+
+**Key Findings:**
+
+1. **Both Research Types Work Correctly:**
+   - Hypothesis Search: 217 posts analyzed, 107 core signals, $0.039 cost
+   - App Gap Search: 101 posts analyzed, 61 core signals, $0.038 cost
+   - Both jobs completed and persisted to database
+
+2. **Data Persistence Verified:**
+   - Hypothesis Job: b089895e-595c-4944-aa6e-52542936ef68 (177KB results)
+   - App Gap Job: e67990e5-6159-40a0-a29b-24a89661aca8 (143KB results)
+   - Research results table populated with community_voice module data
+
+3. **Tiered Filtering Working:**
+   - Posts: 75-88% filter rate (appropriate reduction)
+   - Comments: 98% filter rate (aggressive but intentional)
+   - Core/Strong/Related/Adjacent classification functioning
+
+4. **Timing Analysis Robust:**
+   - Google Trends integration working (+190% to +5833%)
+   - Tailwinds/Headwinds generation logical
+   - Timing windows consistent (18-24 months)
+
+**Browser Issue Encountered:**
+- Playwright MCP browser lock issue occurred mid-research
+- Solution: Kill Chrome processes and remove SingletonLock file
+- Research continued successfully after browser restart
+
+**Files Created:**
+- `.playwright-mcp/PVRE_DOCUMENTATION_2026-01-01/HYPOTHESIS_SEARCH.md`
+- `.playwright-mcp/PVRE_DOCUMENTATION_2026-01-01/APP_GAP_ANALYSIS.md`
+- `.playwright-mcp/PVRE_DOCUMENTATION_2026-01-01/COMPARISON.md`
+
+**Action:**
+- Browser lock issue may recur; add to known issues
+- Consider adding timeout/retry logic in Playwright MCP usage
+
+---
+
+*Last updated: 2026-01-01*

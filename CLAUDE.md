@@ -27,7 +27,7 @@
 
 ## Code Quality Standards
 
-**Full guide:** `docs/TECHNICAL_OVERVIEW.md` → "Code Standards" section
+**Full guide:** `docs/SYSTEM_DOCUMENTATION.md` → "Code Standards" section
 
 ### Database Operations
 Use typed Supabase clients (`Database` type from `src/types/supabase.ts`).
@@ -110,20 +110,28 @@ curl http://localhost:3000/api/dev/login -b /tmp/cookies.txt
 
 Only works when `NODE_ENV !== 'production'`.
 
-### Puppeteer Flow
+### Browser Automation (Playwright ONLY)
+
+**IMPORTANT: Use Playwright MCP, NOT Puppeteer.** The project uses `@playwright/mcp`.
+
 ```javascript
 // 1. Login
-await puppeteer_navigate({ url: 'http://localhost:3000' })
-await puppeteer_evaluate({ script: `fetch('/api/dev/login', { method: 'POST' })` })
+await mcp__playwright__browser_navigate({ url: 'http://localhost:3000' })
+await mcp__playwright__browser_evaluate({ script: `fetch('/api/dev/login', { method: 'POST' })` })
 
 // 2. Dashboard - should show "Welcome back, Test User (Dev)!"
-await puppeteer_navigate({ url: 'http://localhost:3000/dashboard' })
+await mcp__playwright__browser_navigate({ url: 'http://localhost:3000/dashboard' })
 
 // 3. Research
-await puppeteer_navigate({ url: 'http://localhost:3000/research' })
-await puppeteer_fill({ selector: 'textarea', value: 'A tool to help freelancers manage invoicing' })
-await puppeteer_click({ selector: 'button[type="submit"]' })
+await mcp__playwright__browser_navigate({ url: 'http://localhost:3000/research' })
+await mcp__playwright__browser_fill({ selector: 'textarea', value: 'A tool to help freelancers manage invoicing' })
+await mcp__playwright__browser_click({ selector: 'button[type="submit"]' })
+
+// 4. Screenshot
+await mcp__playwright__browser_screenshot()
 ```
+
+**MCP Config:** `.mcp.json` - uses `@playwright/mcp@latest`
 
 ---
 
@@ -158,7 +166,7 @@ When research fails, `error_source` in `research_jobs` shows where:
 - See `src/lib/data-sources/arctic-shift.ts`
 
 ### Filtering Pipeline (CRITICAL for costs)
-**Full docs:** `docs/TECHNICAL_OVERVIEW.md` → "Filtering Pipeline Architecture"
+**Full docs:** `docs/SYSTEM_DOCUMENTATION.md` → "Filtering Pipeline"
 
 The filtering pipeline controls AI costs. Bugs here cause cost overruns.
 
@@ -194,7 +202,7 @@ Example: "Freelancers struggle with invoicing" should NOT trigger Trustpilot (no
 | Command | Purpose |
 |---------|---------|
 | `/review` | Review against CLAUDE.md specs |
-| `/test-flow` | E2E test via Puppeteer |
+| `/test-flow` | E2E test via Playwright |
 | `/ceo-review` | Full visual walkthrough with screenshots |
 | `/improve` | Find and implement next priority |
 | `/goodnight` | Save state to `docs/RESUME_HERE.md` |
@@ -293,7 +301,7 @@ All agents check for the **64% relevance issue** — the critical quality metric
 
 ## Implementation Status
 
-**MVP: ~99% complete.** See `docs/TECHNICAL_OVERVIEW.md` for full status.
+**MVP: ~99% complete.** See `docs/SYSTEM_DOCUMENTATION.md` for full status.
 
 ### Recent (Dec 1-2, 2025)
 - Research resilience: browser warning, error tracking, auto-refund
@@ -329,7 +337,7 @@ STRIPE_WEBHOOK_SECRET
 
 ## Documentation Updates
 
-**On every significant push**, update `docs/TECHNICAL_OVERVIEW.md`:
+**On every significant push**, update `docs/SYSTEM_DOCUMENTATION.md`:
 
 ### What to Update
 - New features or major changes (add to relevant section)
@@ -357,7 +365,7 @@ STRIPE_WEBHOOK_SECRET
 ### Related Docs to Consider
 | Doc | Update When |
 |-----|-------------|
-| `docs/TECHNICAL_OVERVIEW.md` | Architecture, features, APIs |
+| `docs/SYSTEM_DOCUMENTATION.md` | Architecture, features, APIs |
 | `docs/KNOWN_ISSUES.md` | Bugs, fixes, backlog changes |
 | `docs/RESUME_HERE.md` | Session handoffs (use `/goodnight`) |
 
