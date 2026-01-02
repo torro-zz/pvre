@@ -44,6 +44,18 @@ The UI already explains this. No fix needed.
 
 ---
 
+### ✅ CLOSED: Analyzed App Appears in Own Competitor List
+**Status:** Fixed — January 2, 2026
+**Resolution:** Added filtering in `competitor-results.tsx` to exclude the analyzed app from:
+- Categorized competitors (direct, platform, adjacent)
+- Comparison matrix
+
+Uses case-insensitive matching against hypothesis.
+
+**File modified:** `src/components/research/competitor-results.tsx:191-235`
+
+---
+
 ## Critical — Score Calculation Pipeline
 
 ### Timing Score Minor Mismatch (8.2 vs 8.4)
@@ -57,12 +69,14 @@ The UI already explains this. No fix needed.
 ---
 
 ### "3.5 WTP Found" — Fractional Signal Count
-**Status:** Open — January 2, 2026
+**Status:** Needs Reproduction — January 2, 2026
 **Impact:** Users don't understand what 0.5 of a signal means.
 
 **Problem:** WTP count displays as "3.5" or similar fractional values. Signals should be integers.
 
-**Solution:** Check WTP calculation — likely averaging or weighting producing decimals. Round or fix display.
+**Investigation (Jan 2):** Database audit shows all recent WTP counts are integers (3, 3, 3, 9, 7, 5, 8, 28, 5, 5). Display code correctly uses `decimals=0` for integer values. Issue may have been edge case or already fixed. Re-open if reproduced.
+
+**Solution:** If reproduced, check WTP calculation — likely averaging or weighting producing decimals.
 
 ---
 
@@ -115,16 +129,6 @@ The UI already explains this. No fix needed.
 **Problem:** A "45x" badge appears next to "Ad-free experience" unmet need. Undefined what it means.
 
 **Solution:** Define clearly in UI: "45 mentions" or add tooltip explaining the metric.
-
----
-
-### Analyzed App Appears in Own Competitor List
-**Status:** Open — January 2, 2026 — **NEW**
-**Impact:** Minor confusion — Slack shows as competitor to Slack.
-
-**Problem:** When analyzing Slack, "Slack" appears in the Direct Competitors list.
-
-**Solution:** Filter out the analyzed app from competitor results before display.
 
 ---
 
