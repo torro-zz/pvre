@@ -66,10 +66,18 @@ import {
   bridgeRedditPostsToNormalized,
   mapVerifiedToRedditPosts,
 } from '@/lib/adapters'
+import {
+  clusterSignals,
+  formatClustersForPrompt,
+  type SignalCluster,
+  type ClusteringResult,
+} from '@/lib/embeddings'
 import { StructuredHypothesis, TargetGeography } from '@/types/research'
 import { AppDetails } from '@/lib/data-sources/types'
 import { googlePlayAdapter } from '@/lib/data-sources/adapters/google-play-adapter'
 import { appStoreAdapter } from '@/lib/data-sources/adapters/app-store-adapter'
+import { analyzeCompetitors, type CompetitorIntelligenceResult } from '@/lib/research/competitor-analyzer'
+import { findKnownCompetitors, hasKnownCompetitors } from '@/lib/research/known-competitors'
 
 // Calculate data quality level based on filter rates
 function calculateQualityLevel(postFilterRate: number, commentFilterRate: number): 'high' | 'medium' | 'low' {
@@ -147,6 +155,8 @@ export interface CommunityVoiceResult {
   }
   marketSizing?: MarketSizingResult
   timing?: TimingResult
+  // Clustered signals for App Gap mode (Jan 2026)
+  clusters?: SignalCluster[]
   metadata: {
     postsAnalyzed: number
     commentsAnalyzed: number
@@ -682,6 +692,89 @@ export async function POST(request: NextRequest) {
 
       console.log(`[Tiered] Complete: ${posts.length} signals for analysis`)
 
+      // =======================================================================
+      // APP GAP MODE: Clustering with app store bypass (Jan 2026)
+      // For app-centric research, include ALL app store reviews in clustering
+      // (Reddit signals still respect tiered thresholds)
+      // =======================================================================
+      if (appData && appData.appId) {
+        // Count app store signals in each tier BEFORE combining
+        const allTieredSignals = [
+          ...tieredResult.core,
+          ...tieredResult.strong,
+          ...tieredResult.related,
+          ...tieredResult.adjacent,
+        ]
+
+        const appStoreSignalsInTiers = allTieredSignals.filter(
+          s => s.post.source === 'appstore' || s.post.source === 'playstore'
+        )
+        const redditSignalsInTiers = allTieredSignals.filter(
+          s => s.post.source === 'reddit'
+        )
+
+        // Log for verification (per user request)
+        const appStoreInRawPosts = rawPosts.filter(
+          p => p.subreddit === 'app_store' || p.subreddit === 'google_play'
+        ).length
+
+        console.log(`\n=== APP GAP MODE: Signal Distribution ===`)
+        console.log(`  App store reviews in raw input: ${appStoreInRawPosts}`)
+        console.log(`  App store signals in tier buckets: ${appStoreSignalsInTiers.length}`)
+        console.log(`    - CORE: ${tieredResult.core.filter(s => s.post.source === 'appstore' || s.post.source === 'playstore').length}`)
+        console.log(`    - STRONG: ${tieredResult.strong.filter(s => s.post.source === 'appstore' || s.post.source === 'playstore').length}`)
+        console.log(`    - RELATED: ${tieredResult.related.filter(s => s.post.source === 'appstore' || s.post.source === 'playstore').length}`)
+        console.log(`    - ADJACENT: ${tieredResult.adjacent.filter(s => s.post.source === 'appstore' || s.post.source === 'playstore').length}`)
+        console.log(`  Reddit signals in analysis (CORE+STRONG): ${analysisSignals.filter(s => s.post.source === 'reddit').length}`)
+
+        // Flag if app store signals are being dropped before tiering
+        if (appStoreSignalsInTiers.length < appStoreInRawPosts) {
+          console.warn(`  ⚠️ WARNING: ${appStoreInRawPosts - appStoreSignalsInTiers.length} app store reviews dropped before tiering!`)
+        }
+
+        // Combine: Reddit (threshold-filtered) + ALL app store (bypass threshold)
+        const redditForClustering = analysisSignals.filter(s => s.post.source === 'reddit')
+        const appStoreForClustering = appStoreSignalsInTiers // ALL app store signals
+        const signalsForClustering = [...redditForClustering, ...appStoreForClustering]
+
+        console.log(`  Signals for clustering: ${signalsForClustering.length} (${redditForClustering.length} Reddit + ${appStoreForClustering.length} App Store)`)
+
+        // Run clustering
+        if (signalsForClustering.length >= 3) {
+          try {
+            const clusterResult = await clusterSignals(signalsForClustering, {
+              minClusterSize: 3,
+              similarityThreshold: 0.70,
+              maxClusters: 10,
+            })
+
+            // Store for later use in result
+            // @ts-expect-error - appGapClusters added dynamically for this request
+            tieredResult.appGapClusters = clusterResult.clusters
+
+            console.log(`  Clustering complete:`)
+            console.log(`    - Clusters formed: ${clusterResult.clusters.length}`)
+            console.log(`    - Signals clustered: ${clusterResult.stats.clusteredSignals}`)
+            console.log(`    - Unclustered: ${clusterResult.stats.unclusteredSignals}`)
+            console.log(`    - Processing time: ${clusterResult.stats.processingTimeMs}ms`)
+
+            // Log sample cluster
+            if (clusterResult.clusters.length > 0) {
+              const sample = clusterResult.clusters[0]
+              console.log(`  Sample cluster: "${sample.label || sample.id}"`)
+              console.log(`    - Size: ${sample.size} signals`)
+              console.log(`    - Sources: ${sample.sources.appStore} App Store, ${sample.sources.googlePlay} Google Play, ${sample.sources.reddit} Reddit`)
+              console.log(`    - Cohesion: ${sample.avgSimilarity.toFixed(2)}`)
+            }
+          } catch (clusterError) {
+            console.error('  Clustering failed (non-blocking):', clusterError)
+          }
+        } else {
+          console.log(`  Skipping clustering: not enough signals (${signalsForClustering.length} < 3)`)
+        }
+        console.log(`=========================================\n`)
+      }
+
       // Convert tiered signals to RelevanceDecision format for audit trail
       postRelevanceDecisions = analysisSignals.map(signal => ({
         reddit_id: signal.post.id,
@@ -1050,6 +1143,9 @@ export async function POST(request: NextRequest) {
       interviewQuestions,
       marketSizing,
       timing,
+      // Include clusters for App Gap mode (Jan 2026)
+      // @ts-expect-error - appGapClusters added dynamically when appData exists
+      clusters: tieredResult?.appGapClusters || undefined,
       metadata: {
         postsAnalyzed: finalPosts.length,
         commentsAnalyzed: finalComments.length,
@@ -1066,7 +1162,7 @@ export async function POST(request: NextRequest) {
       },
     }
 
-    // If jobId is provided, save results to database and update job status
+    // If jobId is provided, save results to database and run auto-competitor analysis
     if (jobId) {
       const adminClient = createAdminClient()
       lastErrorSource = 'database' // Supabase save
@@ -1087,20 +1183,128 @@ export async function POST(request: NextRequest) {
         // Save trimmed results using shared utility
         await saveResearchResult(jobId, 'community_voice', resultForDb)
 
-        // Mark job as completed and update step_status for all completed modules
-        // This allows competitor-intelligence to see that timing_analysis is complete
+        // Update step_status to show CV complete, competitor in progress
         await adminClient
           .from('research_jobs')
           .update({
-            status: 'completed',
+            status: 'processing',
             step_status: {
               pain_analysis: 'completed',
               market_sizing: 'completed',
               timing_analysis: 'completed',
-              competitor_analysis: 'pending'
+              competitor_analysis: 'in_progress'
             }
           })
           .eq('id', jobId)
+
+        // =========================================================================
+        // AUTO-COMPETITOR ANALYSIS (Jan 2026 - Unified Flow)
+        // =========================================================================
+        console.log('Step 11: Running auto-competitor analysis')
+        lastErrorSource = 'anthropic'
+
+        // Step 11a: Auto-detect competitors
+        const detectedCompetitors: string[] = []
+
+        // 1. Known competitors from static mapping (App Gap mode)
+        if (appData?.name) {
+          const knownComps = findKnownCompetitors(appData.name)
+          if (knownComps.length > 0) {
+            console.log(`Auto-detected ${knownComps.length} known competitors for ${appData.name}:`, knownComps)
+            detectedCompetitors.push(...knownComps)
+          }
+        }
+
+        // 2. Extract competitor mentions from pain signals
+        const competitorMentions = new Set<string>()
+        for (const signal of allPainSignals.slice(0, 30)) {
+          // Look for "switched to X", "moved to X", "using X instead", "X is better"
+          const patterns = [
+            /switched\s+to\s+(\w+)/gi,
+            /moved?\s+to\s+(\w+)/gi,
+            /using\s+(\w+)\s+instead/gi,
+            /(\w+)\s+is\s+(?:much\s+)?better/gi,
+            /prefer\s+(\w+)/gi,
+            /try\s+(\w+)/gi,
+          ]
+          const text = `${signal.title || ''} ${signal.text || ''}`
+          for (const pattern of patterns) {
+            const matches = text.matchAll(pattern)
+            for (const match of matches) {
+              const name = match[1]
+              // Filter out common non-competitor words
+              if (name && name.length > 2 && !['the', 'this', 'that', 'they', 'what', 'just', 'now'].includes(name.toLowerCase())) {
+                competitorMentions.add(name)
+              }
+            }
+          }
+        }
+
+        // Add signal-based competitors (up to 5)
+        const signalCompetitors = Array.from(competitorMentions).slice(0, 5)
+        if (signalCompetitors.length > 0) {
+          console.log(`Extracted ${signalCompetitors.length} competitor mentions from signals:`, signalCompetitors)
+          detectedCompetitors.push(...signalCompetitors)
+        }
+
+        // Deduplicate and cap at 8
+        const uniqueCompetitors = [...new Set(detectedCompetitors.map(c => c.toLowerCase()))]
+          .map(c => detectedCompetitors.find(d => d.toLowerCase() === c)!)
+          .slice(0, 8)
+
+        console.log(`Final competitor list (${uniqueCompetitors.length}):`, uniqueCompetitors)
+
+        // Step 11b: Run competitor analysis
+        let competitorResult: CompetitorIntelligenceResult | null = null
+        try {
+          competitorResult = await analyzeCompetitors({
+            hypothesis,
+            knownCompetitors: uniqueCompetitors.length > 0 ? uniqueCompetitors : undefined,
+            geography: targetGeography ? {
+              location: targetGeography.location,
+              scope: targetGeography.scope,
+            } : undefined,
+            clusters: result.clusters,
+            maxCompetitors: 8,
+          })
+
+          console.log(`Competitor analysis complete: ${competitorResult.competitors.length} competitors, score ${competitorResult.competitionScore.score}/10`)
+
+          // Save competitor results
+          await saveResearchResult(jobId, 'competitor_intelligence', competitorResult)
+
+          // Mark job as fully completed
+          await adminClient
+            .from('research_jobs')
+            .update({
+              status: 'completed',
+              step_status: {
+                pain_analysis: 'completed',
+                market_sizing: 'completed',
+                timing_analysis: 'completed',
+                competitor_analysis: 'completed'
+              }
+            })
+            .eq('id', jobId)
+
+          console.log('Auto-competitor analysis saved successfully')
+        } catch (compError) {
+          console.error('Auto-competitor analysis failed (non-blocking):', compError)
+          // Still mark job as completed - CV results are valid, competitor is optional
+          await adminClient
+            .from('research_jobs')
+            .update({
+              status: 'completed',
+              step_status: {
+                pain_analysis: 'completed',
+                market_sizing: 'completed',
+                timing_analysis: 'completed',
+                competitor_analysis: 'failed'
+              }
+            })
+            .eq('id', jobId)
+        }
+
       } catch (dbError) {
         console.error('Failed to save results to database:', dbError)
         // Mark job as failed if we can't save results

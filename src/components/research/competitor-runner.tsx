@@ -12,6 +12,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 interface CompetitorRunnerProps {
   jobId: string
   hypothesis: string
+  /** When true, shows a compact UI for adding more competitors to existing analysis */
+  refinementMode?: boolean
+  /** Current number of competitors already analyzed */
+  currentCompetitorCount?: number
 }
 
 interface ProgressStep {
@@ -29,8 +33,9 @@ interface CompetitorSuggestion {
   whySuggested: string
 }
 
-export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
+export function CompetitorRunner({ jobId, hypothesis, refinementMode = false, currentCompetitorCount = 0 }: CompetitorRunnerProps) {
   const router = useRouter()
+  const [showRefinement, setShowRefinement] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
@@ -179,49 +184,84 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
     )
   }
 
-  return (
-    <div className="space-y-4">
-      {/* Completion Status Banner */}
-      <Card className="border-green-200 bg-green-50">
+  // Refinement mode: Show compact "Add More Competitors" UI
+  if (refinementMode && !showRefinement) {
+    return (
+      <Card className="border-dashed">
         <CardContent className="py-4">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <h4 className="font-medium text-green-900 mb-2">Research Progress Complete</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                <div className="flex items-center gap-2 text-green-700">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>Pain Analysis</span>
-                  <CheckCircle2 className="h-3 w-3" />
-                </div>
-                <div className="flex items-center gap-2 text-green-700">
-                  <PieChart className="h-4 w-4" />
-                  <span>Market Sizing</span>
-                  <CheckCircle2 className="h-3 w-3" />
-                </div>
-                <div className="flex items-center gap-2 text-green-700">
-                  <Timer className="h-4 w-4" />
-                  <span>Timing Analysis</span>
-                  <CheckCircle2 className="h-3 w-3" />
-                </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Plus className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="font-medium">Add More Competitors</p>
+                <p className="text-sm text-muted-foreground">
+                  {currentCompetitorCount} competitors analyzed. Want to add more?
+                </p>
               </div>
             </div>
+            <Button variant="outline" size="sm" onClick={() => setShowRefinement(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Add Competitors
+            </Button>
           </div>
         </CardContent>
       </Card>
+    )
+  }
+
+  // Full UI (either initial run or expanded refinement)
+  return (
+    <div className="space-y-4">
+      {/* Completion Status Banner - only show in initial mode */}
+      {!refinementMode && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h4 className="font-medium text-green-900 mb-2">Research Progress Complete</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-green-700">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>Pain Analysis</span>
+                    <CheckCircle2 className="h-3 w-3" />
+                  </div>
+                  <div className="flex items-center gap-2 text-green-700">
+                    <PieChart className="h-4 w-4" />
+                    <span>Market Sizing</span>
+                    <CheckCircle2 className="h-3 w-3" />
+                  </div>
+                  <div className="flex items-center gap-2 text-green-700">
+                    <Timer className="h-4 w-4" />
+                    <span>Timing Analysis</span>
+                    <CheckCircle2 className="h-3 w-3" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="py-8">
           <div className="max-w-lg mx-auto">
             <div className="text-center mb-6">
               <Shield className="h-12 w-12 text-primary mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Complete Your Research</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                {refinementMode ? 'Add More Competitors' : 'Complete Your Research'}
+              </h3>
               <p className="text-muted-foreground text-sm mb-3">
-                Run Competitor Intelligence to finalize your research verdict.
+                {refinementMode
+                  ? 'Add competitors to refine your analysis. This will update your competition score.'
+                  : 'Run Competitor Intelligence to finalize your research verdict.'
+                }
               </p>
-              <p className="text-xs text-muted-foreground bg-muted inline-block px-3 py-1 rounded-full">
-                Included with your research credit - no extra charge
-              </p>
+              {!refinementMode && (
+                <p className="text-xs text-muted-foreground bg-muted inline-block px-3 py-1 rounded-full">
+                  Included with your research credit - no extra charge
+                </p>
+              )}
             </div>
 
           {/* AI Suggested Competitors */}
@@ -371,15 +411,26 @@ export function CompetitorRunner({ jobId, hypothesis }: CompetitorRunnerProps) {
             </Alert>
           )}
 
-          <Button onClick={runCompetitorAnalysis} className="w-full">
-            <Shield className="h-4 w-4 mr-2" />
-            Run Competitor Intelligence
-            {knownCompetitors.length > 0 && (
-              <span className="ml-2 text-xs opacity-75">
-                (+{knownCompetitors.length} known)
-              </span>
+          <div className="flex gap-2">
+            {refinementMode && (
+              <Button variant="outline" onClick={() => setShowRefinement(false)} className="flex-shrink-0">
+                Cancel
+              </Button>
             )}
-          </Button>
+            <Button
+              onClick={runCompetitorAnalysis}
+              className="flex-1"
+              disabled={refinementMode && knownCompetitors.length === 0}
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              {refinementMode ? 'Update Analysis' : 'Run Competitor Intelligence'}
+              {knownCompetitors.length > 0 && (
+                <span className="ml-2 text-xs opacity-75">
+                  (+{knownCompetitors.length} new)
+                </span>
+              )}
+            </Button>
+          </div>
         </div>
       </CardContent>
       </Card>

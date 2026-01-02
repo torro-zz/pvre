@@ -5,6 +5,7 @@ import { checkUserCredits, deductCredit } from '@/lib/credits'
 import Anthropic from '@anthropic-ai/sdk'
 import { StepStatusMap } from '@/types/database'
 import { saveResearchResult } from '@/lib/research/save-result'
+import { formatClustersForPrompt, type SignalCluster } from '@/lib/embeddings'
 
 const anthropic = new Anthropic()
 
@@ -72,6 +73,14 @@ export interface CompetitorGap {
   // Enhanced fields
   opportunityScore: number // 1-10 scale
   validationSignals: string[] // Evidence supporting this gap
+  // Evidence-grounded fields (Jan 2026 - from clustering)
+  evidenceCount?: number // Total signals supporting this gap
+  sourceBreakdown?: {
+    appStore?: number
+    googlePlay?: number
+    reddit?: number
+  }
+  clusterIds?: string[] // Which clusters this gap is based on
 }
 
 export interface PositioningRecommendation {
@@ -360,7 +369,8 @@ interface GeographyInfo {
 async function analyzeCompetitors(
   hypothesis: string,
   knownCompetitors?: string[],
-  geography?: GeographyInfo
+  geography?: GeographyInfo,
+  clusters?: SignalCluster[] // NEW: Pre-clustered user feedback for evidence-grounded gaps
 ): Promise<CompetitorIntelligenceResult> {
   const startTime = Date.now()
 
@@ -386,12 +396,36 @@ The founder is building a global/online business but is based in ${geography.loc
 `
   }
 
+  // Build evidence section from clusters (if available)
+  let evidencePrompt = ''
+  if (clusters && clusters.length > 0) {
+    const totalSignals = clusters.reduce((sum, c) => sum + c.size, 0)
+    const formattedClusters = formatClustersForPrompt(clusters)
+    evidencePrompt = `
+
+=== REAL USER FEEDBACK (${totalSignals} signals, pre-clustered by semantic similarity) ===
+
+${formattedClusters}
+
+CRITICAL INSTRUCTIONS FOR GAP IDENTIFICATION:
+1. Each gap you identify MUST be grounded in the user feedback clusters above
+2. Reference specific clusters when identifying gaps (e.g., "Based on Cluster 1 with 24 signals...")
+3. For each gap, include:
+   - evidenceCount: Total number of signals supporting this gap
+   - Which clusters support it (by number/label)
+   - Source breakdown (how many from App Store vs Reddit)
+4. DO NOT identify gaps that are not supported by the user feedback
+5. Prioritize gaps with the highest evidence counts
+`
+  }
+
   const prompt = `You are a competitive intelligence analyst specializing in startup market analysis. Analyze the competitive landscape for this business hypothesis:
 
 "${hypothesis}"
 
 ${competitorListPrompt}
 ${geographyPrompt}
+${evidencePrompt}
 Provide a comprehensive competitive analysis in the following JSON format. Be specific and detailed. For pricing, use real-world estimates based on similar products if exact data isn't available.
 
 IMPORTANT: For each competitor, assess:
@@ -403,6 +437,9 @@ IMPORTANT: For each competitor, assess:
 For gaps, include:
 - opportunityScore: 1-10 rating of how attractive this opportunity is
 - validationSignals: Evidence supporting this gap exists (user complaints, missing features, etc.)
+${clusters && clusters.length > 0 ? `- evidenceCount: Number of signals supporting this gap (from clusters above)
+- sourceBreakdown: { "appStore": X, "reddit": Y } - where evidence came from
+- clusterIds: ["cluster_0", "cluster_1"] - which clusters support this gap` : ''}
 
 {
   "marketOverview": {
@@ -449,7 +486,10 @@ For gaps, include:
       "opportunity": "How a new entrant could capitalize",
       "difficulty": "low|medium|high",
       "opportunityScore": 8,
-      "validationSignals": ["User complaint about X", "No competitor offers Y"]
+      "validationSignals": ["User complaint about X", "No competitor offers Y"],
+      "evidenceCount": 24,
+      "sourceBreakdown": {"appStore": 18, "reddit": 6},
+      "clusterIds": ["cluster_0"]
     }
   ],
   "positioningRecommendations": [
@@ -523,6 +563,10 @@ Identify 4-8 competitors. Include at least 3 gaps and 2 positioning recommendati
     difficulty: g.difficulty || 'medium',
     opportunityScore: g.opportunityScore || 5,
     validationSignals: g.validationSignals || [],
+    // Evidence-grounded fields (from clustering)
+    evidenceCount: g.evidenceCount,
+    sourceBreakdown: g.sourceBreakdown,
+    clusterIds: g.clusterIds,
   }))
 
   // Calculate competition score
@@ -593,7 +637,10 @@ export async function POST(request: NextRequest) {
     // Geography info for localization
     let geography: GeographyInfo | undefined
 
-    // If jobId provided, check step guard and fetch geography
+    // Clusters for evidence-grounded gaps (fetched from community_voice if available)
+    let clusters: SignalCluster[] | undefined
+
+    // If jobId provided, check step guard and fetch geography + clusters
     if (jobId) {
       const adminClient = createAdminClient()
       const { data: job } = await adminClient
@@ -613,6 +660,26 @@ export async function POST(request: NextRequest) {
           scope: targetGeo.scope as 'local' | 'national' | 'global',
         }
         console.log('Using target geography for competitor analysis:', geography)
+      }
+
+      // Fetch clusters from community_voice results (Jan 2026 - evidence-grounded gaps)
+      try {
+        const { data: cvResult } = await adminClient
+          .from('research_results')
+          .select('result_data')
+          .eq('job_id', jobId)
+          .eq('module_name', 'community_voice')
+          .single()
+
+        // Cast to access JSONB field (result_data is Json type in Supabase)
+        const resultData = (cvResult as Record<string, unknown> | null)?.result_data as Record<string, unknown> | undefined
+        if (resultData?.clusters && Array.isArray(resultData.clusters)) {
+          clusters = resultData.clusters as SignalCluster[]
+          const totalSignals = clusters.reduce((sum, c) => sum + c.size, 0)
+          console.log(`Fetched ${clusters.length} clusters (${totalSignals} total signals) for evidence-grounded gap analysis`)
+        }
+      } catch (fetchError) {
+        console.log('No clusters available from community_voice (may not be App Gap mode):', fetchError)
       }
 
       // Check if timing_analysis is completed (required before competitor_analysis)
@@ -658,8 +725,8 @@ export async function POST(request: NextRequest) {
       console.log('Target geography:', geography.location, `(${geography.scope})`)
     }
 
-    // Run the competitor analysis with geography context
-    const result = await analyzeCompetitors(hypothesis, knownCompetitors, geography)
+    // Run the competitor analysis with geography context and clusters (if available)
+    const result = await analyzeCompetitors(hypothesis, knownCompetitors, geography, clusters)
 
     console.log(`Found ${result.competitors.length} competitors`)
     console.log(`Identified ${result.gaps.length} market gaps`)
