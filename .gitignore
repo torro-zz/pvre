@@ -51,3 +51,4 @@ docs/
 # stray build artifacts
 .next */
 .mcp.json
+.playwright-mcp/
