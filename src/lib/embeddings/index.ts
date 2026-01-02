@@ -26,3 +26,15 @@ export {
   type SimilarityTier,
   type ProblemFocus,
 } from './embedding-service'
+
+// Signal clustering (Jan 2026)
+export {
+  clusterSignals,
+  getClusterSummary,
+  formatClustersForPrompt,
+  consolidateClusters,
+  type SignalCluster,
+  type ClusteringResult,
+  type ClusteringStats,
+  type ClusteringConfig,
+} from './clustering'
