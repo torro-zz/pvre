@@ -39,6 +39,7 @@ import {
 import type { CompetitorGap, PositioningRecommendation } from '@/types/research'
 import type { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 import { MarketSignals } from '@/components/research/market-signals'
+import { KeywordTrendBars } from '@/components/research/keyword-trend-bars'
 import type { MarketWarning } from '@/lib/analysis/viability-calculator'
 
 type MarketSubTab = 'overview' | 'sizing' | 'timing' | 'competition' | 'opportunities' | 'positioning'
@@ -806,6 +807,17 @@ function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
                 <div className="mt-2 text-xs text-muted-foreground">
                   Keywords: {timingData.trendData.keywords.join(', ')}
                 </div>
+                {timingData.trendData.percentageChange > 500 && (
+                  <div className="mt-2 text-[10px] text-blue-600 dark:text-blue-400 italic">
+                    High % = emerging topic with low baseline searches last year
+                  </div>
+                )}
+                {/* Per-keyword breakdown */}
+                <KeywordTrendBars
+                  keywords={timingData.trendData.keywords}
+                  keywordBreakdown={timingData.trendData.keywordBreakdown}
+                  aggregateChange={timingData.trendData.percentageChange}
+                />
               </div>
             )}
 
@@ -1007,16 +1019,26 @@ interface CompetitionSubTabProps {
 }
 
 function CompetitionSubTab({ competitorData, jobId, hypothesis, onNavigate }: CompetitionSubTabProps) {
+  // No competitor data - show initial runner (rare with auto-competitor)
   if (!competitorData) {
     return <CompetitorRunner jobId={jobId} hypothesis={hypothesis} />
   }
 
   const gapsCount = competitorData.gaps?.length || 0
   const positioningCount = competitorData.positioningRecommendations?.length || 0
+  const competitorCount = competitorData.competitors?.length || 0
 
   return (
     <div className="space-y-6">
       <CompetitorResults results={competitorData} />
+
+      {/* Refinement option - Add more competitors */}
+      <CompetitorRunner
+        jobId={jobId}
+        hypothesis={hypothesis}
+        refinementMode={true}
+        currentCompetitorCount={competitorCount}
+      />
 
       {/* Cross-links to related sections */}
       {onNavigate && (gapsCount > 0 || positioningCount > 0) && (

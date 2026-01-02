@@ -20,12 +20,21 @@ export interface TrendDataPoint {
   value: number[];
 }
 
+export interface KeywordTrend {
+  keyword: string;
+  percentageChange: number;
+  trend: 'rising' | 'stable' | 'falling';
+  q1Average: number;
+  q4Average: number;
+}
+
 export interface TrendResult {
   keywords: string[];
   timelineData: TrendDataPoint[];
   averages: number[];
   trend: 'rising' | 'stable' | 'falling';
-  percentageChange: number; // Change from start to end of period
+  percentageChange: number; // Change from start to end of period (aggregate)
+  keywordBreakdown?: KeywordTrend[]; // Per-keyword breakdown (new, optional for backwards compat)
 }
 
 export interface GoogleTrendsError {
@@ -51,11 +60,13 @@ export async function getTrendData(
 
   try {
     // Fetch interest over time for the past year
+    console.log('[GoogleTrends] CALLING REAL API for keywords:', keywords);
     const results = await googleTrends.interestOverTime({
       keyword: keywords,
       startTime: new Date(Date.now() - (365 * 24 * 60 * 60 * 1000)), // 1 year ago
       geo: geo,
     });
+    console.log('[GoogleTrends] API RETURNED real data');
 
     // Parse the JSON response
     const data = JSON.parse(results);
@@ -84,6 +95,34 @@ export async function getTrendData(
     const firstQuarter = timelineData.slice(0, quarterLength);
     const lastQuarter = timelineData.slice(-quarterLength);
 
+    // Calculate per-keyword breakdown
+    const keywordBreakdown: KeywordTrend[] = keywords.map((keyword, keywordIndex) => {
+      const q1Avg = firstQuarter.reduce((sum, p) => sum + (p.value[keywordIndex] || 0), 0) / firstQuarter.length;
+      const q4Avg = lastQuarter.reduce((sum, p) => sum + (p.value[keywordIndex] || 0), 0) / lastQuarter.length;
+
+      const pctChange = q1Avg > 0
+        ? ((q4Avg - q1Avg) / q1Avg) * 100
+        : (q4Avg > 0 ? 100 : 0); // If starting from zero, treat any growth as 100%
+
+      let keywordTrend: 'rising' | 'stable' | 'falling';
+      if (pctChange > 15) {
+        keywordTrend = 'rising';
+      } else if (pctChange < -15) {
+        keywordTrend = 'falling';
+      } else {
+        keywordTrend = 'stable';
+      }
+
+      return {
+        keyword,
+        percentageChange: Math.round(pctChange),
+        trend: keywordTrend,
+        q1Average: Math.round(q1Avg * 100) / 100,
+        q4Average: Math.round(q4Avg * 100) / 100,
+      };
+    });
+
+    // Aggregate calculation (use first keyword for backwards compatibility)
     const firstQuarterAvg = firstQuarter.reduce((sum, p) => sum + (p.value[0] || 0), 0) / firstQuarter.length;
     const lastQuarterAvg = lastQuarter.reduce((sum, p) => sum + (p.value[0] || 0), 0) / lastQuarter.length;
 
@@ -108,6 +147,7 @@ export async function getTrendData(
       averages,
       trend,
       percentageChange: Math.round(percentageChange),
+      keywordBreakdown,
     };
   } catch (error) {
     // Log error for debugging but fail gracefully
