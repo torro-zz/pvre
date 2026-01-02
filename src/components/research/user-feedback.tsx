@@ -17,6 +17,8 @@ import {
   ThumbsUp,
   ThumbsDown,
   TrendingUp,
+  Users,
+  ExternalLink,
 } from 'lucide-react'
 import type { PainSignal } from '@/lib/analysis/pain-detector'
 
@@ -270,9 +272,136 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
   )
 }
 
+// Reddit quote component
+function RedditQuote({ signal }: { signal: PainSignal }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const text = signal.text
+  const isLong = text.length > 200
+  const displayText = isExpanded || !isLong ? text : text.slice(0, 200) + '...'
+  const subreddit = signal.source.subreddit
+
+  return (
+    <div className="py-3 border-b last:border-0">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Badge variant="outline" className="text-[10px] py-0">
+          r/{subreddit}
+        </Badge>
+        {signal.intensity === 'high' && (
+          <Badge variant="outline" className="text-[10px] py-0 text-red-600 border-red-300">
+            High intensity
+          </Badge>
+        )}
+        {signal.solutionSeeking && (
+          <Badge variant="outline" className="text-[10px] py-0 text-blue-600 border-blue-300">
+            Seeking solution
+          </Badge>
+        )}
+      </div>
+      <p className="text-sm text-muted-foreground">
+        "{displayText}"
+        {isLong && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="ml-2 text-primary hover:underline text-xs font-medium"
+          >
+            {isExpanded ? 'Show less' : 'Read more'}
+          </button>
+        )}
+      </p>
+      {signal.source.url && (
+        <a
+          href={signal.source.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1"
+        >
+          View on Reddit <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
+    </div>
+  )
+}
+
+// Reddit discussions section
+function RedditDiscussions({ signals }: { signals: PainSignal[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const displaySignals = expanded ? signals : signals.slice(0, 3)
+
+  // Group by subreddit for stats
+  const subredditCounts = signals.reduce((acc, s) => {
+    const sub = s.source.subreddit || 'unknown'
+    acc[sub] = (acc[sub] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  const topSubreddits = Object.entries(subredditCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+
+  return (
+    <Card className="overflow-hidden border-blue-200 dark:border-blue-500/20">
+      <div className="bg-blue-50 dark:bg-blue-500/10 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <h3 className="font-semibold">Community Discussions</h3>
+          </div>
+          <Badge variant="secondary" className="text-xs">
+            {signals.length} mentions
+          </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          What people are saying about this app on Reddit
+        </p>
+        {topSubreddits.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {topSubreddits.map(([sub, count]) => (
+              <Badge key={sub} variant="outline" className="text-[10px]">
+                r/{sub} ({count})
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <CardContent className="pt-4">
+        <div className="space-y-0">
+          {displaySignals.map((signal, i) => (
+            <RedditQuote key={i} signal={signal} />
+          ))}
+        </div>
+
+        {signals.length > 3 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full mt-3"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? (
+              <>
+                Show Less <ChevronUp className="ml-2 h-4 w-4" />
+              </>
+            ) : (
+              <>
+                Show {signals.length - 3} More <ChevronDown className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
   const sentiment = calculateSentiment(painSignals)
   const opportunities = extractOpportunities(painSignals)
+
+  // Separate Reddit signals for community discussions section
+  const redditSignals = painSignals.filter(
+    s => s.source.subreddit && s.source.subreddit !== 'google_play' && s.source.subreddit !== 'app_store'
+  )
 
   const sentimentScore = sentiment.total > 0
     ? Math.round((sentiment.positive / sentiment.total) * 100)
@@ -363,6 +492,11 @@ export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
       {opportunities.map((opportunity) => (
         <OpportunityCard key={opportunity.category} opportunity={opportunity} />
       ))}
+
+      {/* Reddit Community Discussions */}
+      {redditSignals.length > 0 && (
+        <RedditDiscussions signals={redditSignals} />
+      )}
 
       {/* No Opportunities Found */}
       {opportunities.length === 0 && sentiment.total > 0 && (

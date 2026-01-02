@@ -26,7 +26,11 @@ export type { RedditPost } from '../data-sources/types'
  * - Trustpilot: "trustpilot"
  */
 function detectSource(subreddit: string): DataSource {
-  // Special markers
+  // Special markers for app stores (Jan 2026)
+  if (subreddit === 'app_store') return 'appstore'
+  if (subreddit === 'google_play') return 'playstore'
+
+  // Other known sources
   if (subreddit === 'hackernews' || subreddit === 'HackerNews') return 'other'
   if (subreddit === 'trustpilot' || subreddit === 'Trustpilot') return 'trustpilot'
 

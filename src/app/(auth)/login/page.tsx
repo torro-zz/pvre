@@ -5,13 +5,32 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Mail, Loader2, CheckCircle2, Sparkles, ArrowRight } from 'lucide-react'
+import { Mail, Loader2, CheckCircle2, Sparkles, ArrowRight, Bug } from 'lucide-react'
+
+const isDev = process.env.NODE_ENV !== 'production'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [devLoading, setDevLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const handleDevLogin = async () => {
+    setDevLoading(true)
+    try {
+      const res = await fetch('/api/dev/login', { method: 'POST', credentials: 'include' })
+      if (res.ok) {
+        window.location.href = '/dashboard'
+      } else {
+        setError('Dev login failed')
+      }
+    } catch {
+      setError('Dev login failed')
+    } finally {
+      setDevLoading(false)
+    }
+  }
 
   const handleGoogleLogin = async () => {
     const supabase = createClient()
@@ -180,6 +199,33 @@ export default function LoginPage() {
             <p className="text-xs text-center text-muted-foreground pt-2">
               No password needed - we&apos;ll email you a secure link
             </p>
+
+            {/* Dev Login Button - only shows in development */}
+            {isDev && (
+              <>
+                <div className="relative pt-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-dashed border-amber-300" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-amber-600">dev only</span>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleDevLogin}
+                  variant="outline"
+                  className="w-full h-10 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-950/50"
+                  disabled={devLoading}
+                >
+                  {devLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Bug className="mr-2 h-4 w-4" />
+                  )}
+                  Dev Login (Test User)
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
 

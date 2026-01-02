@@ -10,6 +10,7 @@ import { trackUsage } from "./token-tracker";
 import { parseClaudeJSON } from "../json-parse";
 import {
   TrendResult,
+  KeywordTrend,
   getCachedTrendData,
   extractTrendKeywordsWithAI,
 } from "../data-sources/google-trends";
@@ -38,6 +39,7 @@ export interface TimingResult {
     keywords: string[];
     percentageChange: number;
     dataAvailable: boolean;
+    keywordBreakdown?: KeywordTrend[];
   } | null;
 }
 
@@ -176,6 +178,7 @@ Respond with ONLY valid JSON:
           keywords: trendData.keywords,
           percentageChange: trendData.percentageChange,
           dataAvailable: true,
+          keywordBreakdown: trendData.keywordBreakdown,
         }
       : null,
   };

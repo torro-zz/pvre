@@ -18,7 +18,6 @@ import { SummaryTab } from '@/components/research/summary-tab'
 import { ActionTab } from '@/components/research/action-tab'
 import { MarketTab } from '@/components/research/market-tab'
 import { EvidenceTab } from '@/components/research/evidence-tab'
-import { CompetitorPromptModal } from '@/components/research/competitor-prompt-modal'
 import { ViabilityVerdictDisplay } from '@/components/research/viability-verdict'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -51,13 +50,7 @@ export function TabbedView() {
 
   return (
     <ResearchTabsProvider defaultTab={isAppAnalysis ? 'app-overview' : 'summary'}>
-      {/* Competitor Prompt Modal - shows when Community Voice is done but no competitors */}
-      {communityVoiceResult?.data && !competitorResult?.data && !isAppAnalysis && (
-        <CompetitorPromptModal
-          jobId={job.id}
-          hypothesis={job.hypothesis}
-        />
-      )}
+      {/* Note: CompetitorPromptModal removed - competitor analysis now runs automatically */}
 
       {/* Search Coverage Section - "What We Searched" transparency */}
       {communityVoiceResult?.data?.metadata?.filteringMetrics && (
