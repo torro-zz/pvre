@@ -41,12 +41,12 @@ const OPPORTUNITY_CATEGORIES = {
     keywords: ['expensive', 'cost', 'pay', 'money', 'price', 'subscription', 'premium', 'free', 'purchase', 'buy', 'afford', 'worth', 'overpriced', 'cheap', 'fee', 'in-app', 'iap', 'microtransaction']
   },
   ads: {
-    label: 'Ads & Interruptions',
+    label: 'Ads',
     icon: Megaphone,
     color: 'text-orange-600 dark:text-orange-400',
     bgColor: 'bg-orange-50 dark:bg-orange-500/10',
     borderColor: 'border-orange-200 dark:border-orange-500/20',
-    keywords: ['ad', 'ads', 'advertisement', 'commercial', 'banner', 'popup', 'pop-up', 'interrupt', 'annoying ad', 'too many ad', 'ad-free', 'remove ad']
+    keywords: ['ads', 'advertisement', 'commercial', 'banner', 'popup', 'pop-up', 'annoying ad', 'too many ad', 'ad-free', 'remove ad']
   },
   content: {
     label: 'Content & Moderation',

@@ -8,81 +8,55 @@ Technical issues and bugs that need fixing. For strategic features and roadmap, 
 
 ## 🔴 CRITICAL — Data Quality Bugs
 
-### "Ads & Interruptions" Category Matching Wrong Context
-**Status:** Open — January 2, 2026
-**Impact:** Non-ad apps show "Ads" category with irrelevant content.
+### ✅ CLOSED: "Ads & Interruptions" Category Matching Wrong Context
+**Status:** Fixed — January 3, 2026
+**Resolution:** Removed problematic keywords from `user-feedback.tsx`:
+- Removed `'interrupt'` keyword (matched technical "interruptions")
+- Removed `'ad'` keyword (too short, matched "add", "made")
+- Renamed label to `'Ads'`
 
-**Problem:** The word "interruption" triggers "Ads & Interruptions" category, but in Loom reviews it means:
-- Technical interruptions (recording stops)
-- Workflow interruptions (app crashes)
-
-**Evidence from Loom export:**
-
-Review #5 (categorized as "Ads & Interruptions"):
-> "all it did was chop off my recordings in the middle of my sessions. It got annoying and when I would actually finish without any **interruptions**, my recording would mute"
-
-This is about **technical issues**, not advertising.
-
-**Solution:** 
-1. Remove "interruption" from Ads category keywords
-2. Rename to just "Ads" or "Advertising"
-3. Keep only: ads*, "too many ads", "remove ads", advertisement, commercial
-
-**File to fix:** `src/components/research/opportunities.tsx` (categorizeFeature function, line ~107-143)
-
-**Estimated effort:** 5 minutes
+Note: `opportunities.tsx` was already fixed (label = "Ad-free experience", no interrupt keyword).
 
 ---
 
 ### Theme Analysis Metadata All Undefined
-**Status:** Open — January 2, 2026
-**Impact:** Theme section shows broken data, undermines trust.
+**Status:** Cannot Reproduce — January 3, 2026
 
-**Problem:** All themes in export show:
-```
-- Signal Count: undefined
-- Pain Intensity: undefined
-- WTP Confidence: undefined
-```
+**Investigation:** Searched entire codebase for "Signal Count:", "Pain Intensity:", "WTP Confidence:" labels. These exact strings don't exist anywhere in the code.
 
-**Solution:** Trace theme generation pipeline:
-1. Find where themes are created (likely `theme-extractor.ts` or `pain-detector.ts`)
-2. Check if `signalCount`, `painIntensity`, `wtpConfidence` fields are being populated
-3. Fix the mapping between theme extraction and display
+**Current implementation:**
+- Themes use `theme.frequency` → displayed as `{frequency} mentions`
+- Themes use `theme.intensity` → displayed as `High/Medium/Low intensity`
+- No `wtpConfidence` field exists or is expected on themes
 
-**Files to investigate:** 
-- `src/lib/analysis/theme-extractor.ts`
-- `src/lib/analysis/pain-detector.ts`
-- Theme display component in results
+**Files checked:**
+- `evidence-tab.tsx`, `community-voice-results.tsx` — display themes correctly
+- `report-generator.ts` — PDF uses `theme.intensity` correctly
+- `adjacent-opportunities.tsx` — uses `signalCount` mapped from `theme.frequency`
+- `summary-tab.tsx`, `action-tab.tsx` — display themes correctly
 
-**Estimated effort:** 30-60 minutes
+**Conclusion:** The issue may have referred to an old export format that was removed, or a manual debug output. Current theme displays work correctly. Closing as cannot reproduce.
 
 ---
 
-### WTP Signals Show Purchase Regret, Not Purchase Intent
-**Status:** Open — January 2, 2026
-**Impact:** WTP metric misleads users about monetization potential.
+### ✅ CLOSED: WTP Signals Show Purchase Regret, Not Purchase Intent
+**Status:** Fixed — January 3, 2026
+**Resolution:** Added 13 new exclusion patterns to `WTP_EXCLUSION_PATTERNS` in `pain-detector.ts`:
 
-**Problem:** WTP signals are supposed to indicate people would PAY for an alternative. But signals marked as WTP are actually:
+**New patterns detect:**
+1. **Refund requests:** "get my money back", "want a refund", "asking for refund"
+2. **Buyer's remorse:** "regret buying", "shouldn't have bought", "wished I hadn't paid"
+3. **Questioning past purchase value:** "debating if it was worth", "was it worth the money"
+4. **Past tense + negative sentiment:** "paid for this...disappointed", "wasted money"
+5. **Explicit dissatisfaction:** "biggest waste of money", "threw money away"
 
-**Example (marked as `WTP Confidence: medium`):**
-> "I just upgraded to the paid version... now I'm debating if that was worth the investment - I seriously feel like I should get my money back"
+**Tests added:** 4 new test cases in `pain-detector.test.ts`:
+- Refund requests → excluded from WTP
+- Buyer remorse → excluded from WTP
+- Questioning past purchase (exact KNOWN_ISSUES example) → excluded
+- Genuine future intent ("I'd pay for...") → still detected
 
-This is **purchase regret** about the EXISTING app, not willingness to pay for an ALTERNATIVE.
-
-**What WTP should capture:**
-- "I'd pay $X for something that does Y better"
-- "I switched to [competitor] because it was worth the money"
-- "Would gladly pay for a version without [problem]"
-
-**Solution:** WTP detection needs CONTEXT:
-1. Check for negative sentiment + payment keywords = REGRET (exclude)
-2. Check for future/conditional tense = INTENT (include)
-3. For App Gap mode: exclude statements about the app being analyzed
-
-**File to fix:** `src/lib/analysis/pain-detector.ts` (WTP detection logic)
-
-**Estimated effort:** 1-2 hours
+**Verification:** 132 tests pass (38 pain detector tests including new ones)
 
 ---
 

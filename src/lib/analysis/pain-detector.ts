@@ -69,6 +69,33 @@ const WTP_EXCLUSION_PATTERNS = [
 
   // Worth/value in negative context
   /(?:not|isn't|wasn't)\s+worth\s+(?:it|the\s+money|paying)/i,
+
+  // === v7.0: PURCHASE REGRET PATTERNS ===
+  // These indicate unhappiness with a PAST purchase, not intent to pay for alternative
+
+  // Refund requests (clear regret signal)
+  /(?:get|want|need|requesting?)\s+(?:my\s+)?(?:money\s+back|refund)/i,
+  /(?:ask|asking)\s+for\s+(?:a\s+)?refund/i,
+  /refund\s+(?:request|policy|please)/i,
+
+  // Buyer's remorse / regret language
+  /regret\s+(?:buying|purchasing|paying|upgrading|subscribing)/i,
+  /(?:shouldn't|should\s+not)\s+have\s+(?:bought|paid|upgraded|subscribed)/i,
+  /(?:wish|wished)\s+I\s+(?:hadn't|had\s+not)\s+(?:bought|paid|upgraded)/i,
+
+  // Questioning past purchase value (retrospective doubt)
+  /(?:debating|wondering|questioning)\s+(?:if|whether)\s+(?:it\s+was|that\s+was)\s+worth/i,
+  /was\s+(?:it|that|this)\s+(?:really\s+)?worth\s+(?:it|the\s+money|paying)/i,
+  /(?:starting\s+to\s+)?(?:think|feel)\s+(?:like\s+)?I\s+(?:wasted|threw\s+away)\s+(?:my\s+)?money/i,
+
+  // Past tense payment + negative sentiment
+  /(?:paid|spent|invested)\s+(?:for|on|in)\s+(?:this|it).*(?:disappointed|regret|waste|terrible|awful|useless)/i,
+  /(?:disappointed|regret|waste).*(?:paid|spent|invested)/i,
+
+  // Explicit statements of purchase dissatisfaction
+  /(?:biggest|worst)\s+(?:waste|mistake)\s+of\s+(?:money|my\s+money)/i,
+  /(?:threw|throwing)\s+(?:away\s+)?money/i,
+  /money\s+(?:down\s+the\s+drain|wasted)/i,
 ]
 
 // =============================================================================

@@ -130,6 +130,38 @@ describe('Pain Detector', () => {
         expect(result.hasWTPExclusion).toBe(true)
         expect(result.wtpConfidence).toBe('none')
       })
+
+      // v7.0: Purchase regret detection
+      it('should exclude WTP for refund requests', () => {
+        const result = calculatePainScore('I want my money back, this is not worth the subscription cost')
+
+        expect(result.hasWTPExclusion).toBe(true)
+        expect(result.wtpConfidence).toBe('none')
+      })
+
+      it('should exclude WTP for buyer remorse', () => {
+        const result = calculatePainScore('I regret buying the premium version, it was a waste of money')
+
+        expect(result.hasWTPExclusion).toBe(true)
+        expect(result.wtpConfidence).toBe('none')
+      })
+
+      it('should exclude WTP for questioning past purchase value', () => {
+        // This is the exact example from KNOWN_ISSUES
+        const result = calculatePainScore(
+          "I just upgraded to the paid version... now I'm debating if that was worth the investment - I seriously feel like I should get my money back"
+        )
+
+        expect(result.hasWTPExclusion).toBe(true)
+        expect(result.wtpConfidence).toBe('none')
+      })
+
+      it('should still detect genuine WTP intent', () => {
+        const result = calculatePainScore("I'd pay for a better alternative that actually works")
+
+        expect(result.hasWTPExclusion).toBe(false)
+        expect(result.wtpConfidence).not.toBe('none')
+      })
     })
 
     describe('Negative context filtering', () => {
