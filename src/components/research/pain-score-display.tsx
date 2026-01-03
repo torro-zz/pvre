@@ -1,5 +1,6 @@
 'use client'
 
+import { ExternalLink } from 'lucide-react'
 import { PainSummary } from '@/lib/analysis/pain-detector'
 
 interface PainScoreDisplayProps {
@@ -9,7 +10,7 @@ interface PainScoreDisplayProps {
   postsAnalyzed: number
   strongestSignal?: { text: string; subreddit: string; intensity: 'high' | 'medium' | 'low' } | string  // Can be quote object or legacy keyword string
   strongestSignalCount?: number
-  wtpQuote?: { text: string; subreddit: string }
+  wtpQuote?: { text: string; subreddit: string; url?: string }
   oldDataPercentage?: number
   totalSignals?: number  // For clarity on posts vs signals
   coreSignals?: number   // Core/high-relevance signals
@@ -181,6 +182,16 @@ export function PainScoreDisplay({
             </span>
             {wtpQuote.subreddit && (
               <span className="text-xs text-muted-foreground/70 ml-2">— r/{wtpQuote.subreddit}</span>
+            )}
+            {wtpQuote.url && (
+              <a
+                href={wtpQuote.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-muted-foreground hover:text-foreground ml-2 inline-flex items-center gap-0.5"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </a>
             )}
           </p>
         ) : summary.willingnessToPayCount > 0 ? (

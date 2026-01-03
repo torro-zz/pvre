@@ -139,6 +139,7 @@ export function ResearchHeroStats({
                 label="Signals"
                 value={totalSignals}
                 subValue={coreSignals !== undefined ? `${coreSignals} core` : undefined}
+                subValueTooltip={coreSignals !== undefined ? "Core signals directly match your hypothesis. Supporting signals are related but indirect evidence." : undefined}
               />
             </motion.div>
             <motion.div variants={itemVariants}>

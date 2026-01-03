@@ -53,23 +53,33 @@ export function TabbedView() {
       {/* Note: CompetitorPromptModal removed - competitor analysis now runs automatically */}
 
       {/* Search Coverage Section - "What We Searched" transparency */}
-      {communityVoiceResult?.data?.metadata?.filteringMetrics && (
-        <SearchCoverageSection
-          sources={createSourceCoverageData(
-            {
-              postsFound: communityVoiceResult.data.metadata.filteringMetrics.postsFound,
-              postsAnalyzed: communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed,
-              coreSignals: communityVoiceResult.data.metadata.filteringMetrics.coreSignals,
-              relatedSignals: communityVoiceResult.data.metadata.filteringMetrics.relatedSignals,
-              communitiesSearched: communityVoiceResult.data.subreddits?.analyzed,
-              sources: communityVoiceResult.data.metadata.dataSources,
-            },
-            communityVoiceResult.data.painSummary?.totalSignals || 0
-          )}
-          totalAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.postsFound || 0}
-          className="mb-6"
-        />
-      )}
+      {communityVoiceResult?.data?.metadata?.filteringMetrics && (() => {
+        // Count app store signals from pain signals
+        const appStoreSignals = communityVoiceResult.data?.painSignals?.filter(
+          (s: { source: { subreddit?: string } }) =>
+            s.source.subreddit === 'app_store' || s.source.subreddit === 'google_play'
+        ).length || 0
+
+        return (
+          <SearchCoverageSection
+            sources={createSourceCoverageData(
+              {
+                postsFound: communityVoiceResult.data.metadata.filteringMetrics.postsFound,
+                postsAnalyzed: communityVoiceResult.data.metadata.filteringMetrics.postsAnalyzed,
+                coreSignals: communityVoiceResult.data.metadata.filteringMetrics.coreSignals,
+                relatedSignals: communityVoiceResult.data.metadata.filteringMetrics.relatedSignals,
+                communitiesSearched: communityVoiceResult.data.subreddits?.analyzed,
+                sources: communityVoiceResult.data.metadata.dataSources,
+                appStoreSignals,
+                appStoreReviewsAnalyzed: 500,  // API limit for app store reviews
+              },
+              communityVoiceResult.data.painSummary?.totalSignals || 0
+            )}
+            totalAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.postsFound || 0}
+            className="mb-6"
+          />
+        )
+      })()}
 
       {/* Investor Metrics Hero - Unified display above tabs */}
       {communityVoiceResult?.data && (

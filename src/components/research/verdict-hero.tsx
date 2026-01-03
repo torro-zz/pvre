@@ -1,192 +1,190 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { TrustBadge } from '@/components/ui/trust-badge'
 import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { Button } from '@/components/ui/button'
+import { AlertTriangle, ChevronDown, ArrowRight, CheckCircle2, XCircle, HelpCircle } from 'lucide-react'
 import {
-  Target,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle2,
-  HelpCircle,
-  ChevronRight,
-} from 'lucide-react'
-import {
-  HypothesisConfidence,
-  MarketOpportunity,
   ViabilityVerdict,
+  VerdictColors,
+  VerdictLevel,
 } from '@/lib/analysis/viability-calculator'
-import { RecommendationBanner } from './recommendation-banner'
-import {
-  AnimatedGauge,
-  AnimatedCard,
-  AnimatedBadge,
-} from '@/components/ui/animated-components'
 
 interface VerdictHeroProps {
   verdict: ViabilityVerdict
-  hypothesis: string
-  className?: string
-  onViewDetails?: () => void
+  onSeeWhy: () => void
+  onInterviewGuide: () => void
+  isAppAnalysis?: boolean
+}
+
+function getVerdictLabel(level: VerdictLevel): string {
+  switch (level) {
+    case 'strong': return 'Strong Signal'
+    case 'mixed': return 'Mixed Signal'
+    case 'weak': return 'Weak Signal'
+    case 'none': return 'No Signal'
+  }
+}
+
+function getVerdictIcon(level: VerdictLevel, hasCriticalConcerns: boolean) {
+  if (hasCriticalConcerns) {
+    return <AlertTriangle className="h-5 w-5" />
+  }
+  switch (level) {
+    case 'strong': return <CheckCircle2 className="h-5 w-5" />
+    case 'mixed': return <HelpCircle className="h-5 w-5" />
+    case 'weak': return <AlertTriangle className="h-5 w-5" />
+    case 'none': return <XCircle className="h-5 w-5" />
+  }
+}
+
+function getActionMessage(verdict: ViabilityVerdict): string {
+  const hasCriticalConcerns = verdict.dealbreakers.length > 0 ||
+    verdict.redFlags?.some(f => f.severity === 'HIGH')
+
+  if (hasCriticalConcerns) {
+    return 'Review concerns before proceeding'
+  }
+
+  switch (verdict.verdict) {
+    case 'strong':
+      return 'Proceed with confidence'
+    case 'mixed':
+      return 'Validate key assumptions first'
+    case 'weak':
+      return 'Significant pivots may be needed'
+    case 'none':
+      return 'Consider alternative approaches'
+  }
+}
+
+function getVerdictGradient(level: VerdictLevel, hasCriticalConcerns: boolean): string {
+  if (hasCriticalConcerns) {
+    return 'from-amber-500/10 via-amber-500/5 to-transparent'
+  }
+  switch (level) {
+    case 'strong': return 'from-emerald-500/10 via-emerald-500/5 to-transparent'
+    case 'mixed': return 'from-amber-500/10 via-amber-500/5 to-transparent'
+    case 'weak': return 'from-orange-500/10 via-orange-500/5 to-transparent'
+    case 'none': return 'from-red-500/10 via-red-500/5 to-transparent'
+  }
+}
+
+function getActionColors(level: VerdictLevel, hasCriticalConcerns: boolean): { text: string; bg: string } {
+  if (hasCriticalConcerns) {
+    return { text: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' }
+  }
+  switch (level) {
+    case 'strong': return { text: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-900/30' }
+    case 'mixed': return { text: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' }
+    case 'weak': return { text: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/30' }
+    case 'none': return { text: 'text-red-700 dark:text-red-300', bg: 'bg-red-100 dark:bg-red-900/30' }
+  }
 }
 
 export function VerdictHero({
   verdict,
-  hypothesis,
-  className,
-  onViewDetails,
+  onSeeWhy,
+  onInterviewGuide,
+  isAppAnalysis = false,
 }: VerdictHeroProps) {
-  const hasTwoAxisData = verdict.hypothesisConfidence && verdict.marketOpportunity
+  const colors = VerdictColors[verdict.verdict]
+  const hasCriticalConcerns = verdict.dealbreakers.length > 0 ||
+    (verdict.redFlags?.some(f => f.severity === 'HIGH') ?? false)
 
-  if (!hasTwoAxisData && verdict.availableDimensions === 0) {
-    return null // Don't show hero if no data
-  }
-
-  const getConfidenceColor = (level: string) => {
-    switch (level) {
-      case 'high': return 'stroke-emerald-500'
-      case 'partial': return 'stroke-amber-500'
-      case 'low': return 'stroke-red-500'
-      default: return 'stroke-muted'
-    }
-  }
-
-  const getOpportunityColor = (level: string) => {
-    switch (level) {
-      case 'strong': return 'stroke-emerald-500'
-      case 'moderate': return 'stroke-amber-500'
-      case 'weak': return 'stroke-red-500'
-      default: return 'stroke-muted'
-    }
-  }
-
-  // Constructive sublabels based on score (not scary labels)
-  const getConfidenceSublabel = (score: number) => {
-    if (score >= 8) return 'Strong problem-market fit'
-    if (score >= 6) return 'Good foundation to build on'
-    if (score >= 4) return 'Some evidence, needs validation'
-    return 'Your angle needs refinement'
-  }
-
-  const getOpportunitySublabel = (score: number) => {
-    if (score >= 8) return 'Clear market opportunity'
-    if (score >= 6) return 'Solid market indicators'
-    if (score >= 4) return 'Opportunity exists, explore further'
-    return 'Market signals are limited'
-  }
-
-  const getOverallMessage = () => {
-    if (!hasTwoAxisData) {
-      return verdict.verdictDescription
-    }
-
-    const hLevel = verdict.hypothesisConfidence!.level
-    const mLevel = verdict.marketOpportunity!.level
-
-    if (hLevel === 'high' && (mLevel === 'strong' || mLevel === 'moderate')) {
-      return 'Strong hypothesis with viable market - proceed to customer interviews'
-    }
-    if (hLevel === 'high' && mLevel === 'weak') {
-      return 'Hypothesis validated but market may be limited - explore adjacent segments'
-    }
-    if (hLevel === 'partial' && mLevel === 'strong') {
-      return 'Market opportunity exists but for related problems - review adjacent opportunities'
-    }
-    if (hLevel === 'low' && mLevel === 'strong') {
-      return 'Market exists for different problems - consider pivoting to adjacent opportunities'
-    }
-    return 'More research needed to validate this hypothesis'
-  }
-
-  const hasRedFlags = verdict.redFlags && verdict.redFlags.length > 0
+  const actionMessage = getActionMessage(verdict)
+  const actionColors = getActionColors(verdict.verdict, hasCriticalConcerns)
+  const gradient = getVerdictGradient(verdict.verdict, hasCriticalConcerns)
 
   return (
-    <AnimatedCard
-      className={cn(
-        'rounded-xl border bg-gradient-to-br from-card to-muted/20 overflow-hidden',
-        className
-      )}
-      delay={0}
-    >
-      <div className="p-4 sm:p-6">
-        {/* Header row */}
-        <motion.div
-          className="flex items-start justify-between gap-4 mb-4"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-        >
-          <div className="flex items-center gap-2">
-            <motion.div
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ duration: 0.5, delay: 0.2, type: 'spring', stiffness: 200 }}
-            >
-              <Target className="h-5 w-5 text-primary" />
-            </motion.div>
-            <h2 className="font-semibold text-base">Quick Verdict</h2>
-            <TrustBadge level="calculated" size="sm" />
-          </div>
-          {hasRedFlags && (
-            <AnimatedBadge delay={0.6}>
-              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800">
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                {verdict.redFlags!.length} warning{verdict.redFlags!.length > 1 ? 's' : ''}
-              </Badge>
-            </AnimatedBadge>
-          )}
-        </motion.div>
-
-        {/* Two-axis scores with staggered animation */}
-        {hasTwoAxisData ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4">
-            <AnimatedGauge
-              score={verdict.hypothesisConfidence!.score}
-              label="Hypothesis Confidence"
-              sublabel={getConfidenceSublabel(verdict.hypothesisConfidence!.score)}
-              colorClass={getConfidenceColor(verdict.hypothesisConfidence!.level)}
-              delay={0.2}
-            />
-            <AnimatedGauge
-              score={verdict.marketOpportunity!.score}
-              label="Market Opportunity"
-              sublabel={getOpportunitySublabel(verdict.marketOpportunity!.score)}
-              colorClass={getOpportunityColor(verdict.marketOpportunity!.level)}
-              delay={0.4}
-            />
-          </div>
-        ) : (
-          <div className="flex justify-center mb-4">
-            <AnimatedGauge
-              score={verdict.overallScore}
-              label="Viability Score"
-              sublabel={verdict.confidence.toUpperCase()}
-              colorClass={
-                verdict.overallScore >= 7 ? 'stroke-emerald-500' :
-                verdict.overallScore >= 5 ? 'stroke-amber-500' :
-                'stroke-red-500'
-              }
-              size="md"
-              delay={0.2}
-            />
-          </div>
-        )}
-
-        {/* Recommendation Banner - prominent action guidance */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.8 }}
-        >
-          <RecommendationBanner
-            verdict={verdict.verdict}
-            verdictDescription={getOverallMessage()}
-            onViewDetails={onViewDetails}
-          />
-        </motion.div>
+    <div className={cn(
+      'relative rounded-2xl border overflow-hidden',
+      'bg-gradient-to-br',
+      gradient,
+      'border-border/50'
+    )}>
+      {/* Decorative background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-gradient-to-br from-white/10 to-transparent blur-2xl" />
+        <div className="absolute -bottom-12 -left-12 w-32 h-32 rounded-full bg-gradient-to-tr from-white/5 to-transparent blur-xl" />
       </div>
-    </AnimatedCard>
+
+      <div className="relative p-8 sm:p-10">
+        {/* Score and Label - Centered */}
+        <div className="text-center mb-6">
+          <div className="text-5xl sm:text-6xl font-bold tracking-tight mb-2">
+            {verdict.overallScore.toFixed(1)}
+            <span className="text-2xl sm:text-3xl text-muted-foreground font-normal">/10</span>
+          </div>
+          <Badge className={cn('px-4 py-1.5 text-sm', colors.bg, 'text-white')}>
+            {getVerdictLabel(verdict.verdict)}
+          </Badge>
+        </div>
+
+        {/* Action Message */}
+        <div className={cn(
+          'flex items-center justify-center gap-2 py-3 px-4 rounded-lg mx-auto max-w-md mb-6',
+          actionColors.bg
+        )}>
+          <span className={actionColors.text}>
+            {getVerdictIcon(verdict.verdict, hasCriticalConcerns)}
+          </span>
+          <span className={cn('font-medium', actionColors.text)}>
+            {actionMessage}
+          </span>
+        </div>
+
+        {/* Recommendation Text */}
+        <div className="text-center mb-8 max-w-xl mx-auto">
+          <p className="text-muted-foreground leading-relaxed">
+            {verdict.verdictDescription}
+          </p>
+        </div>
+
+        {/* CTA Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Button
+            variant="outline"
+            onClick={onSeeWhy}
+            className="w-full sm:w-auto min-w-[160px]"
+          >
+            See Why
+            <ChevronDown className="h-4 w-4 ml-2" />
+          </Button>
+          <Button
+            onClick={onInterviewGuide}
+            className="w-full sm:w-auto min-w-[160px] bg-emerald-600 hover:bg-emerald-700"
+          >
+            Interview Guide
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
+
+        {/* Confidence Indicators - Subtle row */}
+        <div className="flex items-center justify-center gap-6 mt-8 pt-6 border-t border-border/30">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className={cn(
+              'w-2.5 h-2.5 rounded-full',
+              verdict.confidence === 'high' && 'bg-emerald-500',
+              verdict.confidence === 'medium' && 'bg-amber-500',
+              verdict.confidence === 'low' && 'bg-red-500',
+            )} />
+            <span className="capitalize">{verdict.confidence} confidence</span>
+          </div>
+          <div className="h-4 w-px bg-border/50" />
+          <div className="text-sm text-muted-foreground">
+            {verdict.availableDimensions}/{verdict.totalDimensions} dimensions
+          </div>
+          {verdict.sampleSize && (
+            <>
+              <div className="h-4 w-px bg-border/50" />
+              <div className="text-sm text-muted-foreground">
+                {verdict.sampleSize.postsAnalyzed} posts analyzed
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }

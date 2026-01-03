@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
           topSubreddits: rawPainSummary.topSubreddits || [],
           dataConfidence: (rawPainSummary as { dataConfidence?: 'very_low' | 'low' | 'medium' | 'high' }).dataConfidence || 'low',
           strongestSignals: (rawPainSummary as { strongestSignals?: string[] }).strongestSignals || [],
-          wtpQuotes: (rawPainSummary as { wtpQuotes?: { text: string; subreddit: string }[] }).wtpQuotes || [],
+          wtpQuotes: (rawPainSummary as { wtpQuotes?: { text: string; subreddit: string; url?: string }[] }).wtpQuotes || [],
           temporalDistribution: (rawPainSummary as { temporalDistribution?: { last30Days: number; last90Days: number; last180Days: number; older: number } }).temporalDistribution || {
             last30Days: 0,
             last90Days: 0,

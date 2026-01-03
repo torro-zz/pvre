@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   Card,
   CardContent,
@@ -40,6 +40,7 @@ import {
 import { cn } from '@/lib/utils'
 import { DualVerdictDisplay } from './dual-verdict-display'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { VerdictHero } from './verdict-hero'
 
 interface ViabilityVerdictProps {
   verdict: ViabilityVerdict
@@ -170,8 +171,29 @@ export function ViabilityVerdictDisplay({
 }: ViabilityVerdictProps) {
   const [showRedFlags, setShowRedFlags] = useState(false)
   const [showInterviewGuide, setShowInterviewGuide] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
+  const detailsRef = useRef<HTMLDivElement>(null)
   const colors = VerdictColors[verdict.verdict]
   const { setActiveTab, setCommunitySubTab } = useResearchTabs()
+
+  // Handler for "See Why" button - expands details and scrolls to them
+  const handleSeeWhy = () => {
+    setShowDetails(true)
+    // Scroll to details after a short delay to allow render
+    setTimeout(() => {
+      detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }
+
+  // Handler for "Interview Guide" button
+  const handleInterviewGuide = () => {
+    if (isAppAnalysis) {
+      setShowInterviewGuide(!showInterviewGuide)
+      setShowDetails(true)
+    } else {
+      setActiveTab('action')
+    }
+  }
 
   const getVerdictLabel = (level: VerdictLevel) => {
     switch (level) {
@@ -215,13 +237,46 @@ export function ViabilityVerdictDisplay({
 
   return (
     <div className="space-y-6">
-      {/* v6 Report Redesign: Two-Axis Verdict Display (when available) */}
-      {hasTwoAxisData && (
-        <DualVerdictDisplay
-          hypothesisConfidence={verdict.hypothesisConfidence!}
-          marketOpportunity={verdict.marketOpportunity!}
-        />
-      )}
+      {/* Simplified Verdict Hero - Always visible above the fold */}
+      <VerdictHero
+        verdict={verdict}
+        onSeeWhy={handleSeeWhy}
+        onInterviewGuide={handleInterviewGuide}
+        isAppAnalysis={isAppAnalysis}
+      />
+
+      {/* Collapsible Details Section */}
+      <div ref={detailsRef}>
+        {/* Toggle button for details when collapsed */}
+        {!showDetails && (
+          <button
+            onClick={() => setShowDetails(true)}
+            className="w-full py-3 text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2"
+          >
+            <ChevronDown className="h-4 w-4" />
+            Show detailed breakdown
+          </button>
+        )}
+
+        {/* Detailed sections - shown when expanded */}
+        {showDetails && (
+          <div className="space-y-6">
+            {/* Collapse button */}
+            <button
+              onClick={() => setShowDetails(false)}
+              className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2"
+            >
+              <ChevronUp className="h-4 w-4" />
+              Hide details
+            </button>
+
+            {/* v6 Report Redesign: Two-Axis Verdict Display (when available) */}
+            {hasTwoAxisData && (
+              <DualVerdictDisplay
+                hypothesisConfidence={verdict.hypothesisConfidence!}
+                marketOpportunity={verdict.marketOpportunity!}
+              />
+            )}
 
       {/* Subtle Red Flags Alert - Collapsible */}
       {verdict.redFlags && verdict.redFlags.length > 0 && (
@@ -284,97 +339,7 @@ export function ViabilityVerdictDisplay({
         </div>
       )}
 
-      {/* Main Verdict Card - Modern Design */}
-      <div className={cn(
-        'relative rounded-2xl border overflow-hidden',
-        'bg-gradient-to-br',
-        getVerdictGradient(verdict.verdict),
-        'border-border/50'
-      )}>
-        {/* Decorative background elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-gradient-to-br from-white/10 to-transparent blur-2xl" />
-          <div className="absolute -bottom-12 -left-12 w-32 h-32 rounded-full bg-gradient-to-tr from-white/5 to-transparent blur-xl" />
-        </div>
-
-        <div className="relative p-6">
-          {/* Header */}
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-semibold">Viability Verdict</h3>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {verdict.isComplete
-                  ? 'Complete assessment based on all dimensions'
-                  : `Partial assessment (${verdict.availableDimensions}/${verdict.totalDimensions} dimensions)`}
-              </p>
-            </div>
-            <Badge className={cn('px-3 py-1', colors.bg, 'text-white')}>
-              {getVerdictLabel(verdict.verdict)}
-            </Badge>
-          </div>
-
-          {/* Score Display with Gauge */}
-          <div className="flex items-center justify-center mb-6">
-            <ScoreGauge
-              score={verdict.overallScore}
-              max={10}
-              size="lg"
-              label={verdict.scoreRange ? `±${(verdict.scoreRange.max - verdict.overallScore).toFixed(1)}` : undefined}
-            />
-          </div>
-
-          {/* Verdict Description */}
-          <div className="bg-white/50 dark:bg-black/20 rounded-xl p-4 mb-6 backdrop-blur-sm">
-            <p className="text-sm text-center text-foreground/80">
-              {verdict.verdictDescription}
-            </p>
-          </div>
-
-          {/* Confidence Indicators */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className={cn(
-                'w-3 h-3 rounded-full mx-auto mb-1.5',
-                verdict.confidence === 'high' && 'bg-emerald-500',
-                verdict.confidence === 'medium' && 'bg-amber-500',
-                verdict.confidence === 'low' && 'bg-red-500',
-              )} />
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-                Confidence
-              </div>
-              <div className="text-xs font-semibold capitalize">{verdict.confidence}</div>
-            </div>
-            <div className="text-center">
-              <div className={cn(
-                'w-3 h-3 rounded-full mx-auto mb-1.5',
-                verdict.dataSufficiency === 'strong' && 'bg-emerald-500',
-                verdict.dataSufficiency === 'adequate' && 'bg-blue-500',
-                verdict.dataSufficiency === 'limited' && 'bg-amber-500',
-                verdict.dataSufficiency === 'insufficient' && 'bg-red-500',
-              )} />
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-                Data Quality
-              </div>
-              <div className="text-xs font-semibold capitalize">{verdict.dataSufficiency}</div>
-            </div>
-            {verdict.sampleSize && (
-              <div className="text-center">
-                <div className="text-lg font-bold text-primary mb-0.5">
-                  {verdict.sampleSize.postsAnalyzed}
-                </div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-                  Posts Analyzed
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Limited Data Warning - More subtle */}
+            {/* Limited Data Warning - More subtle */}
       {verdict.sampleSize && (verdict.sampleSize.label === 'very_limited' || verdict.sampleSize.label === 'low_confidence') && (
         <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30">
           <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
@@ -403,7 +368,7 @@ export function ViabilityVerdictDisplay({
           </div>
 
           <div className="p-4">
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {verdict.dimensions.map((dim) => {
                 const Icon = getDimensionIcon(dim.name)
                 return (
@@ -630,33 +595,36 @@ export function ViabilityVerdictDisplay({
         </div>
       )}
 
-      {/* Dealbreakers - If any */}
-      {verdict.dealbreakers.length > 0 && (
-        <div className="rounded-xl border border-red-200 dark:border-red-900 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-950/20 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <XCircle className="h-4 w-4 text-red-500" />
-            <span className="font-medium text-sm text-red-700 dark:text-red-300">
-              Dealbreakers Detected
-            </span>
-          </div>
-          <ul className="space-y-2">
-            {verdict.dealbreakers.map((dealbreaker, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
-                <span className="text-red-400">-</span>
-                {dealbreaker}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+            {/* Dealbreakers - Always visible if present (per plan) */}
+            {verdict.dealbreakers.length > 0 && (
+              <div className="rounded-xl border border-red-200 dark:border-red-900 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-950/20 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <XCircle className="h-4 w-4 text-red-500" />
+                  <span className="font-medium text-sm text-red-700 dark:text-red-300">
+                    Dealbreakers Detected
+                  </span>
+                </div>
+                <ul className="space-y-2">
+                  {verdict.dealbreakers.map((dealbreaker, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
+                      <span className="text-red-400">-</span>
+                      {dealbreaker}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-      {/* Info footer - Minimal */}
-      <div className="flex items-start gap-2 text-xs text-muted-foreground px-1">
-        <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-        <p>
-          Score formula: Pain (35%) + Market (25%) + Competition (25%) + Timing (15%).
-          Market uses TAM/SAM/SOM Fermi estimation. Timing identifies tailwinds and headwinds.
-        </p>
+            {/* Info footer - Minimal */}
+            <div className="flex items-start gap-2 text-xs text-muted-foreground px-1">
+              <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+              <p>
+                Score formula: Pain (35%) + Market (25%) + Competition (25%) + Timing (15%).
+                Market uses TAM/SAM/SOM Fermi estimation. Timing identifies tailwinds and headwinds.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

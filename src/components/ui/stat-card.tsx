@@ -1,7 +1,8 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { LucideIcon } from 'lucide-react'
+import { LucideIcon, Info } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 
 interface StatCardProps {
   /** Label text */
@@ -124,6 +125,7 @@ interface StatBlockProps {
   label: string
   value: string | number
   subValue?: string
+  subValueTooltip?: string  // Tooltip text for subValue
   accent?: boolean
   size?: 'sm' | 'md' | 'lg'
 }
@@ -132,6 +134,7 @@ export function StatBlock({
   label,
   value,
   subValue,
+  subValueTooltip,
   accent,
   size = 'md',
 }: StatBlockProps) {
@@ -154,9 +157,23 @@ export function StatBlock({
           {typeof value === 'number' ? value.toLocaleString() : value}
         </span>
         {subValue && (
-          <span className={cn(config.subSize, 'text-muted-foreground')}>
-            {subValue}
-          </span>
+          subValueTooltip ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className={cn(config.subSize, 'text-muted-foreground flex items-center gap-0.5 cursor-help')}>
+                  {subValue}
+                  <Info className="h-3 w-3 opacity-60" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[240px]">
+                <p className="text-xs">{subValueTooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <span className={cn(config.subSize, 'text-muted-foreground')}>
+              {subValue}
+            </span>
+          )
         )}
       </div>
     </div>

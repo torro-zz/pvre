@@ -227,6 +227,8 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
     return {
       ...results.competitorMatrix,
       comparison: results.competitorMatrix.comparison.filter((comp) => {
+        // Guard against undefined competitorName
+        if (!comp.competitorName) return true
         const compNameLower = comp.competitorName.toLowerCase().trim()
         return compNameLower !== analyzedAppName &&
                !analyzedAppName.includes(compNameLower)

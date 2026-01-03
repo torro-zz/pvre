@@ -487,6 +487,11 @@ export function InvestorMetricsHero({
   const allWarnings = [...redFlags, ...autoWarnings]
   const hasWarnings = allWarnings.length > 0
 
+  // Check for dealbreakers (critical issues that should override "Proceed with Confidence")
+  const hasDealbreakers = verdict?.dealbreakers && verdict.dealbreakers.length > 0
+  const hasHighSeverityFlags = allWarnings.some(w => w.severity === 'HIGH')
+  const hasCriticalConcerns = hasDealbreakers || hasHighSeverityFlags
+
   // Verdict message
   const getVerdictMessage = () => {
     if (!hasTwoAxisData) {
@@ -511,6 +516,11 @@ export function InvestorMetricsHero({
   }
 
   const getVerdictColor = () => {
+    // Critical concerns override all other styling
+    if (hasCriticalConcerns) {
+      return 'from-amber-500/10 to-amber-500/5 border-amber-200 dark:border-amber-800'
+    }
+
     if (!hasTwoAxisData) {
       const score = verdict?.overallScore || painScore
       if (score >= 7) return 'from-emerald-500/10 to-emerald-500/5 border-emerald-200 dark:border-emerald-800'
@@ -667,7 +677,10 @@ export function InvestorMetricsHero({
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                {hypothesisConfidence?.level === 'high' ? (
+                {/* Show warning icon if critical concerns exist, otherwise score-based icons */}
+                {hasCriticalConcerns ? (
+                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                ) : hypothesisConfidence?.level === 'high' ? (
                   <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 ) : hypothesisConfidence?.level === 'partial' ? (
                   <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
@@ -675,7 +688,9 @@ export function InvestorMetricsHero({
                   <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 )}
                 <span className="font-semibold">
-                  {hypothesisConfidence?.level === 'high' ? 'Proceed with Confidence' :
+                  {/* Dealbreakers override confidence level */}
+                  {hasCriticalConcerns ? 'Review Concerns Before Proceeding' :
+                   hypothesisConfidence?.level === 'high' ? 'Proceed with Confidence' :
                    hypothesisConfidence?.level === 'partial' ? 'Explore Further' :
                    'Gather More Data'}
                 </span>

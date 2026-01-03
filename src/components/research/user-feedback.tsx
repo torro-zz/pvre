@@ -19,12 +19,15 @@ import {
   TrendingUp,
   Users,
   ExternalLink,
+  Info,
 } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import type { PainSignal } from '@/lib/analysis/pain-detector'
 
 interface UserFeedbackProps {
   painSignals: PainSignal[]
   appName?: string
+  analyzedReviewCount?: number  // Total reviews fetched before filtering (default 500)
 }
 
 // Opportunity categories with their keywords and display info
@@ -73,66 +76,84 @@ const OPPORTUNITY_CATEGORIES = {
 
 type OpportunityCategory = keyof typeof OPPORTUNITY_CATEGORIES
 
+// Signal with additional category information for deduplication
+interface CategorizedSignal {
+  signal: PainSignal
+  alsoIn: OpportunityCategory[]  // Other categories this signal matched
+}
+
 interface Opportunity {
   category: OpportunityCategory
-  signals: PainSignal[]
+  signals: CategorizedSignal[]  // Changed from PainSignal[] to include "also in" info
   fromHappyUsers: number // count from 4-5 star reviews
   totalCount: number
 }
 
-// Categorize a signal into opportunity categories based on text content
-function categorizeSignal(signal: PainSignal): OpportunityCategory[] {
+// Priority order for category assignment (higher priority = assigned first)
+const CATEGORY_PRIORITY: OpportunityCategory[] = ['pricing', 'performance', 'features', 'ads', 'content']
+
+// Categorize a signal and return categories with match counts for prioritization
+function categorizeSignalWithCounts(signal: PainSignal): { category: OpportunityCategory; matchCount: number }[] {
   const text = (signal.text + ' ' + (signal.title || '')).toLowerCase()
-  const categories: OpportunityCategory[] = []
+  const matches: { category: OpportunityCategory; matchCount: number }[] = []
 
   for (const [category, config] of Object.entries(OPPORTUNITY_CATEGORIES)) {
-    const hasKeyword = config.keywords.some(keyword => text.includes(keyword))
-    if (hasKeyword) {
-      categories.push(category as OpportunityCategory)
+    const matchCount = config.keywords.filter(keyword => text.includes(keyword)).length
+    if (matchCount > 0) {
+      matches.push({ category: category as OpportunityCategory, matchCount })
     }
   }
 
-  // If solution-seeking, also add to features
-  if (signal.solutionSeeking && !categories.includes('features')) {
-    categories.push('features')
+  // If solution-seeking, also add to features if not already there
+  if (signal.solutionSeeking && !matches.some(m => m.category === 'features')) {
+    matches.push({ category: 'features', matchCount: 1 })
   }
 
-  return categories
+  // Sort by match count (highest first), then by priority order
+  return matches.sort((a, b) => {
+    if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount
+    return CATEGORY_PRIORITY.indexOf(a.category) - CATEGORY_PRIORITY.indexOf(b.category)
+  })
 }
 
-// Extract opportunities from all signals
+// Extract opportunities with deduplication - each signal appears in ONE primary category
 function extractOpportunities(signals: PainSignal[]): Opportunity[] {
   // Filter to only app store reviews
   const appStoreSignals = signals.filter(
     s => s.source.subreddit === 'google_play' || s.source.subreddit === 'app_store'
   )
 
-  // Group signals by category
-  const categoryMap = new Map<OpportunityCategory, PainSignal[]>()
+  // Assign each signal to ONE primary category, tracking other matches
+  const categoryMap = new Map<OpportunityCategory, CategorizedSignal[]>()
 
   for (const signal of appStoreSignals) {
-    const categories = categorizeSignal(signal)
-    for (const category of categories) {
-      const existing = categoryMap.get(category) || []
-      existing.push(signal)
-      categoryMap.set(category, existing)
-    }
+    const matches = categorizeSignalWithCounts(signal)
+    if (matches.length === 0) continue  // Signal doesn't match any category
+
+    // Primary category is the first (highest match count / priority)
+    const primaryCategory = matches[0].category
+    // Other categories are the rest
+    const alsoIn = matches.slice(1).map(m => m.category)
+
+    const existing = categoryMap.get(primaryCategory) || []
+    existing.push({ signal, alsoIn })
+    categoryMap.set(primaryCategory, existing)
   }
 
   // Convert to opportunities array with stats
   const opportunities: Opportunity[] = []
 
-  for (const [category, categorySignals] of categoryMap.entries()) {
-    const fromHappyUsers = categorySignals.filter(s => {
-      const rating = s.source.rating
+  for (const [category, categorizedSignals] of categoryMap.entries()) {
+    const fromHappyUsers = categorizedSignals.filter(cs => {
+      const rating = cs.signal.source.rating
       return rating !== undefined && rating >= 4
     }).length
 
     opportunities.push({
       category,
-      signals: categorySignals,
+      signals: categorizedSignals,
       fromHappyUsers,
-      totalCount: categorySignals.length
+      totalCount: categorizedSignals.length
     })
   }
 
@@ -162,34 +183,51 @@ function calculateSentiment(signals: PainSignal[]) {
   return { positive, negative, neutral, total: appStoreSignals.length }
 }
 
-// Expandable quote component with star rating
-function QuoteWithRating({ signal }: { signal: PainSignal }) {
+// Expandable quote component with star rating and "Also in:" tags
+function QuoteWithRating({ categorizedSignal }: { categorizedSignal: CategorizedSignal }) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const { signal, alsoIn } = categorizedSignal
   const text = signal.text
   const isLong = text.length > 200
   const displayText = isExpanded || !isLong ? text : text.slice(0, 200) + '...'
   const rating = signal.source.rating
+  const isGooglePlay = signal.source.subreddit === 'google_play'
+  const isAppStore = signal.source.subreddit === 'app_store'
 
   return (
     <div className="py-3 border-b last:border-0">
-      {/* Star rating */}
-      {rating !== undefined && (
-        <div className="flex items-center gap-1 mb-1.5">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Star
-              key={i}
-              className={`h-3 w-3 ${i < rating ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground/30'}`}
-            />
-          ))}
-          {rating >= 4 && (
-            <Badge variant="outline" className="ml-2 text-[10px] py-0 text-emerald-600 border-emerald-300">
-              Happy user
-            </Badge>
-          )}
-        </div>
-      )}
+      {/* Source badge + Star rating */}
+      <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+        {/* Source indicator */}
+        {isGooglePlay && (
+          <Badge variant="outline" className="text-[10px] py-0 bg-green-50 text-green-700 border-green-300 dark:bg-green-950/50 dark:text-green-400 dark:border-green-800">
+            Google Play
+          </Badge>
+        )}
+        {isAppStore && (
+          <Badge variant="outline" className="text-[10px] py-0 bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800">
+            App Store
+          </Badge>
+        )}
+        {/* Star rating */}
+        {rating !== undefined && (
+          <>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star
+                key={i}
+                className={`h-3 w-3 ${i < rating ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground/30'}`}
+              />
+            ))}
+          </>
+        )}
+        {rating !== undefined && rating >= 4 && (
+          <Badge variant="outline" className="ml-1 text-[10px] py-0 text-emerald-600 border-emerald-300">
+            Happy user
+          </Badge>
+        )}
+      </div>
       <p className="text-sm text-muted-foreground">
-        "{displayText}"
+        &quot;{displayText}&quot;
         {isLong && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
@@ -199,6 +237,12 @@ function QuoteWithRating({ signal }: { signal: PainSignal }) {
           </button>
         )}
       </p>
+      {/* Also in: tags for cross-category signals */}
+      {alsoIn.length > 0 && (
+        <p className="text-xs text-muted-foreground/70 mt-1.5 italic">
+          Also in: {alsoIn.map(cat => OPPORTUNITY_CATEGORIES[cat].label).join(', ')}
+        </p>
+      )}
     </div>
   )
 }
@@ -244,8 +288,8 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
 
       <CardContent className="pt-4">
         <div className="space-y-0">
-          {displaySignals.map((signal, i) => (
-            <QuoteWithRating key={i} signal={signal} />
+          {displaySignals.map((categorizedSignal, i) => (
+            <QuoteWithRating key={i} categorizedSignal={categorizedSignal} />
           ))}
         </div>
 
@@ -283,7 +327,7 @@ function RedditQuote({ signal }: { signal: PainSignal }) {
   return (
     <div className="py-3 border-b last:border-0">
       <div className="flex items-center gap-2 mb-1.5">
-        <Badge variant="outline" className="text-[10px] py-0">
+        <Badge variant="outline" className="text-[10px] py-0 bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-950/50 dark:text-orange-400 dark:border-orange-800">
           r/{subreddit}
         </Badge>
         {signal.intensity === 'high' && (
@@ -394,7 +438,7 @@ function RedditDiscussions({ signals }: { signals: PainSignal[] }) {
   )
 }
 
-export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
+export function UserFeedback({ painSignals, appName, analyzedReviewCount = 500 }: UserFeedbackProps) {
   const sentiment = calculateSentiment(painSignals)
   const opportunities = extractOpportunities(painSignals)
 
@@ -416,8 +460,16 @@ export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
       <Card className="overflow-hidden">
         <div className="bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-purple-500/10 p-6">
           <h2 className="text-xl font-bold mb-1">User Feedback Analysis</h2>
-          <p className="text-sm text-muted-foreground">
-            Insights from {sentiment.total} app store reviews{appName ? ` for ${appName}` : ''}
+          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+            {sentiment.total} pain signals (from {analyzedReviewCount} analyzed reviews){appName ? ` for ${appName}` : ''}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground/70 cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                We analyze recent reviews and extract signals containing feedback patterns like complaints, feature requests, and pricing concerns.
+              </TooltipContent>
+            </Tooltip>
           </p>
         </div>
 
@@ -466,12 +518,17 @@ export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
         </CardContent>
       </Card>
 
+      {/* Reddit Community Discussions - Show first as it's often more insightful */}
+      {redditSignals.length > 0 && (
+        <RedditDiscussions signals={redditSignals} />
+      )}
+
       {/* Opportunities Header */}
       {opportunities.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Opportunities Found</h2>
+            <h2 className="text-lg font-semibold">App Store Feedback</h2>
           </div>
           {totalHappyUserOpportunities > 0 && (
             <Badge variant="outline" className="text-emerald-600 border-emerald-300">
@@ -484,7 +541,7 @@ export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
 
       {opportunities.length > 0 && (
         <p className="text-sm text-muted-foreground -mt-4">
-          Pain points extracted from all reviews. Complaints from 4-5★ users = high opportunity (they're almost satisfied).
+          Pain points extracted from app reviews. Complaints from 4-5★ users = high opportunity (they're almost satisfied).
         </p>
       )}
 
@@ -492,11 +549,6 @@ export function UserFeedback({ painSignals, appName }: UserFeedbackProps) {
       {opportunities.map((opportunity) => (
         <OpportunityCard key={opportunity.category} opportunity={opportunity} />
       ))}
-
-      {/* Reddit Community Discussions */}
-      {redditSignals.length > 0 && (
-        <RedditDiscussions signals={redditSignals} />
-      )}
 
       {/* No Opportunities Found */}
       {opportunities.length === 0 && sentiment.total > 0 && (

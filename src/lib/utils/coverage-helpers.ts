@@ -47,10 +47,17 @@ export function createSourceCoverageData(
     relatedSignals?: number
     communitiesSearched?: string[]
     sources?: string[]
+    // App store specific metrics
+    appStoreSignals?: number
+    appStoreReviewsAnalyzed?: number
   },
   totalSignals: number
 ): SourceCoverageData[] {
   const sources: SourceCoverageData[] = []
+
+  // Calculate Reddit-only signals (total minus app store)
+  const appStoreSignals = filteringMetrics.appStoreSignals || 0
+  const redditSignals = totalSignals - appStoreSignals
 
   // Reddit is always included if we have posts
   if (filteringMetrics.postsAnalyzed && filteringMetrics.postsAnalyzed > 0) {
@@ -60,13 +67,23 @@ export function createSourceCoverageData(
       iconType: 'reddit',
       scope: `${communityCount} ${communityCount === 1 ? 'community' : 'communities'}`,
       volume: `${filteringMetrics.postsFound || filteringMetrics.postsAnalyzed} posts`,
-      signals: totalSignals,  // Total signals (core + related)
+      signals: redditSignals > 0 ? redditSignals : totalSignals,  // Reddit signals only
       coreSignals: filteringMetrics.coreSignals || 0,  // Core (high-relevance) signals only
     })
   }
 
-  // Note: We no longer add sources with 0 signals - only show sources that actually returned data
-  // The sources list from filteringMetrics may include sources that were queried but returned nothing
+  // App Store included if we have app store signals
+  if (appStoreSignals > 0) {
+    const reviewsAnalyzed = filteringMetrics.appStoreReviewsAnalyzed || 500
+    sources.push({
+      name: 'App Store',
+      iconType: 'app_store',
+      scope: '1 app',
+      volume: `${reviewsAnalyzed} reviews`,
+      signals: appStoreSignals,
+      coreSignals: appStoreSignals,  // All app store signals count as core for now
+    })
+  }
 
   return sources
 }

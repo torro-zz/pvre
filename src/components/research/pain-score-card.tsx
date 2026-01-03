@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -101,6 +102,11 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 export function PainScoreCard({ signal }: PainScoreCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const textMaxLength = 300
+  const isLong = signal.text.length > textMaxLength
+  const displayText = isExpanded || !isLong ? signal.text : truncateText(signal.text, textMaxLength)
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="pt-4">
@@ -136,7 +142,15 @@ export function PainScoreCard({ signal }: PainScoreCardProps) {
         )}
 
         <p className="text-sm text-muted-foreground mb-3">
-          {truncateText(signal.text, 300)}
+          {displayText}
+          {isLong && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="ml-2 text-primary hover:underline text-xs font-medium"
+            >
+              {isExpanded ? 'Show less' : 'Read more'}
+            </button>
+          )}
         </p>
 
         {signal.signals.length > 0 && (

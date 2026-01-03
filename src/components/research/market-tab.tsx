@@ -44,6 +44,43 @@ import type { MarketWarning } from '@/lib/analysis/viability-calculator'
 
 type MarketSubTab = 'overview' | 'sizing' | 'timing' | 'competition' | 'opportunities' | 'positioning'
 
+/**
+ * Format large market numbers into human-readable format
+ * e.g., 150000000 → "150M", 1500000 → "1.5M", 150000 → "150K"
+ */
+function formatMarketNumber(value: number): string {
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`
+  }
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(0)}K`
+  }
+  return value.toLocaleString()
+}
+
+/**
+ * Format a market range (±30% of a value) into human-readable format
+ * e.g., 150000000 → "105M - 195M"
+ */
+function formatMarketRange(value: number): string {
+  const low = value * 0.7
+  const high = value * 1.3
+  return `${formatMarketNumber(low)} - ${formatMarketNumber(high)}`
+}
+
+/**
+ * Format ARR potential range (users * $50-100 ARPU)
+ * e.g., 1000000 users → "$50M - $100M"
+ */
+function formatArrPotential(users: number): string {
+  const lowArr = users * 50
+  const highArr = users * 100
+  return `$${formatMarketNumber(lowArr)} - $${formatMarketNumber(highArr)}`
+}
+
 interface MarketTabProps {
   jobId: string
   hypothesis: string
@@ -252,8 +289,8 @@ function MarketOverviewDashboard({ marketData, timingData, competitorData, commu
                   {marketData.score.toFixed(1)}<span className="text-lg text-muted-foreground">/10</span>
                 </div>
                 <div className="space-y-1 text-sm text-muted-foreground">
-                  <div>SAM: {(marketData.sam.value * 0.7 / 1000).toFixed(0)}-{(marketData.sam.value * 1.3 / 1000).toFixed(0)}K</div>
-                  <div>SOM: {(marketData.som.value * 0.7 / 1000).toFixed(0)}-{(marketData.som.value * 1.3 / 1000).toFixed(0)}K</div>
+                  <div>SAM: {formatMarketRange(marketData.sam.value)}</div>
+                  <div>SOM: {formatMarketRange(marketData.som.value)}</div>
                 </div>
                 <p className="text-xs italic text-blue-600 dark:text-blue-400 mt-2 pt-2 border-t border-dashed border-muted">
                   {getSizingContext(marketData.score)}
@@ -601,14 +638,14 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
                 <span className="font-semibold text-blue-900 dark:text-blue-100">TAM (Total Addressable Market)</span>
                 <div className="text-right">
                   <span className="text-blue-700 dark:text-blue-300 font-bold text-lg">
-                    {(marketData.tam.value * 0.7 / 1000000).toFixed(0)}-{(marketData.tam.value * 1.3 / 1000000).toFixed(0)}M users
+                    {formatMarketRange(marketData.tam.value)} users
                   </span>
                   <span className="text-xs text-blue-500 dark:text-blue-400 ml-1">(±30%)</span>
                 </div>
               </div>
               <p className="text-sm text-blue-700 dark:text-blue-300">{marketData.tam.description}</p>
               <p className="text-sm text-blue-600 dark:text-blue-400 mt-2 font-medium">
-                ~${((marketData.tam.value * 50) / 1000000).toFixed(0)}M-${((marketData.tam.value * 100) / 1000000).toFixed(0)}M ARR potential*
+                ~{formatArrPotential(marketData.tam.value)} ARR potential*
               </p>
             </div>
 
@@ -623,14 +660,14 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
                 <span className="font-semibold text-emerald-900 dark:text-emerald-100">SAM (Serviceable Available Market)</span>
                 <div className="text-right">
                   <span className="text-emerald-700 dark:text-emerald-300 font-bold text-lg">
-                    {(marketData.sam.value * 0.7 / 1000).toFixed(0)}-{(marketData.sam.value * 1.3 / 1000).toFixed(0)}K users
+                    {formatMarketRange(marketData.sam.value)} users
                   </span>
                   <span className="text-xs text-emerald-500 dark:text-emerald-400 ml-1">(±30%)</span>
                 </div>
               </div>
               <p className="text-sm text-emerald-700 dark:text-emerald-300">{marketData.sam.description}</p>
               <p className="text-sm text-emerald-600 dark:text-emerald-400 mt-2 font-medium">
-                ~${((marketData.sam.value * 50) / 1000000).toFixed(1)}M-${((marketData.sam.value * 100) / 1000000).toFixed(1)}M ARR potential*
+                ~{formatArrPotential(marketData.sam.value)} ARR potential*
               </p>
             </div>
 
@@ -645,14 +682,14 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
                 <span className="font-semibold text-purple-900 dark:text-purple-100">SOM (Serviceable Obtainable)</span>
                 <div className="text-right">
                   <span className="text-purple-700 dark:text-purple-300 font-bold text-lg">
-                    {(marketData.som.value * 0.7 / 1000).toFixed(0)}-{(marketData.som.value * 1.3 / 1000).toFixed(0)}K users
+                    {formatMarketRange(marketData.som.value)} users
                   </span>
                   <span className="text-xs text-purple-500 dark:text-purple-400 ml-1">(±30%)</span>
                 </div>
               </div>
               <p className="text-sm text-purple-700 dark:text-purple-300">{marketData.som.description}</p>
               <p className="text-sm text-purple-600 dark:text-purple-400 mt-2 font-medium">
-                ~${((marketData.som.value * 50) / 1000).toFixed(0)}K-${((marketData.som.value * 100) / 1000).toFixed(0)}K ARR potential*
+                ~{formatArrPotential(marketData.som.value)} ARR potential*
               </p>
             </div>
 
@@ -676,7 +713,7 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
               <div>
                 <span className="font-medium">To reach your revenue goal:</span>
                 <p className="text-muted-foreground mt-1">
-                  Based on SOM of {marketData.som.value.toLocaleString()} reachable users,
+                  Based on SOM of {formatMarketNumber(marketData.som.value)} reachable users,
                   you need {marketData.mscAnalysis.customersNeeded.toLocaleString()} paying customers
                   ({marketData.mscAnalysis.penetrationRequired.toFixed(1)}% penetration).
                 </p>
@@ -692,7 +729,7 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
             <div className="p-4 bg-muted/50 rounded-xl border">
               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Market Penetration</div>
               <div className="text-3xl font-bold mt-1">{marketData.mscAnalysis.penetrationRequired.toFixed(1)}%</div>
-              <div className="text-xs text-muted-foreground mt-1">of {(marketData.som.value / 1000).toFixed(0)}K SOM</div>
+              <div className="text-xs text-muted-foreground mt-1">of {formatMarketNumber(marketData.som.value)} SOM</div>
             </div>
           </div>
           <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-lg">{marketData.mscAnalysis.verdict}</p>

@@ -1,8 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Target, TrendingUp, AlertTriangle, Lightbulb, Shield, DollarSign, Users, Sparkles } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { Target, TrendingUp, AlertTriangle, Lightbulb, Shield, DollarSign, Users, Sparkles, ExternalLink, Info } from 'lucide-react'
 import type { PainSignal, PainSummary } from '@/lib/analysis/pain-detector'
 import type { AppDetails } from '@/lib/data-sources/types'
 
@@ -10,7 +12,7 @@ interface OpportunitiesProps {
   appData?: AppDetails | null
   painSignals: PainSignal[]
   painSummary?: PainSummary | null
-  wtpQuotes?: { text: string; subreddit: string }[]
+  wtpQuotes?: { text: string; subreddit: string; url?: string }[]
 }
 
 // Calculate opportunity score based on pain signals and market data
@@ -103,26 +105,37 @@ function extractFeatureFromText(text: string): string | null {
 }
 
 // Common feature categories for grouping
+// Uses word boundary matching for short keywords to avoid false positives
 function categorizeFeature(text: string): string | null {
   const lowerText = text.toLowerCase()
 
   // Feature categories by keyword matching
+  // Keywords with * suffix require word boundary matching (for short/ambiguous words)
   const categories: { keywords: string[]; label: string }[] = [
-    { keywords: ['ad', 'ads', 'advertisement', 'advertising', 'ad-free', 'no ads'], label: 'Ad-free experience' },
-    { keywords: ['price', 'pricing', 'expensive', 'cost', 'subscription', 'free'], label: 'Pricing / Value' },
+    // 'ad' removed - too short, matches "add", "made", etc.
+    // 'ads*' uses word boundary to avoid matching "adds"
+    { keywords: ['ads*', 'advertisement', 'advertising', 'ad-free', 'no ads', 'too many ads', 'remove ads'], label: 'Ad-free experience' },
+    { keywords: ['price', 'pricing', 'expensive', 'cost', 'subscription', 'free*'], label: 'Pricing / Value' },
     { keywords: ['offline', 'without internet', 'no connection'], label: 'Offline mode' },
-    { keywords: ['age', 'filter', 'parental', 'kid', 'child', 'family'], label: 'Age / Content filters' },
+    { keywords: ['age*', 'filter', 'parental', 'kid', 'child', 'family'], label: 'Age / Content filters' },
     { keywords: ['memory', 'remember', 'context', 'history'], label: 'Memory / Context' },
-    { keywords: ['crash', 'bug', 'glitch', 'freeze', 'slow', 'laggy', 'performance'], label: 'Stability / Performance' },
-    { keywords: ['ui', 'interface', 'design', 'layout', 'ux', 'navigation'], label: 'UI / UX design' },
-    { keywords: ['privacy', 'data', 'security', 'safe'], label: 'Privacy / Security' },
+    { keywords: ['crash', 'bug*', 'glitch', 'freeze', 'slow*', 'laggy', 'performance'], label: 'Stability / Performance' },
+    { keywords: ['ui*', 'interface', 'design', 'layout', 'ux*', 'navigation'], label: 'UI / UX design' },
+    { keywords: ['privacy', 'data', 'security', 'safe*'], label: 'Privacy / Security' },
     { keywords: ['customize', 'personalize', 'settings', 'options', 'control'], label: 'Customization' },
-    { keywords: ['support', 'help', 'customer service', 'response'], label: 'Customer support' },
+    { keywords: ['support', 'help*', 'customer service', 'response'], label: 'Customer support' },
   ]
 
   for (const { keywords, label } of categories) {
     for (const keyword of keywords) {
-      if (lowerText.includes(keyword)) {
+      // Keywords ending with * require word boundary matching
+      if (keyword.endsWith('*')) {
+        const bareKeyword = keyword.slice(0, -1)
+        const regex = new RegExp(`\\b${bareKeyword}\\b`, 'i')
+        if (regex.test(lowerText)) {
+          return label
+        }
+      } else if (lowerText.includes(keyword)) {
         return label
       }
     }
@@ -131,10 +144,21 @@ function categorizeFeature(text: string): string | null {
   return null
 }
 
-// Extract key unmet needs from signals
+// Unmet need with full quote and source URL
+interface UnmetNeed {
+  need: string
+  mentions: number
+  quote: string
+  url?: string
+  subreddit?: string
+  redditCount: number
+  appStoreCount: number
+}
+
+// Extract key unmet needs from signals with source attribution
 function extractUnmetNeeds(painSignals: PainSignal[]): {
-  high: { need: string; mentions: number; quote: string }[]
-  medium: { need: string; mentions: number; quote: string }[]
+  high: UnmetNeed[]
+  medium: UnmetNeed[]
 } {
   // Group by feature category
   const needGroups = new Map<string, { signal: PainSignal; quote: string }[]>()
@@ -159,20 +183,33 @@ function extractUnmetNeeds(painSignals: PainSignal[]): {
     needGroups.set(category, existing)
   }
 
-  // Sort and categorize
-  const high: { need: string; mentions: number; quote: string }[] = []
-  const medium: { need: string; mentions: number; quote: string }[] = []
+  // Sort and categorize with source attribution
+  const high: UnmetNeed[] = []
+  const medium: UnmetNeed[] = []
 
   needGroups.forEach((items, need) => {
     const mentions = items.length
     const highIntensityCount = items.filter(i => i.signal.intensity === 'high').length
-    // Use the most recent quote
-    const quote = items[0]?.quote || ''
+    // Use the first item's quote and source
+    const firstItem = items[0]
+    const quote = firstItem?.quote || ''
+    const url = firstItem?.signal.source?.url
+    const subreddit = firstItem?.signal.source?.subreddit
+
+    // Count sources
+    const redditCount = items.filter(i => {
+      const sub = i.signal.source?.subreddit?.toLowerCase() || ''
+      return !sub.includes('app_store') && !sub.includes('google_play')
+    }).length
+    const appStoreCount = items.filter(i => {
+      const sub = i.signal.source?.subreddit?.toLowerCase() || ''
+      return sub.includes('app_store') || sub.includes('google_play')
+    }).length
 
     if (highIntensityCount >= 2 || mentions >= 5) {
-      high.push({ need, mentions, quote: quote.slice(0, 100) })
+      high.push({ need, mentions, quote, url, subreddit, redditCount, appStoreCount })
     } else if (mentions >= 2) {
-      medium.push({ need, mentions, quote: quote.slice(0, 100) })
+      medium.push({ need, mentions, quote, url, subreddit, redditCount, appStoreCount })
     }
   })
 
@@ -278,6 +315,63 @@ function detectNicheOpportunity(painSignals: PainSignal[]): { segment: string; r
   return null
 }
 
+// Expandable quote component for unmet needs
+function ExpandableQuote({ need }: { need: UnmetNeed }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const isLong = need.quote.length > 120
+  const displayText = isExpanded || !isLong ? need.quote : need.quote.slice(0, 120) + '...'
+
+  const isAppStore = need.subreddit === 'app_store' || need.subreddit === 'google_play'
+  const sourceLabel = need.subreddit === 'google_play'
+    ? 'Google Play'
+    : need.subreddit === 'app_store'
+    ? 'App Store'
+    : need.subreddit
+    ? `r/${need.subreddit}`
+    : null
+
+  return (
+    <div className="mt-2">
+      <p className="text-xs text-muted-foreground italic">
+        &quot;{displayText}&quot;
+        {isLong && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="ml-1 text-primary hover:underline font-medium not-italic"
+          >
+            {isExpanded ? 'Show less' : 'Read more'}
+          </button>
+        )}
+      </p>
+      {/* Source link - clarify this is one example */}
+      <div className="flex items-center gap-2 mt-1.5">
+        {sourceLabel && (
+          <span className={`text-[10px] ${
+            isAppStore
+              ? need.subreddit === 'google_play'
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-blue-600 dark:text-blue-400'
+              : 'text-orange-600 dark:text-orange-400'
+          }`}>
+            {sourceLabel}
+          </span>
+        )}
+        {need.url && (
+          <a
+            href={need.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors"
+          >
+            Example source
+            <ExternalLink className="h-2.5 w-2.5" />
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function Opportunities({ appData, painSignals, painSummary, wtpQuotes }: OpportunitiesProps) {
   const { score, confidence, verdict } = calculateOpportunityScore(painSignals, painSummary, appData)
   const unmetNeeds = extractUnmetNeeds(painSignals)
@@ -331,6 +425,14 @@ export function Opportunities({ appData, painSignals, painSummary, wtpQuotes }: 
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
               Unmet Needs
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[280px]">
+                  <p>Gaps identified by analyzing user complaints and feature requests. We look for patterns like &quot;wish it had...&quot;, &quot;missing...&quot;, &quot;need...&quot; in Reddit posts and app reviews, then group by category.</p>
+                </TooltipContent>
+              </Tooltip>
             </h3>
 
             {/* High Opportunity */}
@@ -345,11 +447,20 @@ export function Opportunities({ appData, painSignals, painSummary, wtpQuotes }: 
                     <div key={i} className="p-3 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200 dark:border-red-500/20">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium">{need.need}</span>
-                        <Badge variant="outline" className="text-xs">{need.mentions}x</Badge>
+                        <Badge variant="outline" className="text-xs">{need.mentions} mentions</Badge>
                       </div>
-                      {need.quote && (
-                        <p className="text-xs text-muted-foreground italic">"{need.quote}..."</p>
-                      )}
+                      {/* Source attribution */}
+                      <p className="text-xs text-muted-foreground">
+                        Found in{' '}
+                        {need.redditCount > 0 && need.appStoreCount > 0 ? (
+                          <>{need.redditCount} Reddit {need.redditCount === 1 ? 'post' : 'posts'} + {need.appStoreCount} app {need.appStoreCount === 1 ? 'review' : 'reviews'}</>
+                        ) : need.redditCount > 0 ? (
+                          <>{need.redditCount} Reddit {need.redditCount === 1 ? 'post' : 'posts'}</>
+                        ) : (
+                          <>{need.appStoreCount} app {need.appStoreCount === 1 ? 'review' : 'reviews'}</>
+                        )}
+                      </p>
+                      {need.quote && <ExpandableQuote need={need} />}
                     </div>
                   ))}
                 </div>
@@ -368,11 +479,20 @@ export function Opportunities({ appData, painSignals, painSummary, wtpQuotes }: 
                     <div key={i} className="p-3 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200 dark:border-amber-500/20">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium">{need.need}</span>
-                        <Badge variant="outline" className="text-xs">{need.mentions}x</Badge>
+                        <Badge variant="outline" className="text-xs">{need.mentions} mentions</Badge>
                       </div>
-                      {need.quote && (
-                        <p className="text-xs text-muted-foreground italic">"{need.quote}..."</p>
-                      )}
+                      {/* Source attribution */}
+                      <p className="text-xs text-muted-foreground">
+                        Found in{' '}
+                        {need.redditCount > 0 && need.appStoreCount > 0 ? (
+                          <>{need.redditCount} Reddit {need.redditCount === 1 ? 'post' : 'posts'} + {need.appStoreCount} app {need.appStoreCount === 1 ? 'review' : 'reviews'}</>
+                        ) : need.redditCount > 0 ? (
+                          <>{need.redditCount} Reddit {need.redditCount === 1 ? 'post' : 'posts'}</>
+                        ) : (
+                          <>{need.appStoreCount} app {need.appStoreCount === 1 ? 'review' : 'reviews'}</>
+                        )}
+                      </p>
+                      {need.quote && <ExpandableQuote need={need} />}
                     </div>
                   ))}
                 </div>
@@ -394,15 +514,28 @@ export function Opportunities({ appData, painSignals, painSummary, wtpQuotes }: 
               {wtpQuotes.slice(0, 5).map((quote, i) => (
                 <div key={i} className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
                   <blockquote className="text-sm italic">"{quote.text}"</blockquote>
-                  <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1.5">
-                    {quote.subreddit === 'google_play' ? (
-                      <>📱 Google Play Review</>
-                    ) : quote.subreddit === 'app_store' ? (
-                      <>🍎 App Store Review</>
-                    ) : quote.subreddit?.startsWith('r/') || quote.subreddit?.includes('reddit') ? (
-                      <>💬 {quote.subreddit}</>
-                    ) : (
-                      <>💬 r/{quote.subreddit}</>
+                  <p className="text-sm text-muted-foreground mt-2 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      {quote.subreddit === 'google_play' ? (
+                        <>📱 Google Play Review</>
+                      ) : quote.subreddit === 'app_store' ? (
+                        <>🍎 App Store Review</>
+                      ) : quote.subreddit?.startsWith('r/') || quote.subreddit?.includes('reddit') ? (
+                        <>💬 {quote.subreddit}</>
+                      ) : (
+                        <>💬 r/{quote.subreddit}</>
+                      )}
+                    </span>
+                    {quote.url && (
+                      <a
+                        href={quote.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                      >
+                        View source
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
                     )}
                   </p>
                 </div>
@@ -419,6 +552,14 @@ export function Opportunities({ appData, painSignals, painSummary, wtpQuotes }: 
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
               If Building a Competitor
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[280px]">
+                  <p>Strategic recommendations derived from patterns in user feedback. Each recommendation shows the number of users whose feedback supports it.</p>
+                </TooltipContent>
+              </Tooltip>
             </h3>
             <div className="space-y-4">
               {recommendations.map((rec, i) => (

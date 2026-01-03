@@ -498,7 +498,7 @@ export class AppStoreAdapter implements DataSourceAdapter {
     appId: string,
     options: { limit?: number; sort?: 'helpful' | 'recent'; market?: string } = {}
   ): Promise<RedditPost[]> {
-    const { limit = 100, sort = 'helpful', market = 'us' } = options
+    const { limit = 500, sort = 'helpful', market = 'us' } = options
 
     const sortMap = {
       helpful: SORT.HELPFUL,

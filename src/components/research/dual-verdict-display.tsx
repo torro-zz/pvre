@@ -139,8 +139,8 @@ export function DualVerdictDisplay({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Two score cards side by side */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Two score cards - responsive grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Hypothesis Confidence */}
           <div className="bg-muted/30 rounded-lg p-4 space-y-3">
             <h4 className="font-medium text-sm text-center">Hypothesis Confidence</h4>

@@ -556,13 +556,13 @@ export async function POST(request: NextRequest) {
         let appReviews: RedditPost[] = []
 
         if (appData.store === 'google_play') {
-          appReviews = await googlePlayAdapter.getReviewsForAppId(appData.appId, { limit: 100 })
+          appReviews = await googlePlayAdapter.getReviewsForAppId(appData.appId, { limit: 500 })
           if (appReviews.length > 0) {
             rawPosts = [...rawPosts, ...appReviews]
             console.log(`Added ${appReviews.length} Google Play reviews for ${appData.name}`)
           }
         } else if (appData.store === 'app_store') {
-          appReviews = await appStoreAdapter.getReviewsForAppId(appData.appId, { limit: 100 })
+          appReviews = await appStoreAdapter.getReviewsForAppId(appData.appId, { limit: 500 })
           if (appReviews.length > 0) {
             rawPosts = [...rawPosts, ...appReviews]
             console.log(`Added ${appReviews.length} App Store reviews for ${appData.name}`)
@@ -696,6 +696,10 @@ export async function POST(request: NextRequest) {
       // APP GAP MODE: Clustering with app store bypass (Jan 2026)
       // For app-centric research, include ALL app store reviews in clustering
       // (Reddit signals still respect tiered thresholds)
+      //
+      // FIX (Jan 2, 2026): Reddit posts must MENTION the app name to be included.
+      // Without this, embedding similarity matches generic SaaS posts that don't
+      // discuss the specific app at all.
       // =======================================================================
       if (appData && appData.appId) {
         // Count app store signals in each tier BEFORE combining
@@ -732,8 +736,30 @@ export async function POST(request: NextRequest) {
           console.warn(`  ⚠️ WARNING: ${appStoreInRawPosts - appStoreSignalsInTiers.length} app store reviews dropped before tiering!`)
         }
 
-        // Combine: Reddit (threshold-filtered) + ALL app store (bypass threshold)
-        const redditForClustering = analysisSignals.filter(s => s.post.source === 'reddit')
+        // FIX: Filter Reddit signals to only include posts that MENTION the app name
+        // This prevents irrelevant SaaS posts from appearing in App Gap results
+        const appName = appData.name.toLowerCase()
+        // Extract core app name (e.g., "Loom" from "Loom: Screen Recorder")
+        const coreAppName = appName.split(/[:\-–—]/)[0].trim()
+        // Build word-boundary regex for the app name (avoids partial matches like "bloom" for "loom")
+        const appNameRegex = new RegExp(`\\b${coreAppName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+
+        const redditSignalsWithAppMention = analysisSignals.filter(s => {
+          if (s.post.source !== 'reddit') return false
+          const text = `${s.post.title} ${s.post.body}`.toLowerCase()
+          return appNameRegex.test(text)
+        })
+
+        const redditSignalsWithoutMention = analysisSignals.filter(s =>
+          s.post.source === 'reddit'
+        ).length - redditSignalsWithAppMention.length
+
+        console.log(`  App name filter: "${coreAppName}"`)
+        console.log(`    - Reddit with app mention: ${redditSignalsWithAppMention.length}`)
+        console.log(`    - Reddit without mention (excluded): ${redditSignalsWithoutMention}`)
+
+        // Combine: Reddit (must mention app) + ALL app store (bypass both filters)
+        const redditForClustering = redditSignalsWithAppMention
         const appStoreForClustering = appStoreSignalsInTiers // ALL app store signals
         const signalsForClustering = [...redditForClustering, ...appStoreForClustering]
 
@@ -772,6 +798,40 @@ export async function POST(request: NextRequest) {
         } else {
           console.log(`  Skipping clustering: not enough signals (${signalsForClustering.length} < 3)`)
         }
+
+        // ALSO filter the `posts` variable used for pain analysis
+        // Keep: Reddit posts WITH app mention + ALL app store reviews
+        const postsBeforeAppFilter = posts.length
+        posts = posts.filter(p => {
+          // App store reviews always pass
+          if (p.subreddit === 'app_store' || p.subreddit === 'google_play') return true
+          // Reddit posts must mention the app name
+          const text = `${p.title} ${p.body || ''}`.toLowerCase()
+          return appNameRegex.test(text)
+        })
+
+        // Also update postCoreItems and postRelatedItems to match
+        postCoreItems = postCoreItems.filter(p => {
+          if (p.subreddit === 'app_store' || p.subreddit === 'google_play') return true
+          const text = `${p.title} ${p.body || ''}`.toLowerCase()
+          return appNameRegex.test(text)
+        })
+        postRelatedItems = postRelatedItems.filter(p => {
+          if (p.subreddit === 'app_store' || p.subreddit === 'google_play') return true
+          const text = `${p.title} ${p.body || ''}`.toLowerCase()
+          return appNameRegex.test(text)
+        })
+
+        // Update filtering metrics to reflect the additional filter
+        const postsRemovedByAppFilter = postsBeforeAppFilter - posts.length
+        if (postsRemovedByAppFilter > 0) {
+          console.log(`  Pain analysis: ${postsRemovedByAppFilter} Reddit posts removed (no app mention)`)
+          console.log(`  Final posts for analysis: ${posts.length}`)
+          filteringMetrics.postsAnalyzed = posts.length
+          filteringMetrics.coreSignals = postCoreItems.length
+          filteringMetrics.relatedSignals = postRelatedItems.length
+        }
+
         console.log(`=========================================\n`)
       }
 
@@ -1043,6 +1103,54 @@ export async function POST(request: NextRequest) {
           success: false,
           signalsGained: 0,
         })
+      }
+    }
+
+    // Step 4.6: FINAL App Name Gate filter (after adaptive fetch)
+    // This ensures ALL Reddit posts (including those from adaptive fetch) are filtered in App Gap mode
+    if (appData && appData.appId) {
+      const appName = appData.name.toLowerCase()
+      const coreAppName = appName.split(/[:\-–—]/)[0].trim()
+      const appNameRegex = new RegExp(`\\b${coreAppName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+
+      const beforeCore = finalCoreItems.length
+      const beforeRelated = finalRelatedItems.length
+
+      finalCoreItems = finalCoreItems.filter(p => {
+        if (p.subreddit === 'app_store' || p.subreddit === 'google_play') return true
+        const text = `${p.title} ${p.body || ''}`.toLowerCase()
+        return appNameRegex.test(text)
+      })
+
+      finalRelatedItems = finalRelatedItems.filter(p => {
+        if (p.subreddit === 'app_store' || p.subreddit === 'google_play') return true
+        const text = `${p.title} ${p.body || ''}`.toLowerCase()
+        return appNameRegex.test(text)
+      })
+
+      const removedCore = beforeCore - finalCoreItems.length
+      const removedRelated = beforeRelated - finalRelatedItems.length
+
+      if (removedCore > 0 || removedRelated > 0) {
+        console.log(`[App Name Gate] FINAL filter removed ${removedCore} CORE + ${removedRelated} RELATED Reddit posts (no "${coreAppName}" mention)`)
+        console.log(`[App Name Gate] Final: ${finalCoreItems.length} CORE + ${finalRelatedItems.length} RELATED items for pain analysis`)
+      } else {
+        console.log(`[App Name Gate] FINAL check passed: all ${finalCoreItems.length + finalRelatedItems.length} items mention "${coreAppName}" or are app reviews`)
+      }
+
+      // Also filter comments for App Name Gate
+      const beforeComments = finalComments.length
+      finalComments = finalComments.filter(c => {
+        // App store/Google Play comments don't need filtering
+        if (c.subreddit === 'app_store' || c.subreddit === 'google_play') return true
+        // Check if comment body mentions the app name
+        const text = (c.body || '').toLowerCase()
+        return appNameRegex.test(text)
+      })
+      const removedComments = beforeComments - finalComments.length
+      if (removedComments > 0) {
+        console.log(`[App Name Gate] Removed ${removedComments} Reddit comments (no "${coreAppName}" mention)`)
+        console.log(`[App Name Gate] Final: ${finalComments.length} comments for pain analysis`)
       }
     }
 

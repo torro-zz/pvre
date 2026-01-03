@@ -548,7 +548,7 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
               ...results.painSummary,
               dataConfidence: (results.painSummary as { dataConfidence?: 'very_low' | 'low' | 'medium' | 'high' }).dataConfidence || 'medium',
               strongestSignals: (results.painSummary as { strongestSignals?: string[] }).strongestSignals || [],
-              wtpQuotes: (results.painSummary as { wtpQuotes?: { text: string; subreddit: string }[] }).wtpQuotes || [],
+              wtpQuotes: (results.painSummary as { wtpQuotes?: { text: string; subreddit: string; url?: string }[] }).wtpQuotes || [],
               temporalDistribution: (results.painSummary as { temporalDistribution?: { last30Days: number; last90Days: number; last180Days: number; older: number } }).temporalDistribution || { last30Days: 0, last90Days: 0, last180Days: 0, older: 0 },
               recencyScore: (results.painSummary as { recencyScore?: number }).recencyScore || 1.0,
             }}
@@ -564,7 +564,7 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
               }
               return (results.painSummary as { strongestSignals?: string[] }).strongestSignals?.[0]
             })()}
-            wtpQuote={(results.painSummary as { wtpQuotes?: { text: string; subreddit: string }[] }).wtpQuotes?.[0]}
+            wtpQuote={(results.painSummary as { wtpQuotes?: { text: string; subreddit: string; url?: string }[] }).wtpQuotes?.[0]}
             totalSignals={totalSignals}
             coreSignals={results.metadata.filteringMetrics?.coreSignals}
           />

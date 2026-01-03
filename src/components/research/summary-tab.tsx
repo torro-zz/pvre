@@ -27,6 +27,7 @@ import { DimensionScore, StatusLabels } from '@/lib/analysis/viability-calculato
 import { cn } from '@/lib/utils'
 import { BarChart3, Info } from 'lucide-react'
 import { DataSourceBadge } from '@/components/ui/data-source-badge'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 
 // ============================================
 // Types
@@ -238,9 +239,20 @@ function DataQualityCard({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-2xl font-bold">{totalSignals}</div>
-            <div className="text-xs text-muted-foreground">
-              {coreSignals} core, {supportingSignals} supporting
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="text-xs text-muted-foreground flex items-center gap-1 cursor-help">
+                  {coreSignals} core, {supportingSignals} supporting
+                  <Info className="h-3 w-3 opacity-60" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px]">
+                <p className="text-xs">
+                  <strong>Core:</strong> Directly match your hypothesis.
+                  <strong> Supporting:</strong> Related but indirect evidence.
+                </p>
+              </TooltipContent>
+            </Tooltip>
           </div>
           <div>
             <div className="text-2xl font-bold">{postsAnalyzed.toLocaleString()}</div>

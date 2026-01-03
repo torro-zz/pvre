@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import {
   MessageSquare,
   Smartphone,
@@ -10,6 +11,7 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SourceCoverageData } from '@/lib/utils/coverage-helpers'
@@ -53,9 +55,20 @@ export function SearchCoverageSection({
         <div className="flex items-center gap-3 text-sm">
           <span className="font-medium text-muted-foreground">Sources Covered:</span>
           <span className="text-foreground">{sourceNames}</span>
-          <Badge variant="secondary" className="font-mono text-xs">
-            {totalSignals} signals ({totalCoreSignals} core)
-          </Badge>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="secondary" className="font-mono text-xs cursor-help">
+                {totalSignals} signals ({totalCoreSignals} core)
+                <Info className="h-3 w-3 ml-1 opacity-60" />
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[280px]">
+              <p className="text-xs">
+                <strong>Core signals</strong> directly match your hypothesis.
+                <strong> Supporting signals</strong> are related but indirect evidence.
+              </p>
+            </TooltipContent>
+          </Tooltip>
         </div>
         <span className="h-6 w-6 flex items-center justify-center text-muted-foreground">
           {isExpanded ? (

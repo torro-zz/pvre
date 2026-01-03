@@ -357,7 +357,7 @@ export interface PainSummary {
   // Transparency metrics
   dataConfidence: 'very_low' | 'low' | 'medium' | 'high'
   strongestSignals: string[]
-  wtpQuotes: { text: string; subreddit: string }[]
+  wtpQuotes: { text: string; subreddit: string; url?: string }[]
   // v3.0: Temporal distribution for recency awareness
   temporalDistribution: {
     last30Days: number
@@ -1048,7 +1048,7 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
 
   const subredditCounts: Record<string, number> = {}
   const signalCounts: Record<string, number> = {}
-  const wtpQuotes: { text: string; subreddit: string }[] = []
+  const wtpQuotes: { text: string; subreddit: string; url?: string }[] = []
   const emotionCounts: EmotionsBreakdown = { ...emptyEmotions }
 
   let totalScore = 0
@@ -1078,12 +1078,27 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
     if (signal.solutionSeeking) solutionCount++
     if (signal.willingnessToPaySignal) {
       wtpCount++
-      // Collect WTP quotes for display
-      if (wtpQuotes.length < 5) {
-        wtpQuotes.push({
-          text: signal.text.slice(0, 200) + (signal.text.length > 200 ? '...' : ''),
-          subreddit: signal.source.subreddit,
-        })
+      // Collect WTP quotes for display - only include high/medium confidence
+      // and require explicit payment language to avoid showing bug reports or praise
+      if (wtpQuotes.length < 5 && (signal.wtpConfidence === 'high' || signal.wtpConfidence === 'medium')) {
+        // v6.0: Validate quote contains actual payment-intent keywords, not just financial discussion
+        const lowerText = signal.text.toLowerCase()
+        const hasExplicitPaymentIntent =
+          lowerText.includes('pay') ||
+          lowerText.includes('buy') ||
+          lowerText.includes('purchase') ||
+          lowerText.includes('worth') ||
+          lowerText.includes('money') ||
+          lowerText.includes('invest') ||
+          lowerText.includes('cost')
+
+        if (hasExplicitPaymentIntent) {
+          wtpQuotes.push({
+            text: signal.text.slice(0, 200) + (signal.text.length > 200 ? '...' : ''),
+            subreddit: signal.source.subreddit,
+            url: signal.source.url,
+          })
+        }
       }
     }
 

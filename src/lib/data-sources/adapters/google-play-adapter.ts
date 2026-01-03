@@ -442,7 +442,7 @@ export class GooglePlayAdapter implements DataSourceAdapter {
     appId: string,
     options: { limit?: number; sort?: 'helpfulness' | 'newest' | 'rating' } = {}
   ): Promise<RedditPost[]> {
-    const { limit = 100, sort = 'helpfulness' } = options
+    const { limit = 500, sort = 'helpfulness' } = options
 
     const sortMap = {
       helpfulness: SORT.HELPFULNESS,
@@ -501,7 +501,7 @@ export class GooglePlayAdapter implements DataSourceAdapter {
     keywords: string[],
     options: { limit?: number } = {}
   ): Promise<RedditPost[]> {
-    const { limit = 100 } = options
+    const { limit = 500 } = options
     const query = keywords.join(' ')
 
     try {
