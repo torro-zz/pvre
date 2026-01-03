@@ -1,5 +1,113 @@
 # PVRE - Claude Code Instructions
 
+**This file is read by Claude Code at the start of every session.**
+**These rules are MANDATORY for all code changes.**
+
+*Last updated: January 3, 2026*
+
+---
+
+## 🔴 BEFORE ANY CODE CHANGE
+
+### Step 1: Read the Architecture
+Before modifying ANY file, read these docs:
+1. `docs/SYSTEM_DOCUMENTATION.md` — Section 18 (Mode-Specific Code Paths)
+2. `docs/KNOWN_ISSUES.md` — Check if issue is already fixed or in progress
+
+### Step 2: Identify Affected Modules
+Use the Module Registry in Section 18.1 to identify:
+- Which module(s) you're modifying
+- What MODE they operate in (Hypothesis / App Gap / Both)
+- What other modules DEPEND on them
+- What modules they DEPEND on
+
+### Step 3: State Your Intent
+Before writing code, state:
+```
+I am modifying: [MODULE-ID] ([Module Name])
+Mode: [Hypothesis / App Gap / Both]
+Dependencies affected: [list]
+Consumers affected: [list]
+```
+
+---
+
+## 🟡 DUAL-MODE ARCHITECTURE
+
+PVRE has TWO modes that share some code but not all:
+
+| Mode | Trigger | Primary Data | Reddit Handling |
+|------|---------|--------------|-----------------|
+| **Hypothesis** | User types problem statement | Reddit + App Stores | Embedding filter only |
+| **App Gap** | User selects app from store | App Store reviews | App Name Gate filter required |
+
+**CRITICAL:** If you're changing a module marked as "Both", your change affects BOTH modes. Test both.
+
+### File Ownership
+Each module has ONE primary file. Don't scatter logic across files:
+
+| Module | Primary File | Don't Put Logic In |
+|--------|--------------|-------------------|
+| Pain Detection | `pain-detector.ts` | route.ts, display components |
+| WTP Detection | `pain-detector.ts` | route.ts, display components |
+| Theme Extraction | `theme-extractor.ts` | pain-detector.ts |
+| Categorization | `opportunities.tsx` | user-feedback.tsx |
+| App Name Gate | `community-voice/route.ts` | adapters |
+
+### Module ID Format
+
+| Prefix | Type | Example |
+|--------|------|---------|
+| ADAPT- | Data Source Adapter | ADAPT-001 (Reddit) |
+| FILT- | Filter/Gate | FILT-002 (App Name Gate) |
+| ANAL- | Analysis Module | ANAL-001 (Pain Detector) |
+| CALC- | Calculator/Scorer | CALC-001 (Viability) |
+| DISP- | Display Component | DISP-001 (Opportunities) |
+| ROUTE- | API Route | ROUTE-001 (Community Voice) |
+
+---
+
+## 🟢 BEFORE CLOSING ANY ISSUE
+
+### Pre-Commit Checklist
+
+**ALL changes require:**
+
+- [ ] **Build passes:** `npm run build` completes without errors
+- [ ] **Tests pass:** `npm run test:run` passes (128+ tests)
+
+- [ ] **Hypothesis Mode Test:**
+  - Run search: "Remote workers who need better async communication"
+  - Verify: Reddit signals are relevant to the hypothesis
+  - Verify: Scores display correctly (no undefined)
+
+- [ ] **App Gap Mode Test:**
+  - Run search: Loom App Store URL or similar
+  - Verify: App Store reviews are all about the app (100% relevant)
+  - Verify: Reddit signals mention app name (or 0 if none found)
+  - Verify: Categories make sense (no "Ads" for ad-free apps)
+
+- [ ] **Score Consistency Test:**
+  - Verify: Verdict score same in Hero and Verdict tab
+  - Verify: No "undefined" values in any display
+
+- [ ] **Architecture Updated:**
+  - If you added a module → Added to Module Registry
+  - If you changed module behavior → Updated its specification
+  - If you fixed a bug → Documented the fix in KNOWN_ISSUES.md
+
+---
+
+## 🚫 NEVER DO THESE THINGS
+
+1. **Never bypass filters** — If a filter exists (like App Name Gate), ALL code paths must go through it
+2. **Never add parallel code paths** — If there's one way to add signals, don't create another
+3. **Never change shared modules without testing both modes**
+4. **Never close an issue without running the checklist**
+5. **Never guess what a module does** — Read the spec in Section 18
+
+---
+
 ## Behavior Guidelines
 
 ### Code Changes
@@ -97,6 +205,137 @@ When reviewing research output quality:
 
 ---
 
+## 📁 Key File Locations
+
+### Configuration
+- Architecture: `docs/SYSTEM_DOCUMENTATION.md` (Section 18)
+- Known Issues: `docs/KNOWN_ISSUES.md`
+- This file: `CLAUDE.md`
+
+### Data Sources (Adapters)
+- Reddit: `src/lib/data-sources/arctic-shift.ts`
+- App Store: `src/lib/data-sources/adapters/app-store-adapter.ts`
+- Google Play: `src/lib/data-sources/adapters/google-play-adapter.ts`
+- Hacker News: `src/lib/data-sources/adapters/hacker-news-adapter.ts`
+
+### Analysis Pipeline
+- Pain Detection: `src/lib/analysis/pain-detector.ts`
+- Theme Extraction: `src/lib/analysis/theme-extractor.ts`
+- Market Sizing: `src/lib/analysis/market-sizing.ts`
+- Timing Analysis: `src/lib/analysis/timing-analyzer.ts`
+- Viability Calculator: `src/lib/analysis/viability-calculator.ts`
+
+### Filtering
+- Relevance Filter: `src/lib/research/relevance-filter.ts`
+- Embedding Service: `src/lib/embeddings/embedding-service.ts`
+- App Name Gate: `src/app/api/research/community-voice/route.ts` (lines 1109-1154)
+
+### API Routes
+- Main Research: `src/app/api/research/community-voice/route.ts`
+- Coverage Check: `src/app/api/research/coverage-check/route.ts`
+- Competitor Analysis: `src/app/api/research/competitor/route.ts`
+
+### Display Components
+- Results Layout: `src/components/research/layouts/tabbed-view.tsx`
+- Opportunities/Gaps: `src/components/research/opportunities.tsx`
+- User Feedback: `src/components/research/user-feedback.tsx`
+- Verdict Display: `src/components/research/viability-verdict.tsx`
+- Verdict Hero: `src/components/research/verdict-hero.tsx`
+
+### Database
+- Types: `src/types/supabase.ts`
+- Save Utility: `src/lib/research/save-result.ts`
+
+---
+
+## 🔧 Common Tasks
+
+### "Fix a bug in App Gap mode"
+1. Read Section 18 — find which module is affected
+2. Check if the module is App Gap only or Both
+3. If Both, test Hypothesis mode too after fix
+4. Update KNOWN_ISSUES.md with the fix
+5. Run full checklist
+
+### "Add a new data source"
+1. Create adapter in `src/lib/data-sources/adapters/`
+2. Assign Module ID (ADAPT-XXX)
+3. Add to Module Registry
+4. Write full specification
+5. Document which mode(s) it supports
+6. Integrate into `community-voice/route.ts`
+7. Ensure filters apply to new source
+
+### "Change how signals are categorized"
+1. Read DISP-001 spec in Section 18
+2. Modify ONLY `opportunities.tsx`
+3. Test with multiple apps (ad-supported AND ad-free)
+4. Verify categories make sense in context
+5. Update keyword documentation if changed
+
+### "Fix scoring/verdict issues"
+1. Read CALC-001 spec
+2. Check if issue is in calculation or display
+3. If display, check DISP-002 (Verdict Display)
+4. Verify score consistency across tabs
+5. Test both modes
+
+### "Document a new/updated module"
+When adding or significantly changing a module, update its specification in Section 18.
+
+**Template format:**
+```markdown
+### [MODULE-ID]: [Name]
+
+**Purpose:** [One sentence description]
+
+**Mode:** [Hypothesis / App Gap / Both]
+
+**File:** `[path/to/file.ts]`
+
+**Inputs:**
+- `inputName`: Description of input
+- `anotherInput`: Description
+
+**Outputs:**
+- `outputName`: Description of output
+
+**Dependencies:**
+- [MODULE-ID] ([Name]) — what it provides
+
+**Used By:**
+- [MODULE-ID] ([Name]) — how it uses this module's output
+
+**Logic:**
+1. Step one
+2. Step two
+3. Step three
+
+**Known Issues:**
+- [List any current bugs or limitations, or "None"]
+```
+
+**Process:**
+1. Read the actual code for the module
+2. Trace inputs and outputs
+3. Identify dependencies (what it calls)
+4. Identify consumers (what calls it)
+5. Document the logic steps
+6. Note any bugs discovered
+
+**Documented modules (Section 18):**
+- ROUTE-001 (18.5) — Main orchestrator flow
+- ANAL-001 (18.6) — Pain detection scoring
+- ANAL-002 (18.7) — WTP detection (known issues)
+- ANAL-003 (18.8) — Theme extraction (known issues)
+- FILT-001 (18.9) — Tiered filter thresholds
+- FILT-002 (18.3) — App Name Gate
+- DISP-001 (18.10) — Categorization keywords
+- ADAPT-001 (18.11) — Reddit adapter
+- ADAPT-002 (18.12) — App Store adapter
+
+---
+
 ## Quick Start Testing
 
 ### Dev Authentication
@@ -104,7 +343,7 @@ When reviewing research output quality:
 # Authenticate as test user
 curl -X POST http://localhost:3000/api/dev/login -c /tmp/cookies.txt
 
-# Check auth status  
+# Check auth status
 curl http://localhost:3000/api/dev/login -b /tmp/cookies.txt
 ```
 
@@ -136,14 +375,6 @@ await mcp__playwright__browser_screenshot()
 ---
 
 ## Architecture Quick Reference
-
-### Key Paths
-```
-src/app/api/research/community-voice/  → Main research endpoint + relevance filter
-src/lib/research/save-result.ts        → Database save utility (use this!)
-src/lib/analysis/                      → Pain detection, market sizing, timing
-src/types/supabase.ts                  → Generated DB types (regenerate after schema changes)
-```
 
 ### Database Tables
 | Table | Purpose |
@@ -233,30 +464,6 @@ All agents share knowledge through `docs/agent-learnings.md`:
 2. **Agents write discoveries** — When something important is found, it's added to the file
 3. **Learner synthesizes** — Periodically identifies patterns and proposes agent updates
 
-```
-┌─────────────┐   ┌─────────────┐   ┌─────────────┐
-│ output-     │   │ flow-       │   │ code-       │
-│ quality     │   │ tester      │   │ hardener    │
-└──────┬──────┘   └──────┬──────┘   └──────┬──────┘
-       │                 │                 │
-       └────── WRITE ────┼────── WRITE ────┘
-                         │
-                         ▼
-            ┌────────────────────────┐
-            │  docs/agent-learnings.md │
-            │                        │
-            │  [All agents READ this │
-            │   before starting]     │
-            └────────────────────────┘
-                         │
-                         ▼
-            ┌────────────────────────┐
-            │      learner agent     │
-            │  (synthesizes patterns │
-            │   & updates agents)    │
-            └────────────────────────┘
-```
-
 ### Deploying Agents
 
 CC should proactively use agents when:
@@ -302,6 +509,13 @@ All agents check for the **64% relevance issue** — the critical quality metric
 ## Implementation Status
 
 **MVP: ~99% complete.** See `docs/SYSTEM_DOCUMENTATION.md` for full status.
+
+### Recent (Jan 3, 2026)
+- Fixed App Name Gate bypass for posts AND comments
+- Added Section 18 to SYSTEM_DOCUMENTATION.md (Mode-Specific Code Paths)
+- Module Registry with 14 modules documented
+- Added full specifications for 8 HIGH priority modules (18.5-18.12)
+- Documented known issues: WTP detecting regret, theme metadata undefined
 
 ### Recent (Dec 1-2, 2025)
 - Research resilience: browser warning, error tracking, auto-refund
@@ -368,6 +582,15 @@ STRIPE_WEBHOOK_SECRET
 | `docs/SYSTEM_DOCUMENTATION.md` | Architecture, features, APIs |
 | `docs/KNOWN_ISSUES.md` | Bugs, fixes, backlog changes |
 | `docs/RESUME_HERE.md` | Session handoffs (use `/goodnight`) |
+
+---
+
+## 📝 Updating This File
+
+If you discover a new rule or common mistake:
+1. Add it to the appropriate section
+2. Include the date and context
+3. Reference the issue that prompted the rule
 
 ---
 

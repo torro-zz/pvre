@@ -1,306 +1,238 @@
 # Known Issues
 
-Last updated: January 2, 2026
+Last updated: January 3, 2026
 
 Technical issues and bugs that need fixing. For strategic features and roadmap, see `IMPLEMENTATION_PLAN.md`.
+
+---
+
+## 🔴 CRITICAL — Data Quality Bugs
+
+### "Ads & Interruptions" Category Matching Wrong Context
+**Status:** Open — January 2, 2026
+**Impact:** Non-ad apps show "Ads" category with irrelevant content.
+
+**Problem:** The word "interruption" triggers "Ads & Interruptions" category, but in Loom reviews it means:
+- Technical interruptions (recording stops)
+- Workflow interruptions (app crashes)
+
+**Evidence from Loom export:**
+
+Review #5 (categorized as "Ads & Interruptions"):
+> "all it did was chop off my recordings in the middle of my sessions. It got annoying and when I would actually finish without any **interruptions**, my recording would mute"
+
+This is about **technical issues**, not advertising.
+
+**Solution:** 
+1. Remove "interruption" from Ads category keywords
+2. Rename to just "Ads" or "Advertising"
+3. Keep only: ads*, "too many ads", "remove ads", advertisement, commercial
+
+**File to fix:** `src/components/research/opportunities.tsx` (categorizeFeature function, line ~107-143)
+
+**Estimated effort:** 5 minutes
+
+---
+
+### Theme Analysis Metadata All Undefined
+**Status:** Open — January 2, 2026
+**Impact:** Theme section shows broken data, undermines trust.
+
+**Problem:** All themes in export show:
+```
+- Signal Count: undefined
+- Pain Intensity: undefined
+- WTP Confidence: undefined
+```
+
+**Solution:** Trace theme generation pipeline:
+1. Find where themes are created (likely `theme-extractor.ts` or `pain-detector.ts`)
+2. Check if `signalCount`, `painIntensity`, `wtpConfidence` fields are being populated
+3. Fix the mapping between theme extraction and display
+
+**Files to investigate:** 
+- `src/lib/analysis/theme-extractor.ts`
+- `src/lib/analysis/pain-detector.ts`
+- Theme display component in results
+
+**Estimated effort:** 30-60 minutes
+
+---
+
+### WTP Signals Show Purchase Regret, Not Purchase Intent
+**Status:** Open — January 2, 2026
+**Impact:** WTP metric misleads users about monetization potential.
+
+**Problem:** WTP signals are supposed to indicate people would PAY for an alternative. But signals marked as WTP are actually:
+
+**Example (marked as `WTP Confidence: medium`):**
+> "I just upgraded to the paid version... now I'm debating if that was worth the investment - I seriously feel like I should get my money back"
+
+This is **purchase regret** about the EXISTING app, not willingness to pay for an ALTERNATIVE.
+
+**What WTP should capture:**
+- "I'd pay $X for something that does Y better"
+- "I switched to [competitor] because it was worth the money"
+- "Would gladly pay for a version without [problem]"
+
+**Solution:** WTP detection needs CONTEXT:
+1. Check for negative sentiment + payment keywords = REGRET (exclude)
+2. Check for future/conditional tense = INTENT (include)
+3. For App Gap mode: exclude statements about the app being analyzed
+
+**File to fix:** `src/lib/analysis/pain-detector.ts` (WTP detection logic)
+
+**Estimated effort:** 1-2 hours
+
+---
+
+## Recently Closed (January 3, 2026)
+
+### ✅ CLOSED: Complete Module Specifications (HIGH Priority)
+**Status:** Completed — January 3, 2026
+**Resolution:** Added 8 HIGH priority module specifications to Section 18 of SYSTEM_DOCUMENTATION.md.
+
+**Modules documented:**
+- ROUTE-001: Community Voice Route (18.5) — main orchestrator with full step-by-step flow
+- ANAL-001: Pain Detector (18.6) — keyword tiers, scoring logic
+- ANAL-002: WTP Detector (18.7) — current logic + known issues (detecting regret not intent)
+- ANAL-003: Theme Extractor (18.8) — Claude synthesis + known issues (undefined metadata)
+- FILT-001: Tiered Filter (18.9) — thresholds, source weights
+- DISP-001: Opportunities Display (18.10) — full category keywords list
+- ADAPT-001: Reddit Adapter (18.11) — adaptive time-stratified fetching
+- ADAPT-002: App Store Adapter (18.12) — pagination, IAP detection
+
+**Remaining (MEDIUM/LOW priority):**
+- ADAPT-003: Google Play Adapter
+- CALC-001: Viability Calculator
+- CALC-002: Market Sizer
+- CALC-003: Timing Analyzer
+- DISP-002: Verdict Display
+
+---
+
+### ✅ CLOSED: App Gap Mode Shows Irrelevant Reddit Posts
+**Status:** Fixed — January 3, 2026
+**Resolution:** Added App Name Gate filter for BOTH posts AND comments.
+
+**Root Cause:** Two bypasses in `community-voice/route.ts`:
+1. Adaptive fetch bypass — posts added via adaptive fetch were not filtered
+2. Comment bypass — `finalComments` was never filtered
+
+**Fix Applied (lines 1109-1154):**
+- Added "Step 4.6: FINAL App Name Gate filter"
+- Filters `finalCoreItems`, `finalRelatedItems`, AND `finalComments`
+- App Store/Google Play reviews always kept
+
+**Verification:**
+- Before: 26 Reddit signals, 0 mentioned "Loom"
+- After: 0 Reddit signals (correctly filtered)
+- App Store signals: 23 (unaffected)
+
+---
+
+### ✅ CLOSED: Architecture Documentation Section 18
+**Status:** Completed (Partial) — January 3, 2026
+**Resolution:** Added Section 18 to SYSTEM_DOCUMENTATION.md with:
+- Module Registry (14 modules with IDs, paths, modes)
+- Data Flow Diagrams (ASCII for both modes)
+- FILT-002 App Name Gate specification (full detail)
+- DISP-001 Categorization keywords (partial)
+- Mode Boundary Rules
+- Pre-Fix Testing Checklist
+
+**Remaining:** Full specifications for other 13 modules (tracked above)
 
 ---
 
 ## Recently Closed (January 2, 2026)
 
 ### ✅ CLOSED: Two-Step Analysis Flow Causing Score Changes
-**Status:** Fixed — January 2, 2026
-**Resolution:** Automated competitor analysis into single unified flow. Verdict now includes competition score from the start. No more "numbers changed" confusion.
-
-**Files modified:**
-- `src/lib/research/known-competitors.ts` (new)
-- `src/lib/research/competitor-analyzer.ts` (new)
-- `src/app/api/research/community-voice/route.ts`
-- UI components (removed CompetitorPromptModal, added refinement mode)
-
----
+**Resolution:** Automated competitor analysis into single unified flow.
 
 ### ✅ CLOSED: Verdict Score Inconsistent Across Tabs
-**Status:** Fixed — January 2, 2026
-**Resolution:** With automated competitor flow, verdict now shows consistent score (5.0/10) across Hero and Verdict tab. Root cause was displaying incomplete verdict before competition analysis.
-
----
+**Resolution:** With automated competitor flow, verdict now shows consistent score.
 
 ### ✅ CLOSED: Market Score 7-Point Gap (9.3 vs 2.2)
-**Status:** Not a bug — January 2, 2026
-**Resolution:** These are intentionally different metrics:
-- Two-Axis "Market Opportunity": 9.0 (raw score)
-- Score Breakdown: 2.2 (adjusted, with note "adjusted from 9.0")
-
-The UI already explains this. No fix needed.
-
----
+**Resolution:** Not a bug — different metrics, UI explains the difference.
 
 ### ✅ CLOSED: Competitor Classification Misclassifying High-Threat Competitors
-**Status:** Fixed — January 2, 2026
-**Resolution:** Classification logic now checks threat level FIRST before keyword matching. Microsoft Teams, Discord, Google Chat now correctly show as Direct Competitors for Slack.
-
-**File modified:** `src/components/research/competitor-results.tsx:139-149`
-
----
+**Resolution:** Classification logic now checks threat level FIRST.
 
 ### ✅ CLOSED: Analyzed App Appears in Own Competitor List
-**Status:** Fixed — January 2, 2026
-**Resolution:** Added filtering in `competitor-results.tsx` to exclude the analyzed app from:
-- Categorized competitors (direct, platform, adjacent)
-- Comparison matrix
+**Resolution:** Added filtering to exclude analyzed app.
 
-Uses case-insensitive matching against hypothesis.
+### ✅ CLOSED: App Store Review Count Mismatch (39,668 → 16)
+**Resolution:** Transparent messaging about pipeline (now 500 reviews).
 
-**File modified:** `src/components/research/competitor-results.tsx:191-235`
+### ✅ CLOSED: Same Comment in Multiple Categories
+**Resolution:** Deduplication with "Also in:" tags.
 
----
-
-## Critical — Score Calculation Pipeline
-
-### Timing Score Minor Mismatch (8.2 vs 8.4)
-**Status:** Open — January 2, 2026 — **LOW PRIORITY**
-**Impact:** Minor — 0.2 difference is not trust-breaking.
-
-**Problem:** Timing shows 8.2 in Hero/Score Breakdown but 8.4 in Two-Axis Assessment.
-
-**Solution:** Likely rounding difference. Investigate only if users report confusion. Not blocking launch.
+### ✅ CLOSED: UI Polish Items (Batch)
+- "45x" → "45 mentions"
+- SAM notation → human-readable
+- Hero vs Verdict contradiction → checks dealbreakers
+- Core vs Supporting → tooltips added
+- Source links → "View source" on quotes
+- Verdict redesign Parts 1-3
+- Methodology tooltips
+- Community Discussions → moved up
+- Source badges → colored by type
 
 ---
 
-### "3.5 WTP Found" — Fractional Signal Count
-**Status:** Needs Reproduction — January 2, 2026
-**Impact:** Users don't understand what 0.5 of a signal means.
+## Medium Priority — Architecture
 
-**Problem:** WTP count displays as "3.5" or similar fractional values. Signals should be integers.
+### App Store-First Architecture for App Gap Mode
+**Status:** Phase 1 Complete — January 2, 2026
 
-**Investigation (Jan 2):** Database audit shows all recent WTP counts are integers (3, 3, 3, 9, 7, 5, 8, 28, 5, 5). Display code correctly uses `decimals=0` for integer values. Issue may have been edge case or already fixed. Re-open if reproduced.
+**Completed:**
+- ✅ Phase 1: Increased review limit 100 → 500
 
-**Solution:** If reproduced, check WTP calculation — likely averaging or weighting producing decimals.
-
----
-
-## High Priority — Data Display Bugs
-
-### App Store Review Count Mismatch (39,668 → 16)
-**Status:** Open — January 2, 2026
-**Impact:** Users expect analysis of available reviews; getting <0.1% analyzed feels broken.
-
-**Problem:** App tab shows Slack has 39,668 reviews. Feedback tab says "Insights from 16 app store reviews." Where are the other 39,652?
-
-**Solution:** Investigate app store fetch API — is it returning only 16? Or is relevance filter dropping them? App store reviews should bypass relevance filter entirely.
+**Remaining:**
+- Phase 2: Add dedicated Google Play Store adapter
+- Phase 3: Embedding-based categorization (replace keyword matching)
+- Phase 4: Reddit as secondary source only (for WTP/competitor intel)
 
 ---
 
-### Same Comment Appears in Multiple Categories
-**Status:** Open — January 2, 2026
-**Impact:** Users think they're seeing duplicate data; inflates apparent evidence.
+## Medium Priority — UI Redesign
 
-**Problem:** Identical review text appears under "Ads & Interruptions," "Performance & Bugs," AND "Missing Features."
+### Verdict Page Has Too Many Score Constructs
+**Status:** Partially Complete — January 2, 2026
 
-**Solution:** Either deduplicate (show each review once in primary category) or add visual indicator "Also tagged: Bugs, Features" without repeating full text.
+**Completed:**
+- ✅ Part 1: VerdictHero component
+- ✅ Part 2: Collapsible details
+- ✅ Part 3: Responsive CSS grid
 
----
-
-### Sources Header Ignores App Store
-**Status:** Open — January 2, 2026
-**Impact:** Header misrepresents data sources used.
-
-**Problem:** In App Gap mode, header shows "Sources Covered: Reddit 112 signals (90 core)" but doesn't mention App Store reviews at all.
-
-**Solution:** Update header to show "Reddit: 112 signals | App Store: 16 reviews" or similar.
+**Remaining (Deferred):**
+- Part 4: User preference toggle (needs DB change)
 
 ---
 
-### Truncated Comments Not Expandable
-**Status:** Open — January 2, 2026
-**Impact:** Users cannot read full evidence; unverifiable claims.
-
-**Problem:** Comments in Unmet Needs and WTP sections are truncated. Clicking "Read more" doesn't reveal full text.
-
-**Solution:** Fix click handler to expand full comment text.
-
----
-
-### "45x" Label Undefined
-**Status:** Open — January 2, 2026
-**Impact:** Users don't know what metric they're seeing.
-
-**Problem:** A "45x" badge appears next to "Ad-free experience" unmet need. Undefined what it means.
-
-**Solution:** Define clearly in UI: "45 mentions" or add tooltip explaining the metric.
-
----
-
-## High Priority — Transparency / Traceability
-
-### No Links to Original Sources
-**Status:** Open — January 2, 2026
-**Impact:** Evidence is unverifiable; users cannot fact-check.
-
-**Problem:** WTP signals, pain quotes, and Reddit comments have no links to original posts.
-
-**Solution:** Store and display source URLs. Add "View on Reddit ↗" or "View in App Store ↗" links.
-
----
-
-### Hover-Only Definitions for Core vs Supporting
-**Status:** Open — January 2, 2026
-**Impact:** Key terminology unexplained; users confused by "90 core" without context.
-
-**Problem:** "112 signals (90 core)" only explains what "core" vs "supporting" means on hover.
-
-**Solution:** Add inline explanation or info icon with persistent tooltip.
-
----
-
-### How Feedback Generates Gaps is Opaque
-**Status:** Open — January 2, 2026
-**Impact:** Users don't trust AI recommendations without methodology.
-
-**Problem:** Gaps tab shows opportunities but doesn't explain how user feedback was analyzed to produce them.
-
-**Solution:** Add "Based on X reviews mentioning..." attribution to each gap. Clustering implementation should help here.
-
----
-
-### Opportunities/Positioning Methodology Hidden
-**Status:** Open — January 2, 2026
-**Impact:** Recommendations feel like AI speculation rather than data-driven insights.
-
-**Problem:** Positioning strategies appear without explaining what data supports them.
-
-**Solution:** Add provenance: "Based on 23 users requesting simpler workflows..."
-
----
-
-### Market Figures (TAM/SAM) Methodology Unclear
-**Status:** Open — January 2, 2026
-**Impact:** Users don't know how to interpret AI estimates.
-
-**Problem:** TAM/SAM labeled "FERMI ESTIMATE" but calculation methodology not shown.
-
-**Solution:** Add expandable section showing Fermi calculation steps.
-
----
-
-## High Priority — Logic / Accuracy Bugs
-
-### "Ad-free Experience" as Top Unmet Need (45x)
-**Status:** Open — January 2, 2026
-**Impact:** Signal from wrong context polluting results.
-
-**Problem:** "Ad-free experience" shows as #1 opportunity for Slack. But Slack doesn't have ads.
-
-**Solution:** Tighten relevance filtering for App Gap mode.
-
----
-
-### WTP Signals Aren't Actually WTP
-**Status:** Open — January 2, 2026
-**Impact:** False confidence in monetization potential.
-
-**Problem:** "Willingness to Pay Signals" section shows bug reports and praise, not purchase intent.
-
-**Solution:** WTP detection needs to verify: (1) statement is about paying, (2) for something solving the hypothesis problem, (3) not about the app being analyzed.
-
----
-
-### Velocity "0 Prior" = Statistically Meaningless
-**Status:** Open — January 2, 2026
-**Impact:** Misleading trend data; infinite growth from zero baseline.
-
-**Problem:** Discussion velocity calculates massive percentage growth from 0 baseline.
-
-**Solution:** When prior period is 0-4 posts, show "Insufficient baseline data" instead of percentage.
-
----
+## Low Priority — Logic / Accuracy
 
 ### Entry Difficulty Still Potentially Underestimated
-**Status:** Open — January 2, 2026 — **MONITOR**
+**Status:** Open — MONITOR
 **Impact:** May mislead users about effort required.
 
-**Problem:** Entry difficulty now shows 5.0-5.5/10 "Moderate barrier" for Slack competitor. Better than before (was 4.0 "Low barrier") but still may underestimate real difficulty.
+### Timing Score Minor Mismatch (8.2 vs 8.4)
+**Status:** Open — LOW PRIORITY
+**Impact:** 0.2 difference, not trust-breaking.
 
-**Solution:** Monitor user feedback. Consider adding factors: competitor funding, technical complexity, network effects.
-
----
-
-## Medium Priority — UI/UX Confusion
-
-### Verdict Tab Has Too Many Score Constructs
-**Status:** Open — January 2, 2026
-**Impact:** Information overload; users don't know which number to trust.
-
-**Problem:** Verdict tab displays: Viability Verdict, Market Opportunity, Hypothesis Confidence, Score Breakdown, Two-Axis Assessment.
-
-**Solution:** Consolidate into single clear verdict with supporting breakdown.
-
----
-
-### "Proceed with Confidence" vs "Dealbreakers Detected"
-**Status:** Open — January 2, 2026
-**Impact:** Contradictory guidance on same research.
-
-**Problem:** Hero shows "Proceed with Confidence" while Verdict tab shows "Dealbreakers Detected."
-
-**Solution:** Hero message should reflect verdict, not just signal count.
-
----
-
-### SAM Notation Confusing (105000-195000K)
-**Status:** Open — January 2, 2026
-**Impact:** Users can't interpret market size correctly.
-
-**Problem:** Notation mixes K and raw numbers inconsistently.
-
-**Solution:** Standardize notation: always use "150M" format.
-
----
-
-### Community Discussions Section Buried
-**Status:** Open — January 2, 2026
-**Impact:** Users miss valuable Reddit data.
-
-**Problem:** Community Discussions section is below 5 expandable app store categories.
-
-**Solution:** Move higher or add count badge to draw attention.
-
----
-
-### Reddit vs App Store Sources Not Visually Distinct
-**Status:** Open — January 2, 2026
-**Impact:** Users can't tell provenance of evidence at a glance.
-
-**Problem:** App Store reviews and Reddit comments look similar in the UI.
-
-**Solution:** Add distinct visual treatment: colored border or source icon.
+### "3.5 WTP Found" — Fractional Signal Count
+**Status:** Needs Reproduction
+**Impact:** Database audit shows integers. May be fixed.
 
 ---
 
 ## Existing Open Items
 
-### Connect Help Button to Canny
-**Status:** Open — Deferred
-**Impact:** Help button non-functional.
-
----
-
-### Clarify Purpose of API Keys
-**Status:** Open
-**Impact:** Feature purpose unclear.
-
----
-
-### Investigate Two-Panel Section
-**Status:** Open
-**Impact:** Layout expectations unclear.
-
----
-
-### Redesign Research Page Layout
-**Status:** Partial
-**Impact:** Inefficient use of screen space. Goal is bento grid layout.
+- Connect Help Button to Canny (Deferred)
+- Clarify Purpose of API Keys
+- Investigate Two-Panel Section
+- Redesign Research Page Layout (Partial)
 
 ---
 
@@ -308,9 +240,7 @@ Uses case-insensitive matching against hypothesis.
 
 ### Credit System Reconsideration
 **Status:** Needs Discussion
-
 Options: Fuel model, subscription tiers, hybrid, query limits.
-**Decision deferred** — revisit when usage patterns are clearer.
 
 ---
 
@@ -327,13 +257,8 @@ Options: Fuel model, subscription tiers, hybrid, query limits.
 
 ## Non-Blocking Technical Issues
 
-### Embedding Cache Errors
-- **Impact:** None - embeddings still work
-- **Priority:** Low
-
-### 414 Request-URI Too Large
-- **Impact:** None - falls back to computing embeddings
-- **Priority:** Low
+- Embedding Cache Errors (Low)
+- 414 Request-URI Too Large (Low)
 
 ---
 
@@ -342,30 +267,28 @@ Options: Fuel model, subscription tiers, hybrid, query limits.
 **Key files:**
 - Score calculation: `viability-calculator.ts`
 - Data fetching: `fetch-research-data.ts`
-- Competitor analysis: `competitor-analyzer.ts` (new)
-- Known competitors: `known-competitors.ts` (new)
+- Competitor analysis: `competitor-analyzer.ts`
+- Known competitors: `known-competitors.ts`
+- App Store adapter: `app-store-adapter.ts`
+- Google Play adapter: `google-play-adapter.ts`
+- Clustering: `clustering.ts`
+- Pain detection: `pain-detector.ts`
+- Theme extraction: `theme-extractor.ts`
+- Community voice: `community-voice/route.ts`
+- Opportunities display: `opportunities.tsx`
 - Context provider: `ResearchDataProvider`
 
----
-
-## Session Progress (January 2, 2026)
-
-| Item | Status |
-|------|--------|
-| Automated competitor flow | ✅ Done |
-| Verdict score consistency | ✅ Fixed |
-| Market score "mismatch" | ✅ Closed (not a bug) |
-| Competitor classification | ✅ Fixed |
-| Timing 0.2 mismatch | 🟡 Deprioritized |
-| Self-in-competitor-list | 🟡 Minor, noted |
-
-**Next priorities:** Data display bugs (review count, duplicates, sources header)
+**Architecture Docs:** `docs/SYSTEM_DOCUMENTATION.md` Section 18
 
 ---
 
 ## How to Use This File
 
 **For CC:** 
-1. Check Recently Closed to avoid re-fixing
-2. Work Critical → High → Medium priority
+1. 🔴 CRITICAL bugs first — these are blocking quality
+2. Check Recently Closed to avoid re-fixing
 3. Reference Architecture section for key files
+4. **Before making changes:** 
+   - Check Section 18 of SYSTEM_DOCUMENTATION.md for module specs
+   - Verify which mode(s) the code affects
+   - Run Pre-Fix Testing Checklist before closing
