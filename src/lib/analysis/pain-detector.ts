@@ -3,8 +3,10 @@
 // Based on PVRE Scoring Framework - Pain Score (35% weight in Viability Verdict)
 //
 // v2.0 - Enhanced scoring with negative context patterns and WTP exclusions
+// v11.0 - Embedding-based praise filter (replaces regex-based v10.1)
 
 import { RedditPost, RedditComment } from '../data-sources/types'
+import { generateEmbedding, generateEmbeddings, cosineSimilarity } from '../embeddings/embedding-service'
 
 // =============================================================================
 // NEGATIVE CONTEXT PATTERNS - Reduce false positives
@@ -97,6 +99,546 @@ const WTP_EXCLUSION_PATTERNS = [
   /(?:threw|throwing)\s+(?:away\s+)?money/i,
   /money\s+(?:down\s+the\s+drain|wasted)/i,
 ]
+
+// =============================================================================
+// PRAISE-ONLY DETECTION - Filter out pure testimonials before they become pain signals
+// =============================================================================
+// v10.0: Expanded patterns to catch more testimonials
+// IMPORTANT: Mixed reviews (praise + complaint) should NOT be filtered
+
+const PRAISE_PATTERNS = [
+  // Superlative praise phrases
+  /i(?:'m| am) obsessed with/i,
+  /game changer/i,
+  /life.?changing/i,
+  /nothing bad to say/i,
+  /changed (?:my|our|the way)/i,
+  /never going back/i,
+  /no idea how i (?:lived|survived|managed)/i,
+  /hands[ -]?down (?:the )?(?:best|easiest|greatest)/i,
+
+  // Pure endorsement patterns - v10.1: standalone praise words
+  /i love (?:this|it|using|the)/i,
+  /\brecommend(?:ed|ing)?\b/i,           // Any form of recommend
+  /\bbrilliant\b/i,                       // Brilliant alone
+  /\bamazing\b/i,                         // Amazing alone
+  /\bfantastic\b/i,                       // Fantastic alone
+  /\bwonderful\b/i,                       // Wonderful alone
+  /\bperfect\b/i,                         // Perfect alone
+  /\bexcellent\b/i,                       // v10.1: Excellent alone
+  /\bawesome\b/i,                         // v10.1: Awesome alone
+  /\bloved?\b/i,                          // v10.1: Love/Loved alone
+  /\bgreat\b/i,                           // v10.1: Great alone (very common in praise)
+  /\bcool\b/i,                            // v10.1: Cool alone
+  /\bincredible\b/i,                      // v10.1: Incredible alone
+  /\bsuperb\b/i,                          // v10.1: Superb alone
+  /\boutstanding\b/i,                     // v10.1: Outstanding alone
+  /\bexceptional\b/i,                     // v10.1: Exceptional alone
+
+  // Rating expressions - v10.1: new
+  /\b(?:5|five)[\s\/]?(?:out of[\s\/]?)?(?:5|five)\b/i, // 5/5, 5 out of 5
+  /\b10[\s\/]?(?:out of[\s\/]?)?10\b/i,   // 10/10, 10 out of 10
+  /\b(?:5|five) stars?\b/i,               // 5 stars
+
+  // Phrase patterns with flexible structure
+  /absolutely (?:love|amazing|fantastic|brilliant|wonderful)/i,
+  /best (?:app|tool|software|product|thing|experience|decision)/i,
+  /so (?:helpful|useful|easy|simple|convenient|fun|good|great|much fun)/i,
+  /(?:really|truly|genuinely) (?:enjoyed|loved|like|appreciate)/i,
+  /incredibly (?:enjoyable|helpful|useful|easy|fun)/i,
+  /very (?:friendly|helpful|cool|nice|good|easy|fun)/i,
+  /super (?:fun|cool|easy|helpful|nice)/i,  // v10.1: super + positive
+
+  // Satisfaction statements
+  /exactly what i (?:needed|wanted|was looking for)/i,
+  /works (?:perfectly|flawlessly|beautifully|great|well)/i,
+  /couldn't (?:be|ask for) (?:happier|better)/i,
+  /made my (?:life|job|work) (?:so much )?easier/i,
+  /had a (?:great|amazing|wonderful|fantastic|good|fun) (?:time|experience)/i,
+  /such a (?:fun|great|good|nice|cool) (?:way|experience|app|thing)/i,
+
+  // Gratitude and forward-looking patterns
+  /\bgrateful\b/i,
+  /\bthankful\b/i,
+  /looking forward to/i,
+  /(?:will|i'll|going to) (?:definitely )?(?:do (?:it|this) again|use|try|come back)/i,
+  /(?:super|so|really) glad/i,
+  /no.?hassle/i,
+
+  // Value affirmation (no pain implied)
+  /(?:totally|absolutely|definitely|well) worth (?:it|the money|every penny)/i,
+  /wish i (?:had found|discovered|started using) (?:this|it) (?:sooner|earlier)/i,
+
+  // Excitement expressions - v10.1: new
+  /\bomg\b/i,                             // OMG
+  /\bwow\b/i,                             // Wow
+  /can't (?:wait|believe how (?:good|great|easy|fun))/i,
+  /(?:so |really |very )?excited/i,
+]
+
+// =============================================================================
+// POSITIVE CAN'T PATTERNS - These use "can't" in POSITIVE contexts
+// =============================================================================
+// When these match, the "can't" is expressing satisfaction, not complaint
+const POSITIVE_CANT_PATTERNS = [
+  /can't imagine .*(without|doing again|going back|ever)/i,
+  /can't (?:go back|live without|do without)/i,
+  /can't recommend .* enough/i,
+  /can't believe (?:how|I) (?:easy|simple|fast|good|great)/i,
+  /can't stop using/i,
+  /can't wait (?:to|for)/i,
+]
+
+// =============================================================================
+// EXPLICIT NO-COMPLAINT PATTERNS - Definitely not a complaint
+// =============================================================================
+// These patterns explicitly state there's no complaint
+const EXPLICIT_NO_COMPLAINT_PATTERNS = [
+  /nothing bad to say/i,
+  /no complaints?/i,
+  /no issues? (?:at all|whatsoever)?/i,
+  /couldn't be (?:happier|more satisfied)/i,
+  /wouldn't change (?:a thing|anything)/i,
+  /no problems? (?:at all|whatsoever)?/i,
+]
+
+// =============================================================================
+// POSITIVE "BUT" PATTERNS - These use "but" in POSITIVE contexts
+// =============================================================================
+// When these match, the "but" is not introducing a complaint
+// v10.0: More flexible patterns to catch variations like "but I'm super glad"
+const POSITIVE_BUT_PATTERNS = [
+  // "but [I'm] [really/super] glad/happy" - flexible modifiers
+  /but (?:i'm |i am )?(?:super |so |really |very )?(?:glad|happy|pleased|satisfied|grateful)/i,
+  // "but it was/it's worth it" - positive outcome despite preceding context
+  /but (?:it was|it's|that's|it is) (?:still )?(?:worth|great|amazing|fun|good|nice|cool)/i,
+  // "but overall" - summary that's usually positive
+  /but (?:overall|in the end|at the end|all in all)/i,
+  // "but still/definitely recommend" - endorsement despite issues
+  /but (?:i )?(?:still|definitely|totally|absolutely|would) (?:recommend|love|worth|use)/i,
+  // "but everyone was cool/great" - positive social outcome
+  /but (?:everyone|everybody|people|the group) (?:was|were) (?:really |super |very )?(?:cool|great|nice|friendly|fun)/i,
+  // "but we had a great time" - positive experience despite issues
+  /but (?:we |i )?had a (?:great|good|amazing|wonderful|fun) (?:time|experience)/i,
+]
+
+// =============================================================================
+// REAL COMPLAINT PATTERNS - These indicate actionable feedback
+// =============================================================================
+// v10.0: Removed simple "but" - now handled with positive-but detection
+const COMPLAINT_PATTERNS = [
+  // Transition words that introduce complaints (handled specially)
+  /\bhowever\b/i,           // "Great however..."
+
+  // Issue/problem indicators
+  /\bissue/i,               // Has an issue
+  /\bproblem/i,             // Has a problem
+  /\bbug/i,                 // Bug report
+  /\bcrash/i,               // Crashes
+  /\berror/i,               // Has errors
+  /\bglitch/i,              // Has glitches
+
+  // Feature requests/wishes
+  /\bwish\b/i,              // Feature request "I wish..."
+  /\bwould be (?:nice|great|better)/i,  // Feature request
+  /\bshould (?:have|be|add|fix)/i,      // Should do something
+  /\bcould (?:be|use) (?:better|improvement)/i,    // Could be better
+  /\bonly (?:issue|problem|complaint|thing|downside)/i,
+
+  // Negative emotions
+  /\bfrustrat/i,            // Frustrated
+  /\bannoying/i,            // Something annoying
+  /\bdisappoint/i,          // Disappointed
+  /\bterrible\b/i,          // Terrible
+  /\bhorrible\b/i,          // Horrible
+  /\bawful\b/i,             // Awful
+  /\bwaste/i,               // Waste of time/money
+
+  // UX complaints
+  /\bconfusing/i,           // Confusing
+  /\bdifficult\b/i,         // Difficult to use (not "difficult to make friends" context)
+  /\bhard to (?:use|navigate|understand|figure)/i,
+
+  // Performance complaints
+  /\bslow\b/i,              // Performance complaint
+  /\blag/i,                 // Lag complaint
+  /\bfreezes?/i,            // Freezing complaint
+
+  // Price complaints
+  /\bexpensive/i,           // Price complaint
+  /\boverpriced/i,          // Overpriced
+  /\brip.?off/i,            // Rip off
+
+  // Functionality complaints - v10.0: more specific
+  /(?:can't|cannot|couldn't) (?:get|figure|find|use|access|login|sign)/i, // Can't do something specific
+  /(?:doesn't|does not|didn't|won't) (?:work|load|open|save|sync)/i, // Doesn't work
+  /\bmissing (?:feature|option|function)/i,  // Missing feature
+  /\black(?:s|ing)? (?:feature|option|function)/i,  // Lacks feature
+  /\bneed(?:s|ed)?\s+(?:to fix|improvement|more|better)/i, // Needs improvement
+
+  // Specific negative experiences
+  /\blet down\b/i,
+  /\bexpected (?:more|better)/i,
+  /not (?:what i expected|worth|good|great)/i,
+  /\bregret/i,
+  /\brefund/i,
+]
+
+/**
+ * Check if a review is praise-only (no actionable pain)
+ * Returns true if the review should be EXCLUDED from pain signals
+ *
+ * IMPORTANT: Mixed reviews (praise + complaint) return FALSE and are kept
+ * We only filter pure testimonials with no actionable feedback
+ *
+ * @deprecated Use PraiseFilter.isPraise() for embedding-based detection (v11.0)
+ * This regex-based filter is kept for backward compatibility and as a fast pre-filter.
+ *
+ * @param text - The review text to analyze
+ * @param rating - Optional star rating (1-5) from app store reviews
+ */
+function isPraiseOnly(text: string, rating?: number): boolean {
+  // Low ratings (1-3) always have pain, even if praise patterns match
+  if (rating !== undefined && rating <= 3) {
+    return false
+  }
+
+  const lowerText = text.toLowerCase()
+
+  // Step 1: Check for explicit "no complaint" statements - these are definitely praise
+  const hasExplicitNoComplaint = EXPLICIT_NO_COMPLAINT_PATTERNS.some(pattern => pattern.test(lowerText))
+
+  // Step 2: Check for positive "can't" usage (satisfaction, not complaint)
+  // These are ALSO praise indicators (e.g., "can't recommend enough")
+  const hasPositiveCant = POSITIVE_CANT_PATTERNS.some(pattern => pattern.test(lowerText))
+
+  // Step 2b: Check for positive "but" usage (e.g., "but I'm super glad")
+  // v10.1: These are transitions that DON'T introduce complaints
+  const hasPositiveBut = POSITIVE_BUT_PATTERNS.some(pattern => pattern.test(lowerText))
+
+  // Step 3: Check for REAL complaints (exclude positive can't from complaint detection)
+  // We need to check each complaint pattern individually
+  let hasRealComplaint = false
+  for (const pattern of COMPLAINT_PATTERNS) {
+    if (!pattern.test(lowerText)) continue
+
+    // Special handling for can't/cannot/couldn't patterns
+    if (/can't|cannot|couldn't/.test(pattern.source)) {
+      // Only count as complaint if NOT a positive can't
+      if (!hasPositiveCant) {
+        hasRealComplaint = true
+        break
+      }
+      // If positive can't, skip this pattern and continue checking others
+      continue
+    }
+
+    // All other complaint patterns are real complaints
+    hasRealComplaint = true
+    break
+  }
+
+  // Step 3b: Check for "but" that's NOT a positive-but
+  // v10.1: "but" often introduces complaints, unless it's a positive-but pattern
+  // Note: We're LENIENT here - only functional issues count as complaints
+  // User-base issues ("didn't find anyone nearby") are filtered as praise
+  if (!hasRealComplaint && /\bbut\b/i.test(lowerText) && !hasPositiveBut) {
+    const afterBut = lowerText.split(/\bbut\b/i)[1] || ''
+    // Only mark as complaint if it's a clear FUNCTIONAL issue with the app
+    // Not user-base ("didn't find anyone") or social issues
+    const isFunctionalComplaint = /(?:doesn't|didn't|won't|can't|couldn't) (?:work|load|open|save|sync|connect|start|play|run)/i.test(afterBut) ||
+      /(?:bug|crash|error|freeze|glitch|slow|lag)/i.test(afterBut)
+    if (isFunctionalComplaint) {
+      hasRealComplaint = true
+    }
+  }
+
+  // If there's an explicit "nothing bad to say" AND high rating → definitely filter
+  if (hasExplicitNoComplaint && (rating === undefined || rating >= 4)) {
+    // But still check for other real complaints (mixed review case)
+    if (!hasRealComplaint) {
+      return true // Filter: explicit no-complaint + no other issues
+    }
+  }
+
+  // If there's a real complaint, this is a mixed review - keep it
+  if (hasRealComplaint) {
+    return false
+  }
+
+  // Check if any praise patterns match (PRAISE_PATTERNS or POSITIVE_CANT_PATTERNS)
+  const hasPraise = PRAISE_PATTERNS.some(pattern => pattern.test(lowerText)) || hasPositiveCant
+
+  // Only filter if it's praise-only (has praise, no real complaints)
+  if (hasPraise) {
+    // Extra check: very short reviews with praise patterns are likely pure testimonials
+    const wordCount = text.split(/\s+/).length
+    if (wordCount < 50) {
+      return true // Short praise = filter out
+    }
+
+    // Longer reviews - only filter if 4-5 stars AND no complaint patterns
+    if (rating !== undefined && rating >= 4) {
+      return true // High rating + praise + no complaints = filter out
+    }
+  }
+
+  return false
+}
+
+// =============================================================================
+// EMBEDDING-BASED PRAISE FILTER (v11.0)
+// =============================================================================
+// Replaces regex-based detection with semantic similarity using embeddings.
+// Follows the same pattern as signal-categorizer.ts for consistency.
+
+/**
+ * Anchor text for praise detection.
+ * These phrases capture the semantic space of pure testimonials/positive reviews.
+ */
+const PRAISE_ANCHOR = `
+  Amazing app, absolutely love it, perfect solution, highly recommend to everyone,
+  game changer for my workflow, best app I've ever used, exceeded all expectations,
+  brilliant design, couldn't be happier, five stars, must have app, life changing,
+  so glad I found this, exactly what I needed, flawless experience, works perfectly,
+  wonderful experience, fantastic product, excellent service, superb quality,
+  10 out of 10, totally worth it, love love love, best decision ever
+`.trim()
+
+/**
+ * Anchor text for complaint detection.
+ * These phrases capture the semantic space of user problems and complaints.
+ */
+const COMPLAINT_ANCHOR = `
+  App crashes constantly, doesn't work properly, frustrating experience,
+  missing basic features, wish it had more options, needs serious improvement,
+  terrible user interface, waste of money, bugs everywhere, very disappointing,
+  can't figure out how to use it, broken functionality, poor performance,
+  should have never bought this, requesting refund, doesn't do what I need,
+  too expensive for what it offers, missing feature, needs to fix, laggy and slow,
+  freezes all the time, error messages, stopped working, terrible support
+`.trim()
+
+/**
+ * Praise filter result for a single text
+ */
+export interface PraiseFilterResult {
+  isPraise: boolean
+  confidence: number
+  praiseSim: number
+  complaintSim: number
+}
+
+/**
+ * Embedding-based Praise Filter
+ *
+ * Uses semantic similarity to detect pure testimonials vs. actionable feedback.
+ * Pre-computes anchor embeddings on initialization and uses them to classify signals.
+ *
+ * v11.0: Follows the same pattern as SignalCategorizer for architectural consistency.
+ */
+export class PraiseFilter {
+  private praiseEmbedding: number[] | null = null
+  private complaintEmbedding: number[] | null = null
+  private initPromise: Promise<void> | null = null
+
+  // Thresholds for praise detection
+  // Calibrated based on expected behavior:
+  // - Praise should be clearly more similar to PRAISE_ANCHOR than COMPLAINT_ANCHOR
+  // - Must have a minimum similarity to praise anchor to be considered
+  private readonly MINIMUM_PRAISE_SIMILARITY = 0.45
+  private readonly PRAISE_MARGIN = 0.10 // Must be this much more similar to praise than complaint
+
+  /**
+   * Initialize anchor embeddings (called once, cached)
+   */
+  private async init(): Promise<void> {
+    if (this.praiseEmbedding && this.complaintEmbedding) return
+    if (this.initPromise) return this.initPromise
+
+    this.initPromise = (async () => {
+      console.log('[PraiseFilter] Computing anchor embeddings...')
+
+      const [praiseEmb, complaintEmb] = await Promise.all([
+        generateEmbedding(PRAISE_ANCHOR),
+        generateEmbedding(COMPLAINT_ANCHOR),
+      ])
+
+      if (!praiseEmb || !complaintEmb) {
+        console.warn('[PraiseFilter] Failed to generate anchor embeddings')
+        return
+      }
+
+      this.praiseEmbedding = praiseEmb
+      this.complaintEmbedding = complaintEmb
+      console.log('[PraiseFilter] Anchor embeddings initialized')
+    })()
+
+    return this.initPromise
+  }
+
+  /**
+   * Check if a single text is praise-only using embeddings
+   *
+   * @param text - The review/signal text to analyze
+   * @param rating - Optional star rating (1-5) from app store reviews
+   * @returns PraiseFilterResult with similarity scores and isPraise flag
+   */
+  async isPraise(text: string, rating?: number): Promise<PraiseFilterResult> {
+    // Low ratings (1-3) always have pain, even if text sounds positive
+    if (rating !== undefined && rating <= 3) {
+      return { isPraise: false, confidence: 0, praiseSim: 0, complaintSim: 0 }
+    }
+
+    // Initialize anchor embeddings if needed
+    await this.init()
+
+    // If embeddings failed to initialize, fallback to not filtering
+    if (!this.praiseEmbedding || !this.complaintEmbedding) {
+      console.warn('[PraiseFilter] Embeddings not available, skipping filter')
+      return { isPraise: false, confidence: 0, praiseSim: 0, complaintSim: 0 }
+    }
+
+    // Generate embedding for the signal text
+    const signalEmbedding = await generateEmbedding(text)
+
+    if (!signalEmbedding) {
+      return { isPraise: false, confidence: 0, praiseSim: 0, complaintSim: 0 }
+    }
+
+    // Calculate similarities to both anchors
+    const praiseSim = cosineSimilarity(signalEmbedding, this.praiseEmbedding)
+    const complaintSim = cosineSimilarity(signalEmbedding, this.complaintEmbedding)
+
+    // Decision logic:
+    // - Must be clearly more similar to praise than complaint (by PRAISE_MARGIN)
+    // - Must have minimum similarity to praise anchor
+    const isPraise =
+      praiseSim > this.MINIMUM_PRAISE_SIMILARITY &&
+      praiseSim > complaintSim + this.PRAISE_MARGIN
+
+    const confidence = isPraise ? praiseSim - complaintSim : 0
+
+    return { isPraise, confidence, praiseSim, complaintSim }
+  }
+
+  /**
+   * Filter an array of pain signals, removing praise-only entries
+   * Uses batch embedding for efficiency
+   *
+   * @param signals - Array of PainSignal objects to filter
+   * @returns Filtered array with praise-only signals removed
+   */
+  async filterMany(signals: PainSignal[]): Promise<PainSignal[]> {
+    if (signals.length === 0) return []
+
+    // Initialize anchor embeddings if needed
+    await this.init()
+
+    if (!this.praiseEmbedding || !this.complaintEmbedding) {
+      console.warn('[PraiseFilter] Embeddings not available, returning all signals')
+      return signals
+    }
+
+    console.log(`[PraiseFilter] Filtering ${signals.length} signals...`)
+
+    // Generate embeddings for all signal texts in batch
+    const texts = signals.map((s) => s.text)
+    const embeddings = await generateEmbeddings(texts)
+
+    // If embedding generation failed entirely, return all signals (fail open)
+    if (!embeddings || embeddings.length === 0) {
+      console.warn('[PraiseFilter] Embedding generation failed, returning all signals')
+      return signals
+    }
+
+    // Filter signals
+    const filtered: PainSignal[] = []
+    let praiseCount = 0
+
+    for (let i = 0; i < signals.length; i++) {
+      const signal = signals[i]
+      const embedding = embeddings[i]?.embedding
+
+      // If embedding failed, keep the signal (fail open)
+      if (!embedding || embedding.length === 0) {
+        filtered.push(signal)
+        continue
+      }
+
+      // Low ratings are never praise
+      const rating = signal.source.rating
+      if (rating !== undefined && rating <= 3) {
+        filtered.push(signal)
+        continue
+      }
+
+      // Calculate similarities
+      const praiseSim = cosineSimilarity(embedding, this.praiseEmbedding!)
+      const complaintSim = cosineSimilarity(embedding, this.complaintEmbedding!)
+
+      // Check if praise-only
+      const isPraise =
+        praiseSim > this.MINIMUM_PRAISE_SIMILARITY &&
+        praiseSim > complaintSim + this.PRAISE_MARGIN
+
+      if (isPraise) {
+        praiseCount++
+        console.log(
+          `[PraiseFilter] Filtered: "${signal.text.substring(0, 60)}..." ` +
+            `(praise: ${praiseSim.toFixed(3)}, complaint: ${complaintSim.toFixed(3)})`
+        )
+      } else {
+        filtered.push(signal)
+      }
+    }
+
+    console.log(
+      `[PraiseFilter] Filtered ${praiseCount} praise-only signals, kept ${filtered.length}`
+    )
+
+    return filtered
+  }
+}
+
+// Singleton instance for reuse
+let praiseFilterInstance: PraiseFilter | null = null
+
+/**
+ * Get the singleton PraiseFilter instance
+ */
+export function getPraiseFilter(): PraiseFilter {
+  if (!praiseFilterInstance) {
+    praiseFilterInstance = new PraiseFilter()
+  }
+  return praiseFilterInstance
+}
+
+/**
+ * Reset the PraiseFilter singleton (for testing only)
+ * This clears cached embeddings so they'll be regenerated on next use.
+ */
+export function resetPraiseFilter(): void {
+  praiseFilterInstance = null
+}
+
+/**
+ * Filter a single text for praise (convenience function)
+ * @deprecated Prefer using getPraiseFilter().isPraise() directly
+ */
+export async function isPraiseByEmbedding(
+  text: string,
+  rating?: number
+): Promise<PraiseFilterResult> {
+  return getPraiseFilter().isPraise(text, rating)
+}
+
+/**
+ * Filter multiple pain signals, removing praise-only entries (convenience function)
+ */
+export async function filterPraiseSignals(signals: PainSignal[]): Promise<PainSignal[]> {
+  return getPraiseFilter().filterMany(signals)
+}
 
 // =============================================================================
 // EMOTION DETECTION KEYWORDS
@@ -333,6 +875,9 @@ export interface PainSignal {
   wtpSourceReliability?: 'high' | 'medium' | 'low'  // high=app reviews, medium=HN, low=Reddit
   tier?: RelevanceTier  // CORE = intersection match, RELATED = single-domain match
   emotion: EmotionType  // Primary emotion detected in the signal
+  // Jan 2026: Semantic feedback category (Phase 3 - App Store-First Architecture)
+  feedbackCategory?: 'pricing' | 'ads' | 'content' | 'performance' | 'features'
+  feedbackCategoryConfidence?: number  // 0-1 similarity score
   source: {
     type: 'post' | 'comment'
     id: string
@@ -922,6 +1467,14 @@ export function analyzePosts(posts: RedditPost[]): PainSignal[] {
     // Only include posts with some pain signals
     if (finalScore > 0 || scoreResult.signals.length > 0) {
       const textForAnalysis = titleOnly ? post.title : (post.body || post.title)
+
+      // v8.0: Fast regex pre-filter for obvious praise (deprecated, kept for performance)
+      // Note: Embedding-based filter (filterPraiseSignals) runs later in community-voice/route.ts
+      const rating = (post as RedditPost & { rating?: number }).rating
+      if (isPraiseOnly(textForAnalysis, rating)) {
+        continue // Skip this review - it's pure praise with no pain
+      }
+
       painSignals.push({
         text: textForAnalysis,
         title: post.title,
@@ -975,6 +1528,13 @@ export function analyzeComments(comments: RedditComment[]): PainSignal[] {
 
     // Only include comments with some pain signals
     if (scoreResult.score > 0 || scoreResult.signals.length > 0) {
+      // v8.0: Fast regex pre-filter for obvious praise (deprecated, kept for performance)
+      // Note: Embedding-based filter (filterPraiseSignals) runs later in community-voice/route.ts
+      // Reddit comments don't have star ratings, so rating is undefined
+      if (isPraiseOnly(comment.body)) {
+        continue // Skip this comment - it's pure praise with no pain
+      }
+
       const postId = comment.postId || ''
 
       painSignals.push({

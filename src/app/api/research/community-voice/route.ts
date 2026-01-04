@@ -9,12 +9,14 @@ import {
   shouldIncludeHN,
   RedditPost,
   RedditComment,
+  SearchResult,
 } from '@/lib/data-sources'
 import {
   analyzePosts,
   analyzeComments,
   combinePainSignals,
   getPainSummary,
+  filterPraiseSignals,
   PainSignal,
   PainSummary,
 } from '@/lib/analysis/pain-detector'
@@ -450,10 +452,16 @@ export async function POST(request: NextRequest) {
 
     // Step 2: Discover relevant subreddits using Claude
     // Use user-selected subreddits if available (from coverage preview), otherwise discover
+    // Jan 2026: SKIP REDDIT entirely in App Gap mode - focus on app store reviews
     let subredditsToSearch: string[]
     let discoveryResult: { subreddits: string[] }
 
-    if (userSelectedSubreddits && userSelectedSubreddits.length > 0) {
+    if (appData && appData.appId) {
+      // APP GAP MODE: Skip Reddit entirely - use only app store reviews
+      console.log('Step 2: App Gap mode - skipping Reddit discovery (using app store reviews only)')
+      subredditsToSearch = []
+      discoveryResult = { subreddits: [] }
+    } else if (userSelectedSubreddits && userSelectedSubreddits.length > 0) {
       // User has selected specific subreddits from coverage preview
       console.log('Step 2: Using user-selected subreddits:', userSelectedSubreddits)
       subredditsToSearch = userSelectedSubreddits.slice(0, 15) // Dec 2025: Increased from 12 to 15 for better recall
@@ -465,7 +473,8 @@ export async function POST(request: NextRequest) {
       subredditsToSearch = discoveryResult.subreddits.slice(0, 15) // Dec 2025: Increased from 10 to 15 for better recall
     }
 
-    if (subredditsToSearch.length === 0) {
+    // Only require subreddits for Hypothesis mode (not App Gap mode)
+    if (subredditsToSearch.length === 0 && !appData?.appId) {
       return NextResponse.json(
         { error: 'Could not identify relevant subreddits for this hypothesis' },
         { status: 400 }
@@ -474,50 +483,72 @@ export async function POST(request: NextRequest) {
 
     console.log('Subreddits to search:', subredditsToSearch)
 
-    // Step 2.5: Get subreddit relevance weights
-    console.log('Step 2.5: Calculating subreddit relevance weights')
-    const subredditWeights = await getSubredditWeights(hypothesis, subredditsToSearch)
-    console.log('Subreddit weights:', Object.fromEntries(subredditWeights))
+    // Step 2.5: Get subreddit relevance weights (skip in App Gap mode)
+    let subredditWeights = new Map<string, number>()
+    if (subredditsToSearch.length > 0) {
+      console.log('Step 2.5: Calculating subreddit relevance weights')
+      subredditWeights = await getSubredditWeights(hypothesis, subredditsToSearch)
+      console.log('Subreddit weights:', Object.fromEntries(subredditWeights))
+    } else {
+      console.log('Step 2.5: Skipping subreddit weights (App Gap mode)')
+    }
 
     // Step 3: Fetch posts and comments from discovered subreddits
     // Uses data-sources layer with automatic caching and fallback to backup sources
     // Data source inclusion is controlled by user selection (if available) or auto-detection
     // Use extracted primary keywords for better search precision
-    const includesHN = selectedDataSources
-      ? selectedDataSources.includes('Hacker News')
-      : shouldIncludeHN(hypothesis) // Fallback to auto-detection if no explicit selection
-
-    // When selectedApps is provided, we fetch directly from those apps (Step 3b)
-    // so we skip the keyword-based search in fetchMultiSourceData
-    const includesGooglePlay = selectedApps && selectedApps.length > 0 ? false : (selectedDataSources?.includes('Google Play') ?? false)
-    const includesAppStore = selectedApps && selectedApps.length > 0 ? false : (selectedDataSources?.includes('App Store') ?? false)
-
-    const hasSelectedApps = selectedApps && selectedApps.length > 0
-    const sourcesList = [
-      'Reddit',
-      includesHN && 'Hacker News',
-      hasSelectedApps && `${selectedApps!.length} selected apps`,
-      !hasSelectedApps && includesGooglePlay && 'Google Play',
-      !hasSelectedApps && includesAppStore && 'App Store'
-    ].filter(Boolean).join(' + ')
-    console.log(`Step 3: Fetching data from ${sourcesList}`)
-    lastErrorSource = 'arctic_shift' // Reddit data API (primary source)
+    // Jan 2026: Skip Reddit entirely in App Gap mode
+    let rawPosts: RedditPost[] = []
+    let rawComments: RedditComment[] = []
+    let multiSourceData: SearchResult & { sources: string[] } = {
+      posts: [],
+      comments: [],
+      sources: [],
+      metadata: { source: 'none', fetchedAt: new Date(), isStale: false }
+    }
+    // Keywords for search - used in expansion logic later
     const searchKeywords = extractedKeywords.primary.length > 0
       ? extractedKeywords.primary
       : extractKeywords(hypothesis) // Fallback to basic extraction
-    const multiSourceData = await fetchMultiSourceData({
-      subreddits: subredditsToSearch,
-      keywords: searchKeywords,
-      limit: sampleSizePerSource, // User-selected depth: Quick=150, Standard=300, Deep=450
-      // Note: timeRange is now handled by adaptive time windows based on subreddit velocity
-      // The arctic-shift adapter will use time-stratified fetching for good coverage
-      subredditVelocities, // Posting velocity per subreddit for adaptive time windows
-    }, hypothesis, includesHN, includesGooglePlay, includesAppStore)
 
-    let rawPosts = multiSourceData.posts
-    let rawComments = multiSourceData.comments
+    if (subredditsToSearch.length > 0) {
+      // HYPOTHESIS MODE: Fetch from Reddit + other sources
+      const includesHN = selectedDataSources
+        ? selectedDataSources.includes('Hacker News')
+        : shouldIncludeHN(hypothesis) // Fallback to auto-detection if no explicit selection
 
-    console.log(`Fetched ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || multiSourceData.metadata.source}`)
+      // When selectedApps is provided, we fetch directly from those apps (Step 3b)
+      // so we skip the keyword-based search in fetchMultiSourceData
+      const includesGooglePlay = selectedApps && selectedApps.length > 0 ? false : (selectedDataSources?.includes('Google Play') ?? false)
+      const includesAppStore = selectedApps && selectedApps.length > 0 ? false : (selectedDataSources?.includes('App Store') ?? false)
+
+      const hasSelectedApps = selectedApps && selectedApps.length > 0
+      const sourcesList = [
+        'Reddit',
+        includesHN && 'Hacker News',
+        hasSelectedApps && `${selectedApps!.length} selected apps`,
+        !hasSelectedApps && includesGooglePlay && 'Google Play',
+        !hasSelectedApps && includesAppStore && 'App Store'
+      ].filter(Boolean).join(' + ')
+      console.log(`Step 3: Fetching data from ${sourcesList}`)
+      lastErrorSource = 'arctic_shift' // Reddit data API (primary source)
+      multiSourceData = await fetchMultiSourceData({
+        subreddits: subredditsToSearch,
+        keywords: searchKeywords,
+        limit: sampleSizePerSource, // User-selected depth: Quick=150, Standard=300, Deep=450
+        // Note: timeRange is now handled by adaptive time windows based on subreddit velocity
+        // The arctic-shift adapter will use time-stratified fetching for good coverage
+        subredditVelocities, // Posting velocity per subreddit for adaptive time windows
+      }, hypothesis, includesHN, includesGooglePlay, includesAppStore)
+
+      rawPosts = multiSourceData.posts
+      rawComments = multiSourceData.comments
+
+      console.log(`Fetched ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || multiSourceData.metadata.source}`)
+    } else {
+      // APP GAP MODE: Skip Reddit, only use app store reviews
+      console.log('Step 3: App Gap mode - skipping Reddit fetch (app store reviews only)')
+    }
 
     // Step 3b: Fetch reviews for selected apps (user-selected apps from coverage preview)
     if (selectedApps && selectedApps.length > 0) {
@@ -1168,15 +1199,71 @@ export async function POST(request: NextRequest) {
     applySubredditWeights(allPainSignals, subredditWeights)
     console.log('Applied subreddit weights to pain signals')
 
+    // Step 5.55: Filter pure praise from app store reviews (embedding-based)
+    // Only for App Gap mode where we have app store reviews
+    let filteredPainSignals = allPainSignals
+    if (appData?.appId) {
+      const appStoreSignalsBeforeFilter = allPainSignals.filter(
+        s => s.source.subreddit === 'google_play' || s.source.subreddit === 'app_store'
+      )
+      if (appStoreSignalsBeforeFilter.length > 0) {
+        console.log(`Step 5.55: Filtering pure praise from ${appStoreSignalsBeforeFilter.length} app store signals`)
+        try {
+          const filteredAppStoreSignals = await filterPraiseSignals(appStoreSignalsBeforeFilter)
+          const filteredCount = appStoreSignalsBeforeFilter.length - filteredAppStoreSignals.length
+          console.log(`Praise filter removed ${filteredCount} pure praise signals from app store reviews`)
+
+          // Keep non-app-store signals + filtered app store signals
+          const nonAppStoreSignals = allPainSignals.filter(
+            s => s.source.subreddit !== 'google_play' && s.source.subreddit !== 'app_store'
+          )
+          filteredPainSignals = [...nonAppStoreSignals, ...filteredAppStoreSignals]
+        } catch (praiseFilterError) {
+          console.error('Praise filter failed (non-blocking):', praiseFilterError)
+          // Continue with all signals if filter fails
+        }
+      }
+    }
+
+    // Step 5.6: Semantic categorization for App Gap mode (Phase 3 - App Store-First Architecture)
+    if (appData?.appId) {
+      console.log('Step 5.6: Applying semantic categorization for App Gap mode')
+      try {
+        const { getSignalCategorizer } = await import('@/lib/analysis/signal-categorizer')
+        const categorizer = getSignalCategorizer()
+
+        // Only categorize app store signals (not Reddit)
+        const appStoreSignals = filteredPainSignals.filter(
+          s => s.source.subreddit === 'google_play' || s.source.subreddit === 'app_store'
+        )
+
+        if (appStoreSignals.length > 0) {
+          console.log(`Categorizing ${appStoreSignals.length} app store signals...`)
+
+          // Categorize in batches
+          for (const signal of appStoreSignals) {
+            const result = await categorizer.categorize(signal.text)
+            signal.feedbackCategory = result.category
+            signal.feedbackCategoryConfidence = result.confidence
+          }
+
+          console.log(`Semantic categorization complete`)
+        }
+      } catch (categorizationError) {
+        console.error('Semantic categorization failed (non-blocking):', categorizationError)
+        // Continue without semantic categories - keyword fallback will be used
+      }
+    }
+
     // Step 6: Get pain summary statistics
-    const painSummary = getPainSummary(allPainSignals)
+    const painSummary = getPainSummary(filteredPainSignals)
 
     // Step 7: Extract themes using Claude
     console.log('Step 7: Extracting themes with Claude')
-    const themeAnalysis = await extractThemes(allPainSignals, hypothesis)
+    const themeAnalysis = await extractThemes(filteredPainSignals, hypothesis)
 
     // Step 7b: Calculate resonance for each theme
-    themeAnalysis.themes = calculateThemeResonance(themeAnalysis.themes, allPainSignals)
+    themeAnalysis.themes = calculateThemeResonance(themeAnalysis.themes, filteredPainSignals)
 
     // Step 8: Generate interview questions
     console.log('Step 8: Generating interview questions')
@@ -1245,7 +1332,7 @@ export async function POST(request: NextRequest) {
         discovered: discoveryResult.subreddits,
         analyzed: filteringMetrics.communitiesSearched || subredditsToSearch,
       },
-      painSignals: allPainSignals.slice(0, 50), // Return top 50 signals
+      painSignals: filteredPainSignals.slice(0, 50), // Return top 50 signals
       painSummary,
       themeAnalysis,
       interviewQuestions,
@@ -1325,7 +1412,7 @@ export async function POST(request: NextRequest) {
 
         // 2. Extract competitor mentions from pain signals
         const competitorMentions = new Set<string>()
-        for (const signal of allPainSignals.slice(0, 30)) {
+        for (const signal of filteredPainSignals.slice(0, 30)) {
           // Look for "switched to X", "moved to X", "using X instead", "X is better"
           const patterns = [
             /switched\s+to\s+(\w+)/gi,

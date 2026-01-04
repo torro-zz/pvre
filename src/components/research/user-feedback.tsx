@@ -94,6 +94,26 @@ const CATEGORY_PRIORITY: OpportunityCategory[] = ['pricing', 'performance', 'fea
 
 // Categorize a signal and return categories with match counts for prioritization
 function categorizeSignalWithCounts(signal: PainSignal): { category: OpportunityCategory; matchCount: number }[] {
+  // Phase 3: If signal has semantic category from embeddings, use it as primary
+  if (signal.feedbackCategory && signal.feedbackCategoryConfidence && signal.feedbackCategoryConfidence > 0.3) {
+    const semanticCategory = signal.feedbackCategory as OpportunityCategory
+    // Return semantic category with high match count to prioritize it
+    const result = [{ category: semanticCategory, matchCount: 100 }]
+
+    // Also check for keyword matches in other categories for "also in" display
+    const text = (signal.text + ' ' + (signal.title || '')).toLowerCase()
+    for (const [category, config] of Object.entries(OPPORTUNITY_CATEGORIES)) {
+      if (category === semanticCategory) continue // Skip primary
+      const matchCount = config.keywords.filter(keyword => text.includes(keyword)).length
+      if (matchCount > 0) {
+        result.push({ category: category as OpportunityCategory, matchCount })
+      }
+    }
+
+    return result
+  }
+
+  // Fallback: Keyword-based categorization
   const text = (signal.text + ' ' + (signal.title || '')).toLowerCase()
   const matches: { category: OpportunityCategory; matchCount: number }[] = []
 

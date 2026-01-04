@@ -1,109 +1,145 @@
-# Resume Point - January 2, 2026
+# Resume Point — January 4, 2026
+
+**Last Session:** January 3, 2026 (evening)
+**Task Spec:** `/Users/julientorriani/Downloads/Continuing PVRE Project Discussion.md`
+
+---
 
 ## What Was Just Completed
 
-### Session Focus: Competitor Classification Fix + Automated Competitor Flow
+### Praise Filter v10.1 Implementation
+- Expanded `PRAISE_PATTERNS` with standalone words: excellent, awesome, loved, great, cool, incredible, superb, outstanding, exceptional
+- Added rating expressions: 5/5, 10/10, "5 stars"
+- Added excitement words: omg, wow, excited
+- Made `POSITIVE_BUT_PATTERNS` flexible for "but I'm super glad" variations
+- Enhanced `isPraiseOnly()` to only treat "but" as complaint when NOT a positive transition
+- Added 9 new v10.1 test cases (all passing)
 
-This session focused on fixing the competitor classification logic and verifying automated competitor analysis.
+### WTP Detection Fix (Committed)
+- Added 13 exclusion patterns for purchase regret
+- Fixed Ads category keywords
+- Commit: `53e4c8e fix: WTP detection excludes purchase regret, Ads category keywords fixed`
 
-### Competitor Classification Fix (COMMITTED)
-- **Issue:** Microsoft Teams was being classified as "Platform" instead of "Direct Competitor" when analyzing Slack
-- **Root cause:** Keyword-based classification checked for "platform" keyword BEFORE checking threat level
-- **Fix:** Reordered logic in `competitor-results.tsx:139-149` to check threat level FIRST
-- **Result:** 4 direct competitors now show correctly (Teams, Slack, Discord, Google Chat)
-- **Commit:** `beda7ad fix: Competitor classification checks threat level before keywords`
+### Semantic Signal Categorizer (New Module)
+- Created `signal-categorizer.ts` for embedding-based categorization
+- Pre-computes category embeddings for: pricing, ads, content, performance, features
 
-### Issues Closed This Session
-From `docs/KNOWN_ISSUES.md`:
-1. ✅ Two-Step Analysis Flow Causing Score Changes - Automated into single flow
-2. ✅ Verdict Score Inconsistent Across Tabs - Fixed with automated competitor flow
-3. ✅ Market Score 7-Point Gap - Closed (not a bug, intentionally different metrics)
-4. ✅ Competitor Classification Misclassifying High-Threat - Fixed this session
+### Deep Planning for Tomorrow
+- Read and analyzed task document for January 4
+- Created comprehensive execution plan for 3 tasks
+- Used sequential thinking for deep analysis
 
-### New Issue Logged
-- **Analyzed App Appears in Own Competitor List** - When analyzing Slack, "Slack" appears in its own competitor list
+---
 
-## Files Modified This Session
+## Uncommitted Changes
 
-| File | Status | Purpose |
-|------|--------|---------|
-| `src/components/research/competitor-results.tsx` | **COMMITTED** | Competitor classification fix |
-| `docs/KNOWN_ISSUES.md` | Modified | Reorganized with closed issues, added new issue |
+⚠️ **WARNING: You have uncommitted changes!**
 
-### Uncommitted Changes (from previous sessions)
+| File | Changes | Purpose |
+|------|---------|---------|
+| `CLAUDE.md` | Minor | Project instructions |
+| `docs/KNOWN_ISSUES.md` | +168 lines | v10.1 documentation, fallback investigation |
+| `docs/RESUME_HERE.md` | Rewritten | Session handoff |
+| `src/__tests__/pain-detector.test.ts` | +281 lines | 9 v10.1 tests + WTP regret tests |
+| `src/app/api/research/community-voice/route.ts` | +134/-40 | Skip Reddit, semantic categorization |
+| `src/components/research/user-feedback.tsx` | +20 lines | Semantic category support |
+| `src/lib/analysis/pain-detector.ts` | +299 lines | v10.1 praise filter enhancements |
+| `src/lib/analysis/signal-categorizer.ts` | NEW | Semantic categorization module |
 
-⚠️ **WARNING: 17 modified files + 4 new files still uncommitted from previous sessions!**
+**Total: 973 insertions, 135 deletions across 7 files + 1 new file**
 
-Key uncommitted work:
-- `src/lib/embeddings/clustering.ts` (NEW) - Clustering for App Gap mode
-- `src/lib/research/competitor-analyzer.ts` (NEW) - Auto competitor detection
-- `src/lib/research/known-competitors.ts` (NEW) - Known competitor database
-- `src/components/research/keyword-trend-bars.tsx` (NEW) - Google Trends UI
-- Multiple API and component updates
+---
 
 ## Build & Test Status
 
-- **Build:** ✅ Passing
-- **Tests:** 128 passing, 0 failing, 6 skipped
-- **Dev Server:** Running on :3000
+| Check | Status |
+|-------|--------|
+| **Build** | ✅ Passing |
+| **Tests** | ✅ 153 passing, 0 failing, 6 skipped |
+| **Dev Server** | ✅ Running on :3000 |
 
-## What Needs To Be Done Next
+---
 
-### 🟡 Commit Previous Session Work
-The uncommitted files from previous sessions should be reviewed and committed.
+## Tomorrow's Mission: 3 Tasks
 
-### From KNOWN_ISSUES.md - Open Issues
+### Task 1: Verify v10.1 with Loom (Priority: HIGH)
+**Goal:** Verify praise filter works on real App Store reviews
 
-**Critical (Score Pipeline):**
-- Timing score minor mismatch (8.2 vs 8.4) - LOW PRIORITY
-- "3.5 WTP Found" fractional signal count
+**Why:** Timeleft verification was INVALID:
+- App Store API returned 404 for Timeleft
+- "Verification" data was Reddit dating posts (r/ForeverAloneDating)
+- We tested against wrong data source entirely
 
-**High Priority - Data Display:**
-- App Store review count mismatch (39,668 → 16 analyzed)
-- Same comment appears in multiple categories
-- Sources header ignores App Store
-- Truncated comments not expandable
-- "45x" label undefined
-- Analyzed app appears in own competitor list (NEW)
+**Success Criteria:**
+- Reddit signals = 0
+- Pure praise slip-through < 10%
+- If < 5% → v10.1 SUCCESS
 
-**High Priority - Transparency:**
-- No links to original sources
-- Hover-only definitions for Core vs Supporting
-- How Feedback generates Gaps is opaque
-- Opportunities/Positioning methodology hidden
-- TAM/SAM methodology unclear
+### Task 2: Investigate Fallback Behavior (Priority: MEDIUM)
+**Goal:** Understand why Reddit data appeared when Timeleft App Store failed
 
-**High Priority - Logic/Accuracy:**
-- "Ad-free experience" as top unmet need for Slack
-- WTP signals aren't actually WTP
-- Velocity "0 Prior" = statistically meaningless
-- Entry difficulty still potentially underestimated
+**Hypothesis:** When `appData` is undefined (from 404), route falls into Hypothesis mode path instead of App Gap path.
 
-**Medium Priority - UI/UX:**
-- Verdict tab has too many score constructs
-- "Proceed with Confidence" vs "Dealbreakers Detected" contradiction
-- SAM notation confusing
-- Community Discussions section buried
-- Reddit vs App Store sources not visually distinct
+**Files to investigate:**
+- `src/app/api/research/community-voice/route.ts` lines 450-650
+- `src/lib/data-sources/adapters/app-store-adapter.ts` error handling
 
-## Blockers or Open Questions
+### Task 3: Build v2 Filter (Priority: CONDITIONAL)
+**Trigger:** Only if Task 1 shows > 10% slip-through
 
-None - ready to continue.
+**The Insight:**
+- v10.1: Detect praise → filter out
+- v2: Detect ANY complaint signal → if none, filter
 
-## User Notes
+**Research Correlation:**
+| Signal | Correlation |
+|--------|-------------|
+| Negation (doesn't, won't) | .271 |
+| Temporal (since update) | .186 |
+| Contrastive (but, however) | .169 |
 
-None
+---
+
+## Decision Tree
+
+```
+Task 1 Result:
+  │
+  ├─ < 5% slip → v10.1 SUCCESS, skip Task 3
+  ├─ 5-10% → v10.1 OK, Task 3 optional
+  └─ > 10% → v10.1 NEEDS WORK, do Task 3
+```
+
+---
+
+## Current State Summary
+
+| Item | Status |
+|------|--------|
+| v10.1 praise filter code | ✅ Complete |
+| v10.1 unit tests (9/9) | ✅ Passing |
+| Total tests (153) | ✅ Passing |
+| Build | ✅ Passing |
+| Real-world verification | ❌ NOT DONE (Timeleft 404) |
+| Fallback behavior | ❓ Needs investigation |
+| Changes committed | ❌ UNCOMMITTED |
+
+---
 
 ## Key Files Reference
 
 | Purpose | File |
 |---------|------|
 | Project instructions | `CLAUDE.md` |
-| Known bugs & backlog | `docs/KNOWN_ISSUES.md` |
-| Score calculation | `src/lib/analysis/viability-calculator.ts` |
-| Competitor classification (fixed) | `src/components/research/competitor-results.tsx:139-149` |
-| Competitor analysis API | `src/app/api/research/competitor-intelligence/route.ts` |
-| Known competitors DB | `src/lib/research/known-competitors.ts` |
+| Known bugs & UX backlog | `docs/KNOWN_ISSUES.md` |
+| Task spec for tomorrow | `/Users/julientorriani/Downloads/Continuing PVRE Project Discussion.md` |
+| Praise filter code | `src/lib/analysis/pain-detector.ts` |
+| Praise filter tests | `src/__tests__/pain-detector.test.ts` |
+| App Gap route | `src/app/api/research/community-voice/route.ts` |
+| App Store adapter | `src/lib/data-sources/adapters/app-store-adapter.ts` |
+| Signal categorizer (NEW) | `src/lib/analysis/signal-categorizer.ts` |
+
+---
 
 ## Quick Start Commands
 
@@ -117,13 +153,26 @@ npm run test:run
 
 # Build
 npm run build
+
+# Authenticate
+curl -X POST http://localhost:3000/api/dev/login -c /tmp/cookies.txt
+
+# Add credits (use env vars from .env.local)
+source .env.local
+curl -s -X PATCH "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/profiles?id=eq.c2a74685-a31d-4675-b6a3-4992444e345d" -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -H "Content-Type: application/json" -d '{"credits_balance": 10}'
 ```
 
-## Session Summary
+---
 
-| Item | Status |
-|------|--------|
-| Competitor classification fix | ✅ Committed |
-| 4 issues closed in KNOWN_ISSUES.md | ✅ Done |
-| 1 new issue logged (self-in-list) | ✅ Noted |
-| Previous session uncommitted work | ⚠️ Still pending |
+## Estimated Time Tomorrow
+
+- Task 1: 45-60 min
+- Task 2: 30-45 min
+- Task 3: 60-90 min (if needed)
+- **Total: ~2.5-3.5 hours**
+
+---
+
+## User Notes
+
+None

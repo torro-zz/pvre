@@ -4,7 +4,7 @@
 **These rules are MANDATORY for all code changes.**
 
 *Last updated: January 3, 2026*
-
+f
 ---
 
 ## 🔴 BEFORE ANY CODE CHANGE
