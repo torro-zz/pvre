@@ -315,10 +315,10 @@ function MarketOverviewDashboard({ marketData, timingData, competitorData, commu
               {timingData && (
                 <Badge variant="secondary" className={cn(
                   timingData.trend === 'rising' ? 'text-emerald-600' :
-                  timingData.trend === 'stable' ? 'text-blue-600' : 'text-red-600'
+                  timingData.trend === 'stable' ? 'text-amber-600' : 'text-red-600'
                 )}>
                   {timingData.trend === 'rising' ? '↑ Rising' :
-                   timingData.trend === 'stable' ? '→ Stable' : '↓ Falling'}
+                   timingData.trend === 'stable' ? '→ Flat' : '↓ Falling'}
                 </Badge>
               )}
             </div>
@@ -809,11 +809,11 @@ function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
                 timingData.trend === 'rising'
                   ? 'bg-emerald-500 hover:bg-emerald-600'
                   : timingData.trend === 'stable'
-                  ? 'bg-blue-500 hover:bg-blue-600'
+                  ? 'bg-amber-500 hover:bg-amber-600'
                   : 'bg-red-500 hover:bg-red-600'
               }>
                 {timingData.trend === 'rising' ? '↑ Rising' :
-                 timingData.trend === 'stable' ? '→ Stable' :
+                 timingData.trend === 'stable' ? '→ Flat' :
                  '↓ Falling'}
               </Badge>
             </div>

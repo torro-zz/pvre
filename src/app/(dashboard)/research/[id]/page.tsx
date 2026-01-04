@@ -292,6 +292,13 @@ export default async function ResearchDetailPage({
                       totalPostsFound={communityVoiceResult.data.metadata.filteringMetrics.postsFound}
                       commentsAnalyzed={communityVoiceResult.data.metadata.commentsAnalyzed}
                       processingTimeMs={communityVoiceResult.data.metadata.processingTimeMs}
+                      isAppAnalysis={isAppAnalysis}
+                      appData={appData ? {
+                        name: appData.name,
+                        appId: appData.appId,
+                        reviewsAnalyzed: communityVoiceResult.data.metadata.postsAnalyzed,
+                        rating: appData.rating
+                      } : undefined}
                     />
                   )}
                   <CommunityVoiceResults

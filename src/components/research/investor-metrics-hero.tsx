@@ -16,6 +16,8 @@ import {
   ArrowRight,
   Sparkles,
   Target,
+  XCircle,
+  HelpCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,6 +33,10 @@ import {
   HypothesisConfidence,
   MarketOpportunity,
 } from '@/lib/analysis/viability-calculator'
+import {
+  getVerdictMessage as getSharedVerdictMessage,
+  getVerdictLevel,
+} from '@/lib/utils/verdict-messages'
 
 // ============================================
 // Types
@@ -282,16 +288,20 @@ function getPainLabel(score: number): string {
 
 function getTimingLabel(score: number): string {
   if (score >= 8) return 'Rising ↑'
-  if (score >= 6) return 'Stable →'
+  if (score >= 6) return 'Flat →'
   if (score >= 4) return 'Uncertain'
   return 'Declining ↓'
 }
 
 function getVerdictLabel(score: number): { text: string; color: string } {
-  if (score >= 8) return { text: 'Strong Signal', color: 'text-emerald-500' }
-  if (score >= 6) return { text: 'Solid Foundation', color: 'text-amber-500' }
-  if (score >= 4) return { text: 'Mixed Signal', color: 'text-orange-500' }
-  return { text: 'Needs Rethinking', color: 'text-red-500' }
+  // Use shared utility thresholds for consistency
+  const level = getVerdictLevel(score)
+  switch (level) {
+    case 'strong': return { text: 'Strong Signal', color: 'text-emerald-500' }
+    case 'mixed': return { text: 'Mixed Signal', color: 'text-amber-500' }
+    case 'weak': return { text: 'Weak Signal', color: 'text-orange-500' }
+    default: return { text: 'No Signal', color: 'text-red-500' }
+  }
 }
 
 // Quick Metrics Row - compact horizontal display
@@ -492,49 +502,18 @@ export function InvestorMetricsHero({
   const hasHighSeverityFlags = allWarnings.some(w => w.severity === 'HIGH')
   const hasCriticalConcerns = hasDealbreakers || hasHighSeverityFlags
 
-  // Verdict message
-  const getVerdictMessage = () => {
-    if (!hasTwoAxisData) {
-      return verdict?.verdictDescription || 'Analysis complete'
-    }
-    const hLevel = hypothesisConfidence.level
-    const mLevel = marketOpportunity.level
+  // Verdict message - Use shared utility for consistent messaging across all components
+  const verdictScore = verdict?.overallScore || painScore
+  const sharedVerdict = getSharedVerdictMessage(verdictScore, hasCriticalConcerns)
 
-    if (hLevel === 'high' && (mLevel === 'strong' || mLevel === 'moderate')) {
-      return 'Strong signals detected - proceed to customer interviews'
-    }
-    if (hLevel === 'high' && mLevel === 'weak') {
-      return 'Hypothesis validated but market may be limited - explore adjacent segments'
-    }
-    if (hLevel === 'partial' && mLevel === 'strong') {
-      return 'Market opportunity exists for related problems - review adjacent opportunities'
-    }
-    if (hLevel === 'low' && mLevel === 'strong') {
-      return 'Market exists for different problems - consider pivoting your angle'
-    }
-    return 'Gather more data to strengthen your hypothesis'
+  const getVerdictMessage = () => {
+    // Use the shared verdict message for consistency
+    return sharedVerdict.longMessage
   }
 
   const getVerdictColor = () => {
-    // Critical concerns override all other styling
-    if (hasCriticalConcerns) {
-      return 'from-amber-500/10 to-amber-500/5 border-amber-200 dark:border-amber-800'
-    }
-
-    if (!hasTwoAxisData) {
-      const score = verdict?.overallScore || painScore
-      if (score >= 7) return 'from-emerald-500/10 to-emerald-500/5 border-emerald-200 dark:border-emerald-800'
-      if (score >= 5) return 'from-amber-500/10 to-amber-500/5 border-amber-200 dark:border-amber-800'
-      return 'from-red-500/10 to-red-500/5 border-red-200 dark:border-red-800'
-    }
-
-    if (hypothesisConfidence.level === 'high') {
-      return 'from-emerald-500/10 to-emerald-500/5 border-emerald-200 dark:border-emerald-800'
-    }
-    if (hypothesisConfidence.level === 'partial') {
-      return 'from-amber-500/10 to-amber-500/5 border-amber-200 dark:border-amber-800'
-    }
-    return 'from-blue-500/10 to-blue-500/5 border-blue-200 dark:border-blue-800'
+    // Use shared verdict colors for consistency
+    return `${sharedVerdict.colors.gradient} ${sharedVerdict.colors.border}`
   }
 
   return (
@@ -677,22 +656,19 @@ export function InvestorMetricsHero({
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                {/* Show warning icon if critical concerns exist, otherwise score-based icons */}
-                {hasCriticalConcerns ? (
-                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                ) : hypothesisConfidence?.level === 'high' ? (
+                {/* Icon based on verdict level - uses shared utility for consistency */}
+                {sharedVerdict.level === 'strong' ? (
                   <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                ) : hypothesisConfidence?.level === 'partial' ? (
-                  <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                ) : sharedVerdict.level === 'mixed' ? (
+                  <HelpCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                ) : sharedVerdict.level === 'weak' ? (
+                  <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
                 ) : (
-                  <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
                 )}
                 <span className="font-semibold">
-                  {/* Dealbreakers override confidence level */}
-                  {hasCriticalConcerns ? 'Review Concerns Before Proceeding' :
-                   hypothesisConfidence?.level === 'high' ? 'Proceed with Confidence' :
-                   hypothesisConfidence?.level === 'partial' ? 'Explore Further' :
-                   'Gather More Data'}
+                  {/* Use shared verdict action for consistency */}
+                  {sharedVerdict.action}
                 </span>
               </div>
               <p className="text-sm text-muted-foreground">{getVerdictMessage()}</p>

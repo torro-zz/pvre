@@ -275,6 +275,7 @@ export function ViabilityVerdictDisplay({
               <DualVerdictDisplay
                 hypothesisConfidence={verdict.hypothesisConfidence!}
                 marketOpportunity={verdict.marketOpportunity!}
+                overallScore={verdict.overallScore}
               />
             )}
 

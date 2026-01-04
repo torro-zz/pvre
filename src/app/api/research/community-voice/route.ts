@@ -1197,6 +1197,24 @@ export async function POST(request: NextRequest) {
         console.log(`[App Name Gate] Removed ${removedComments} Reddit comments (no "${coreAppName}" mention)`)
         console.log(`[App Name Gate] Final: ${finalComments.length} comments for pain analysis`)
       }
+
+      // App Gap Mode: Promote App Store reviews to CORE tier
+      // App Store reviews in App Gap mode ARE about the analyzed app, so they're CORE by definition
+      const appStoreInRelated = finalRelatedItems.filter(
+        p => p.subreddit === 'app_store' || p.subreddit === 'google_play'
+      )
+      if (appStoreInRelated.length > 0) {
+        console.log(`[Tier Promotion] Promoting ${appStoreInRelated.length} App Store reviews from RELATED to CORE`)
+        // Move app store reviews from RELATED to CORE
+        finalCoreItems = [
+          ...finalCoreItems,
+          ...appStoreInRelated
+        ]
+        finalRelatedItems = finalRelatedItems.filter(
+          p => p.subreddit !== 'app_store' && p.subreddit !== 'google_play'
+        )
+        console.log(`[Tier Promotion] New distribution: ${finalCoreItems.length} CORE + ${finalRelatedItems.length} RELATED`)
+      }
     }
 
     // Step 5: Analyze posts and comments for pain signals with tier awareness

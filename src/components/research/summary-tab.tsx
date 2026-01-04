@@ -638,6 +638,7 @@ export function SummaryTab({
           <DualVerdictDisplay
             hypothesisConfidence={verdict.hypothesisConfidence!}
             marketOpportunity={verdict.marketOpportunity!}
+            overallScore={verdict.overallScore}
           />
         </AnimatedCard>
       )}

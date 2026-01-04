@@ -122,14 +122,22 @@ export async function getTrendData(
       };
     });
 
-    // Aggregate calculation (use first keyword for backwards compatibility)
-    const firstQuarterAvg = firstQuarter.reduce((sum, p) => sum + (p.value[0] || 0), 0) / firstQuarter.length;
-    const lastQuarterAvg = lastQuarter.reduce((sum, p) => sum + (p.value[0] || 0), 0) / lastQuarter.length;
+    // Aggregate calculation: Weight by Q4 volume (current search relevance)
+    // This properly weights keywords by their actual search volume instead of
+    // using just the first keyword which may have near-zero volume
+    const totalQ4Volume = keywordBreakdown.reduce((sum, kw) => sum + kw.q4Average, 0);
 
-    // Calculate percentage change
-    const percentageChange = firstQuarterAvg > 0
-      ? ((lastQuarterAvg - firstQuarterAvg) / firstQuarterAvg) * 100
-      : 0;
+    let percentageChange: number;
+    if (totalQ4Volume > 0) {
+      // Weighted average: each keyword's % change weighted by its Q4 volume
+      percentageChange = keywordBreakdown.reduce((sum, kw) => {
+        const weight = kw.q4Average / totalQ4Volume;
+        return sum + (kw.percentageChange * weight);
+      }, 0);
+    } else {
+      // All keywords have zero volume - no trend data
+      percentageChange = 0;
+    }
 
     // Determine trend direction
     let trend: 'rising' | 'stable' | 'falling';

@@ -27,6 +27,14 @@ interface ResearchHeroStatsProps {
   totalPostsFound: number
   commentsAnalyzed?: number
   processingTimeMs?: number
+  // App Gap mode support
+  isAppAnalysis?: boolean
+  appData?: {
+    name: string
+    appId: string
+    reviewsAnalyzed?: number
+    rating?: number
+  }
 }
 
 export function ResearchHeroStats({
@@ -46,6 +54,8 @@ export function ResearchHeroStats({
   totalPostsFound,
   commentsAnalyzed,
   processingTimeMs,
+  isAppAnalysis = false,
+  appData,
 }: ResearchHeroStatsProps) {
 
   // Determine WTP strength for visual indicator
@@ -222,20 +232,41 @@ export function ResearchHeroStats({
           </div>
         )}
 
-        <div className="flex items-center gap-1.5">
-          <Users className="w-3.5 h-3.5" />
-          <span>{communitiesCount} communities</span>
-        </div>
+        {/* App Gap mode: Show App Store metrics */}
+        {isAppAnalysis && appData ? (
+          <>
+            <div className="flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5" />
+              <span>{appData.reviewsAnalyzed ?? postsAnalyzed} reviews analyzed</span>
+            </div>
+            {appData.rating && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-amber-500">★</span>
+                <span>{appData.rating.toFixed(1)}/5</span>
+              </div>
+            )}
+          </>
+        ) : (
+          /* Hypothesis mode: Show Reddit metrics */
+          <>
+            {communitiesCount > 0 && (
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" />
+                <span>{communitiesCount} communities</span>
+              </div>
+            )}
 
-        {/* Filtering transparency - shows how many posts were found vs matched */}
-        {totalPostsFound > 0 && postsAnalyzed > 0 && (
-          <div className="flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5" />
-            <span>
-              {totalPostsFound.toLocaleString()} found → {postsAnalyzed.toLocaleString()} matched ({((postsAnalyzed / totalPostsFound) * 100).toFixed(1)}%)
-            </span>
-            <DataSourceBadge type="verified" showLabel={false} />
-          </div>
+            {/* Filtering transparency - shows how many posts were found vs matched */}
+            {totalPostsFound > 0 && postsAnalyzed > 0 && (
+              <div className="flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5" />
+                <span>
+                  {totalPostsFound.toLocaleString()} found → {postsAnalyzed.toLocaleString()} matched ({((postsAnalyzed / totalPostsFound) * 100).toFixed(1)}%)
+                </span>
+                <DataSourceBadge type="verified" showLabel={false} />
+              </div>
+            )}
+          </>
         )}
 
         {dateRange && (

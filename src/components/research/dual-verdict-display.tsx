@@ -19,12 +19,16 @@ import {
   MarketOpportunity,
   HypothesisConfidenceLevel,
   MarketOpportunityLevel,
+  VerdictLevel,
+  VERDICT_THRESHOLDS,
 } from '@/lib/analysis/viability-calculator'
 import { cn } from '@/lib/utils'
+import { getVerdictLevel } from '@/lib/utils/verdict-messages'
 
 interface DualVerdictDisplayProps {
   hypothesisConfidence: HypothesisConfidence
   marketOpportunity: MarketOpportunity
+  overallScore?: number // Overall verdict score (0-10)
   className?: string
 }
 
@@ -125,6 +129,7 @@ function getMarketInterpretation(level: MarketOpportunityLevel): string {
 export function DualVerdictDisplay({
   hypothesisConfidence,
   marketOpportunity,
+  overallScore,
   className,
 }: DualVerdictDisplayProps) {
   return (
@@ -236,6 +241,7 @@ export function DualVerdictDisplay({
             hypothesisLevel={hypothesisConfidence.level}
             marketLevel={marketOpportunity.level}
             directSignalPercent={hypothesisConfidence.directSignalPercent}
+            overallScore={overallScore}
           />
         </div>
       </CardContent>
@@ -244,27 +250,53 @@ export function DualVerdictDisplay({
 }
 
 // Generate contextual "What This Means" section
+// Now considers the OVERALL verdict score to avoid contradictory messages
 function WhatThisMeans({
   hypothesisLevel,
   marketLevel,
   directSignalPercent,
+  overallScore,
 }: {
   hypothesisLevel: HypothesisConfidenceLevel
   marketLevel: MarketOpportunityLevel
   directSignalPercent: number
+  overallScore?: number
 }) {
   const findings: { type: 'positive' | 'caution' | 'info'; text: string }[] = []
 
-  // Positive findings
+  // Determine overall verdict level from score
+  const verdictLevel = overallScore !== undefined ? getVerdictLevel(overallScore) : null
+  const isOverallPositive = verdictLevel === 'strong' || verdictLevel === 'mixed'
+  const isOverallNegative = verdictLevel === 'weak' || verdictLevel === 'none'
+
+  // Positive findings - but only show if overall verdict supports it
+  // This prevents "Active market" checkmarks when overall score is 3.1
   if (marketLevel === 'strong') {
-    findings.push({ type: 'positive', text: 'Active market with validated demand' })
+    if (isOverallPositive) {
+      findings.push({ type: 'positive', text: 'Active market with validated demand' })
+    } else if (isOverallNegative) {
+      findings.push({ type: 'caution', text: 'Market activity detected, but other factors limit viability' })
+    }
   }
+
   if (hypothesisLevel === 'high') {
-    findings.push({ type: 'positive', text: 'Strong evidence supporting your specific hypothesis' })
+    if (isOverallPositive) {
+      findings.push({ type: 'positive', text: 'Strong evidence supporting your specific hypothesis' })
+    } else if (isOverallNegative) {
+      // High hypothesis match but low overall = market/timing issues
+      findings.push({ type: 'caution', text: 'Hypothesis matches signals, but market/timing scores are low' })
+    }
   }
+
   if (directSignalPercent >= 50) {
     // Cap at 100% to prevent impossible percentages (e.g., 105%)
-    findings.push({ type: 'positive', text: `${Math.round(Math.min(100, directSignalPercent))}% of signals directly match your hypothesis` })
+    const pct = Math.round(Math.min(100, directSignalPercent))
+    if (isOverallPositive) {
+      findings.push({ type: 'positive', text: `${pct}% of signals directly match your hypothesis` })
+    } else {
+      // Still show the stat, but as info not positive
+      findings.push({ type: 'info', text: `${pct}% of signals match, but overall viability is low` })
+    }
   }
 
   // Caution findings
@@ -278,13 +310,24 @@ function WhatThisMeans({
     findings.push({ type: 'caution', text: 'Limited market activity - consider searching different sources' })
   }
 
-  // Info/Guidance
-  if (hypothesisLevel === 'high') {
+  // Info/Guidance - now aligned with overall verdict
+  if (verdictLevel === 'strong') {
     findings.push({ type: 'info', text: 'Proceed to user interviews to validate willingness-to-pay' })
-  } else if (hypothesisLevel === 'partial') {
-    findings.push({ type: 'info', text: 'Interview with exploration - let adjacent problems emerge naturally' })
+  } else if (verdictLevel === 'mixed') {
+    findings.push({ type: 'info', text: 'Validate key concerns before committing resources' })
+  } else if (verdictLevel === 'weak') {
+    findings.push({ type: 'info', text: 'Significant pivots may be needed - review adjacent opportunities' })
+  } else if (verdictLevel === 'none') {
+    findings.push({ type: 'info', text: 'Consider pivoting to a different problem or target audience' })
   } else {
-    findings.push({ type: 'info', text: 'Consider pivoting to an adjacent problem with stronger signals' })
+    // Fallback when no overall score (legacy behavior)
+    if (hypothesisLevel === 'high') {
+      findings.push({ type: 'info', text: 'Proceed to user interviews to validate willingness-to-pay' })
+    } else if (hypothesisLevel === 'partial') {
+      findings.push({ type: 'info', text: 'Interview with exploration - let adjacent problems emerge naturally' })
+    } else {
+      findings.push({ type: 'info', text: 'Consider pivoting to an adjacent problem with stronger signals' })
+    }
   }
 
   return (
