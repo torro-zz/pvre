@@ -373,6 +373,20 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // Validation: If mode is 'app-analysis' but appData is missing, return error
+      // This catches edge cases where job was created with inconsistent state
+      const searchMode = coverageData?.mode as 'hypothesis' | 'app-analysis' | undefined
+      if (searchMode === 'app-analysis' && (!appData || !appData.appId)) {
+        console.error('[CommunityVoice] App analysis mode but missing appData:', { searchMode, appData })
+        return NextResponse.json(
+          { error: 'App data missing. The app may have been removed from the store.' },
+          { status: 400 }
+        )
+      }
+
+      // Log the search mode for debugging
+      console.log(`[CommunityVoice] Search mode: ${searchMode || 'hypothesis (inferred)'}`)
+
     }
 
     // Extract sample size and subreddit velocities from coverage data for adaptive fetching
