@@ -60,6 +60,81 @@ function stripEmbeddings(obj: unknown): unknown {
 }
 
 /**
+ * Summarize coverage data by removing bulky sample posts
+ * Keeps counts and summaries, removes raw post arrays
+ */
+function summarizeCoverage(coverage: Record<string, unknown>): Record<string, unknown> {
+  const summarized = { ...coverage }
+
+  // Replace sample post arrays with counts
+  if (Array.isArray(summarized.samplePosts)) {
+    summarized.samplePosts = `[${summarized.samplePosts.length} sample posts - see raw JSON]`
+  }
+  if (Array.isArray(summarized.qualitySamplePosts)) {
+    summarized.qualitySamplePosts = `[${summarized.qualitySamplePosts.length} quality samples - see raw JSON]`
+  }
+
+  // Summarize Hacker News section
+  const hn = summarized.hackerNews as Record<string, unknown> | undefined
+  if (hn && typeof hn === 'object') {
+    summarized.hackerNews = {
+      included: hn.included,
+      estimatedPosts: hn.estimatedPosts,
+      samplePosts: Array.isArray(hn.samplePosts)
+        ? `[${hn.samplePosts.length} samples - see raw JSON]`
+        : hn.samplePosts
+    }
+  }
+
+  // Remove large subredditStats details, keep summary
+  const stats = summarized.subredditStats as Record<string, unknown> | undefined
+  if (stats && typeof stats === 'object') {
+    const subredditCount = Object.keys(stats).length
+    summarized.subredditStats = `[${subredditCount} subreddits analyzed - see raw JSON]`
+  }
+
+  return summarized
+}
+
+/**
+ * Summarize pain signal for narrative (keep key insights, remove raw data)
+ */
+function summarizePainSignal(signal: Record<string, unknown>, index: number): string {
+  const source = signal.source as Record<string, unknown> | undefined
+  return [
+    `### Signal ${index + 1}: ${signal.intensity} intensity (score ${signal.score})`,
+    ``,
+    `**Text:** "${(signal.text as string || '').substring(0, 300)}${(signal.text as string || '').length > 300 ? '...' : ''}"`,
+    ``,
+    `| Field | Value |`,
+    `|-------|-------|`,
+    `| Tier | ${signal.tier || 'N/A'} |`,
+    `| Emotion | ${signal.emotion || 'N/A'} |`,
+    `| Signals | ${Array.isArray(signal.signals) ? (signal.signals as string[]).join(', ') : 'N/A'} |`,
+    `| WTP | ${signal.willingnessToPaySignal ? `Yes (${signal.wtpConfidence})` : 'No'} |`,
+    `| Source | ${source?.subreddit || 'unknown'} |`,
+    `| Rating | ${source?.rating || 'N/A'} |`,
+    ``
+  ].join('\n')
+}
+
+/**
+ * Summarize cluster for narrative
+ */
+function summarizeCluster(cluster: Record<string, unknown>, index: number): string {
+  const signals = cluster.signals as Array<unknown> | undefined
+  const signalCount = signals?.length || cluster.size || 0
+  return [
+    `### Cluster ${index + 1}: ${cluster.theme || cluster.title || 'Unnamed'}`,
+    ``,
+    `- **Size:** ${signalCount} signals`,
+    `- **ID:** ${cluster.id || 'N/A'}`,
+    `- **Summary:** ${cluster.summary || cluster.description || 'No summary'}`,
+    ``
+  ].join('\n')
+}
+
+/**
  * Safely extract a score value that might be a number or an object
  */
 function extractScore(score: unknown): string {
@@ -211,17 +286,18 @@ function generateNarrative(data: ExportResult): string {
   }
 
   // ========== COVERAGE DATA ==========
-  md += `## 2. Coverage Data (from research_jobs.coverage_data)\n\n`
-  md += `\`\`\`json\n${JSON.stringify(stripEmbeddings(coverage), null, 2)}\n\`\`\`\n\n`
+  md += `## 2. Coverage Data Summary\n\n`
+  const summarizedCoverage = summarizeCoverage(stripEmbeddings(coverage) as Record<string, unknown>)
+  md += `\`\`\`json\n${JSON.stringify(summarizedCoverage, null, 2)}\n\`\`\`\n\n`
 
   // ========== PAIN SIGNALS ==========
   const painSignals = communityVoice.painSignals as Array<Record<string, unknown>> || []
-  md += `## 3. Pain Signals (ALL ${painSignals.length})\n\n`
+  md += `## 3. Pain Signals (${painSignals.length} total)\n\n`
 
   if (painSignals.length > 0) {
+    // Show summarized view (full data in raw JSON)
     painSignals.forEach((signal, i) => {
-      md += `### Signal ${i + 1}\n\n`
-      md += `\`\`\`json\n${JSON.stringify(stripEmbeddings(signal), null, 2)}\n\`\`\`\n\n`
+      md += summarizePainSignal(signal, i)
     })
   } else {
     md += `*No pain signals found*\n\n`
@@ -243,8 +319,18 @@ function generateNarrative(data: ExportResult): string {
     const themes = (themeAnalysis.themes || []) as Array<Record<string, unknown>>
     md += `**Total Themes:** ${themes.length}\n\n`
     themes.forEach((theme, i) => {
+      const quotes = theme.quotes as Array<Record<string, unknown>> | undefined
       md += `### Theme ${i + 1}: ${theme.title || theme.name || 'Unnamed'}\n\n`
-      md += `\`\`\`json\n${JSON.stringify(stripEmbeddings(theme), null, 2)}\n\`\`\`\n\n`
+      md += `- **Description:** ${theme.description || 'No description'}\n`
+      md += `- **Signal Count:** ${theme.signalCount || quotes?.length || 'N/A'}\n`
+      md += `- **Average Intensity:** ${theme.averageIntensity || 'N/A'}\n`
+      if (quotes && quotes.length > 0) {
+        md += `- **Sample Quotes:**\n`
+        quotes.slice(0, 3).forEach(q => {
+          md += `  - "${(q.text as string || '').substring(0, 150)}${(q.text as string || '').length > 150 ? '...' : ''}"\n`
+        })
+      }
+      md += `\n`
     })
   } else {
     md += `*No theme analysis available*\n\n`
@@ -326,11 +412,11 @@ function generateNarrative(data: ExportResult): string {
 
   // ========== CLUSTERS ==========
   const clusters = communityVoice.clusters as Array<Record<string, unknown>> | undefined
-  md += `## 8. Clusters\n\n`
+  md += `## 8. Clusters (${clusters?.length || 0} total)\n\n`
   if (clusters && clusters.length > 0) {
+    // Show summarized view (full data in raw JSON)
     clusters.forEach((cluster, i) => {
-      md += `### Cluster ${i + 1}\n\n`
-      md += `\`\`\`json\n${JSON.stringify(stripEmbeddings(cluster), null, 2)}\n\`\`\`\n\n`
+      md += summarizeCluster(cluster, i)
     })
   } else {
     md += `*No clusters available*\n\n`
@@ -384,13 +470,34 @@ function generateNarrative(data: ExportResult): string {
   }
 
   // ========== INTERVIEW QUESTIONS ==========
-  const interviewQuestions = communityVoice.interviewQuestions as Array<string> | undefined
+  const interviewQuestions = communityVoice.interviewQuestions as {
+    contextQuestions?: string[]
+    problemQuestions?: string[]
+    solutionQuestions?: string[]
+  } | undefined
   md += `## 10. Interview Questions (AI-generated)\n\n`
-  if (interviewQuestions && interviewQuestions.length > 0) {
-    interviewQuestions.forEach((q, i) => {
-      md += `${i + 1}. ${q}\n`
-    })
-    md += `\n`
+  if (interviewQuestions && (interviewQuestions.contextQuestions?.length || interviewQuestions.problemQuestions?.length || interviewQuestions.solutionQuestions?.length)) {
+    if (interviewQuestions.contextQuestions?.length) {
+      md += `### Context Questions\n`
+      interviewQuestions.contextQuestions.forEach((q, i) => {
+        md += `${i + 1}. ${q}\n`
+      })
+      md += `\n`
+    }
+    if (interviewQuestions.problemQuestions?.length) {
+      md += `### Problem Exploration\n`
+      interviewQuestions.problemQuestions.forEach((q, i) => {
+        md += `${i + 1}. ${q}\n`
+      })
+      md += `\n`
+    }
+    if (interviewQuestions.solutionQuestions?.length) {
+      md += `### Solution Testing\n`
+      interviewQuestions.solutionQuestions.forEach((q, i) => {
+        md += `${i + 1}. ${q}\n`
+      })
+      md += `\n`
+    }
   } else {
     md += `*No interview questions generated*\n\n`
   }
@@ -413,15 +520,11 @@ function generateNarrative(data: ExportResult): string {
     md += `*No subreddit data available*\n\n`
   }
 
-  // ========== FULL RAW JOB RECORD ==========
-  md += `## 13. Full Job Record (research_jobs table)\n\n`
-  md += `\`\`\`json\n${JSON.stringify(stripEmbeddings(job), null, 2)}\n\`\`\`\n\n`
-
   // ========== FOOTER ==========
   md += `---\n\n`
   md += `*Exported by PVRE Research Export Script*\n`
   md += `*Export Time: ${data.exportedAt}*\n`
-  md += `*Total Sections: 13*\n`
+  md += `*Note: Full raw data available in raw-export.json*\n`
 
   return md
 }

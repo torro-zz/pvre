@@ -833,6 +833,20 @@ const WILLINGNESS_TO_PAY_KEYWORDS = {
     'worth paying', 'worth every penny',
     'money is no object', 'whatever it costs',
   ],
+  // Enterprise intent (medium-high confidence) - B2B purchase signals
+  // Enterprise users express WTP differently: "wish my company would upgrade"
+  enterpriseIntent: [
+    'wish my company', 'wish our company', 'wish my team',
+    'wish we had this at work', 'need this at work',
+    'recommend to my manager', 'recommend to management',
+    'convince my boss', 'convince management', 'convince my manager',
+    'propose to leadership', 'pitch to leadership',
+    'our team needs', 'our company needs', 'our organization needs',
+    'enterprise version', 'enterprise plan', 'business plan',
+    'company should adopt', 'team should use', 'we should switch to',
+    'would improve our workflow', 'would save our team',
+    'getting my company to', 'getting my team to',
+  ],
   // Financial discussion (medium confidence)
   financialDiscussion: [
     'budget', 'budgeting', 'budget for',
@@ -1191,6 +1205,16 @@ export function calculatePainScore(
         signals.push(keyword)
         willingnessToPayCount++
         wtpStrongCount++
+      }
+    }
+
+    // Enterprise intent - B2B purchase signals (medium-high confidence)
+    // Enterprise users express WTP differently: "wish my company would upgrade"
+    for (const keyword of WILLINGNESS_TO_PAY_KEYWORDS.enterpriseIntent) {
+      if (matchKeyword(lowerText, keyword)) {
+        signals.push(keyword)
+        willingnessToPayCount++
+        wtpMediumCount++  // Treated as medium-high (between strong and regular medium)
       }
     }
 

@@ -100,11 +100,11 @@ const STOP_WORDS = new Set([
   'apps', 'application', 'download', 'downloaded', 'install', 'installed',
 ])
 
-// App Store review type
+// App Store review type (matches app-store-scraper output)
 interface AppStoreReview {
   id: string
   userName: string
-  date: string
+  updated: string  // ISO date string from app-store-scraper (not "date")
   score: number
   title: string
   text: string
@@ -161,7 +161,7 @@ export class AppStoreAdapter implements DataSourceAdapter {
             page: 1,
             country: 'us',
             sort: SORT.HELPFUL,
-          }) as AppStoreReview[]
+          }) as unknown as AppStoreReview[]
           return { app, reviews: reviews.slice(0, reviewsPerApp) }
         } catch (error) {
           console.error(`[AppStoreAdapter] Failed to get reviews for ${app.appId}:`, error)
@@ -425,7 +425,7 @@ export class AppStoreAdapter implements DataSourceAdapter {
         page: 1,
         country: 'us',
         sort: SORT.HELPFUL,
-      }) as AppStoreReview[]
+      }) as unknown as AppStoreReview[]
 
       return reviews.slice(0, limit).map(review => ({
         title: review.title || review.text.slice(0, 100) + (review.text.length > 100 ? '...' : ''),
@@ -469,7 +469,7 @@ export class AppStoreAdapter implements DataSourceAdapter {
       url: app.url,
       author: review.userName || 'Anonymous',
       community: app.title, // Use app name as community
-      createdAt: new Date(review.date),
+      createdAt: new Date(review.updated),
       engagementScore: this.calculateEngagement(review),
       rawEngagement: {
         rating: review.score,
@@ -522,7 +522,7 @@ export class AppStoreAdapter implements DataSourceAdapter {
             page,
             country: market,
             sort: sortMap[sort],
-          }) as AppStoreReview[]
+          }) as unknown as AppStoreReview[]
 
           if (!pageReviews || pageReviews.length === 0) break
           reviews.push(...pageReviews)
@@ -543,7 +543,7 @@ export class AppStoreAdapter implements DataSourceAdapter {
         subreddit: 'app_store', // Source attribution for pain signals
         score: 0, // App Store doesn't have upvotes
         numComments: 0,
-        createdUtc: Math.floor(new Date(review.date).getTime() / 1000),
+        createdUtc: Math.floor(new Date(review.updated).getTime() / 1000),
         permalink: `https://apps.apple.com/${market}/app/app/id${appId}`,
         url: `https://apps.apple.com/${market}/app/app/id${appId}`,
         // Store rating for filtering (low ratings = more pain)
