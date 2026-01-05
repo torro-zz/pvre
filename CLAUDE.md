@@ -29,12 +29,15 @@ PVRE has TWO modes. Know which you're working in:
 
 ## Before Modifying Filters/Adapters
 
-The module map in `docs/SYSTEM_DOCUMENTATION.md` Section 18 shows:
+1. **Quick check:** `docs/ARCHITECTURE_SUMMARY.md` → "Module Map by Mode"
+2. **Deep dive:** `docs/SYSTEM_DOCUMENTATION.md` Section 18
+
+The module map shows:
 - Which mode each module serves (Hypothesis / App Gap / Both)
 - What depends on what
 - Which filter gates which data source
 
-**Read Section 18 before touching:** `pain-detector`, `relevance-filter`,
+**Check the map before touching:** `pain-detector`, `relevance-filter`,
 `app-store-adapter`, `arctic-shift`, `community-voice` route.
 
 ---
