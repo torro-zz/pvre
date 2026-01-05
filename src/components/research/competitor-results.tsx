@@ -30,8 +30,12 @@ import {
   TrendingDown,
   CircleDot,
   Tag,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
+import type { ComparativeMentionsResult } from '@/lib/analysis/comparative-mentions'
 import { extractCompetitorPricing, type PricingSuggestion } from '@/lib/analysis/pricing-utils'
 
 interface CompetitorResultsProps {
@@ -40,7 +44,7 @@ interface CompetitorResultsProps {
 
 export function CompetitorResults({ results }: CompetitorResultsProps) {
   const [expandedCompetitor, setExpandedCompetitor] = useState<string | null>(null)
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['marketOverview', 'platformsCommunities', 'comparisonMatrix', 'adjacentTools'])) // Secondary sections collapsed by default
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['marketOverview', 'platformsCommunities', 'comparisonMatrix', 'comparativeMentions', 'adjacentTools'])) // Secondary sections collapsed by default
   const [showAllPlatforms, setShowAllPlatforms] = useState(false)
   const [showAllAdjacent, setShowAllAdjacent] = useState(false)
   const INITIAL_DISPLAY_COUNT = 3
@@ -196,18 +200,19 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
       adjacent: []
     }
 
-    // Extract the app name from hypothesis for App Gap mode filtering
-    // e.g., "Slack" or "slack" should filter out Slack from its own competitor list
-    const analyzedAppName = results.hypothesis?.toLowerCase().trim()
+    // Use the explicit analyzedAppName from result (App Gap mode only)
+    // This is properly extracted from coverage_data.appData.name and normalized
+    // Hypothesis mode: analyzedAppName is null, so no self-filtering
+    const selfAppName = results.analyzedAppName?.toLowerCase().trim() || null
 
     results.competitors
       .filter((competitor) => {
-        // Filter out the analyzed app from its own competitor list
-        if (!analyzedAppName) return true
+        // Only filter in App Gap mode (when selfAppName is set)
+        if (!selfAppName) return true
         const competitorNameLower = competitor.name.toLowerCase().trim()
-        // Exact match or the hypothesis contains the competitor name
-        return competitorNameLower !== analyzedAppName &&
-               !analyzedAppName.includes(competitorNameLower)
+        // Exact match or the self-app name is contained in competitor name
+        return competitorNameLower !== selfAppName &&
+               !competitorNameLower.includes(selfAppName)
       })
       .forEach((competitor) => {
         const category = categorizeCompetitor(competitor)
@@ -215,7 +220,7 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
       })
 
     return grouped
-  }, [results.competitors, results.hypothesis])
+  }, [results.competitors, results.analyzedAppName])
 
   // Normalize and filter competitor matrix
   // Handles both old format { name, scores: number[] } and new format { competitorName, scores: { category, score, notes }[] }
@@ -225,7 +230,8 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
     }
 
     const categories = results.competitorMatrix.categories
-    const analyzedAppName = results.hypothesis?.toLowerCase().trim()
+    // Use the explicit analyzedAppName from result (App Gap mode only)
+    const selfAppName = results.analyzedAppName?.toLowerCase().trim() || null
 
     // Normalize comparison entries to expected format
     const normalizedComparison = results.competitorMatrix.comparison
@@ -253,16 +259,16 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
 
         return { competitorName, scores }
       })
-      // Filter out analyzed app from its own competitor list
+      // Filter out analyzed app from its own competitor list (App Gap mode only)
       .filter((comp) => {
-        if (!analyzedAppName) return true
+        if (!selfAppName) return true
         const compNameLower = comp.competitorName.toLowerCase().trim()
-        return compNameLower !== analyzedAppName &&
-               !analyzedAppName.includes(compNameLower)
+        return compNameLower !== selfAppName &&
+               !compNameLower.includes(selfAppName)
       })
 
     return { categories, comparison: normalizedComparison }
-  }, [results.competitorMatrix, results.hypothesis])
+  }, [results.competitorMatrix, results.analyzedAppName])
 
   const hasDirectCompetitors = categorizedCompetitors.direct.length > 0
   const hasPlatformCompetitors = categorizedCompetitors.platform.length > 0
@@ -282,6 +288,9 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
     }
     threats: string[]
   }}).competitionScore
+
+  // Type-safe access to comparative mentions (real user data)
+  const comparativeMentions = (results as { comparativeMentions?: ComparativeMentionsResult }).comparativeMentions
 
   return (
     <div className="space-y-6">
@@ -848,6 +857,132 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                     <div className="w-4 h-4 rounded bg-red-400"></div>
                     <span>0-1 Poor</span>
                   </div>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
+
+        {/* Comparative Mentions - REAL USER DATA - Collapsible */}
+        {comparativeMentions && comparativeMentions.totalMentions > 0 && (
+          <Card className="border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/20">
+            <CardHeader className="pb-3">
+              <button
+                onClick={() => toggleSection('comparativeMentions')}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-emerald-600" />
+                  User Comparisons
+                  <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900 dark:text-emerald-300 dark:border-emerald-700 text-xs">
+                    Real Data
+                  </Badge>
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {collapsedSections.has('comparativeMentions') && (
+                    <span className="text-sm text-muted-foreground">
+                      {comparativeMentions.totalMentions} mentions from {comparativeMentions.metadata.signalsAnalyzed} reviews
+                    </span>
+                  )}
+                  <ChevronDown className={`h-5 w-5 transition-transform ${!collapsedSections.has('comparativeMentions') ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+            </CardHeader>
+            {!collapsedSections.has('comparativeMentions') && (
+              <CardContent className="pt-0">
+                <CardDescription className="mb-4">
+                  What real users say when comparing {comparativeMentions.analyzedApp} to competitors.
+                  Extracted from {comparativeMentions.metadata.signalsAnalyzed} reviews.
+                </CardDescription>
+
+                {/* Summary Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-muted/50">
+                        <th className="text-left py-3 px-4 font-semibold border-b-2 border-border">Competitor</th>
+                        <th className="text-center py-3 px-3 font-semibold border-b-2 border-border">
+                          <span className="flex items-center justify-center gap-1 text-green-600 dark:text-green-400">
+                            <ThumbsUp className="h-3.5 w-3.5" /> Positive
+                          </span>
+                        </th>
+                        <th className="text-center py-3 px-3 font-semibold border-b-2 border-border">
+                          <span className="flex items-center justify-center gap-1 text-red-600 dark:text-red-400">
+                            <ThumbsDown className="h-3.5 w-3.5" /> Negative
+                          </span>
+                        </th>
+                        <th className="text-center py-3 px-3 font-semibold border-b-2 border-border">Net</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparativeMentions.competitorsSummary.map((comp, idx) => {
+                        const netColor = comp.netSentiment > 0
+                          ? 'text-green-600 dark:text-green-400'
+                          : comp.netSentiment < 0
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-muted-foreground'
+                        return (
+                          <tr key={comp.competitor} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/20'}>
+                            <td className="py-3 px-4 font-medium border-b">{comp.competitor}</td>
+                            <td className="py-3 px-3 text-center border-b">
+                              <span className="text-green-600 dark:text-green-400 font-semibold">
+                                {comp.positiveMentions}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center border-b">
+                              <span className="text-red-600 dark:text-red-400 font-semibold">
+                                {comp.negativeMentions}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center border-b">
+                              <span className={`font-bold ${netColor}`}>
+                                {comp.netSentiment > 0 ? '+' : ''}{comp.netSentiment}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Sample Quotes */}
+                {comparativeMentions.competitorsSummary.some(c =>
+                  c.sampleQuotes.positive.length > 0 || c.sampleQuotes.negative.length > 0
+                ) && (
+                  <div className="mt-4 space-y-3">
+                    <h4 className="text-sm font-medium">Sample User Quotes</h4>
+                    {comparativeMentions.competitorsSummary.slice(0, 3).map(comp => {
+                      const hasQuotes = comp.sampleQuotes.positive.length > 0 || comp.sampleQuotes.negative.length > 0
+                      if (!hasQuotes) return null
+                      return (
+                        <div key={comp.competitor} className="p-3 rounded-lg bg-muted/50">
+                          <div className="font-medium text-sm mb-2">{comp.competitor}</div>
+                          {comp.sampleQuotes.positive.slice(0, 1).map((quote, i) => (
+                            <div key={`pos-${i}`} className="flex items-start gap-2 text-xs mb-1">
+                              <ThumbsUp className="h-3 w-3 text-green-500 flex-shrink-0 mt-0.5" />
+                              <span className="text-muted-foreground italic">"{quote.slice(0, 150)}..."</span>
+                            </div>
+                          ))}
+                          {comp.sampleQuotes.negative.slice(0, 1).map((quote, i) => (
+                            <div key={`neg-${i}`} className="flex items-start gap-2 text-xs">
+                              <ThumbsDown className="h-3 w-3 text-red-500 flex-shrink-0 mt-0.5" />
+                              <span className="text-muted-foreground italic">"{quote.slice(0, 150)}..."</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Info box */}
+                <div className="mt-4 p-2 rounded bg-emerald-100 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 flex items-start gap-2">
+                  <Info className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                    <strong>Real user data.</strong> These comparisons are extracted directly from user reviews,
+                    not AI estimates. Positive = users prefer the competitor, Negative = users criticize the competitor.
+                  </p>
                 </div>
               </CardContent>
             )}

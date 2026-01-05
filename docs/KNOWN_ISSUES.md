@@ -28,6 +28,18 @@ Shows "Hypothesis Confidence" axis in App Gap mode, but no hypothesis was tested
 
 ---
 
+### ~~Self-Competitor Still Appears in Competitor List (App Gap Mode)~~
+**Status:** ✅ FIXED (Jan 5, 2026)
+**Impact:** ~~Analyzed app appears as its own competitor~~
+
+**Fix Applied:**
+- Added `analyzedAppName` field to `CompetitorIntelligenceResult` type
+- `competitor-intelligence/route.ts` extracts normalized app name from `coverage_data.appData.name` when `mode === 'app-analysis'`
+- `competitor-results.tsx` uses `results.analyzedAppName` for self-filtering (App Gap mode only)
+- Hypothesis mode unchanged (no self-filtering needed)
+
+---
+
 ## 🟡 MEDIUM — Next Sprint
 
 ### WTP Comments Truncated and Unreadable
@@ -120,20 +132,54 @@ Cards show only headline + minimal detail. "Difficulty" tag and market opportuni
 
 ---
 
-## Recently Verified Fixed (January 5, 2026)
+## 🔵 PLANNED FEATURES
 
-These were verified working with Tinder App Gap export:
+### Dual App Store Support
+**Status:** Planned
+**Impact:** 2x data volume, cross-platform insights
+**Location:** App Gap mode data collection
+
+Currently scrape from one store only. Should scrape 500 reviews from iOS App Store + 500 from Google Play Store.
+
+**Implementation:**
+- Detect app on both stores (use app name/developer match)
+- Scrape 500 reviews from each
+- Merge into single analysis OR show platform comparison
+- Flag platform-specific pain (e.g., "Android users report more crashes")
+
+---
+
+## Recently Verified Fixed (January 5, 2026)
 
 | Issue | Verification |
 |-------|--------------|
 | Comparison Matrix empty | ✅ Now shows 6 competitors × 5 dimensions with scores |
+| Comparative Mentions | ✅ NEW: Extracts real user comparisons from reviews |
 | App Store dates null | ✅ Timestamps present (e.g., `1763722867`) |
 | Recency metrics zero | ✅ `last30Days: 33`, `last90Days: 37` |
-| Self-competitor in list | ✅ "5 — 1 self-reference filtered" |
+| Self-competitor in list | ❌ **REOPENED** — Name mismatch issue, see CRITICAL section |
 | Interview questions null | ✅ 15 questions in 3 categories |
 | Google Trends weighted % | ✅ Shows +948%, rising |
 | No [object Object] in export | ✅ 0 occurrences |
 | No raw embeddings in export | ✅ Cleaned properly |
+
+### Comparative Mentions Feature (NEW)
+**Status:** Implemented
+**Location:** Market tab > Competition > User Comparisons section
+
+Extracts real user comparisons from App Store/Google Play reviews:
+- "Hinge is so much better"
+- "Unlike Bumble, this app..."
+- "I switched from OkCupid because..."
+
+Shows a table with positive/negative/net sentiment counts based on **actual user mentions**, not AI estimates.
+
+**Files:**
+- `src/lib/analysis/comparative-mentions.ts` — extraction logic
+- `src/app/api/research/competitor-intelligence/route.ts` — integration
+- `src/components/research/competitor-results.tsx` — UI display
+
+**Note:** Only works for NEW research jobs (not retroactive to existing data).
 
 ---
 
@@ -146,3 +192,4 @@ These were verified working with Tinder App Gap export:
 | Gaps/WTP | `src/components/research/opportunities.tsx` |
 | Feedback/Sentiment | `src/components/research/user-feedback.tsx` |
 | Layout/Metrics | `src/components/research/layouts/` |
+| App Store adapters | `src/lib/data-sources/adapters/` |

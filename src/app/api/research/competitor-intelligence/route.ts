@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { StepStatusMap } from '@/types/database'
 import { saveResearchResult } from '@/lib/research/save-result'
 import { formatClustersForPrompt, type SignalCluster } from '@/lib/embeddings'
+import { extractComparativeMentions, type ComparativeMentionsResult } from '@/lib/analysis/comparative-mentions'
 
 const anthropic = new Anthropic()
 
@@ -108,6 +109,9 @@ export interface CompetitionScoreBreakdown {
 
 export interface CompetitorIntelligenceResult {
   hypothesis: string
+  // App Gap mode: normalized app name for self-filtering (e.g., "loom" from "Loom: Screen Recorder")
+  // Hypothesis mode: null (no self-filtering needed)
+  analyzedAppName?: string | null
   marketOverview: {
     marketSize: string
     growthTrend: string
@@ -127,6 +131,8 @@ export interface CompetitorIntelligenceResult {
   positioningRecommendations: PositioningRecommendation[]
   // NEW: Competition score for Viability Verdict
   competitionScore: CompetitionScoreBreakdown
+  // NEW: Real user comparative mentions (Jan 2026)
+  comparativeMentions?: ComparativeMentionsResult
   metadata: {
     competitorsAnalyzed: number
     processingTimeMs: number
@@ -429,7 +435,8 @@ async function analyzeCompetitors(
   hypothesis: string,
   knownCompetitors?: string[],
   geography?: GeographyInfo,
-  clusters?: SignalCluster[] // NEW: Pre-clustered user feedback for evidence-grounded gaps
+  clusters?: SignalCluster[], // Pre-clustered user feedback for evidence-grounded gaps
+  analyzedAppName?: string | null // App Gap mode: normalized app name for self-filtering
 ): Promise<CompetitorIntelligenceResult> {
   const startTime = Date.now()
 
@@ -641,14 +648,46 @@ Identify 4-8 competitors. Include at least 3 gaps and 2 positioning recommendati
   // Claude sometimes returns { name, scores: number[] } instead of { competitorName, scores: { category, score, notes }[] }
   const normalizedMatrix = normalizeCompetitorMatrix(analysis.competitorMatrix)
 
+  // Extract comparative mentions from clusters (real user data!)
+  let comparativeMentions: ComparativeMentionsResult | undefined
+  if (clusters && clusters.length > 0) {
+    // Extract signal texts from clusters
+    const signalTexts: Array<{ text: string; source: string }> = []
+    for (const cluster of clusters) {
+      for (const signal of cluster.signals) {
+        const text = signal.post.body || signal.post.title || ''
+        if (text.length > 20) {
+          signalTexts.push({
+            text,
+            source: signal.post.source === 'appstore' ? 'app_store'
+              : signal.post.source === 'playstore' ? 'google_play'
+              : 'reddit'
+          })
+        }
+      }
+    }
+
+    // Use provided analyzedAppName for self-exclusion (App Gap mode)
+    // This is properly extracted from coverage_data.appData.name
+    if (signalTexts.length > 0 && analyzedAppName) {
+      comparativeMentions = extractComparativeMentions(
+        signalTexts as Array<{ text: string; source: 'app_store' | 'google_play' | 'reddit' }>,
+        analyzedAppName
+      )
+      console.log(`Extracted ${comparativeMentions.totalMentions} comparative mentions from ${signalTexts.length} signals (excluding: ${analyzedAppName})`)
+    }
+  }
+
   return {
     hypothesis,
+    analyzedAppName, // For UI self-filtering (App Gap mode only)
     marketOverview: analysis.marketOverview,
     competitors,
     competitorMatrix: normalizedMatrix,
     gaps,
     positioningRecommendations: analysis.positioningRecommendations || [],
     competitionScore,
+    comparativeMentions,
     metadata: {
       competitorsAnalyzed: competitors.length,
       processingTimeMs,
@@ -703,6 +742,9 @@ export async function POST(request: NextRequest) {
     // Clusters for evidence-grounded gaps (fetched from community_voice if available)
     let clusters: SignalCluster[] | undefined
 
+    // Normalized app name for self-filtering (App Gap mode only)
+    let analyzedAppName: string | null = null
+
     // If jobId provided, check step guard and fetch geography + clusters
     if (jobId) {
       const adminClient = createAdminClient()
@@ -723,6 +765,17 @@ export async function POST(request: NextRequest) {
           scope: targetGeo.scope as 'local' | 'national' | 'global',
         }
         console.log('Using target geography for competitor analysis:', geography)
+      }
+
+      // Extract app name for self-filtering (App Gap mode only)
+      if (coverageData?.mode === 'app-analysis') {
+        const appData = coverageData?.appData as { name?: string } | undefined
+        if (appData?.name) {
+          // Normalize: "Tinder Dating App: Chat & Date" → "tinder"
+          // "Loom: Screen Recorder" → "loom"
+          analyzedAppName = appData.name.split(/[:\-–—]/)[0].trim().toLowerCase()
+          console.log(`App Gap mode: using app name "${analyzedAppName}" for self-filtering`)
+        }
       }
 
       // Fetch clusters from community_voice results (Jan 2026 - evidence-grounded gaps)
@@ -788,8 +841,8 @@ export async function POST(request: NextRequest) {
       console.log('Target geography:', geography.location, `(${geography.scope})`)
     }
 
-    // Run the competitor analysis with geography context and clusters (if available)
-    const result = await analyzeCompetitors(hypothesis, knownCompetitors, geography, clusters)
+    // Run the competitor analysis with geography context, clusters (if available), and app name (App Gap mode)
+    const result = await analyzeCompetitors(hypothesis, knownCompetitors, geography, clusters, analyzedAppName)
 
     console.log(`Found ${result.competitors.length} competitors`)
     console.log(`Identified ${result.gaps.length} market gaps`)
