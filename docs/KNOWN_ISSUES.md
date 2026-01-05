@@ -1,77 +1,158 @@
-# KNOWN_ISSUES Update Notes
+# PVRE Known Issues
 
-Based on verification of Timeleft export (Jan 3 job, pre-fix) and handoff doc.
-
-## Status Check
-
-### Items Marked "CLOSED" But Need Verification with Post-Fix Job
-
-These are marked closed in KNOWN_ISSUES but the Timeleft export (Jan 3, BEFORE fixes) still showed the bugs. **This is expected** — we need to verify with the Loom export (Jan 4, AFTER fixes).
-
-| Issue | KNOWN_ISSUES Status | Timeleft Export | Need Loom Verify |
-|-------|---------------------|-----------------|------------------|
-| Self-competitor filter | ✅ CLOSED | ❌ Still shows Timeleft as competitor #1 | YES |
-| App Store dates | ✅ CLOSED | ❌ All 44 signals have `createdUtc: null` | YES |
-| Interview questions | ✅ CLOSED | ❌ `interview_guide: null` | YES |
-| Recency metrics | (Not explicitly listed) | ❌ `last30Days: 0, last90Days: 0` | YES |
-
-**Action:** Run Loom export. If these still fail on post-fix job, reopen the issues.
+*Last updated: January 5, 2026*
 
 ---
 
-## Items Correctly Still Open
+## 🔴 CRITICAL — Fix First
 
-These 3 CRITICAL UI issues are correctly marked open:
+### Comparison Matrix Completely Empty
+**Status:** Open
+**Impact:** Core feature shows no data — users get zero competitive insight
+**Location:** Market tab > Competition section
 
-### 1. Verdict Messages Contradict Each Other ✓
-Still open, still critical. Evidence from handoff doc confirms yellow box says "proceed" while verdict says "pivot".
+Matrix shows all zeros with no competitors displayed. Completely broken visualization.
 
-### 2. Reddit Metrics Shown in App Gap Mode ✓
-Still open. Shows "0 communities" and "94 posts" for App Store reviews.
-
-### 3. Market Score Unexplained (1.0 "Critical") ✓
-Still open. No context for what "11.1% penetration" means.
+**Fix:** Populate matrix with competitor data from `competitorMatrix` in analysis. If data unavailable, hide the section rather than show empty grid.
 
 ---
 
-## Suggested KNOWN_ISSUES Updates
+### Verdict Messages Contradict Each Other
+**Status:** Open
+**Impact:** Users get conflicting guidance
+**Location:** Verdict tab
 
-### Add: Verification Pending Note
-Under the "Recently Closed (January 4, 2026)" section, add:
+Yellow recommendation box says "proceed with caution" while verdict section says "pivot". Mixed signals confuse users.
 
-```markdown
-**⚠️ Note:** These fixes were verified with code review. Production verification pending with Loom export (Job ID: dbf8ff61-2b4b-46e0-a37d-0ae432ae159f). The Timeleft export (Jan 3) predates these fixes.
-```
-
-### Add: Recency Metrics Issue
-This isn't explicitly tracked but is a symptom of the dates bug:
-
-```markdown
-### Recency Metrics Always Zero When Dates Null
-**Status:** Dependent on App Store dates fix
-**Impact:** "Recency: 0%" shown, makes data look stale
-**Root cause:** If `createdUtc` is null, recency calculation returns 0
-**Fix:** Upstream — once dates are populated, recency will calculate correctly
-```
-
-### Clarify: Self-Competitor Filter Location
-The current entry says "Self-exclusion filter added" but doesn't specify where. Update:
-
-```markdown
-### ✅ CLOSED: Analyzed App Appears in Own Competitor List
-**Resolution:** Self-exclusion filter added in `scripts/export-research.ts`
-**Verification:** Should show "7 — 1 self-reference filtered" in export
-**Files:** `scripts/export-research.ts` (competitor rendering section)
-```
+**Fix:** Ensure recommendation text aligns with verdict score and assessment.
 
 ---
 
-## Summary
+### Hypothesis Confidence Wrong Metric for App Gap Mode
+**Status:** Open
+**Impact:** Two-axis viability assessment uses irrelevant metric
+**Location:** Verdict tab
 
-| Category | Count |
-|----------|-------|
-| CRITICAL - Open | 3 (UI contradictions) |
-| Closed - Needs post-fix verification | 4 |
-| Correctly closed | ~15 |
+Shows "Hypothesis Confidence" axis in App Gap mode, but no hypothesis was tested — user analyzed an existing app.
 
-**Next action:** Export Loom job and verify the 4 items above actually work.
+**Fix:** For App Gap mode, replace "Hypothesis Confidence" with "Signal Quality" or "Data Confidence". Keep current metric for Hypothesis mode only.
+
+---
+
+## 🟡 MEDIUM — Next Sprint
+
+### WTP Comments Truncated and Unreadable
+**Status:** Open
+**Impact:** Users can't read full willingness-to-pay signals
+**Location:** Gaps tab > WTP section
+
+Comments under "Willingness to Pay Signals" are cut off, unlike other sections which show full text.
+
+**Fix:** Show full text for WTP signals, or add "expand" button. Match behavior of other sections.
+
+---
+
+### Google Trends Keyword Truncated
+**Status:** Open
+**Impact:** Incomplete data display
+**Location:** Market tab > Timing section
+
+Shows "dating apps for relation" cut off instead of full keyword.
+
+**Fix:** Display full keyword. If space constrained, use tooltip for full text or truncate with "..." and show full on hover.
+
+---
+
+### Source Links Don't Go to Specific Reviews
+**Status:** Open
+**Impact:** Users can't verify source quotes
+**Location:** Gaps tab > signal cards
+
+"Original comment" link goes to general Google Play page, not specific review.
+
+**Fix:** Change link text to clarify destination: "View on Google Play" instead of "Original comment". Add tooltip: "Links to app store page (specific review links not available)".
+
+---
+
+### Reddit Metrics Shown in App Gap Mode
+**Status:** Open
+**Impact:** Confusing metrics for App Store-only analysis
+**Location:** Results header
+
+Shows "0 communities" and "94 posts" for App Store reviews — wrong terminology.
+
+**Fix:** Use "reviews" terminology in App Gap mode, hide Reddit-specific metrics.
+
+---
+
+### Market Score Unexplained
+**Status:** Open
+**Impact:** Users don't understand score meaning
+**Location:** Market tab
+
+Shows "1.0" and "Critical" with "11.1% penetration" but no context for what this means.
+
+**Fix:** Add explanation of market score calculation and what penetration percentage represents.
+
+---
+
+## 🟢 LOW — Polish
+
+### Investor Metrics Repeated on Every Tab
+**Status:** Open
+**Impact:** Wastes space, clutters views
+**Location:** All tabs (App, Feedback, Market, Gaps, Verdict)
+
+Same "Investor Metrics" section appears at top of every tab.
+
+**Fix:** Make collapsible (collapsed by default), or move to dedicated Summary section.
+
+---
+
+### Sentiment Overview Format Confusing
+**Status:** Open
+**Impact:** Users can't quickly understand overall sentiment
+**Location:** Feedback tab
+
+Shows "46 one to two stars" with format that doesn't communicate sentiment at a glance. Missing overall rating for context.
+
+**Fix:** Add overall rating prominently (e.g., "3.8 ★ from 274K reviews"). Redesign rating breakdown to be clearer.
+
+---
+
+### Opportunity Gaps UI Outdated
+**Status:** Open
+**Impact:** Looks unprofessional
+**Location:** Market tab > Opportunities section
+
+Cards show only headline + minimal detail. "Difficulty" tag and market opportunity icon look dated.
+
+**Fix:** Redesign opportunity cards with: description, difficulty badge, potential impact, related signals.
+
+---
+
+## Recently Verified Fixed (January 5, 2026)
+
+These were verified working with Tinder App Gap export:
+
+| Issue | Verification |
+|-------|--------------|
+| App Store dates null | ✅ Timestamps present (e.g., `1763722867`) |
+| Recency metrics zero | ✅ `last30Days: 33`, `last90Days: 37` |
+| Self-competitor in list | ✅ "5 — 1 self-reference filtered" |
+| Interview questions null | ✅ 15 questions in 3 categories |
+| Google Trends weighted % | ✅ Shows +948%, rising |
+| No [object Object] in export | ✅ 0 occurrences |
+| No raw embeddings in export | ✅ Cleaned properly |
+
+---
+
+## File Reference
+
+| Issue Category | Likely Files |
+|----------------|--------------|
+| Verdict | `src/components/research/verdict-hero.tsx`, `viability-verdict.tsx` |
+| Market/Competition | `src/components/research/market-tab.tsx` |
+| Gaps/WTP | `src/components/research/opportunities.tsx` |
+| Feedback/Sentiment | `src/components/research/user-feedback.tsx` |
+| Layout/Metrics | `src/components/research/layouts/` |
