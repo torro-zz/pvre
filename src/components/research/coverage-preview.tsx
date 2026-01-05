@@ -551,7 +551,9 @@ export function CoveragePreview({
           <div>
             <p className="font-medium">Checking data availability...</p>
             <p className="text-sm text-muted-foreground">
-              Scanning Reddit for relevant discussions
+              {mode === 'app-analysis'
+                ? 'Preparing app store review analysis'
+                : 'Scanning Reddit for relevant discussions'}
             </p>
           </div>
         </div>
@@ -564,6 +566,254 @@ export function CoveragePreview({
   const config = confidenceConfig[coverage.dataConfidence]
   const Icon = config.icon
 
+  // ============================================================
+  // APP GAP MODE - Simplified UI showing app stores as primary
+  // ============================================================
+  if (mode === 'app-analysis' && appData) {
+    return (
+      <div className="space-y-4">
+        {/* App Being Analyzed */}
+        <div className="p-4 rounded-xl border bg-card">
+          <div className="flex items-start gap-4">
+            {appData.iconUrl && (
+              <img
+                src={appData.iconUrl}
+                alt={appData.name}
+                className="w-16 h-16 rounded-xl shadow-sm"
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-lg truncate">{appData.name}</h3>
+              <p className="text-sm text-muted-foreground truncate">{appData.developer}</p>
+              <div className="flex items-center gap-3 mt-1 text-sm">
+                <span className="flex items-center gap-1">
+                  <span className="text-amber-500">★</span>
+                  {appData.rating?.toFixed(1) || 'N/A'}
+                </span>
+                <span className="text-muted-foreground">
+                  {appData.reviewCount?.toLocaleString() || '0'} reviews
+                </span>
+                <span className="text-muted-foreground">
+                  {appData.category}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Review Sources - App Stores */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Review Sources
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {/* App Store - show if available or if source is iOS */}
+            <div className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-primary text-primary-foreground border border-primary shadow-sm">
+              <span>📱</span>
+              <span>App Store</span>
+              <span className="text-xs opacity-80">
+                {sampleSize} reviews
+              </span>
+            </div>
+            {/* Google Play - show if cross-store lookup available */}
+            <div className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-primary text-primary-foreground border border-primary shadow-sm">
+              <span>🤖</span>
+              <span>Google Play</span>
+              <span className="text-xs opacity-80">
+                {sampleSize} reviews
+              </span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            We'll analyze up to {sampleSize * 2} reviews to find pain points and opportunities
+          </p>
+        </div>
+
+        {/* Analysis Depth - Same as hypothesis mode */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Analysis Depth
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {sampleSizePresets.find(p => p.value === sampleSize)?.description}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            {sampleSizePresets.map((preset) => (
+              <button
+                key={preset.value}
+                type="button"
+                onClick={() => setSampleSize(preset.value)}
+                className={cn(
+                  'flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all',
+                  sampleSize === preset.value
+                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                    : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                )}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Settings Row - Geography & Pricing */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 py-3 border-t border-b text-sm">
+          {/* Geography */}
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            {showGeographyEditor ? (
+              <div className="flex items-center gap-2">
+                {(['local', 'national', 'global'] as GeographyScope[]).map((scope) => (
+                  <button
+                    key={scope}
+                    type="button"
+                    onClick={() => {
+                      setGeographyScope(scope)
+                      if (scope === 'global') setShowGeographyEditor(false)
+                    }}
+                    className={cn(
+                      'px-2 py-1 rounded text-xs transition-colors',
+                      targetGeography?.scope === scope
+                        ? 'bg-primary/10 text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {scope === 'local' ? 'Local' : scope === 'national' ? 'National' : 'Global'}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setShowGeographyEditor(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowGeographyEditor(true)}
+                className="text-foreground hover:text-primary transition-colors"
+              >
+                {targetGeography?.scope === 'global' || !targetGeography
+                  ? 'Global'
+                  : targetGeography.location || (targetGeography.scope === 'local' ? 'Local' : 'National')}
+              </button>
+            )}
+          </div>
+
+          <span className="text-muted-foreground/30">|</span>
+
+          {/* Revenue Goal */}
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-muted-foreground" />
+            {showPricingEditor ? (
+              <div className="flex items-center gap-2">
+                {mscPresets.map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => setMscTarget(preset.value)}
+                    className={cn(
+                      'px-2 py-1 rounded text-xs transition-colors',
+                      mscTarget === preset.value
+                        ? 'bg-primary/10 text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowPricingEditor(true)}
+                className="text-foreground hover:text-primary transition-colors"
+              >
+                {mscPresets.find(p => p.value === mscTarget)?.label || `$${(mscTarget / 1000000).toFixed(1)}M`} goal
+              </button>
+            )}
+          </div>
+
+          <span className="text-muted-foreground/30">|</span>
+
+          {/* Pricing */}
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            {showPricingEditor ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number"
+                  value={targetPrice || ''}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === '') setTargetPrice(0)
+                    else {
+                      const num = Number(val)
+                      if (!isNaN(num) && num >= 0) setTargetPrice(num)
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (!e.target.value || Number(e.target.value) <= 0) setTargetPrice(29)
+                  }}
+                  placeholder="29"
+                  className="h-6 text-xs w-14 px-1"
+                  min={1}
+                />
+                <span className="text-xs text-muted-foreground">/mo</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPricingEditor(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground ml-1"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowPricingEditor(true)}
+                className="text-foreground hover:text-primary transition-colors"
+              >
+                ${targetPrice}/mo
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Action button */}
+        <Button
+          type="button"
+          onClick={() => onProceed(getFinalCoverageData())}
+          disabled={disabled}
+          size="lg"
+          className="w-full h-12 text-base"
+        >
+          {disabled ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Analyzing...
+            </>
+          ) : (
+            <>
+              Analyze App
+              <Sparkles className="ml-2 h-5 w-5" />
+            </>
+          )}
+        </Button>
+      </div>
+    )
+  }
+
+  // ============================================================
+  // HYPOTHESIS MODE - Full Reddit-centric UI
+  // ============================================================
   return (
     <div className="space-y-4">
       {/* Header with coverage status */}
