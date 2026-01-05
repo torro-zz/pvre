@@ -285,6 +285,65 @@ function calculateCompetitionScore(
 }
 
 // =============================================================================
+// NORMALIZE COMPETITOR MATRIX (handle Claude response format variations)
+// =============================================================================
+
+/**
+ * Claude sometimes returns competitorMatrix in different formats:
+ * - Expected: { competitorName: string, scores: { category, score, notes }[] }
+ * - Received: { name: string, scores: number[] }
+ *
+ * This function normalizes to the expected format.
+ */
+function normalizeCompetitorMatrix(
+  matrix: {
+    categories?: string[]
+    comparison?: Array<{
+      competitorName?: string
+      name?: string
+      scores: Array<{ category: string; score: number; notes?: string }> | number[]
+    }>
+  } | null | undefined
+): { categories: string[]; comparison: { competitorName: string; scores: { category: string; score: number; notes: string }[] }[] } {
+  if (!matrix || !matrix.categories || !matrix.comparison) {
+    return { categories: [], comparison: [] }
+  }
+
+  const categories = matrix.categories
+  const normalizedComparison = matrix.comparison.map(comp => {
+    // Handle both 'competitorName' and 'name' field names
+    const competitorName = comp.competitorName || comp.name || 'Unknown'
+
+    // Handle both array of objects and array of numbers for scores
+    let scores: { category: string; score: number; notes: string }[]
+
+    if (Array.isArray(comp.scores) && comp.scores.length > 0) {
+      if (typeof comp.scores[0] === 'number') {
+        // Scores is number[] - convert to { category, score, notes }[]
+        scores = (comp.scores as number[]).map((score, index) => ({
+          category: categories[index] || `Category ${index + 1}`,
+          score: typeof score === 'number' ? score : 0,
+          notes: ''
+        }))
+      } else {
+        // Scores is already { category, score, notes }[] - normalize notes field
+        scores = (comp.scores as Array<{ category: string; score: number; notes?: string }>).map(s => ({
+          category: s.category,
+          score: s.score,
+          notes: s.notes || ''
+        }))
+      }
+    } else {
+      scores = []
+    }
+
+    return { competitorName, scores }
+  })
+
+  return { categories, comparison: normalizedComparison }
+}
+
+// =============================================================================
 // FALLBACK ANALYSIS (when Claude parsing fails)
 // =============================================================================
 
@@ -578,11 +637,15 @@ Identify 4-8 competitors. Include at least 3 gaps and 2 positioning recommendati
 
   const processingTimeMs = Date.now() - startTime
 
+  // Normalize competitorMatrix to match expected UI format
+  // Claude sometimes returns { name, scores: number[] } instead of { competitorName, scores: { category, score, notes }[] }
+  const normalizedMatrix = normalizeCompetitorMatrix(analysis.competitorMatrix)
+
   return {
     hypothesis,
     marketOverview: analysis.marketOverview,
     competitors,
-    competitorMatrix: analysis.competitorMatrix || { categories: [], comparison: [] },
+    competitorMatrix: normalizedMatrix,
     gaps,
     positioningRecommendations: analysis.positioningRecommendations || [],
     competitionScore,

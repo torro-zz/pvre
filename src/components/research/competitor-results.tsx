@@ -217,23 +217,51 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
     return grouped
   }, [results.competitors, results.hypothesis])
 
-  // Filter competitor matrix to exclude the analyzed app
+  // Normalize and filter competitor matrix
+  // Handles both old format { name, scores: number[] } and new format { competitorName, scores: { category, score, notes }[] }
   const filteredCompetitorMatrix = useMemo(() => {
-    if (!results.competitorMatrix?.comparison) return results.competitorMatrix
+    if (!results.competitorMatrix?.comparison || !results.competitorMatrix?.categories) {
+      return { categories: [], comparison: [] }
+    }
 
+    const categories = results.competitorMatrix.categories
     const analyzedAppName = results.hypothesis?.toLowerCase().trim()
-    if (!analyzedAppName) return results.competitorMatrix
 
-    return {
-      ...results.competitorMatrix,
-      comparison: results.competitorMatrix.comparison.filter((comp) => {
-        // Guard against undefined competitorName
-        if (!comp.competitorName) return true
+    // Normalize comparison entries to expected format
+    const normalizedComparison = results.competitorMatrix.comparison
+      .map((comp) => {
+        // Handle both 'competitorName' and 'name' field names
+        const competitorName = comp.competitorName || (comp as { name?: string }).name || 'Unknown'
+
+        // Handle both array of objects and array of numbers for scores
+        let scores: { category: string; score: number; notes?: string }[]
+        if (Array.isArray(comp.scores) && comp.scores.length > 0) {
+          if (typeof comp.scores[0] === 'number') {
+            // Scores is number[] - convert to { category, score, notes }[]
+            scores = (comp.scores as unknown as number[]).map((score, index) => ({
+              category: categories[index] || `Category ${index + 1}`,
+              score: typeof score === 'number' ? score : 0,
+              notes: ''
+            }))
+          } else {
+            // Already in expected format
+            scores = comp.scores as { category: string; score: number; notes?: string }[]
+          }
+        } else {
+          scores = []
+        }
+
+        return { competitorName, scores }
+      })
+      // Filter out analyzed app from its own competitor list
+      .filter((comp) => {
+        if (!analyzedAppName) return true
         const compNameLower = comp.competitorName.toLowerCase().trim()
         return compNameLower !== analyzedAppName &&
                !analyzedAppName.includes(compNameLower)
       })
-    }
+
+    return { categories, comparison: normalizedComparison }
   }, [results.competitorMatrix, results.hypothesis])
 
   const hasDirectCompetitors = categorizedCompetitors.direct.length > 0
