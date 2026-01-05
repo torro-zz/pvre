@@ -40,6 +40,78 @@ Shows "Hypothesis Confidence" axis in App Gap mode, but no hypothesis was tested
 
 ---
 
+### Coverage Preview Shows Wrong Sources for App Gap Mode
+**Status:** Open
+**Impact:** Users don't understand what data will be analyzed
+**Location:** Coverage preview screen (before starting research)
+
+**The Problem:**
+
+The coverage preview was designed for **Hypothesis mode** where Reddit IS the primary source. For App Gap mode, we're showing the wrong thing:
+
+| What the UI Shows | What Actually Happens |
+|-------------------|----------------------|
+| Reddit as the only source | We fetch 500+ App Store reviews as the PRIMARY data |
+| Subreddits like r/dating, r/Tinder | These find general dating discussions, not app-specific feedback |
+| No mention of App Store/Google Play | Those reviews ARE fetched but not shown here |
+
+**What Reddit Provides (and doesn't):**
+
+For Tinder App Gap analysis, Reddit search will find:
+- ✅ Some app-specific discussions in r/Tinder
+- ❌ Mostly general dating advice ("how to get matches")
+- ❌ Relationship discussions not about the app
+- ❌ Dilutes the signal from actual app reviews
+
+**The app store reviews are 10x more valuable** because they're:
+- Direct feedback about the app
+- From verified users
+- Focused on app experience, not general dating
+
+**Suggested Changes for App Gap Coverage Preview:**
+
+1. **Show App Stores as Primary Sources**
+```
+REVIEW SOURCES
+[📱 App Store  500 reviews]  [🤖 Google Play  500 reviews]
+```
+
+2. **Either Hide Reddit or Make it Optional**
+   - **Option A:** Remove Reddit entirely for App Gap mode (cleaner, faster, more relevant)
+   - **Option B:** Show as optional secondary source with toggle
+
+3. **Remove/Replace Irrelevant Sections**
+   - "COMMUNITIES" section → doesn't make sense for app analysis
+   - "EXAMPLE POSTS" → should show example reviews, not Reddit posts
+   - "Relevance Check" → was designed for Reddit, not app reviews
+
+4. **Simplify the UI for App Gap**
+```
+Analyzing: Tinder Dating App
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Sources:
+  App Store     500 reviews
+  Google Play   500 reviews (cross-store lookup)
+
+Analysis Depth: [Quick] [Standard] [Deep]
+
+[Start Analysis →]
+```
+
+**Recommendation:**
+
+For App Gap mode, Reddit is noise. Suggested approach:
+1. Show App Store/Google Play prominently as the data sources
+2. Hide Reddit communities (or make them an advanced "also search Reddit" toggle)
+3. Change example posts to example reviews
+4. Simplify the whole coverage screen for app analysis
+
+**Files:**
+- `src/components/research/coverage-preview.tsx` — main UI component
+- `src/app/api/research/coverage-check/route.ts` — API that generates coverage data
+
+---
+
 ## 🟡 MEDIUM — Next Sprint
 
 ### WTP Comments Truncated and Unreadable
@@ -157,7 +229,7 @@ Currently scrape from one store only. Should scrape 500 reviews from iOS App Sto
 | Comparative Mentions | ✅ NEW: Extracts real user comparisons from reviews |
 | App Store dates null | ✅ Timestamps present (e.g., `1763722867`) |
 | Recency metrics zero | ✅ `last30Days: 33`, `last90Days: 37` |
-| Self-competitor in list | ❌ **REOPENED** — Name mismatch issue, see CRITICAL section |
+| Self-competitor in list | ✅ Fixed via `analyzedAppName` extraction from `coverage_data.appData.name` |
 | Interview questions null | ✅ 15 questions in 3 categories |
 | Google Trends weighted % | ✅ Shows +948%, rising |
 | No [object Object] in export | ✅ 0 occurrences |

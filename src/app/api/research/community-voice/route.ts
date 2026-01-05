@@ -621,6 +621,47 @@ export async function POST(request: NextRequest) {
         console.error(`Failed to fetch app reviews for ${appData.name}:`, appReviewError)
         // Continue without app reviews - don't fail the entire request
       }
+
+      // Step 3d: Cross-store lookup - find the same app on the OTHER store
+      try {
+        // Extract core app name (e.g., "Tinder" from "Tinder - Dating & New Friends")
+        const coreAppName = appData.name.split(/[:\-–—]/)[0].trim().toLowerCase()
+        const otherStore = appData.store === 'google_play' ? 'app_store' : 'google_play'
+
+        console.log(`Step 3d: Searching ${otherStore} for "${coreAppName}"...`)
+
+        // Search the other store
+        const otherAdapter = otherStore === 'app_store' ? appStoreAdapter : googlePlayAdapter
+        const searchResults = await otherAdapter.searchAppsWithDetails(coreAppName, { maxApps: 5 })
+
+        // Find matching app: same core name + high review count (real app, not clone)
+        const matchingApp = searchResults.apps.find(app => {
+          const resultCoreName = app.name.split(/[:\-–—]/)[0].trim().toLowerCase()
+          return resultCoreName === coreAppName && app.reviewCount > 1000
+        })
+
+        if (matchingApp) {
+          console.log(`Found matching app on ${otherStore}: ${matchingApp.name} (${matchingApp.reviewCount} reviews)`)
+
+          // Fetch reviews from the matched app
+          let crossStoreReviews: RedditPost[] = []
+          if (otherStore === 'google_play') {
+            crossStoreReviews = await googlePlayAdapter.getReviewsForAppId(matchingApp.appId, { limit: 500 })
+          } else {
+            crossStoreReviews = await appStoreAdapter.getReviewsForAppId(matchingApp.appId, { limit: 500 })
+          }
+
+          if (crossStoreReviews.length > 0) {
+            rawPosts = [...rawPosts, ...crossStoreReviews]
+            console.log(`Added ${crossStoreReviews.length} ${otherStore === 'google_play' ? 'Google Play' : 'App Store'} reviews from cross-store lookup`)
+          }
+        } else {
+          console.log(`No matching app found on ${otherStore} for "${coreAppName}"`)
+        }
+      } catch (crossStoreError) {
+        console.warn(`Cross-store lookup failed (non-blocking):`, crossStoreError)
+        // Continue without cross-store reviews - don't fail the entire request
+      }
     }
 
     // Check for data source warnings

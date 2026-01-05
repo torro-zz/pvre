@@ -173,6 +173,10 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
   const [showAppAddPhrase, setShowAppAddPhrase] = useState(false)
   const appAddPhraseInputRef = useRef<HTMLInputElement>(null)
 
+  // Expandable sections state (App confirm screen)
+  const [showAllDomains, setShowAllDomains] = useState(false)
+  const [showAllCompetitors, setShowAllCompetitors] = useState(false)
+
   // Build structured hypothesis from current state
   const getStructuredHypothesis = useCallback((): StructuredHypothesis => {
     // App analysis mode
@@ -667,8 +671,8 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <Link2 className="h-4 w-4" />
-                Analyze a URL
+                <Smartphone className="h-4 w-4" />
+                Analyze an App
               </button>
             </div>
           </div>
@@ -759,7 +763,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                 <div className="relative">
                   <Input
                     type="url"
-                    placeholder="Paste a URL to analyze..."
+                    placeholder="Paste an App Store or Google Play link..."
                     value={urlInput}
                     onChange={(e) => {
                       setUrlInput(e.target.value)
@@ -782,7 +786,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                 )}
                 {!urlInput.trim() && (
                   <p className="text-sm text-muted-foreground">
-                    Paste a URL from Reddit, app stores, or any discussion forum
+                    Find what users love and hate about any app
                   </p>
                 )}
                 {isUrlValid && urlValidation.type && (
@@ -799,14 +803,15 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                 </div>
               )}
 
-              {/* Supported platforms - Modern Grid */}
+              {/* Supported platforms - App Stores Only */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <ExternalLink className="h-4 w-4" />
-                  <span>Supported sources</span>
+                  <span>Supported</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {Object.entries(URL_TYPE_INFO).map(([key, { label, icon: Icon }]) => {
+                  {(['googleplay', 'appstore'] as const).map((key) => {
+                    const { label, icon: Icon } = URL_TYPE_INFO[key]
                     const isMatched = isUrlValid && urlValidation.type === key
                     return (
                       <span
@@ -826,7 +831,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                 </div>
               </div>
 
-              {/* Analyze URL button */}
+              {/* Analyze App button */}
               <Button
                 size="lg"
                 className="w-full rounded-xl h-12 text-base"
@@ -870,42 +875,8 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                         throw new Error('Failed to analyze app - unexpected response')
                       }
 
-                      // For all other URLs, use the analyze-url endpoint
-                      const response = await fetch('/api/research/analyze-url', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          url: urlInput.trim(),
-                          urlType: urlValidation.type,
-                        }),
-                      })
-
-                      if (!response.ok) {
-                        let errorMessage = 'Failed to analyze URL'
-                        try {
-                          const err = await response.json()
-                          errorMessage = err.error || errorMessage
-                        } catch {
-                          errorMessage = `Server error (${response.status}). Please try again.`
-                        }
-                        throw new Error(errorMessage)
-                      }
-
-                      const data = await response.json()
-
-                      setInterpretation(data.interpretation)
-                      setRefinements(data.refinementSuggestions || [])
-                      setFormattedHypothesis(data.formattedHypothesis)
-
-                      // Pre-populate adjust fields
-                      setAdjustedAudience(data.interpretation.audience)
-                      setAdjustedProblem(data.interpretation.problem)
-                      setAdjustedPhrases([...data.interpretation.searchPhrases])
-
-                      // Store the original URL for reference
-                      setRawInput(`Analyzing: ${urlInput}`)
-
-                      setStep('confirm')
+                      // For non-app URLs, show helpful error
+                      throw new Error('Please paste an App Store or Google Play link to analyze an app')
                     } catch (err) {
                       setInterpretError(err instanceof Error ? err.message : 'Something went wrong')
                     } finally {
@@ -917,18 +888,18 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
                   {isInterpreting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Analyzing URL...
+                      Analyzing app...
                     </>
                   ) : (
                   <>
-                    Analyze URL
+                    Analyze App
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </>
                 )}
               </Button>
 
               <p className="text-sm text-center text-muted-foreground">
-                We&apos;ll extract pain signals, complaints, and feedback from the page
+                We&apos;ll analyze thousands of reviews to find competitor gaps, user frustrations, and market opportunities
               </p>
             </div>
           )}
@@ -1391,8 +1362,27 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
               </p>
               {appInterpretation.secondaryDomains.length > 0 && (
                 <p className="text-sm text-muted-foreground mt-1.5">
-                  Also: {appInterpretation.secondaryDomains.slice(0, 2).join(', ')}
-                  {appInterpretation.secondaryDomains.length > 2 && ` +${appInterpretation.secondaryDomains.length - 2} more`}
+                  Also: {showAllDomains
+                    ? appInterpretation.secondaryDomains.join(', ')
+                    : appInterpretation.secondaryDomains.slice(0, 2).join(', ')}
+                  {!showAllDomains && appInterpretation.secondaryDomains.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllDomains(true)}
+                      className="ml-1 text-primary hover:underline"
+                    >
+                      +{appInterpretation.secondaryDomains.length - 2} more
+                    </button>
+                  )}
+                  {showAllDomains && appInterpretation.secondaryDomains.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllDomains(false)}
+                      className="ml-1 text-primary hover:underline"
+                    >
+                      show less
+                    </button>
+                  )}
                 </p>
               )}
             </div>
@@ -1470,18 +1460,37 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
               </div>
 
               <p className="text-xs text-muted-foreground">
-                We&apos;ll search Reddit and Hacker News for these phrases to find pain signals
+                We&apos;ll analyze user reviews from the app stores to find pain signals
               </p>
             </div>
 
-            {/* Competitors - Subtle inline */}
+            {/* Competitors - Expandable */}
             {appInterpretation.competitorTerms.length > 0 && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t flex-wrap">
                 <span>Comparing with:</span>
                 <span className="text-foreground">
-                  {appInterpretation.competitorTerms.slice(0, 4).join(', ')}
-                  {appInterpretation.competitorTerms.length > 4 && ` +${appInterpretation.competitorTerms.length - 4}`}
+                  {showAllCompetitors
+                    ? appInterpretation.competitorTerms.join(', ')
+                    : appInterpretation.competitorTerms.slice(0, 4).join(', ')}
                 </span>
+                {!showAllCompetitors && appInterpretation.competitorTerms.length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllCompetitors(true)}
+                    className="text-primary hover:underline"
+                  >
+                    +{appInterpretation.competitorTerms.length - 4}
+                  </button>
+                )}
+                {showAllCompetitors && appInterpretation.competitorTerms.length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllCompetitors(false)}
+                    className="text-primary hover:underline"
+                  >
+                    show less
+                  </button>
+                )}
               </div>
             )}
 

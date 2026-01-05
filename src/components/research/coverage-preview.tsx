@@ -720,21 +720,18 @@ export function CoveragePreview({
             <span>Reddit</span>
             <span className="text-xs opacity-80">
               {(() => {
-                // Sum actual estimatedPosts from selected subreddits
-                let totalAvailable = 0
+                // Calculate what we'll actually fetch (matches individual subreddit badge logic)
                 let toAnalyze = 0
                 for (const sub of coverage.subreddits) {
                   if (selectedSubreddits.has(sub.name)) {
-                    totalAvailable += sub.estimatedPosts
                     // If subreddit has fewer posts than API limit (100), use actual count. Otherwise use sampleSize.
                     toAnalyze += sub.estimatedPosts < 100 ? sub.estimatedPosts : sampleSize
                   }
                 }
                 // Add custom subreddits (estimate sampleSize each)
                 toAnalyze += customSubreddits.length * sampleSize
-                totalAvailable += customSubreddits.length * sampleSize
 
-                return formatSourceCount(totalAvailable, toAnalyze)
+                return toAnalyze.toLocaleString()
               })()}
             </span>
           </div>
