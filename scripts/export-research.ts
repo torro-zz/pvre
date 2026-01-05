@@ -439,11 +439,23 @@ function generateNarrative(data: ExportResult): string {
       ? allCompetitors.filter(comp => {
           const compName = (comp.name as string || '').toLowerCase().trim()
           const analyzedName = appName.toLowerCase().trim()
-          // Filter if exact match or name contains app name (e.g., "Loom" in "Loom: Screen Recorder")
-          const appBaseName = analyzedName.split(':')[0].trim()
-          return compName !== analyzedName &&
-                 compName !== appBaseName &&
-                 !compName.includes(appBaseName)
+          // Extract the first word (core brand name) from both
+          // e.g., "Tinder Dating App: Chat & Date" -> "tinder"
+          // e.g., "Loom: Screen Recorder" -> "loom"
+          const appFirstWord = analyzedName.split(/[\s:]/)[0].trim()
+          const compFirstWord = compName.split(/[\s:]/)[0].trim()
+
+          // Filter if:
+          // 1. Exact full name match
+          // 2. First word of names match (brand name)
+          // 3. Competitor name is prefix of app name
+          const isSelfReference =
+            compName === analyzedName ||
+            compFirstWord === appFirstWord ||
+            analyzedName.startsWith(compName + ' ') ||
+            analyzedName.startsWith(compName + ':')
+
+          return !isSelfReference
         })
       : allCompetitors
 
