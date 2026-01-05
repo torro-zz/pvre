@@ -6,17 +6,6 @@
 
 ## 🔴 CRITICAL — Fix First
 
-### Comparison Matrix Completely Empty
-**Status:** Open
-**Impact:** Core feature shows no data — users get zero competitive insight
-**Location:** Market tab > Competition section
-
-Matrix shows all zeros with no competitors displayed. Completely broken visualization.
-
-**Fix:** Populate matrix with competitor data from `competitorMatrix` in analysis. If data unavailable, hide the section rather than show empty grid.
-
----
-
 ### Verdict Messages Contradict Each Other
 **Status:** Open
 **Impact:** Users get conflicting guidance
@@ -137,6 +126,7 @@ These were verified working with Tinder App Gap export:
 
 | Issue | Verification |
 |-------|--------------|
+| Comparison Matrix empty | ✅ Now shows 6 competitors × 5 dimensions with scores |
 | App Store dates null | ✅ Timestamps present (e.g., `1763722867`) |
 | Recency metrics zero | ✅ `last30Days: 33`, `last90Days: 37` |
 | Self-competitor in list | ✅ "5 — 1 self-reference filtered" |
