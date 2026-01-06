@@ -1,10 +1,64 @@
 # PVRE Known Issues
 
-*Last updated: January 5, 2026*
+*Last updated: January 6, 2026*
 
 ---
 
 ## 🔴 CRITICAL — Fix First
+
+### ~~Google Trends Not Showing in App Gap Mode~~
+**Status:** ✅ FIXED (Jan 5, 2026)
+**Impact:** ~~Users don't see timing/trend data for apps~~
+**Location:** Market tab > Timing section
+
+**Fix Applied:**
+- Root cause: AI-extracted keywords from long App Gap hypotheses were too generic (e.g., "AI chatbot productivity")
+- Added `appName` parameter to `TimingInput` interface in `timing-analyzer.ts`
+- Modified `analyzeTiming` to prepend actual app name (e.g., "ChatGPT") as first Google Trends keyword
+- Updated `community-voice/route.ts` to pass `appData?.name` when calling `analyzeTiming`
+- Now shows real Google Trends data for the specific app being analyzed
+
+**Note:** Only applies to NEW research jobs. Existing jobs won't have timing data until re-run.
+
+---
+
+### ~~Self-Competitor Still Appears (ChatGPT → OpenAI)~~
+**Status:** ✅ FIXED (Jan 5, 2026)
+**Impact:** ~~App being analyzed shows as competitor to itself~~
+**Location:** Market tab > Competition section
+
+**Fix Applied:**
+- Extended `analyzedAppName` to include developer name in pipe-separated format: `chatgpt|openai`
+- Updated `competitor-intelligence/route.ts` to extract both `appData.name` and `appData.developer`
+- Updated `competitor-results.tsx` filtering to split by `|` and check all names
+- Competitors matching either the app name OR developer name are now excluded
+- Works for all apps: ChatGPT filters out "OpenAI", Slack filters out "Salesforce", etc.
+
+---
+
+### ~~Opportunity Timelines Unrealistic ("3+ months")~~
+**Status:** ✅ FIXED (Jan 5, 2026)
+**Impact:** ~~Makes opportunities sound impossible for indie founders~~
+**Location:** Market tab > Opportunities section
+
+**Fix Applied:**
+- Removed specific timeline estimates that implied unrealistic scopes
+- Updated `getEffortLabel()` function in `market-tab.tsx` (lines 1161-1168)
+- New labels: "Quick Win", "Moderate Effort", "Significant Build"
+- Old labels removed: "Quick Win (1-2 weeks)", "Medium Effort (1-3 months)", "Major Initiative (3+ months)"
+
+---
+
+### ~~"Example Source" Label Still Appearing~~
+**Status:** ✅ FIXED (Jan 5, 2026)
+**Impact:** ~~Confusing UX - unclear what "Example source" means~~
+**Location:** Opportunities tab
+
+**Fix Applied:**
+- Changed label from "Example source" to "View source" in `opportunities.tsx` (line 366)
+- Now clearly indicates the user can click to view the original source
+
+---
 
 ### Verdict Messages Contradict Each Other
 **Status:** Open
@@ -40,14 +94,22 @@ Shows "Hypothesis Confidence" axis in App Gap mode, but no hypothesis was tested
 
 ---
 
-### Coverage Preview Shows Wrong Sources for App Gap Mode
-**Status:** Open
-**Impact:** Users don't understand what data will be analyzed
+### ~~Coverage Preview Shows Wrong Sources for App Gap Mode~~
+**Status:** ✅ FIXED (Jan 5, 2026)
+**Impact:** ~~Users don't understand what data will be analyzed~~
 **Location:** Coverage preview screen (before starting research)
 
-**The Problem:**
+**Fix Applied:**
+- Added separate render path in `coverage-preview.tsx` for `mode === 'app-analysis'`
+- Shows app being analyzed (icon, name, rating, review count)
+- Displays App Store & Google Play as primary "Review Sources"
+- Removes Reddit-centric sections (Communities, Discussion Sources, Example Posts, Relevance Check)
+- Loading message says "Preparing app store review analysis"
+- Button says "Analyze App" instead of "Start Research"
 
-The coverage preview was designed for **Hypothesis mode** where Reddit IS the primary source. For App Gap mode, we're showing the wrong thing:
+**Original Problem:**
+
+The coverage preview was designed for **Hypothesis mode** where Reddit IS the primary source. For App Gap mode, we were showing the wrong thing:
 
 | What the UI Shows | What Actually Happens |
 |-------------------|----------------------|
@@ -221,10 +283,14 @@ Currently scrape from one store only. Should scrape 500 reviews from iOS App Sto
 
 ---
 
-## Recently Verified Fixed (January 5, 2026)
+## Recently Verified Fixed (January 6, 2026)
 
 | Issue | Verification |
 |-------|--------------|
+| Google Trends not showing (App Gap) | ✅ Added `appName` param to timing analyzer, prepends app name to keywords |
+| Self-competitor (ChatGPT → OpenAI) | ✅ Now filters by both app name AND developer name via pipe-separated format |
+| Unrealistic timelines (3+ months) | ✅ Removed time estimates, now "Quick Win", "Moderate Effort", "Significant Build" |
+| "Example Source" label | ✅ Changed to "View source" in opportunities.tsx |
 | Comparison Matrix empty | ✅ Now shows 6 competitors × 5 dimensions with scores |
 | Comparative Mentions | ✅ NEW: Extracts real user comparisons from reviews |
 | App Store dates null | ✅ Timestamps present (e.g., `1763722867`) |

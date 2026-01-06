@@ -18,6 +18,7 @@ import {
 export interface TimingInput {
   hypothesis: string;
   industry?: string;
+  appName?: string; // For App Gap mode: include app name in Google Trends keywords
 }
 
 export interface TimingSignal {
@@ -40,6 +41,12 @@ export interface TimingResult {
     percentageChange: number;
     dataAvailable: boolean;
     keywordBreakdown?: KeywordTrend[];
+    // Timeline data for sparkline visualization
+    timelineData?: Array<{
+      time: string;
+      formattedTime: string;
+      value: number[];
+    }>;
   } | null;
 }
 
@@ -53,8 +60,18 @@ export async function analyzeTiming(
 
   // Step 1: Try to get real Google Trends data
   // Use AI to extract problem-focused keywords (not demographics like "professionals")
-  const keywords = await extractTrendKeywordsWithAI(input.hypothesis);
+  let keywords = await extractTrendKeywordsWithAI(input.hypothesis);
   let trendData: TrendResult | null = null;
+
+  // For App Gap mode: ensure the app name is included as a keyword for better relevance
+  if (input.appName) {
+    const normalizedAppName = input.appName.split(/[:\-–—]/)[0].trim();
+    // Add app name at the beginning if not already present
+    if (!keywords.some(k => k.toLowerCase().includes(normalizedAppName.toLowerCase()))) {
+      keywords = [normalizedAppName, ...keywords].slice(0, 4);
+    }
+    console.log('[Timing] App Gap mode - including app name in keywords:', normalizedAppName);
+  }
 
   if (keywords.length > 0) {
     console.log('[Timing] Fetching Google Trends for:', keywords);
@@ -179,6 +196,7 @@ Respond with ONLY valid JSON:
           percentageChange: trendData.percentageChange,
           dataAvailable: true,
           keywordBreakdown: trendData.keywordBreakdown,
+          timelineData: trendData.timelineData,
         }
       : null,
   };

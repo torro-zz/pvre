@@ -1365,6 +1365,7 @@ export async function POST(request: NextRequest) {
     try {
       timing = await analyzeTiming({
         hypothesis,
+        appName: appData?.name, // App Gap mode: include app name for better Google Trends results
       })
       console.log(`Timing analysis complete - Score: ${timing.score}/10`)
     } catch (timingError) {

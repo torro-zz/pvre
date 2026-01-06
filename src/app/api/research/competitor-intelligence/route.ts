@@ -767,14 +767,19 @@ export async function POST(request: NextRequest) {
         console.log('Using target geography for competitor analysis:', geography)
       }
 
-      // Extract app name for self-filtering (App Gap mode only)
+      // Extract app name AND developer for self-filtering (App Gap mode only)
       if (coverageData?.mode === 'app-analysis') {
-        const appData = coverageData?.appData as { name?: string } | undefined
+        const appData = coverageData?.appData as { name?: string; developer?: string } | undefined
         if (appData?.name) {
           // Normalize: "Tinder Dating App: Chat & Date" → "tinder"
           // "Loom: Screen Recorder" → "loom"
           analyzedAppName = appData.name.split(/[:\-–—]/)[0].trim().toLowerCase()
-          console.log(`App Gap mode: using app name "${analyzedAppName}" for self-filtering`)
+          // Also include developer name for self-filtering (e.g., "OpenAI" for ChatGPT)
+          if (appData.developer) {
+            // Combine app name and developer: "chatgpt|openai"
+            analyzedAppName = `${analyzedAppName}|${appData.developer.toLowerCase().trim()}`
+          }
+          console.log(`App Gap mode: using app filter "${analyzedAppName}" for self-filtering`)
         }
       }
 

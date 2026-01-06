@@ -1387,80 +1387,10 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
               )}
             </div>
 
-            {/* Search Phrases - Main Focus */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Search Phrases
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {appSearchPhrases.length} phrases
-                </span>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {appSearchPhrases.map((phrase, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-primary/5 border border-primary/20 text-foreground group"
-                  >
-                    {phrase}
-                    <button
-                      type="button"
-                      onClick={() => setAppSearchPhrases(prev => prev.filter(p => p !== phrase))}
-                      className="opacity-40 group-hover:opacity-100 hover:text-destructive transition-opacity ml-0.5"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </span>
-                ))}
-                {/* Add phrase */}
-                {showAppAddPhrase ? (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      ref={appAddPhraseInputRef}
-                      value={appNewPhrase}
-                      onChange={(e) => setAppNewPhrase(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          if (appNewPhrase.trim() && !appSearchPhrases.includes(appNewPhrase.trim())) {
-                            setAppSearchPhrases(prev => [...prev, appNewPhrase.trim()])
-                          }
-                          setAppNewPhrase('')
-                          setShowAppAddPhrase(false)
-                        } else if (e.key === 'Escape') {
-                          setShowAppAddPhrase(false)
-                          setAppNewPhrase('')
-                        }
-                      }}
-                      onBlur={() => {
-                        if (!appNewPhrase.trim()) {
-                          setShowAppAddPhrase(false)
-                        }
-                      }}
-                      placeholder="Add phrase..."
-                      className="h-8 text-sm w-44"
-                      autoFocus
-                    />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAppAddPhrase(true)
-                      setTimeout(() => appAddPhraseInputRef.current?.focus(), 0)
-                    }}
-                    className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-dashed border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add
-                  </button>
-                )}
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                We&apos;ll analyze user reviews from the app stores to find pain signals
+            {/* Data Source Info */}
+            <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
+              <p className="text-sm text-muted-foreground">
+                We&apos;ll analyze user reviews directly from {appData.store === 'google_play' ? 'Google Play' : 'the App Store'} to find pain points and opportunities.
               </p>
             </div>
 
@@ -1502,7 +1432,7 @@ export function ConversationalInput({ onSubmit, isLoading, showCoveragePreview =
               </Button>
               <Button
                 onClick={() => setShowPreview(true)}
-                disabled={isLoading || appSearchPhrases.length === 0}
+                disabled={isLoading}
                 size="lg"
                 className="flex-1 h-11"
               >

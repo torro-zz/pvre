@@ -201,18 +201,23 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
     }
 
     // Use the explicit analyzedAppName from result (App Gap mode only)
-    // This is properly extracted from coverage_data.appData.name and normalized
+    // Format: "appname" or "appname|developer" (e.g., "chatgpt|openai")
     // Hypothesis mode: analyzedAppName is null, so no self-filtering
-    const selfAppName = results.analyzedAppName?.toLowerCase().trim() || null
+    const selfFilter = results.analyzedAppName?.toLowerCase().trim() || null
+    // Parse out app name and developer name for filtering
+    const selfNames = selfFilter?.split('|').filter(Boolean) || []
 
     results.competitors
       .filter((competitor) => {
-        // Only filter in App Gap mode (when selfAppName is set)
-        if (!selfAppName) return true
+        // Only filter in App Gap mode (when selfFilter is set)
+        if (selfNames.length === 0) return true
         const competitorNameLower = competitor.name.toLowerCase().trim()
-        // Exact match or the self-app name is contained in competitor name
-        return competitorNameLower !== selfAppName &&
-               !competitorNameLower.includes(selfAppName)
+        // Exclude if competitor matches ANY of the self names (app name or developer)
+        return !selfNames.some(selfName =>
+          competitorNameLower === selfName ||
+          competitorNameLower.includes(selfName) ||
+          selfName.includes(competitorNameLower)
+        )
       })
       .forEach((competitor) => {
         const category = categorizeCompetitor(competitor)
@@ -231,7 +236,9 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
 
     const categories = results.competitorMatrix.categories
     // Use the explicit analyzedAppName from result (App Gap mode only)
-    const selfAppName = results.analyzedAppName?.toLowerCase().trim() || null
+    // Format: "appname" or "appname|developer" (e.g., "chatgpt|openai")
+    const selfFilter = results.analyzedAppName?.toLowerCase().trim() || null
+    const selfNames = selfFilter?.split('|').filter(Boolean) || []
 
     // Normalize comparison entries to expected format
     const normalizedComparison = results.competitorMatrix.comparison
@@ -261,10 +268,14 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
       })
       // Filter out analyzed app from its own competitor list (App Gap mode only)
       .filter((comp) => {
-        if (!selfAppName) return true
+        if (selfNames.length === 0) return true
         const compNameLower = comp.competitorName.toLowerCase().trim()
-        return compNameLower !== selfAppName &&
-               !compNameLower.includes(selfAppName)
+        // Exclude if competitor matches ANY of the self names (app name or developer)
+        return !selfNames.some(selfName =>
+          compNameLower === selfName ||
+          compNameLower.includes(selfName) ||
+          selfName.includes(compNameLower)
+        )
       })
 
     return { categories, comparison: normalizedComparison }

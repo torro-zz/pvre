@@ -363,7 +363,7 @@ function ExpandableQuote({ need }: { need: UnmetNeed }) {
             rel="noopener noreferrer"
             className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors"
           >
-            Example source
+            View source
             <ExternalLink className="h-2.5 w-2.5" />
           </a>
         )}

@@ -158,6 +158,16 @@ export interface CompetitorGap {
   description: string
   opportunity: string
   difficulty: 'low' | 'medium' | 'high'
+  // Enhanced fields
+  opportunityScore?: number // 1-10 scale
+  validationSignals?: string[] // Evidence supporting this gap
+  evidenceCount?: number // Total signals supporting this gap
+  sourceBreakdown?: {
+    appStore?: number
+    googlePlay?: number
+    reddit?: number
+  }
+  clusterIds?: string[] // Which clusters this gap is based on
 }
 
 export interface PositioningRecommendation {

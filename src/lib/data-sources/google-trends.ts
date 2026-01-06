@@ -269,7 +269,7 @@ export async function extractTrendKeywordsWithAI(hypothesis: string): Promise<st
     return cached.keywords;
   }
 
-  const prompt = `Extract 3-5 Google Trends search keywords from this business hypothesis.
+  const prompt = `Extract 3-4 Google Trends search keywords from this business hypothesis.
 
 HYPOTHESIS: "${hypothesis}"
 
@@ -286,7 +286,7 @@ EXAMPLES:
 - Hypothesis about stressed professionals → ["stress management", "work anxiety", "burnout recovery"]
 - Hypothesis about parents tracking kids' screen time → ["screen time kids", "parental controls", "digital wellness"]
 
-Respond with ONLY a JSON array of 3-5 keyword strings:
+Respond with ONLY a JSON array of 3-4 keyword strings:
 ["keyword1", "keyword2", "keyword3"]`;
 
   try {
@@ -315,10 +315,10 @@ Respond with ONLY a JSON array of 3-5 keyword strings:
       throw new Error("Invalid keywords array");
     }
 
-    // Filter to valid strings, max 5
+    // Filter to valid strings, max 4 (for cleaner sparkline visualization)
     const validKeywords = keywords
       .filter((k): k is string => typeof k === 'string' && k.length > 0 && k.length <= 50)
-      .slice(0, 5);
+      .slice(0, 4);
 
     if (validKeywords.length === 0) {
       throw new Error("No valid keywords extracted");

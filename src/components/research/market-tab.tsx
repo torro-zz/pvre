@@ -39,7 +39,7 @@ import {
 import type { CompetitorGap, PositioningRecommendation } from '@/types/research'
 import type { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 import { MarketSignals } from '@/components/research/market-signals'
-import { KeywordTrendBars } from '@/components/research/keyword-trend-bars'
+import { TrendSparkline } from '@/components/research/trend-sparkline'
 import type { MarketWarning } from '@/lib/analysis/viability-calculator'
 
 type MarketSubTab = 'overview' | 'sizing' | 'timing' | 'competition' | 'opportunities' | 'positioning'
@@ -509,7 +509,7 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
     warnings.push({
       type: 'ai_estimate',
       severity: 'LOW',
-      message: 'All market size estimates are AI-generated via Fermi analysis. Actual markets may vary 2-10x.',
+      message: 'Market sizes are AI-estimated using Fermi analysis. Use as directional guidance, not precise figures.',
     })
 
     // High penetration warning
@@ -604,21 +604,14 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
                 <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                  These are Fermi estimates with wide error margins
+                  How these estimates were calculated
                 </span>
               </div>
               <ChevronDown className={cn("h-4 w-4 transition-transform", showMethodology && "rotate-180")} />
             </button>
             {showMethodology && (
               <div className="mt-3 pt-3 border-t border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-300">
-                <p className="mb-2"><strong>How was this calculated?</strong></p>
-                <p>Market sizes are estimated using Fermi analysis based on:</p>
-                <ul className="list-disc list-inside mt-2 space-y-1">
-                  <li>Industry reports and market research</li>
-                  <li>Startup ecosystem data</li>
-                  <li>Bottom-up calculation from addressable segments</li>
-                </ul>
-                <p className="mt-2 italic">Actual market size may vary significantly. Use these as directional indicators, not precise figures.</p>
+                <p>Fermi estimation using industry reports, startup ecosystem data, and bottom-up segment analysis. Ranges shown reflect estimation uncertainty.</p>
               </div>
             )}
           </div>
@@ -640,7 +633,6 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
                   <span className="text-blue-700 dark:text-blue-300 font-bold text-lg">
                     {formatMarketRange(marketData.tam.value)} users
                   </span>
-                  <span className="text-xs text-blue-500 dark:text-blue-400 ml-1">(±30%)</span>
                 </div>
               </div>
               <p className="text-sm text-blue-700 dark:text-blue-300">{marketData.tam.description}</p>
@@ -662,7 +654,6 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
                   <span className="text-emerald-700 dark:text-emerald-300 font-bold text-lg">
                     {formatMarketRange(marketData.sam.value)} users
                   </span>
-                  <span className="text-xs text-emerald-500 dark:text-emerald-400 ml-1">(±30%)</span>
                 </div>
               </div>
               <p className="text-sm text-emerald-700 dark:text-emerald-300">{marketData.sam.description}</p>
@@ -684,7 +675,6 @@ function SizingSubTab({ marketData }: SizingSubTabProps) {
                   <span className="text-purple-700 dark:text-purple-300 font-bold text-lg">
                     {formatMarketRange(marketData.som.value)} users
                   </span>
-                  <span className="text-xs text-purple-500 dark:text-purple-400 ml-1">(±30%)</span>
                 </div>
               </div>
               <p className="text-sm text-purple-700 dark:text-purple-300">{marketData.som.description}</p>
@@ -822,95 +812,118 @@ function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
         <CardContent className="pt-6">
           {/* Timing Data Sources */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {/* Google Trends Data */}
+            {/* Google Trends Data - Sparkline Visualization */}
             {timingData.trendData?.dataAvailable && (
               <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-blue-600" />
                     <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Google Trends</span>
                   </div>
                   <TrustBadge level="verified" size="sm" tooltip="Real data from Google Trends API" />
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className={`text-2xl font-bold ${
-                    timingData.trendData.percentageChange > 0 ? 'text-emerald-600' :
-                    timingData.trendData.percentageChange < 0 ? 'text-red-600' : 'text-blue-600'
-                  }`}>
-                    {timingData.trendData.percentageChange > 0 ? '+' : ''}{timingData.trendData.percentageChange}%
-                  </span>
-                  <span className="text-sm text-muted-foreground">YoY</span>
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Keywords: {timingData.trendData.keywords.join(', ')}
-                </div>
-                {timingData.trendData.percentageChange > 500 && (
-                  <div className="mt-2 text-[10px] text-blue-600 dark:text-blue-400 italic">
-                    High % = emerging topic with low baseline searches last year
-                  </div>
-                )}
-                {/* Per-keyword breakdown */}
-                <KeywordTrendBars
+                {/* Sparkline chart with all keywords */}
+                <TrendSparkline
+                  timelineData={timingData.trendData.timelineData || []}
                   keywords={timingData.trendData.keywords}
                   keywordBreakdown={timingData.trendData.keywordBreakdown}
-                  aggregateChange={timingData.trendData.percentageChange}
                 />
               </div>
             )}
 
-            {/* Discussion Velocity - CALCULATED from posts */}
-            {discussionVelocity && (discussionVelocity.recentCount > 0 || discussionVelocity.previousCount > 0) && (
-              <div className={`p-4 rounded-xl border ${
-                discussionVelocity.insufficientData
-                  ? 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800'
-                  : discussionVelocity.trend === 'rising'
-                  ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800'
-                  : discussionVelocity.trend === 'declining'
-                  ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'
-                  : 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800'
-              }`}>
-                <div className="flex items-center justify-between mb-2">
+            {/* Discussion Velocity - Redesigned with comparison bars */}
+            {/* Only show when we have enough data for meaningful trend analysis */}
+            {discussionVelocity && !discussionVelocity.insufficientData && (discussionVelocity.recentCount > 0 || discussionVelocity.previousCount > 0) && (
+              <div className="p-4 bg-slate-50 dark:bg-slate-950/30 rounded-xl border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <BarChart3 className={`h-4 w-4 ${
-                      discussionVelocity.insufficientData ? 'text-slate-400' :
-                      discussionVelocity.trend === 'rising' ? 'text-emerald-600' :
-                      discussionVelocity.trend === 'declining' ? 'text-red-600' : 'text-slate-600'
-                    }`} />
-                    <span className={`text-sm font-semibold ${
-                      discussionVelocity.insufficientData ? 'text-slate-600 dark:text-slate-400' :
-                      discussionVelocity.trend === 'rising' ? 'text-emerald-900 dark:text-emerald-100' :
-                      discussionVelocity.trend === 'declining' ? 'text-red-900 dark:text-red-100' : 'text-slate-900 dark:text-slate-100'
-                    }`}>Discussion Velocity</span>
+                    <BarChart3 className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Discussion Volume</span>
                   </div>
-                  <TrustBadge level="calculated" size="sm" tooltip="Calculated from post timestamps" />
+                  <TrustBadge level="calculated" size="sm" tooltip="Calculated from Reddit post timestamps" />
                 </div>
-                {discussionVelocity.insufficientData ? (
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400">
-                      Insufficient data
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-baseline gap-2">
-                    <span className={`text-2xl font-bold ${
-                      (discussionVelocity.percentageChange ?? 0) > 0 ? 'text-emerald-600' :
-                      (discussionVelocity.percentageChange ?? 0) < 0 ? 'text-red-600' : 'text-slate-600'
-                    }`}>
-                      {(discussionVelocity.percentageChange ?? 0) > 0 ? '+' : ''}{discussionVelocity.percentageChange ?? 0}%
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {discussionVelocity.trend === 'rising' ? '↑' : discussionVelocity.trend === 'declining' ? '↓' : '→'}
-                    </span>
-                  </div>
-                )}
-                <div className="mt-2 text-xs text-muted-foreground">
-                  {discussionVelocity.recentCount} posts (90d) vs {discussionVelocity.previousCount} prior
-                  {discussionVelocity.insufficientData ? (
-                    <span className="ml-1 text-amber-600">• Need 5+ baseline posts for reliable trend</span>
-                  ) : discussionVelocity.confidence !== 'high' && discussionVelocity.confidence !== 'none' && (
-                    <span className="ml-1 text-amber-600">• {discussionVelocity.confidence} sample</span>
-                  )}
-                </div>
+
+                {/* Comparison bars */}
+                <div className="space-y-2 mb-3">
+                      {/* Recent period */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-600 dark:text-slate-400">Last 90 days</span>
+                          <span className="font-semibold text-slate-900 dark:text-slate-100">
+                            {discussionVelocity.recentCount} posts
+                          </span>
+                        </div>
+                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              discussionVelocity.trend === 'rising' ? 'bg-emerald-500' :
+                              discussionVelocity.trend === 'declining' ? 'bg-red-500' : 'bg-slate-400'
+                            )}
+                            style={{
+                              width: `${Math.min(100, (discussionVelocity.recentCount / Math.max(discussionVelocity.recentCount, discussionVelocity.previousCount, 1)) * 100)}%`
+                            }}
+                          />
+                        </div>
+                      </div>
+                      {/* Previous period */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-600 dark:text-slate-400">Previous 90 days</span>
+                          <span className="font-medium text-slate-700 dark:text-slate-300">
+                            {discussionVelocity.previousCount} posts
+                          </span>
+                        </div>
+                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-slate-400 dark:bg-slate-500 rounded-full transition-all"
+                            style={{
+                              width: `${Math.min(100, (discussionVelocity.previousCount / Math.max(discussionVelocity.recentCount, discussionVelocity.previousCount, 1)) * 100)}%`
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Trend interpretation */}
+                    <div className={cn(
+                      "flex items-center gap-2 p-2 rounded-lg text-xs",
+                      discussionVelocity.trend === 'rising' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' :
+                      discussionVelocity.trend === 'declining' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                      'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    )}>
+                      {discussionVelocity.trend === 'rising' ? (
+                        <>
+                          <TrendingUp className="h-3.5 w-3.5" />
+                          <span>
+                            <span className="font-semibold">Growing interest</span>
+                            {discussionVelocity.percentageChange !== null && ` (+${discussionVelocity.percentageChange}%)`}
+                          </span>
+                        </>
+                      ) : discussionVelocity.trend === 'declining' ? (
+                        <>
+                          <ChevronDown className="h-3.5 w-3.5" />
+                          <span>
+                            <span className="font-semibold">Declining interest</span>
+                            {discussionVelocity.percentageChange !== null && ` (${discussionVelocity.percentageChange}%)`}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-semibold">Stable interest</span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Volume context */}
+                    <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-500">
+                      {discussionVelocity.recentCount < 20 ? 'Low volume market' :
+                       discussionVelocity.recentCount < 100 ? 'Moderate discussion activity' :
+                       'Active market discussions'}
+                      {discussionVelocity.confidence !== 'high' && discussionVelocity.confidence !== 'none' && (
+                        <span className="ml-1">• {discussionVelocity.confidence} confidence</span>
+                      )}
+                    </div>
               </div>
             )}
           </div>
@@ -1140,9 +1153,9 @@ function OpportunityCard({ gap, index, onNavigate }: { gap: CompetitorGap; index
   // Helper to get effort label based on difficulty
   const getEffortLabel = (difficulty: string) => {
     switch (difficulty) {
-      case 'low': return 'Quick Win (1-2 weeks)'
-      case 'medium': return 'Medium Effort (1-3 months)'
-      case 'high': return 'Major Initiative (3+ months)'
+      case 'low': return 'Quick Win'
+      case 'medium': return 'Moderate Effort'
+      case 'high': return 'Significant Build'
       default: return 'Effort TBD'
     }
   }

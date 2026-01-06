@@ -205,7 +205,7 @@ export function TabbedView() {
               {communityVoiceResult?.data ? (
                 <UserFeedback
                   painSignals={communityVoiceResult.data.painSignals || []}
-                  appData={appData}
+                  appData={appData ?? undefined}
                   appName={appData?.name}
                 />
               ) : (
