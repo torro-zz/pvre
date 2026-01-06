@@ -1133,7 +1133,10 @@ interface OpportunitiesSubTabProps {
   onNavigate?: (tab: MarketSubTab) => void
 }
 
-function OpportunitiesSubTab({ gaps, onNavigate }: OpportunitiesSubTabProps) {
+// Expandable opportunity card component
+function OpportunityCard({ gap, index, onNavigate }: { gap: CompetitorGap; index: number; onNavigate?: (tab: MarketSubTab) => void }) {
+  const [showEvidence, setShowEvidence] = useState(false)
+
   // Helper to get effort label based on difficulty
   const getEffortLabel = (difficulty: string) => {
     switch (difficulty) {
@@ -1144,6 +1147,135 @@ function OpportunitiesSubTab({ gaps, onNavigate }: OpportunitiesSubTabProps) {
     }
   }
 
+  // Get opportunity score color
+  const getScoreColor = (score: number) => {
+    if (score >= 7) return 'text-emerald-600 dark:text-emerald-400'
+    if (score >= 4) return 'text-amber-600 dark:text-amber-400'
+    return 'text-red-600 dark:text-red-400'
+  }
+
+  const opportunityScore = gap.opportunityScore || 0
+  const evidenceCount = gap.evidenceCount || gap.validationSignals?.length || 0
+  const hasEvidence = gap.validationSignals && gap.validationSignals.length > 0
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        {/* Header with opportunity score */}
+        <div className={`p-4 border-b ${
+          gap.difficulty === 'low' ? 'bg-emerald-50/50 dark:bg-emerald-500/5' :
+          gap.difficulty === 'medium' ? 'bg-amber-50/50 dark:bg-amber-500/5' :
+          'bg-red-50/50 dark:bg-red-500/5'
+        }`}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              {/* Rank badge */}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                index === 0 ? 'bg-amber-500 text-white' :
+                index === 1 ? 'bg-gray-400 text-white' :
+                index === 2 ? 'bg-amber-700 text-white' :
+                'bg-muted text-muted-foreground'
+              }`}>
+                #{index + 1}
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-base">{gap.opportunity}</h3>
+                {evidenceCount > 0 && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Based on {evidenceCount} user {evidenceCount === 1 ? 'signal' : 'signals'}
+                    {gap.sourceBreakdown && (
+                      <span>
+                        {gap.sourceBreakdown.appStore && gap.sourceBreakdown.googlePlay
+                          ? ` (${gap.sourceBreakdown.appStore} App Store, ${gap.sourceBreakdown.googlePlay} Google Play)`
+                          : gap.sourceBreakdown.appStore
+                          ? ` from App Store`
+                          : gap.sourceBreakdown.googlePlay
+                          ? ` from Google Play`
+                          : ''
+                        }
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
+            </div>
+            {/* Opportunity Score */}
+            {opportunityScore > 0 && (
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${getScoreColor(opportunityScore)}`}>
+                  {opportunityScore.toFixed(1)}
+                </div>
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Score</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="p-4">
+          <p className="text-sm text-muted-foreground mb-4">{gap.description}</p>
+
+          {/* Tags row */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {/* Difficulty */}
+            <Badge variant="outline" className={
+              gap.difficulty === 'low'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-700'
+                : gap.difficulty === 'medium'
+                ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-700'
+                : 'bg-red-50 text-red-700 border-red-300 dark:bg-red-950/50 dark:text-red-400 dark:border-red-700'
+            }>
+              {gap.difficulty === 'low' ? '🟢 Low' : gap.difficulty === 'medium' ? '🟡 Medium' : '🔴 High'} difficulty
+            </Badge>
+            {/* Effort */}
+            <Badge variant="secondary" className="text-xs">
+              {getEffortLabel(gap.difficulty)}
+            </Badge>
+          </div>
+
+          {/* Expandable Evidence Section */}
+          {hasEvidence && (
+            <div className="border-t pt-3">
+              <button
+                onClick={() => setShowEvidence(!showEvidence)}
+                className="flex items-center gap-2 text-xs text-primary hover:underline"
+              >
+                <ChevronRight className={`h-3 w-3 transition-transform ${showEvidence ? 'rotate-90' : ''}`} />
+                {showEvidence ? 'Hide' : 'Show'} supporting evidence ({gap.validationSignals!.length})
+              </button>
+              {showEvidence && (
+                <ul className="mt-2 space-y-1.5 pl-5">
+                  {gap.validationSignals!.slice(0, 5).map((signal, i) => (
+                    <li key={i} className="text-xs text-muted-foreground list-disc">
+                      &quot;{signal}&quot;
+                    </li>
+                  ))}
+                  {gap.validationSignals!.length > 5 && (
+                    <li className="text-xs text-muted-foreground italic">
+                      +{gap.validationSignals!.length - 5} more signals...
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* Cross-link to Positioning */}
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate('positioning')}
+              className="mt-3 text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+            >
+              See positioning strategy <ChevronRight className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function OpportunitiesSubTab({ gaps, onNavigate }: OpportunitiesSubTabProps) {
   if (!gaps || gaps.length === 0) {
     return (
       <Card>
@@ -1158,64 +1290,22 @@ function OpportunitiesSubTab({ gaps, onNavigate }: OpportunitiesSubTabProps) {
     )
   }
 
+  // Sort by opportunity score (highest first)
+  const sortedGaps = [...gaps].sort((a, b) => (b.opportunityScore || 0) - (a.opportunityScore || 0))
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Lightbulb className="h-5 w-5 text-purple-600" />
-        <h2 className="text-lg font-semibold">Market Opportunities</h2>
-        <Badge variant="secondary">{gaps.length} identified</Badge>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Lightbulb className="h-5 w-5 text-purple-600" />
+          <h2 className="text-lg font-semibold">Market Opportunities</h2>
+          <Badge variant="secondary">{gaps.length} identified</Badge>
+        </div>
+        <p className="text-xs text-muted-foreground">Ranked by opportunity score</p>
       </div>
 
-      {gaps.map((gap, i) => (
-        <Card key={i}>
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className={`p-2 rounded-lg ${
-                gap.difficulty === 'low' ? 'bg-emerald-100 dark:bg-emerald-500/20' :
-                gap.difficulty === 'medium' ? 'bg-amber-100 dark:bg-amber-500/20' :
-                'bg-red-100 dark:bg-red-500/20'
-              }`}>
-                <Lightbulb className={`h-4 w-4 ${
-                  gap.difficulty === 'low' ? 'text-emerald-600 dark:text-emerald-400' :
-                  gap.difficulty === 'medium' ? 'text-amber-600 dark:text-amber-400' :
-                  'text-red-600 dark:text-red-400'
-                }`} />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold mb-1">{gap.opportunity}</h3>
-                <p className="text-sm text-muted-foreground mb-3">{gap.description}</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Color-coded Difficulty Badge */}
-                  <Badge variant="outline" className={
-                    gap.difficulty === 'low'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-700'
-                      : gap.difficulty === 'medium'
-                      ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-700'
-                      : 'bg-red-50 text-red-700 border-red-300 dark:bg-red-950/50 dark:text-red-400 dark:border-red-700'
-                  }>
-                    {gap.difficulty === 'low' && '🟢'}
-                    {gap.difficulty === 'medium' && '🟡'}
-                    {gap.difficulty === 'high' && '🔴'}
-                    {' '}{gap.difficulty} difficulty
-                  </Badge>
-                  {/* Effort Indicator */}
-                  <Badge variant="secondary" className="text-xs">
-                    {getEffortLabel(gap.difficulty)}
-                  </Badge>
-                </div>
-                {/* Cross-link to Positioning */}
-                {onNavigate && (
-                  <button
-                    onClick={() => onNavigate('positioning')}
-                    className="mt-3 text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-                  >
-                    See positioning strategy <ChevronRight className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {sortedGaps.map((gap, i) => (
+        <OpportunityCard key={i} gap={gap} index={i} onNavigate={onNavigate} />
       ))}
     </div>
   )

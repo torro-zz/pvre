@@ -22,6 +22,7 @@ import { ViabilityVerdictDisplay } from '@/components/research/viability-verdict
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ResearchTabsProvider } from '@/components/research/research-tabs-context'
 import { ControlledTabs } from '@/components/research/controlled-tabs'
@@ -81,33 +82,41 @@ export function TabbedView() {
         )
       })()}
 
-      {/* Investor Metrics Hero - Unified display above tabs */}
+      {/* Investor Metrics Hero - Collapsible (collapsed by default) */}
       {communityVoiceResult?.data && (
-        <InvestorMetricsHero
-          painScore={painScoreInput?.overallScore ?? 0}
-          painScoreConfidence={painScoreInput?.confidence ?? 'low'}
-          hypothesisConfidence={viabilityVerdict.hypothesisConfidence}
-          marketOpportunity={viabilityVerdict.marketOpportunity}
-          totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
-          coreSignals={filteringMetrics?.coreSignals}
-          wtpCount={communityVoiceResult.data.painSummary?.willingnessToPayCount ?? 0}
-          dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
-          relevanceRate={filteringMetrics?.postsFound ? Math.round((filteringMetrics.postsAnalyzed / filteringMetrics.postsFound) * 100) : 0}
-          recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
-          postsAnalyzed={communityVoiceResult.data.metadata?.postsAnalyzed ?? 0}
-          communitiesCount={communityVoiceResult.data.subreddits?.analyzed?.length ?? 0}
-          dataSources={communityVoiceResult.data.metadata?.dataSources ?? []}
-          hypothesis={job.hypothesis}
-          timingScore={timingData?.score}
-          competitionScore={competitorResult?.data?.competitionScore?.score}
-          marketSizing={marketData ? {
-            samFormatted: marketData.sam ? `${(marketData.sam.value / 1000000).toFixed(1)}M` : undefined,
-            tamFormatted: marketData.tam ? `${(marketData.tam.value / 1000000).toFixed(1)}M` : undefined,
-          } : undefined}
-          verdict={viabilityVerdict}
-          redFlags={viabilityVerdict.redFlags}
+        <CollapsibleSection
+          title="Key Metrics"
+          badge={viabilityVerdict.overallScore > 0 ? `Score: ${viabilityVerdict.overallScore.toFixed(1)}` : undefined}
+          badgeVariant={viabilityVerdict.overallScore >= 7 ? 'success' : viabilityVerdict.overallScore >= 4 ? 'warning' : 'destructive'}
+          defaultOpen={false}
+          icon={<BarChart3 className="h-4 w-4" />}
           className="mb-6"
-        />
+        >
+          <InvestorMetricsHero
+            painScore={painScoreInput?.overallScore ?? 0}
+            painScoreConfidence={painScoreInput?.confidence ?? 'low'}
+            hypothesisConfidence={viabilityVerdict.hypothesisConfidence}
+            marketOpportunity={viabilityVerdict.marketOpportunity}
+            totalSignals={communityVoiceResult.data.painSummary?.totalSignals ?? 0}
+            coreSignals={filteringMetrics?.coreSignals}
+            wtpCount={communityVoiceResult.data.painSummary?.willingnessToPayCount ?? 0}
+            dataConfidence={communityVoiceResult.data.painSummary?.dataConfidence ?? 'low'}
+            relevanceRate={filteringMetrics?.postsFound ? Math.round((filteringMetrics.postsAnalyzed / filteringMetrics.postsFound) * 100) : 0}
+            recencyScore={communityVoiceResult.data.painSummary?.recencyScore}
+            postsAnalyzed={communityVoiceResult.data.metadata?.postsAnalyzed ?? 0}
+            communitiesCount={communityVoiceResult.data.subreddits?.analyzed?.length ?? 0}
+            dataSources={communityVoiceResult.data.metadata?.dataSources ?? []}
+            hypothesis={job.hypothesis}
+            timingScore={timingData?.score}
+            competitionScore={competitorResult?.data?.competitionScore?.score}
+            marketSizing={marketData ? {
+              samFormatted: marketData.sam ? `${(marketData.sam.value / 1000000).toFixed(1)}M` : undefined,
+              tamFormatted: marketData.tam ? `${(marketData.tam.value / 1000000).toFixed(1)}M` : undefined,
+            } : undefined}
+            verdict={viabilityVerdict}
+            redFlags={viabilityVerdict.redFlags}
+          />
+        </CollapsibleSection>
       )}
 
       <ControlledTabs className="space-y-6">
@@ -196,6 +205,7 @@ export function TabbedView() {
               {communityVoiceResult?.data ? (
                 <UserFeedback
                   painSignals={communityVoiceResult.data.painSignals || []}
+                  appData={appData}
                   appName={appData?.name}
                 />
               ) : (

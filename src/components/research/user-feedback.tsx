@@ -23,10 +23,12 @@ import {
 } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import type { PainSignal } from '@/lib/analysis/pain-detector'
+import type { AppDetails } from '@/lib/data-sources/types'
 
 interface UserFeedbackProps {
   painSignals: PainSignal[]
-  appName?: string
+  appData?: AppDetails  // Full app data for overall rating display
+  appName?: string  // Fallback if appData not provided
   analyzedReviewCount?: number  // Total reviews fetched before filtering (default 500)
 }
 
@@ -458,7 +460,7 @@ function RedditDiscussions({ signals }: { signals: PainSignal[] }) {
   )
 }
 
-export function UserFeedback({ painSignals, appName, analyzedReviewCount = 500 }: UserFeedbackProps) {
+export function UserFeedback({ painSignals, appData, appName, analyzedReviewCount = 500 }: UserFeedbackProps) {
   const sentiment = calculateSentiment(painSignals)
   const opportunities = extractOpportunities(painSignals)
 
@@ -474,66 +476,190 @@ export function UserFeedback({ painSignals, appName, analyzedReviewCount = 500 }
   // Count total opportunities from happy users
   const totalHappyUserOpportunities = opportunities.reduce((sum, o) => sum + o.fromHappyUsers, 0)
 
+  // Use appData for display, fallback to appName
+  const displayName = appData?.name || appName
+
+  // Format review count for display (e.g., 274000 -> "274K")
+  const formatReviewCount = (count: number) => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`
+    if (count >= 1000) return `${(count / 1000).toFixed(0)}K`
+    return count.toString()
+  }
+
+  const [activeStore, setActiveStore] = useState<'app_store' | 'google_play'>(
+    appData?.store || 'google_play'
+  )
+  const isActiveStoreAvailable = appData?.store === activeStore
+
   return (
     <div className="space-y-6">
-      {/* Summary Stats */}
+      {/* Store Rating Tabs - Compact design */}
+      {appData?.rating && (
+        <Card className="overflow-hidden">
+          {/* Store tabs */}
+          <div className="flex border-b">
+            <button
+              onClick={() => setActiveStore('app_store')}
+              className={`flex-1 px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+                activeStore === 'app_store'
+                  ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-b-2 border-blue-500'
+                  : 'text-muted-foreground hover:bg-muted/50'
+              }`}
+            >
+              <span>🍎</span> App Store
+              {appData.store === 'app_store' && (
+                <Badge variant="secondary" className="text-[10px] py-0">
+                  {appData.rating.toFixed(1)} ★
+                </Badge>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveStore('google_play')}
+              className={`flex-1 px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+                activeStore === 'google_play'
+                  ? 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border-b-2 border-green-500'
+                  : 'text-muted-foreground hover:bg-muted/50'
+              }`}
+            >
+              <span>🤖</span> Google Play
+              {appData.store === 'google_play' && (
+                <Badge variant="secondary" className="text-[10px] py-0">
+                  {appData.rating.toFixed(1)} ★
+                </Badge>
+              )}
+            </button>
+          </div>
+
+          {/* Store content */}
+          <CardContent className="py-4">
+            {isActiveStoreAvailable ? (
+              <div className="flex items-center gap-4">
+                {/* Star Rating - Compact */}
+                <div className="flex items-center gap-2">
+                  <Star className="h-6 w-6 text-amber-500 fill-amber-500" />
+                  <span className="text-3xl font-bold text-amber-600 dark:text-amber-400">
+                    {appData.rating.toFixed(1)}
+                  </span>
+                  <div className="flex items-center gap-0.5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`h-3 w-3 ${i < Math.round(appData.rating) ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground/30'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="text-sm text-muted-foreground border-l pl-4">
+                  <span className="font-medium">{formatReviewCount(appData.reviewCount)}</span> reviews
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-2 text-sm text-muted-foreground">
+                <p>Not available on {activeStore === 'app_store' ? 'App Store' : 'Google Play'}</p>
+                <p className="text-xs mt-1">
+                  This app was analyzed from {appData.store === 'google_play' ? 'Google Play' : 'App Store'} only
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pain Signal Breakdown */}
       <Card className="overflow-hidden">
         <div className="bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-purple-500/10 p-6">
-          <h2 className="text-xl font-bold mb-1">User Feedback Analysis</h2>
+          <h2 className="text-xl font-bold mb-1">Pain Signal Analysis</h2>
           <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-            {sentiment.total} pain signals (from {analyzedReviewCount} analyzed reviews){appName ? ` for ${appName}` : ''}
+            {sentiment.total} pain signals extracted from {analyzedReviewCount} reviews{displayName ? ` for ${displayName}` : ''}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Info className="h-3.5 w-3.5 text-muted-foreground/70 cursor-help" />
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
-                We analyze recent reviews and extract signals containing feedback patterns like complaints, feature requests, and pricing concerns.
+                Pain signals are reviews containing complaints, frustrations, or feature requests.
+                This breakdown shows the star ratings of users who left these specific signals.
               </TooltipContent>
             </Tooltip>
           </p>
         </div>
 
         <CardContent className="pt-6">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
-              <ThumbsUp className="h-6 w-6 mx-auto mb-2 text-emerald-600 dark:text-emerald-400" />
-              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-                {sentiment.positive}
+          {/* Improved rating breakdown */}
+          <div className="space-y-3">
+            {/* Positive signals */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 w-24">
+                <ThumbsUp className="h-4 w-4 text-emerald-600" />
+                <span className="text-sm font-medium">4-5 ★</span>
               </div>
-              <p className="text-xs text-emerald-600 dark:text-emerald-500">4-5 Stars</p>
+              <div className="flex-1 h-6 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 rounded-full flex items-center justify-end pr-2"
+                  style={{ width: `${sentiment.total > 0 ? (sentiment.positive / sentiment.total) * 100 : 0}%`, minWidth: sentiment.positive > 0 ? '2rem' : '0' }}
+                >
+                  {sentiment.positive > 0 && (
+                    <span className="text-xs font-medium text-white">{sentiment.positive}</span>
+                  )}
+                </div>
+              </div>
+              <span className="text-sm text-muted-foreground w-16 text-right">
+                {sentiment.total > 0 ? Math.round((sentiment.positive / sentiment.total) * 100) : 0}%
+              </span>
             </div>
 
-            <div className="text-center p-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
-              <Star className="h-6 w-6 mx-auto mb-2 text-amber-600 dark:text-amber-400" />
-              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                {sentiment.neutral}
+            {/* Neutral signals */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 w-24">
+                <Star className="h-4 w-4 text-amber-600" />
+                <span className="text-sm font-medium">3 ★</span>
               </div>
-              <p className="text-xs text-amber-600 dark:text-amber-500">3 Stars</p>
+              <div className="flex-1 h-6 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 rounded-full flex items-center justify-end pr-2"
+                  style={{ width: `${sentiment.total > 0 ? (sentiment.neutral / sentiment.total) * 100 : 0}%`, minWidth: sentiment.neutral > 0 ? '2rem' : '0' }}
+                >
+                  {sentiment.neutral > 0 && (
+                    <span className="text-xs font-medium text-white">{sentiment.neutral}</span>
+                  )}
+                </div>
+              </div>
+              <span className="text-sm text-muted-foreground w-16 text-right">
+                {sentiment.total > 0 ? Math.round((sentiment.neutral / sentiment.total) * 100) : 0}%
+              </span>
             </div>
 
-            <div className="text-center p-4 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
-              <ThumbsDown className="h-6 w-6 mx-auto mb-2 text-red-600 dark:text-red-400" />
-              <div className="text-2xl font-bold text-red-700 dark:text-red-400">
-                {sentiment.negative}
+            {/* Negative signals */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 w-24">
+                <ThumbsDown className="h-4 w-4 text-red-600" />
+                <span className="text-sm font-medium">1-2 ★</span>
               </div>
-              <p className="text-xs text-red-600 dark:text-red-500">1-2 Stars</p>
+              <div className="flex-1 h-6 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-red-500 rounded-full flex items-center justify-end pr-2"
+                  style={{ width: `${sentiment.total > 0 ? (sentiment.negative / sentiment.total) * 100 : 0}%`, minWidth: sentiment.negative > 0 ? '2rem' : '0' }}
+                >
+                  {sentiment.negative > 0 && (
+                    <span className="text-xs font-medium text-white">{sentiment.negative}</span>
+                  )}
+                </div>
+              </div>
+              <span className="text-sm text-muted-foreground w-16 text-right">
+                {sentiment.total > 0 ? Math.round((sentiment.negative / sentiment.total) * 100) : 0}%
+              </span>
             </div>
           </div>
 
-          {/* Sentiment Bar */}
+          {/* Summary insight */}
           {sentiment.total > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                <span>Overall Sentiment</span>
-                <span>{sentimentScore}% positive</span>
-              </div>
-              <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all"
-                  style={{ width: `${sentimentScore}%` }}
-                />
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground mt-4 pt-4 border-t">
+              {sentiment.positive > sentiment.negative
+                ? `💡 Most pain signals come from satisfied users (4-5★) — these are improvement opportunities, not dealbreakers.`
+                : sentiment.negative > sentiment.positive
+                  ? `⚠️ Most pain signals come from dissatisfied users (1-2★) — these indicate serious issues.`
+                  : `📊 Pain signals are evenly distributed across rating levels.`
+              }
+            </p>
           )}
         </CardContent>
       </Card>
