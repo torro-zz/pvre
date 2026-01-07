@@ -86,6 +86,7 @@ import {
   buildAppNameRegex,
   logAppNameGateResult,
 } from '@/lib/research/gates/app-name-gate'
+import { findAndFetchCrossStoreReviews } from '@/lib/research/steps/cross-store-lookup'
 
 // Calculate data quality level based on filter rates
 function calculateQualityLevel(postFilterRate: number, commentFilterRate: number): 'high' | 'medium' | 'low' {
@@ -633,57 +634,17 @@ export async function POST(request: NextRequest) {
 
       // Step 3d: Cross-store lookup - find the same app on the OTHER store
       try {
-        // Extract core app name (e.g., "Tinder" from "Tinder - Dating & New Friends")
-        const coreAppName = extractCoreAppName(appData.name)
-        const otherStore = appData.store === 'google_play' ? 'app_store' : 'google_play'
+        const crossStoreResult = await findAndFetchCrossStoreReviews(appData)
 
-        console.log(`Step 3d: Searching ${otherStore} for "${coreAppName}"...`)
-
-        // Search the other store
-        const otherAdapter = otherStore === 'app_store' ? appStoreAdapter : googlePlayAdapter
-        const searchResults = await otherAdapter.searchAppsWithDetails(coreAppName, { maxApps: 5 })
-
-        // Find matching app: same core name + high review count (real app, not clone)
-        const matchingApp = searchResults.apps.find(app => {
-          const resultCoreName = extractCoreAppName(app.name)
-          return resultCoreName === coreAppName && app.reviewCount > 1000
-        })
-
-        if (matchingApp) {
-          console.log(`Found matching app on ${otherStore}: ${matchingApp.name} (${matchingApp.reviewCount} reviews)`)
-
+        if (crossStoreResult.matchedApp) {
           // Store the cross-store app metadata for display in AppOverview
-          crossStoreAppData = {
-            appId: matchingApp.appId,
-            name: matchingApp.name,
-            developer: matchingApp.developer,
-            rating: matchingApp.rating,
-            reviewCount: matchingApp.reviewCount,
-            category: matchingApp.category,
-            store: otherStore,
-            url: matchingApp.url,
-            iconUrl: matchingApp.iconUrl,
-            price: matchingApp.price || 'Free',
-            hasIAP: matchingApp.hasIAP || false,
-            description: matchingApp.description || '',
-            lastUpdated: matchingApp.lastUpdated,
-          }
+          crossStoreAppData = crossStoreResult.matchedApp
           console.log(`Stored cross-store app metadata: ${crossStoreAppData.name} (${crossStoreAppData.store})`)
 
-          // Fetch reviews from the matched app
-          let crossStoreReviews: RedditPost[] = []
-          if (otherStore === 'google_play') {
-            crossStoreReviews = await googlePlayAdapter.getReviewsForAppId(matchingApp.appId, { limit: 500 })
-          } else {
-            crossStoreReviews = await appStoreAdapter.getReviewsForAppId(matchingApp.appId, { limit: 500 })
+          if (crossStoreResult.reviews.length > 0) {
+            rawPosts = [...rawPosts, ...crossStoreResult.reviews]
+            console.log(`Added ${crossStoreResult.reviews.length} reviews from cross-store lookup`)
           }
-
-          if (crossStoreReviews.length > 0) {
-            rawPosts = [...rawPosts, ...crossStoreReviews]
-            console.log(`Added ${crossStoreReviews.length} ${otherStore === 'google_play' ? 'Google Play' : 'App Store'} reviews from cross-store lookup`)
-          }
-        } else {
-          console.log(`No matching app found on ${otherStore} for "${coreAppName}"`)
         }
       } catch (crossStoreError) {
         console.warn(`Cross-store lookup failed (non-blocking):`, crossStoreError)
