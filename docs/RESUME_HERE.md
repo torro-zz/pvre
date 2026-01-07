@@ -6,56 +6,41 @@
 
 ## What Was Just Completed
 
-### Codebase Refactoring — Phases 0-4
+### Codebase Refactoring — Phases 0-4c Complete
 
 See `docs/REFACTORING_PLAN.md` for full plan.
 
 #### Phase 0: Type Consolidation ✅
-
-Created single source of truth for research types in `src/types/research/`:
-
-| File | Types |
-|------|-------|
-| `core.ts` | ResearchJob, PainSignal, PainSummary, StructuredHypothesis |
-| `competitor.ts` | Competitor, CompetitorGap, CompetitorIntelligenceResult |
-| `filter.ts` | FilteringMetrics, RelevanceDecision, ExpansionAttempt |
-| `result.ts` | CommunityVoiceResult, ResearchPageData |
-| `index.ts` | Barrel export for all types |
+Single source of truth for research types in `src/types/research/`
 
 #### Phase 1: ResearchContext Pattern ✅
-
-Created `src/lib/research/pipeline/context.ts` with:
-- `ResearchMode` type: `'hypothesis' | 'app-gap'`
-- `isAppGapMode(ctx)`: replaces scattered mode checks
-- `detectModeFromCoverageData()`: helper for UI components
+Created `src/lib/research/pipeline/context.ts` with mode detection helpers
 
 #### Phase 2: Extract Inline Modules ✅
+- App Name Gate → `src/lib/research/gates/app-name-gate.ts`
+- Cross-Store Lookup → `src/lib/research/steps/cross-store-lookup.ts`
 
-| Module | File | Purpose |
-|--------|------|---------|
-| **App Name Gate** | `src/lib/research/gates/app-name-gate.ts` | Filter posts by app name |
-| **Cross-Store Lookup** | `src/lib/research/steps/cross-store-lookup.ts` | Find same app on other store |
+#### Phase 3: Pipeline Steps Infrastructure ✅
+- `PipelineStep<TInput, TOutput>` interface
+- `keywordExtractorStep`, `subredditDiscoveryStep`
 
-#### Phase 3: Pipeline Steps (Infrastructure) ✅
+#### Phase 4: Orchestrator + Route Integration ✅
 
+**New files created:**
 | File | Purpose |
 |------|---------|
-| `src/lib/research/pipeline/types.ts` | `PipelineStep<TInput, TOutput>` interface |
-| `src/lib/research/steps/keyword-extractor.ts` | Extract search keywords from hypothesis |
-| `src/lib/research/steps/subreddit-discovery.ts` | Discover relevant subreddits |
-| `src/lib/research/steps/index.ts` | Barrel export for all steps |
-
-#### Phase 4: Orchestrator (Infrastructure) ✅
-
-Created orchestrator and additional steps:
-
-| File | Purpose |
-|------|---------|
-| `src/lib/research/steps/data-fetcher.ts` | Fetch from Reddit, HN, App Stores |
-| `src/lib/research/steps/pain-analyzer.ts` | Extract pain signals with tier awareness |
+| `src/lib/research/steps/data-fetcher.ts` | Unified data fetching |
+| `src/lib/research/steps/pain-analyzer.ts` | Tier-aware pain signal extraction |
 | `src/lib/research/pipeline/orchestrator.ts` | `runResearchPipeline()` function |
 
-**Status:** Orchestrator infrastructure is ready. Steps can be used independently or via orchestrator.
+**Route integration (community-voice/route.ts):**
+- Added ResearchContext creation at request start
+- Replaced keyword extraction inline code with `keywordExtractorStep`
+- Replaced subreddit discovery inline code with `subredditDiscoveryStep`
+- Replaced pain analysis inline code with `painAnalyzerStep` (Phase 4c)
+- Used `isAppGapMode(ctx)` instead of `appData?.appId` checks
+
+**Route line reduction:** 1700+ → 1587 lines (~113 lines removed)
 
 ---
 
@@ -66,7 +51,9 @@ Created orchestrator and additional steps:
 | `ec63b32` | Phase 2: Extract App Name Gate module |
 | `4cbcadb` | Phase 2: Extract Cross-Store Lookup module |
 | `7e8e14e` | Phase 3: Add pipeline step infrastructure |
-| *(pending)* | Phase 4: Add orchestrator and additional steps |
+| `679d323` | Phase 4: Add orchestrator and additional steps |
+| `0f72fe6` | Phase 4b: Integrate keyword and subreddit steps into route |
+| `1691c78` | Phase 4c: Integrate painAnalyzerStep into route |
 
 ---
 
@@ -81,38 +68,26 @@ Created orchestrator and additional steps:
 
 ## What's Next
 
-### Option A: Integrate Orchestrator Into Route (Continue Phase 4)
+### Option A: Continue Route Integration
 
-Replace inline code in `community-voice/route.ts` with step calls:
-1. Replace keyword extraction code with `keywordExtractorStep`
-2. Replace subreddit discovery with `subredditDiscoveryStep`
-3. Replace data fetching with `dataFetcherStep`
-4. Replace pain analysis with `painAnalyzerStep`
+Replace more inline code with step calls:
+- Data fetching → `dataFetcherStep` (complex, deferred for safety)
+- Filter logic → new `filterOrchestratorStep`
+- Theme extraction → new `themeAnalyzerStep`
+- Market/timing analysis → new `marketAnalyzerStep`
 
-This would reduce the route from 1,611 lines to ~600-800 lines.
+### Option B: Fix Open Issues
 
-### Option B: Add More Steps First
+From `docs/KNOWN_ISSUES.md`:
+1. **Verdict Messages Contradict Each Other** - Yellow box vs verdict mismatch
+2. **Hypothesis Confidence Wrong for App Gap Mode** - Should show "Signal Quality"
 
-Create remaining steps before integration:
-- `filter-orchestrator.ts` - Handle tiered/two-stage/legacy filter selection
-- `theme-analyzer.ts` - Extract themes and generate questions
-- `market-analyzer.ts` - Market sizing and timing analysis
-- `result-compiler.ts` - Build final CommunityVoiceResult
+### Option C: Add More Step Modules
 
-### Option C: Use Current Foundation Incrementally
-
-The extracted modules can be used independently:
-- All steps work standalone (no coupling)
-- Route can adopt steps one at a time
-- No rush to complete full orchestrator
-
-### Open Issues (from docs/KNOWN_ISSUES.md)
-
-1. **Verdict Messages Contradict Each Other**
-   - Yellow box says "proceed with caution" while verdict says "pivot"
-
-2. **Hypothesis Confidence Wrong for App Gap Mode**
-   - Should show "Signal Quality" for App Gap mode
+Create remaining steps for full pipeline coverage:
+- `theme-analyzer.ts` - Theme extraction + interview questions
+- `market-analyzer.ts` - Market sizing + timing
+- `result-compiler.ts` - Final result assembly
 
 ---
 
@@ -120,18 +95,16 @@ The extracted modules can be used independently:
 
 | Purpose | File |
 |---------|------|
-| **Canonical types** | `src/types/research/index.ts` |
+| **Route (main API)** | `src/app/api/research/community-voice/route.ts` |
 | **ResearchContext** | `src/lib/research/pipeline/context.ts` |
-| **Pipeline step interface** | `src/lib/research/pipeline/types.ts` |
+| **Pipeline types** | `src/lib/research/pipeline/types.ts` |
 | **Orchestrator** | `src/lib/research/pipeline/orchestrator.ts` |
-| **App Name Gate** | `src/lib/research/gates/app-name-gate.ts` |
-| **Cross-Store Lookup** | `src/lib/research/steps/cross-store-lookup.ts` |
 | **Keyword Extractor** | `src/lib/research/steps/keyword-extractor.ts` |
 | **Subreddit Discovery** | `src/lib/research/steps/subreddit-discovery.ts` |
 | **Data Fetcher** | `src/lib/research/steps/data-fetcher.ts` |
 | **Pain Analyzer** | `src/lib/research/steps/pain-analyzer.ts` |
-| **Steps barrel export** | `src/lib/research/steps/index.ts` |
-| **Refactoring plan** | `docs/REFACTORING_PLAN.md` |
+| **App Name Gate** | `src/lib/research/gates/app-name-gate.ts` |
+| **Cross-Store Lookup** | `src/lib/research/steps/cross-store-lookup.ts` |
 
 ---
 
@@ -146,48 +119,39 @@ npm run build
 
 ---
 
-## Refactoring Progress Summary
-
-| Phase | Description | Status | LOC Reduced |
-|-------|-------------|--------|-------------|
-| 0 | Type consolidation | ✅ Complete | - |
-| 1 | ResearchContext pattern | ✅ Complete | - |
-| 2 | Extract inline modules | ✅ Complete | ~120 lines |
-| 3 | Pipeline steps (infra) | ✅ Complete | Ready for use |
-| 4 | Orchestrator (infra) | ✅ Complete | Ready for use |
-| 4b | Integrate into route | Pending | Would reduce ~800 lines |
-| 5 | Cleanup | Pending | - |
-
-**Current route size:** 1,611 lines
-**Target after integration:** ~600-800 lines
-
----
-
-## Pipeline Architecture
+## Architecture Summary
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    runResearchPipeline()                 │
+│              community-voice/route.ts                    │
 │                                                          │
-│  ┌─────────────────┐    ┌──────────────────────────┐    │
-│  │ keywordExtractor│ → │ subredditDiscovery       │    │
-│  │     Step        │    │ Step (skip in App Gap)   │    │
-│  └─────────────────┘    └──────────────────────────┘    │
-│                                   │                      │
-│                                   ▼                      │
+│  ctx = createContext(jobId, userId, hypothesis, app)    │
+│                                                          │
 │  ┌─────────────────────────────────────────────────┐    │
-│  │              dataFetcherStep                     │    │
-│  │  (Reddit / HN / App Store / Cross-Store)        │    │
+│  │ Step 1: keywordExtractorStep.execute()          │ ✅ │
 │  └─────────────────────────────────────────────────┘    │
-│                                   │                      │
-│                                   ▼                      │
+│                           ↓                              │
 │  ┌─────────────────────────────────────────────────┐    │
-│  │              painAnalyzerStep                    │    │
-│  │  (Tier-aware + Praise filtering for App Gap)    │    │
+│  │ Step 2: subredditDiscoveryStep.execute()        │ ✅ │
+│  │         (auto-skips in App Gap mode)            │    │
 │  └─────────────────────────────────────────────────┘    │
-│                                   │                      │
-│                                   ▼                      │
-│              [Filter + Analysis steps - TODO]            │
+│                           ↓                              │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ Step 3: Data fetching (inline - complex)        │    │
+│  └─────────────────────────────────────────────────┘    │
+│                           ↓                              │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ Step 4: Filter pipeline (tiered/two-stage)      │    │
+│  └─────────────────────────────────────────────────┘    │
+│                           ↓                              │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ Step 5: painAnalyzerStep.execute()              │ ✅ │
+│  │         (tier-aware extraction + praise filter) │    │
+│  └─────────────────────────────────────────────────┘    │
+│                           ↓                              │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ Step 6-11: Analysis + Save (inline)             │    │
+│  └─────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────┘
 ```
 

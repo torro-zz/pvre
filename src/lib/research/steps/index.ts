@@ -48,3 +48,12 @@ export {
   type PainSignal,
   type PainSummary,
 } from './pain-analyzer'
+
+// Theme Analyzer (Phase 4d)
+export {
+  themeAnalyzerStep,
+  type ThemeAnalyzerInput,
+  type ThemeAnalyzerOutput,
+  type InterviewQuestions,
+  type ThemeAnalysis,
+} from './theme-analyzer'

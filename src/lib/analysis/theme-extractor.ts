@@ -449,7 +449,7 @@ Identify 3-7 themes, 5-10 customer language phrases, 3-5 key quotes, and 2-3 str
 /**
  * Get empty analysis for when there are no pain signals
  */
-function getEmptyAnalysis(): ThemeAnalysis {
+export function getEmptyAnalysis(): ThemeAnalysis {
   return {
     themes: [],
     customerLanguage: [],

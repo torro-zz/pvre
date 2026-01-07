@@ -16,12 +16,7 @@ import {
   type PainSignal,
   type PainSummary,
 } from '@/lib/analysis/pain-detector'
-import {
-  extractThemes,
-  generateInterviewQuestions,
-  calculateThemeResonance,
-  ThemeAnalysis,
-} from '@/lib/analysis/theme-extractor'
+import { getEmptyAnalysis, type ThemeAnalysis } from '@/lib/analysis/theme-extractor'
 import {
   calculateMarketSize,
   MarketSizingResult,
@@ -92,6 +87,7 @@ import {
   subredditDiscoveryStep,
   dataFetcherStep,
   painAnalyzerStep,
+  themeAnalyzerStep,
 } from '@/lib/research/steps'
 
 // Calculate data quality level based on filter rates
@@ -1254,16 +1250,21 @@ export async function POST(request: NextRequest) {
 
     // Step 6: Pain summary already calculated by painAnalyzerStep
 
-    // Step 7: Extract themes using Claude
-    console.log('Step 7: Extracting themes with Claude')
-    const themeAnalysis = await extractThemes(filteredPainSignals, hypothesis)
+    // =========================================================================
+    // Step 7-8: Theme Analysis + Interview Questions (using pipeline step)
+    // =========================================================================
+    console.log('Step 7-8: Theme analysis and interview questions')
+    const themeResult = await executeStep(themeAnalyzerStep, {
+      painSignals: filteredPainSignals,
+      hypothesis,
+    }, ctx)
 
-    // Step 7b: Calculate resonance for each theme
-    themeAnalysis.themes = calculateThemeResonance(themeAnalysis.themes, filteredPainSignals)
-
-    // Step 8: Generate interview questions
-    console.log('Step 8: Generating interview questions')
-    const interviewQuestions = await generateInterviewQuestions(themeAnalysis, hypothesis)
+    const themeAnalysis = themeResult.data?.themeAnalysis || getEmptyAnalysis()
+    const interviewQuestions = themeResult.data?.interviewQuestions || {
+      contextQuestions: [],
+      problemQuestions: [],
+      solutionQuestions: [],
+    }
 
     // Step 9: Run market sizing analysis
     console.log('Step 9: Running market sizing analysis')
