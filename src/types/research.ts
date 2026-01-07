@@ -1,4 +1,15 @@
 /**
+ * @deprecated Types in this file are being consolidated to '@/types/research'.
+ *
+ * MIGRATION:
+ *   import { ResearchJob, PainSignal, Competitor, ... } from '@/types/research'
+ *
+ * Utility functions (formatHypothesis, detectGeographyFromAudience, etc.) remain here.
+ *
+ * See: docs/REFACTORING_PLAN.md Phase 0
+ */
+
+/**
  * Target geography type for market sizing scoping
  */
 export type GeographyScope = 'local' | 'national' | 'global'

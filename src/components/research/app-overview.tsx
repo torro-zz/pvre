@@ -7,6 +7,7 @@ import type { AppDetails } from '@/lib/data-sources/types'
 
 interface AppOverviewProps {
   appData: AppDetails
+  crossStoreAppData?: AppDetails | null  // App from other store (e.g., Play Store when primary is App Store)
 }
 
 // Format lastUpdated - handles timestamps (ms or s) and date strings
@@ -33,13 +34,96 @@ function formatLastUpdated(value: string | undefined): string | null {
   return value
 }
 
-export function AppOverview({ appData }: AppOverviewProps) {
+// Format review count for display (e.g., 5000000 -> "5.0M")
+function formatReviewCount(count: number): string {
+  if (count >= 1000000) {
+    return `${(count / 1000000).toFixed(1)}M`
+  } else if (count >= 1000) {
+    return `${(count / 1000).toFixed(1)}K`
+  }
+  return count.toLocaleString()
+}
+
+export function AppOverview({ appData, crossStoreAppData }: AppOverviewProps) {
   const storeIcon = appData.store === 'google_play' ? '🤖' : '🍎'
   const storeName = appData.store === 'google_play' ? 'Google Play' : 'App Store'
 
+  // Determine which is App Store and which is Google Play
+  const appStoreData = appData.store === 'app_store' ? appData : crossStoreAppData
+  const googlePlayData = appData.store === 'google_play' ? appData : crossStoreAppData
+
   return (
     <div className="space-y-6">
-      {/* App Header Card */}
+      {/* Dual-Store Comparison Cards */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* App Store Card */}
+        <Card className={`overflow-hidden ${appStoreData ? '' : 'opacity-50'}`}>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🍎</span>
+              <span className="font-semibold text-sm">App Store</span>
+            </div>
+            {appStoreData ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                  <span className="font-bold text-lg">{appStoreData.rating.toFixed(1)}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {formatReviewCount(appStoreData.reviewCount)} reviews
+                </p>
+                {appStoreData.url && (
+                  <a
+                    href={appStoreData.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    View <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">N/A</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Google Play Card */}
+        <Card className={`overflow-hidden ${googlePlayData ? '' : 'opacity-50'}`}>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🤖</span>
+              <span className="font-semibold text-sm">Google Play</span>
+            </div>
+            {googlePlayData ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                  <span className="font-bold text-lg">{googlePlayData.rating.toFixed(1)}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {formatReviewCount(googlePlayData.reviewCount)} reviews
+                </p>
+                {googlePlayData.url && (
+                  <a
+                    href={googlePlayData.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    View <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">N/A</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* App Header Card - Primary App Details */}
       <Card className="overflow-hidden">
         <div className="bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 p-6">
           <div className="flex gap-4">
@@ -58,6 +142,11 @@ export function AppOverview({ appData }: AppOverviewProps) {
                 <Badge variant="outline" className="text-xs">
                   {storeIcon} {storeName}
                 </Badge>
+                {crossStoreAppData && (
+                  <Badge variant="secondary" className="text-xs">
+                    + {crossStoreAppData.store === 'google_play' ? '🤖 Play' : '🍎 iOS'}
+                  </Badge>
+                )}
               </div>
               <p className="text-muted-foreground">{appData.developer}</p>
 

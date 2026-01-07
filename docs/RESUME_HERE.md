@@ -1,41 +1,73 @@
-# Resume Point — January 4, 2026
+# Resume Point — January 7, 2026
 
-**Last Session:** January 4, 2026 (evening)
-**Tomorrow's Task Spec:** `/Users/julientorriani/Downloads/PVRE Loom App Instructions Jan 4.md`
+**Last Session:** January 7, 2026
 
 ---
 
 ## What Was Just Completed
 
-### Codebase Cleanup (~1.9MB freed)
-Removed deprecated files and folders:
-- `.next 2/` and `.next 3/` (duplicate build caches from interrupted builds)
-- 17 one-off diagnostic scripts (`trace-*`, `check-*`, `diagnose-*`, `calibrate-*`, etc.)
-- `docs/archive/` (290KB old implementation plans from Dec 2025)
-- `docs/redesign/` (83KB completed redesign work)
-- `docs/test-data/` (462KB test JSON files)
-- `docs/APP_STORE_FIRST_VERIFICATION.md` and `docs/LOOM_CATEGORIZED_SIGNALS_REVIEW.md`
+### Codebase Refactoring — Phase 0 & 1 Complete
 
-### What Remains Clean
-- `scripts/` now has only 5 useful files (was 22)
-- `docs/` now has only 4 essential files (was 10+)
+See `docs/REFACTORING_PLAN.md` for full plan.
+
+#### Phase 0: Type Consolidation ✅
+
+Created single source of truth for research types in `src/types/research/`:
+
+| File | Types |
+|------|-------|
+| `core.ts` | ResearchJob, PainSignal, PainSummary, StructuredHypothesis |
+| `competitor.ts` | Competitor, CompetitorGap, CompetitorIntelligenceResult |
+| `filter.ts` | FilteringMetrics, RelevanceDecision, ExpansionAttempt |
+| `result.ts` | CommunityVoiceResult, ResearchPageData |
+| `index.ts` | Barrel export for all types |
+
+**Usage:**
+```typescript
+import { PainSignal, ResearchJob, CommunityVoiceResult } from '@/types/research'
+```
+
+#### Phase 1: ResearchContext Pattern ✅
+
+Created `src/lib/research/pipeline/context.ts` with:
+
+- `ResearchMode` type: `'hypothesis' | 'app-gap'`
+- `ResearchContext` interface: unified context for pipeline execution
+- `isAppGapMode(ctx)`: replaces 9+ scattered `if (appData?.appId)` checks
+- `detectModeFromCoverageData()`: helper for UI components
+
+**Usage:**
+```typescript
+import { isAppGapMode, detectModeFromCoverageData } from '@/lib/research/pipeline'
+
+// In pipeline
+if (isAppGapMode(ctx)) {
+  // App Gap specific logic
+}
+
+// In UI components
+const mode = detectModeFromCoverageData(job.coverage_data)
+```
+
+#### Files Updated
+
+- `src/lib/research/fetch-research-data.ts` — Now uses `detectModeFromCoverageData()`
+- `src/types/research.ts` — Added deprecation notice pointing to new location
 
 ---
 
 ## Uncommitted Changes
 
-⚠️ **WARNING: You have uncommitted changes!**
+Files created/modified (not yet committed):
+- `src/types/research/` — New canonical types directory
+- `src/lib/research/pipeline/` — New ResearchContext module
+- `docs/REFACTORING_PLAN.md` — Full refactoring plan
+- `src/lib/research/fetch-research-data.ts` — Updated imports
+- `src/types/research.ts` — Deprecation notice
 
-| File | Status | Purpose |
-|------|--------|---------|
-| `docs/KNOWN_ISSUES.md` | Modified | Updated structure |
-| `scripts/export-research.ts` | Modified | Export improvements |
-| `src/lib/analysis/pain-detector.ts` | Modified | Enterprise WTP patterns |
-| `src/lib/data-sources/adapters/app-store-adapter.ts` | Modified | Date parsing fix |
-| 18 diagnostic scripts | Deleted | Cleanup |
-| `docs/archive/*`, `docs/redesign/*`, `docs/test-data/*` | Deleted | Cleanup |
-
-**Total: 201 insertions, 2,675 deletions across 22 files**
+Untracked (debug scripts, can be ignored):
+- `scripts/*.ts` — Development debugging tools
+- `.claude/agents/` — Agent configuration
 
 ---
 
@@ -44,51 +76,34 @@ Removed deprecated files and folders:
 | Check | Status |
 |-------|--------|
 | **Build** | ✅ Passing |
-| **Tests** | ✅ 163 passing, 6 skipped |
-| **Dev Server** | ✅ Running on :3000 |
+| **Tests** | 163 passing, 6 skipped |
 
 ---
 
-## Tomorrow's Mission: Verify Jan 4 Fixes with Loom Export
+## What's Next
 
-### Task 1: Export the Correct Job
-```bash
-source .env.local && npx tsx scripts/export-research.ts dbf8ff61-2b4b-46e0-a37d-0ae432ae159f
-```
-This is the Loom App Gap search (16,087 reviews) processed AFTER today's fixes.
+### Refactoring (Optional — Phases 2-5)
 
-### Task 2: Verify These 8 Fixes
+From `docs/REFACTORING_PLAN.md`:
 
-| Fix | Expected | Check Command |
-|-----|----------|---------------|
-| App Store dates | Timestamps (not null) | `grep '"createdUtc"' raw-export.json` |
-| Recency metrics | > 0 | `grep '"last30Days"' raw-export.json` |
-| Self-competitor filter | Loom NOT in list | `grep -A 10 "Competitor" narrative.md` |
-| Interview questions | 15 questions | `grep -i "interview" narrative.md` |
-| Google Trends | Weighted % | Check narrative.md |
-| Narrative size | < 100KB | Check file size |
-| No [object Object] | 0 occurrences | `grep "object Object" narrative.md` |
-| No raw embeddings | 0 vectors | Check for embedding arrays |
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 0 | Type consolidation | ✅ Complete |
+| 1 | ResearchContext pattern | ✅ Complete |
+| 2 | Extract inline modules | Pending |
+| 3 | Pipeline steps | Pending |
+| 4 | Orchestrator | Pending |
+| 5 | Cleanup | Pending |
 
-### Task 3: Report Results
-Create verification table with PASS/FAIL for each fix.
+**Recommendation:** Evaluate if Phases 2-5 are needed. Phase 0+1 provide the foundation.
 
-### If Fixes Fail
-- App Store dates null → Check `app-store-adapter.ts` (review.updated)
-- Self-competitor present → Check filter logic in export script
-- Interview guide null → Check App Gap interview trigger
+### Open Issues (from docs/KNOWN_ISSUES.md)
 
----
+1. **Verdict Messages Contradict Each Other**
+   - Yellow box says "proceed with caution" while verdict says "pivot"
 
-## Current State Summary
-
-| Item | Status |
-|------|--------|
-| Codebase cleanup | ✅ Complete (1.9MB freed) |
-| Build | ✅ Passing |
-| Tests | ✅ 163 passing |
-| Changes committed | ❌ UNCOMMITTED |
-| Loom export verification | ❌ TODO (tomorrow) |
+2. **Hypothesis Confidence Wrong for App Gap Mode**
+   - Should show "Signal Quality" for App Gap mode
 
 ---
 
@@ -96,34 +111,37 @@ Create verification table with PASS/FAIL for each fix.
 
 | Purpose | File |
 |---------|------|
-| Project instructions | `CLAUDE.md` |
-| Known bugs & status | `docs/KNOWN_ISSUES.md` |
-| Tomorrow's task spec | `/Users/julientorriani/Downloads/PVRE Loom App Instructions Jan 4.md` |
-| Export script | `scripts/export-research.ts` |
-| App Store adapter (dates fix) | `src/lib/data-sources/adapters/app-store-adapter.ts` |
-| Pain detector (WTP patterns) | `src/lib/analysis/pain-detector.ts` |
+| **Canonical types** | `src/types/research/index.ts` |
+| **ResearchContext** | `src/lib/research/pipeline/context.ts` |
+| **Refactoring plan** | `docs/REFACTORING_PLAN.md` |
+| **Project instructions** | `CLAUDE.md` |
+| **Known bugs** | `docs/KNOWN_ISSUES.md` |
 
 ---
 
 ## Quick Start Commands
 
 ```bash
-# Start dev server
 cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine PVRE"
 npm run dev
-
-# Run tests
 npm run test:run
-
-# Build
 npm run build
-
-# Export Loom job (TOMORROW'S FIRST TASK)
-source .env.local && npx tsx scripts/export-research.ts dbf8ff61-2b4b-46e0-a37d-0ae432ae159f
 ```
+
+---
+
+## Files Modified This Session
+
+| File | Changes |
+|------|---------|
+| `src/types/research/*.ts` | NEW - Canonical type definitions |
+| `src/lib/research/pipeline/*.ts` | NEW - ResearchContext module |
+| `docs/REFACTORING_PLAN.md` | NEW - Full refactoring plan |
+| `src/lib/research/fetch-research-data.ts` | Updated to use context helpers |
+| `src/types/research.ts` | Added deprecation notice |
 
 ---
 
 ## User Notes
 
-None
+*(None)*

@@ -38,6 +38,8 @@ function getIconType(source: string): SourceCoverageData['iconType'] {
 
 /**
  * Creates coverage data from filtering metrics for display in SearchCoverageSection
+ *
+ * @param isAppGapMode - If true, Reddit is completely hidden (App Gap = app stores only)
  */
 export function createSourceCoverageData(
   filteringMetrics: {
@@ -47,41 +49,81 @@ export function createSourceCoverageData(
     relatedSignals?: number
     communitiesSearched?: string[]
     sources?: string[]
-    // App store specific metrics
+    // App store specific metrics (combined for backwards compat)
     appStoreSignals?: number
     appStoreReviewsAnalyzed?: number
+    // Per-store signal counts (new)
+    iosAppStoreSignals?: number
+    googlePlaySignals?: number
+    iosReviewsAnalyzed?: number
+    googlePlayReviewsAnalyzed?: number
   },
-  totalSignals: number
+  totalSignals: number,
+  isAppGapMode: boolean = false
 ): SourceCoverageData[] {
   const sources: SourceCoverageData[] = []
 
-  // Calculate Reddit-only signals (total minus app store)
-  const appStoreSignals = filteringMetrics.appStoreSignals || 0
-  const redditSignals = totalSignals - appStoreSignals
+  // Calculate app store signals (use new per-store fields if available, fallback to combined)
+  const iosSignals = filteringMetrics.iosAppStoreSignals ?? 0
+  const gplaySignals = filteringMetrics.googlePlaySignals ?? 0
+  const totalAppStoreSignals = (iosSignals + gplaySignals) || filteringMetrics.appStoreSignals || 0
 
-  // Reddit is always included if we have posts
-  if (filteringMetrics.postsAnalyzed && filteringMetrics.postsAnalyzed > 0) {
+  // Calculate Reddit-only signals (total minus app store)
+  const redditSignals = totalSignals - totalAppStoreSignals
+
+  // Reddit is COMPLETELY HIDDEN in App Gap mode
+  // In Hypothesis mode, only show if communities were actually searched
+  if (!isAppGapMode) {
     const communityCount = filteringMetrics.communitiesSearched?.length || 0
+    if (communityCount > 0 && redditSignals > 0) {
+      sources.push({
+        name: 'Reddit',
+        iconType: 'reddit',
+        scope: `${communityCount} ${communityCount === 1 ? 'community' : 'communities'}`,
+        volume: `${filteringMetrics.postsFound || filteringMetrics.postsAnalyzed} posts`,
+        signals: redditSignals,
+        coreSignals: filteringMetrics.coreSignals || 0,
+      })
+    }
+  }
+
+  // App Store (iOS) - show if we have iOS signals
+  if (iosSignals > 0) {
+    const reviewsAnalyzed = filteringMetrics.iosReviewsAnalyzed || filteringMetrics.appStoreReviewsAnalyzed || 500
     sources.push({
-      name: 'Reddit',
-      iconType: 'reddit',
-      scope: `${communityCount} ${communityCount === 1 ? 'community' : 'communities'}`,
-      volume: `${filteringMetrics.postsFound || filteringMetrics.postsAnalyzed} posts`,
-      signals: redditSignals > 0 ? redditSignals : totalSignals,  // Reddit signals only
-      coreSignals: filteringMetrics.coreSignals || 0,  // Core (high-relevance) signals only
+      name: 'App Store',
+      iconType: 'app_store',
+      scope: '1 app',
+      volume: `${reviewsAnalyzed} reviews`,
+      signals: iosSignals,
+      coreSignals: iosSignals,
     })
   }
 
-  // App Store included if we have app store signals
-  if (appStoreSignals > 0) {
+  // Google Play - show if we have Google Play signals
+  if (gplaySignals > 0) {
+    const reviewsAnalyzed = filteringMetrics.googlePlayReviewsAnalyzed || filteringMetrics.appStoreReviewsAnalyzed || 500
+    sources.push({
+      name: 'Google Play',
+      iconType: 'google_play',
+      scope: '1 app',
+      volume: `${reviewsAnalyzed} reviews`,
+      signals: gplaySignals,
+      coreSignals: gplaySignals,
+    })
+  }
+
+  // Fallback: if we have appStoreSignals but no per-store breakdown, show combined
+  // This handles older results that don't have per-store data
+  if (totalAppStoreSignals > 0 && iosSignals === 0 && gplaySignals === 0) {
     const reviewsAnalyzed = filteringMetrics.appStoreReviewsAnalyzed || 500
     sources.push({
       name: 'App Store',
       iconType: 'app_store',
       scope: '1 app',
       volume: `${reviewsAnalyzed} reviews`,
-      signals: appStoreSignals,
-      coreSignals: appStoreSignals,  // All app store signals count as core for now
+      signals: filteringMetrics.appStoreSignals || 0,
+      coreSignals: filteringMetrics.appStoreSignals || 0,
     })
   }
 

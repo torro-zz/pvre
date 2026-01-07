@@ -16,6 +16,7 @@ import {
   ViabilityVerdict,
 } from '@/lib/analysis/viability-calculator'
 import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
+import { detectModeFromCoverageData } from '@/lib/research/pipeline'
 import type { AppDetails } from '@/lib/data-sources/types'
 
 // ============================================================================
@@ -106,6 +107,7 @@ export interface ResearchPageData {
   viabilityVerdict: ViabilityVerdict
   isAppAnalysis: boolean
   appData: AppDetails | null
+  crossStoreAppData: AppDetails | null  // App found via cross-store lookup (e.g., Play Store when user submitted App Store URL)
   structuredHypothesis?: { audience?: string; problem?: string }
   // Display fields for header
   shortTitle?: string
@@ -144,7 +146,8 @@ export async function fetchResearchData(
   }
 
   // Extract app-centric mode data from coverage_data
-  const isAppAnalysis = researchJob.coverage_data?.mode === 'app-analysis'
+  const researchMode = detectModeFromCoverageData(researchJob.coverage_data)
+  const isAppAnalysis = researchMode === 'app-gap'
   const appData = researchJob.coverage_data?.appData || null
   const structuredHypothesis = researchJob.coverage_data?.structuredHypothesis
   // Display fields for header
@@ -177,6 +180,9 @@ export async function fetchResearchData(
   // Calculate viability scores
   const { painScoreInput, competitionScoreInput, marketScoreInput, timingScoreInput, marketData, timingData } =
     calculateScoreInputs(communityVoiceResult, competitorResult, marketSizingResult, timingResult)
+
+  // Extract cross-store app data from community_voice metadata
+  const crossStoreAppData = (communityVoiceResult?.data?.metadata as Record<string, unknown>)?.crossStoreAppData as AppDetails | undefined || null
 
   // Prepare two-axis input
   const filteringMetrics = communityVoiceResult?.data?.metadata?.filteringMetrics as FilteringMetrics | undefined
@@ -224,6 +230,7 @@ export async function fetchResearchData(
       viabilityVerdict,
       isAppAnalysis,
       appData,
+      crossStoreAppData,  // App from other store (e.g., Play Store when user submitted App Store URL)
       structuredHypothesis,
       shortTitle,
       originalInput,

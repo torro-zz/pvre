@@ -182,6 +182,8 @@ export interface CommunityVoiceResult {
       posts: RelevanceDecision[]
       comments: RelevanceDecision[]
     }
+    // Cross-store app data (e.g., Play Store app when user submitted App Store URL)
+    crossStoreAppData?: AppDetails
   }
 }
 
@@ -310,6 +312,7 @@ export async function POST(request: NextRequest) {
     let selectedDataSources: string[] | undefined
     let selectedApps: AppDetails[] | undefined
     let appData: AppDetails | undefined
+    let crossStoreAppData: AppDetails | undefined  // App found via cross-store lookup (e.g., Play Store when user submitted App Store URL)
     if (jobId) {
       const adminClient = createAdminClient()
       // Update status and fetch job data in one query
@@ -642,6 +645,24 @@ export async function POST(request: NextRequest) {
 
         if (matchingApp) {
           console.log(`Found matching app on ${otherStore}: ${matchingApp.name} (${matchingApp.reviewCount} reviews)`)
+
+          // Store the cross-store app metadata for display in AppOverview
+          crossStoreAppData = {
+            appId: matchingApp.appId,
+            name: matchingApp.name,
+            developer: matchingApp.developer,
+            rating: matchingApp.rating,
+            reviewCount: matchingApp.reviewCount,
+            category: matchingApp.category,
+            store: otherStore,
+            url: matchingApp.url,
+            iconUrl: matchingApp.iconUrl,
+            price: matchingApp.price || 'Free',
+            hasIAP: matchingApp.hasIAP || false,
+            description: matchingApp.description || '',
+            lastUpdated: matchingApp.lastUpdated,
+          }
+          console.log(`Stored cross-store app metadata: ${crossStoreAppData.name} (${crossStoreAppData.store})`)
 
           // Fetch reviews from the matched app
           let crossStoreReviews: RedditPost[] = []
@@ -1428,6 +1449,8 @@ export async function POST(request: NextRequest) {
           posts: postRelevanceDecisions,
           comments: commentFilterResult.decisions,
         },
+        // Cross-store app data (e.g., Play Store app when user submitted App Store URL)
+        crossStoreAppData: crossStoreAppData || undefined,
       },
     }
 

@@ -46,6 +46,7 @@ export function TabbedView() {
     viabilityVerdict,
     isAppAnalysis,
     appData,
+    crossStoreAppData,
     filteringMetrics,
   } = data
 
@@ -55,11 +56,16 @@ export function TabbedView() {
 
       {/* Search Coverage Section - "What We Searched" transparency */}
       {communityVoiceResult?.data?.metadata?.filteringMetrics && (() => {
-        // Count app store signals from pain signals
-        const appStoreSignals = communityVoiceResult.data?.painSignals?.filter(
-          (s: { source: { subreddit?: string } }) =>
-            s.source.subreddit === 'app_store' || s.source.subreddit === 'google_play'
-        ).length || 0
+        // Count signals per source from pain signals
+        const painSignals = communityVoiceResult.data?.painSignals || []
+        const iosAppStoreSignals = painSignals.filter(
+          (s: { source: { subreddit?: string } }) => s.source.subreddit === 'app_store'
+        ).length
+        const googlePlaySignals = painSignals.filter(
+          (s: { source: { subreddit?: string } }) => s.source.subreddit === 'google_play'
+        ).length
+        // Combined for backwards compat
+        const appStoreSignals = iosAppStoreSignals + googlePlaySignals
 
         return (
           <SearchCoverageSection
@@ -73,8 +79,14 @@ export function TabbedView() {
                 sources: communityVoiceResult.data.metadata.dataSources,
                 appStoreSignals,
                 appStoreReviewsAnalyzed: 500,  // API limit for app store reviews
+                // Per-store breakdown (new)
+                iosAppStoreSignals,
+                googlePlaySignals,
+                iosReviewsAnalyzed: 500,
+                googlePlayReviewsAnalyzed: 500,
               },
-              communityVoiceResult.data.painSummary?.totalSignals || 0
+              communityVoiceResult.data.painSummary?.totalSignals || 0,
+              isAppAnalysis  // Pass App Gap mode flag to hide Reddit
             )}
             totalAnalyzed={communityVoiceResult.data.metadata.filteringMetrics.postsFound || 0}
             className="mb-6"
@@ -187,7 +199,7 @@ export function TabbedView() {
           <>
             <TabsContent value="app-overview">
               {appData ? (
-                <AppOverview appData={appData} />
+                <AppOverview appData={appData} crossStoreAppData={crossStoreAppData} />
               ) : (
                 <Card>
                   <CardContent className="py-12">
