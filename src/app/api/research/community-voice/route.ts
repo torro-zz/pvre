@@ -87,6 +87,18 @@ import {
   logAppNameGateResult,
 } from '@/lib/research/gates/app-name-gate'
 import { findAndFetchCrossStoreReviews } from '@/lib/research/steps/cross-store-lookup'
+// Pipeline infrastructure (Phase 4)
+import {
+  createContext,
+  isAppGapMode,
+  executeStep,
+  type ResearchContext,
+} from '@/lib/research/pipeline'
+import {
+  keywordExtractorStep,
+  subredditDiscoveryStep,
+  dataFetcherStep,
+} from '@/lib/research/steps'
 
 // Calculate data quality level based on filter rates
 function calculateQualityLevel(postFilterRate: number, commentFilterRate: number): 'high' | 'medium' | 'low' {
@@ -437,68 +449,64 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 1: Extract hypothesis-specific keywords for better search precision
-    // If structured hypothesis available, use it for better keyword extraction
+    // =========================================================================
+    // CREATE RESEARCH CONTEXT (Phase 4 - Pipeline Infrastructure)
+    // =========================================================================
+    const ctx = createContext(
+      researchJobId,
+      user.id,
+      hypothesis,
+      appData,
+      structuredHypothesis
+    )
+    console.log(`[Pipeline] Created context: mode=${ctx.mode}, jobId=${ctx.jobId.slice(0, 8)}...`)
+
+    // Step 1: Extract hypothesis-specific keywords using pipeline step
     console.log('Step 1: Extracting hypothesis-specific keywords')
     lastErrorSource = 'anthropic' // Claude API
 
-    // Build enhanced search context if structured input is available
-    const searchContext = structuredHypothesis
-      ? `${structuredHypothesis.audience} who ${structuredHypothesis.problem}${structuredHypothesis.problemLanguage ? ` (searches for: ${structuredHypothesis.problemLanguage})` : ''}`
-      : hypothesis
+    const keywordResult = await executeStep(keywordExtractorStep, {
+      hypothesis,
+      structuredHypothesis,
+    }, ctx)
 
-    const extractedKeywords = await extractSearchKeywords(searchContext)
-
-    // If user provided problem language, add those as primary keywords
-    if (structuredHypothesis?.problemLanguage) {
-      const userPhrases = structuredHypothesis.problemLanguage
-        .split(/[,"]/)
-        .map(p => p.trim())
-        .filter(p => p.length > 3 && p.length < 50)
-      extractedKeywords.primary.unshift(...userPhrases.slice(0, 3))
-      console.log('Added user problem language to keywords:', userPhrases.slice(0, 3))
-    }
-
-    // If user provided exclude topics, add those to exclude keywords
-    if (structuredHypothesis?.excludeTopics) {
-      const userExcludes = structuredHypothesis.excludeTopics
-        .split(',')
-        .map(p => p.trim().toLowerCase())
-        .filter(p => p.length > 2 && p.length < 50)
-      extractedKeywords.exclude.push(...userExcludes)
-      console.log('Added user exclude topics:', userExcludes)
-    }
+    const extractedKeywords = keywordResult.data || { primary: [], secondary: [], exclude: [], searchContext: hypothesis }
+    const searchContext = extractedKeywords.searchContext
 
     console.log('Extracted keywords:', {
-      primary: extractedKeywords.primary,
+      primary: extractedKeywords.primary.slice(0, 5),
       exclude: extractedKeywords.exclude,
     })
 
-    // Step 2: Discover relevant subreddits using Claude
-    // Use user-selected subreddits if available (from coverage preview), otherwise discover
-    // Jan 2026: SKIP REDDIT entirely in App Gap mode - focus on app store reviews
+    // Step 2: Discover relevant subreddits using pipeline step
+    // The step handles: App Gap skip, user-selected subreddits, Claude discovery
     let subredditsToSearch: string[]
     let discoveryResult: { subreddits: string[] }
 
-    if (appData && appData.appId) {
-      // APP GAP MODE: Skip Reddit entirely - use only app store reviews
-      console.log('Step 2: App Gap mode - skipping Reddit discovery (using app store reviews only)')
-      subredditsToSearch = []
-      discoveryResult = { subreddits: [] }
-    } else if (userSelectedSubreddits && userSelectedSubreddits.length > 0) {
-      // User has selected specific subreddits from coverage preview
-      console.log('Step 2: Using user-selected subreddits:', userSelectedSubreddits)
-      subredditsToSearch = userSelectedSubreddits.slice(0, 15) // Dec 2025: Increased from 12 to 15 for better recall
+    if (userSelectedSubreddits && userSelectedSubreddits.length > 0) {
+      // User has selected specific subreddits - bypass discovery step
+      console.log('[Subreddit Discovery] Using user-selected:', userSelectedSubreddits.length)
+      subredditsToSearch = userSelectedSubreddits.slice(0, 15)
       discoveryResult = { subreddits: subredditsToSearch }
     } else {
-      // Discover using Claude
-      console.log('Step 2: Discovering subreddits for:', searchContext.slice(0, 50))
-      discoveryResult = await discoverSubreddits(searchContext)
-      subredditsToSearch = discoveryResult.subreddits.slice(0, 15) // Dec 2025: Increased from 10 to 15 for better recall
+      // Use pipeline step for discovery (handles App Gap skip automatically)
+      const subredditResult = await executeStep(subredditDiscoveryStep, {
+        searchContext,
+        hypothesis,
+      }, ctx)
+
+      if (subredditResult.skipped) {
+        // App Gap mode - step was skipped
+        subredditsToSearch = []
+        discoveryResult = { subreddits: [] }
+      } else {
+        subredditsToSearch = subredditResult.data?.subreddits || []
+        discoveryResult = { subreddits: subredditsToSearch }
+      }
     }
 
     // Only require subreddits for Hypothesis mode (not App Gap mode)
-    if (subredditsToSearch.length === 0 && !appData?.appId) {
+    if (subredditsToSearch.length === 0 && !isAppGapMode(ctx)) {
       return NextResponse.json(
         { error: 'Could not identify relevant subreddits for this hypothesis' },
         { status: 400 }
