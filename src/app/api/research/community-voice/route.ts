@@ -12,13 +12,9 @@ import {
   SearchResult,
 } from '@/lib/data-sources'
 import {
-  analyzePosts,
-  analyzeComments,
-  combinePainSignals,
   getPainSummary,
-  filterPraiseSignals,
-  PainSignal,
-  PainSummary,
+  type PainSignal,
+  type PainSummary,
 } from '@/lib/analysis/pain-detector'
 import {
   extractThemes,
@@ -39,10 +35,7 @@ import {
   preFilterByExcludeKeywords,
   ExtractedKeywords,
 } from '@/lib/reddit/keyword-extractor'
-import {
-  getSubredditWeights,
-  applySubredditWeights,
-} from '@/lib/analysis/subreddit-weights'
+import { getSubredditWeights } from '@/lib/analysis/subreddit-weights'
 import {
   startTokenTracking,
   endTokenTracking,
@@ -98,6 +91,7 @@ import {
   keywordExtractorStep,
   subredditDiscoveryStep,
   dataFetcherStep,
+  painAnalyzerStep,
 } from '@/lib/research/steps'
 
 // Calculate data quality level based on filter rates
@@ -1213,45 +1207,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 5: Analyze posts and comments for pain signals with tier awareness
+    // =========================================================================
+    // Step 5: Pain Analysis (using pipeline step)
+    // =========================================================================
     console.log('Step 5: Analyzing pain signals')
-    const corePostSignals = analyzePosts(finalCoreItems).map(s => ({ ...s, tier: 'CORE' as const }))
-    const relatedPostSignals = analyzePosts(finalRelatedItems).map(s => ({ ...s, tier: 'RELATED' as const }))
-    const postSignals = [...corePostSignals, ...relatedPostSignals]
-    const commentSignals = analyzeComments(finalComments)
-    const allPainSignals = combinePainSignals(postSignals, commentSignals)
+    const painResult = await executeStep(painAnalyzerStep, {
+      corePosts: finalCoreItems,
+      relatedPosts: finalRelatedItems,
+      comments: finalComments,
+      subredditWeights,
+    }, ctx)
 
-    console.log(`Found ${allPainSignals.length} pain signals`)
-
-    // Step 5.5: Apply subreddit weights to pain scores
-    applySubredditWeights(allPainSignals, subredditWeights)
-    console.log('Applied subreddit weights to pain signals')
-
-    // Step 5.55: Filter pure praise from app store reviews (embedding-based)
-    // Only for App Gap mode where we have app store reviews
-    let filteredPainSignals = allPainSignals
-    if (appData?.appId) {
-      const appStoreSignalsBeforeFilter = allPainSignals.filter(
-        s => s.source.subreddit === 'google_play' || s.source.subreddit === 'app_store'
-      )
-      if (appStoreSignalsBeforeFilter.length > 0) {
-        console.log(`Step 5.55: Filtering pure praise from ${appStoreSignalsBeforeFilter.length} app store signals`)
-        try {
-          const filteredAppStoreSignals = await filterPraiseSignals(appStoreSignalsBeforeFilter)
-          const filteredCount = appStoreSignalsBeforeFilter.length - filteredAppStoreSignals.length
-          console.log(`Praise filter removed ${filteredCount} pure praise signals from app store reviews`)
-
-          // Keep non-app-store signals + filtered app store signals
-          const nonAppStoreSignals = allPainSignals.filter(
-            s => s.source.subreddit !== 'google_play' && s.source.subreddit !== 'app_store'
-          )
-          filteredPainSignals = [...nonAppStoreSignals, ...filteredAppStoreSignals]
-        } catch (praiseFilterError) {
-          console.error('Praise filter failed (non-blocking):', praiseFilterError)
-          // Continue with all signals if filter fails
-        }
-      }
-    }
+    // Get pain signals and summary from step (includes praise filtering for App Gap mode)
+    let filteredPainSignals = painResult.data?.painSignals || []
+    const painSummary = painResult.data?.painSummary || getPainSummary([])
 
     // Step 5.6: Semantic categorization for App Gap mode (Phase 3 - App Store-First Architecture)
     if (appData?.appId) {
@@ -1283,8 +1252,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 6: Get pain summary statistics
-    const painSummary = getPainSummary(filteredPainSignals)
+    // Step 6: Pain summary already calculated by painAnalyzerStep
 
     // Step 7: Extract themes using Claude
     console.log('Step 7: Extracting themes with Claude')
