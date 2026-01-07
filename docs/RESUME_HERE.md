@@ -6,7 +6,7 @@
 
 ## What Was Just Completed
 
-### Codebase Refactoring — Phase 0 & 1 Complete
+### Codebase Refactoring — Phases 0-4
 
 See `docs/REFACTORING_PLAN.md` for full plan.
 
@@ -22,52 +22,51 @@ Created single source of truth for research types in `src/types/research/`:
 | `result.ts` | CommunityVoiceResult, ResearchPageData |
 | `index.ts` | Barrel export for all types |
 
-**Usage:**
-```typescript
-import { PainSignal, ResearchJob, CommunityVoiceResult } from '@/types/research'
-```
-
 #### Phase 1: ResearchContext Pattern ✅
 
 Created `src/lib/research/pipeline/context.ts` with:
-
 - `ResearchMode` type: `'hypothesis' | 'app-gap'`
-- `ResearchContext` interface: unified context for pipeline execution
-- `isAppGapMode(ctx)`: replaces 9+ scattered `if (appData?.appId)` checks
+- `isAppGapMode(ctx)`: replaces scattered mode checks
 - `detectModeFromCoverageData()`: helper for UI components
 
-**Usage:**
-```typescript
-import { isAppGapMode, detectModeFromCoverageData } from '@/lib/research/pipeline'
+#### Phase 2: Extract Inline Modules ✅
 
-// In pipeline
-if (isAppGapMode(ctx)) {
-  // App Gap specific logic
-}
+| Module | File | Purpose |
+|--------|------|---------|
+| **App Name Gate** | `src/lib/research/gates/app-name-gate.ts` | Filter posts by app name |
+| **Cross-Store Lookup** | `src/lib/research/steps/cross-store-lookup.ts` | Find same app on other store |
 
-// In UI components
-const mode = detectModeFromCoverageData(job.coverage_data)
-```
+#### Phase 3: Pipeline Steps (Infrastructure) ✅
 
-#### Files Updated
+| File | Purpose |
+|------|---------|
+| `src/lib/research/pipeline/types.ts` | `PipelineStep<TInput, TOutput>` interface |
+| `src/lib/research/steps/keyword-extractor.ts` | Extract search keywords from hypothesis |
+| `src/lib/research/steps/subreddit-discovery.ts` | Discover relevant subreddits |
+| `src/lib/research/steps/index.ts` | Barrel export for all steps |
 
-- `src/lib/research/fetch-research-data.ts` — Now uses `detectModeFromCoverageData()`
-- `src/types/research.ts` — Added deprecation notice pointing to new location
+#### Phase 4: Orchestrator (Infrastructure) ✅
+
+Created orchestrator and additional steps:
+
+| File | Purpose |
+|------|---------|
+| `src/lib/research/steps/data-fetcher.ts` | Fetch from Reddit, HN, App Stores |
+| `src/lib/research/steps/pain-analyzer.ts` | Extract pain signals with tier awareness |
+| `src/lib/research/pipeline/orchestrator.ts` | `runResearchPipeline()` function |
+
+**Status:** Orchestrator infrastructure is ready. Steps can be used independently or via orchestrator.
 
 ---
 
-## Uncommitted Changes
+## Commits This Session
 
-Files created/modified (not yet committed):
-- `src/types/research/` — New canonical types directory
-- `src/lib/research/pipeline/` — New ResearchContext module
-- `docs/REFACTORING_PLAN.md` — Full refactoring plan
-- `src/lib/research/fetch-research-data.ts` — Updated imports
-- `src/types/research.ts` — Deprecation notice
-
-Untracked (debug scripts, can be ignored):
-- `scripts/*.ts` — Development debugging tools
-- `.claude/agents/` — Agent configuration
+| Commit | Description |
+|--------|-------------|
+| `ec63b32` | Phase 2: Extract App Name Gate module |
+| `4cbcadb` | Phase 2: Extract Cross-Store Lookup module |
+| `7e8e14e` | Phase 3: Add pipeline step infrastructure |
+| *(pending)* | Phase 4: Add orchestrator and additional steps |
 
 ---
 
@@ -82,20 +81,30 @@ Untracked (debug scripts, can be ignored):
 
 ## What's Next
 
-### Refactoring (Optional — Phases 2-5)
+### Option A: Integrate Orchestrator Into Route (Continue Phase 4)
 
-From `docs/REFACTORING_PLAN.md`:
+Replace inline code in `community-voice/route.ts` with step calls:
+1. Replace keyword extraction code with `keywordExtractorStep`
+2. Replace subreddit discovery with `subredditDiscoveryStep`
+3. Replace data fetching with `dataFetcherStep`
+4. Replace pain analysis with `painAnalyzerStep`
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 0 | Type consolidation | ✅ Complete |
-| 1 | ResearchContext pattern | ✅ Complete |
-| 2 | Extract inline modules | Pending |
-| 3 | Pipeline steps | Pending |
-| 4 | Orchestrator | Pending |
-| 5 | Cleanup | Pending |
+This would reduce the route from 1,611 lines to ~600-800 lines.
 
-**Recommendation:** Evaluate if Phases 2-5 are needed. Phase 0+1 provide the foundation.
+### Option B: Add More Steps First
+
+Create remaining steps before integration:
+- `filter-orchestrator.ts` - Handle tiered/two-stage/legacy filter selection
+- `theme-analyzer.ts` - Extract themes and generate questions
+- `market-analyzer.ts` - Market sizing and timing analysis
+- `result-compiler.ts` - Build final CommunityVoiceResult
+
+### Option C: Use Current Foundation Incrementally
+
+The extracted modules can be used independently:
+- All steps work standalone (no coupling)
+- Route can adopt steps one at a time
+- No rush to complete full orchestrator
 
 ### Open Issues (from docs/KNOWN_ISSUES.md)
 
@@ -113,9 +122,16 @@ From `docs/REFACTORING_PLAN.md`:
 |---------|------|
 | **Canonical types** | `src/types/research/index.ts` |
 | **ResearchContext** | `src/lib/research/pipeline/context.ts` |
+| **Pipeline step interface** | `src/lib/research/pipeline/types.ts` |
+| **Orchestrator** | `src/lib/research/pipeline/orchestrator.ts` |
+| **App Name Gate** | `src/lib/research/gates/app-name-gate.ts` |
+| **Cross-Store Lookup** | `src/lib/research/steps/cross-store-lookup.ts` |
+| **Keyword Extractor** | `src/lib/research/steps/keyword-extractor.ts` |
+| **Subreddit Discovery** | `src/lib/research/steps/subreddit-discovery.ts` |
+| **Data Fetcher** | `src/lib/research/steps/data-fetcher.ts` |
+| **Pain Analyzer** | `src/lib/research/steps/pain-analyzer.ts` |
+| **Steps barrel export** | `src/lib/research/steps/index.ts` |
 | **Refactoring plan** | `docs/REFACTORING_PLAN.md` |
-| **Project instructions** | `CLAUDE.md` |
-| **Known bugs** | `docs/KNOWN_ISSUES.md` |
 
 ---
 
@@ -130,15 +146,50 @@ npm run build
 
 ---
 
-## Files Modified This Session
+## Refactoring Progress Summary
 
-| File | Changes |
-|------|---------|
-| `src/types/research/*.ts` | NEW - Canonical type definitions |
-| `src/lib/research/pipeline/*.ts` | NEW - ResearchContext module |
-| `docs/REFACTORING_PLAN.md` | NEW - Full refactoring plan |
-| `src/lib/research/fetch-research-data.ts` | Updated to use context helpers |
-| `src/types/research.ts` | Added deprecation notice |
+| Phase | Description | Status | LOC Reduced |
+|-------|-------------|--------|-------------|
+| 0 | Type consolidation | ✅ Complete | - |
+| 1 | ResearchContext pattern | ✅ Complete | - |
+| 2 | Extract inline modules | ✅ Complete | ~120 lines |
+| 3 | Pipeline steps (infra) | ✅ Complete | Ready for use |
+| 4 | Orchestrator (infra) | ✅ Complete | Ready for use |
+| 4b | Integrate into route | Pending | Would reduce ~800 lines |
+| 5 | Cleanup | Pending | - |
+
+**Current route size:** 1,611 lines
+**Target after integration:** ~600-800 lines
+
+---
+
+## Pipeline Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    runResearchPipeline()                 │
+│                                                          │
+│  ┌─────────────────┐    ┌──────────────────────────┐    │
+│  │ keywordExtractor│ → │ subredditDiscovery       │    │
+│  │     Step        │    │ Step (skip in App Gap)   │    │
+│  └─────────────────┘    └──────────────────────────┘    │
+│                                   │                      │
+│                                   ▼                      │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │              dataFetcherStep                     │    │
+│  │  (Reddit / HN / App Store / Cross-Store)        │    │
+│  └─────────────────────────────────────────────────┘    │
+│                                   │                      │
+│                                   ▼                      │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │              painAnalyzerStep                    │    │
+│  │  (Tier-aware + Praise filtering for App Gap)    │    │
+│  └─────────────────────────────────────────────────┘    │
+│                                   │                      │
+│                                   ▼                      │
+│              [Filter + Analysis steps - TODO]            │
+└─────────────────────────────────────────────────────────┘
+```
 
 ---
 

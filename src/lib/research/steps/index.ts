@@ -4,7 +4,7 @@
  * Each step implements the PipelineStep interface and handles
  * a specific part of the research process.
  *
- * See: docs/REFACTORING_PLAN.md Phase 3
+ * See: docs/REFACTORING_PLAN.md Phase 3-4
  */
 
 // Cross-Store Lookup (Phase 2)
@@ -31,3 +31,20 @@ export {
   subredditDiscoveryStep,
   getEmptySubredditResult,
 } from './subreddit-discovery'
+
+// Data Fetcher (Phase 4)
+export {
+  dataFetcherStep,
+  fetchAppReviews,
+  type DataFetcherInput,
+  type DataFetcherOutput,
+} from './data-fetcher'
+
+// Pain Analyzer (Phase 4)
+export {
+  painAnalyzerStep,
+  type PainAnalyzerInput,
+  type PainAnalyzerOutput,
+  type PainSignal,
+  type PainSummary,
+} from './pain-analyzer'

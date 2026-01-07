@@ -6,6 +6,7 @@
  * - Mode helpers: isAppGapMode(), isHypothesisMode()
  * - Context creation: createContext()
  * - PipelineStep: Interface for composable steps
+ * - Orchestrator: runResearchPipeline() for executing the full pipeline
  *
  * See: docs/REFACTORING_PLAN.md
  */
@@ -51,3 +52,10 @@ export {
   // Step execution helper
   executeStep,
 } from './types'
+
+export {
+  // Orchestrator
+  runResearchPipeline,
+  logStepTimings,
+  type PipelineAccumulator,
+} from './orchestrator'
