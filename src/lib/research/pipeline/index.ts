@@ -5,6 +5,7 @@
  * - ResearchContext: Typed context for pipeline execution
  * - Mode helpers: isAppGapMode(), isHypothesisMode()
  * - Context creation: createContext()
+ * - PipelineStep: Interface for composable steps
  *
  * See: docs/REFACTORING_PLAN.md
  */
@@ -35,3 +36,18 @@ export {
   setSubreddits,
   setKeywords,
 } from './context'
+
+export {
+  // Pipeline step types
+  type PipelineStep,
+  type StepResult,
+  type KeywordExtractionInput,
+  type KeywordExtractionOutput,
+  type SubredditDiscoveryInput,
+  type SubredditDiscoveryOutput,
+  type DataFetchInput,
+  type DataFetchOutput,
+
+  // Step execution helper
+  executeStep,
+} from './types'
