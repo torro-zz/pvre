@@ -17,14 +17,8 @@ import {
   type PainSummary,
 } from '@/lib/analysis/pain-detector'
 import { getEmptyAnalysis, type ThemeAnalysis } from '@/lib/analysis/theme-extractor'
-import {
-  calculateMarketSize,
-  MarketSizingResult,
-} from '@/lib/analysis/market-sizing'
-import {
-  analyzeTiming,
-  TimingResult,
-} from '@/lib/analysis/timing-analyzer'
+import type { MarketSizingResult } from '@/lib/analysis/market-sizing'
+import type { TimingResult } from '@/lib/analysis/timing-analyzer'
 import {
   extractSearchKeywords,
   preFilterByExcludeKeywords,
@@ -88,6 +82,7 @@ import {
   dataFetcherStep,
   painAnalyzerStep,
   themeAnalyzerStep,
+  marketAnalyzerStep,
 } from '@/lib/research/steps'
 
 // Calculate data quality level based on filter rates
@@ -1266,36 +1261,19 @@ export async function POST(request: NextRequest) {
       solutionQuestions: [],
     }
 
-    // Step 9: Run market sizing analysis
-    console.log('Step 9: Running market sizing analysis')
-    let marketSizing: MarketSizingResult | undefined
-    try {
-      marketSizing = await calculateMarketSize({
-        hypothesis,
-        geography: targetGeography?.location || 'Global',
-        geographyScope: targetGeography?.scope || 'global',
-        mscTarget,
-        targetPrice,
-      })
-      console.log(`Market sizing complete - Score: ${marketSizing.score}/10, Geography: ${targetGeography?.location || 'Global'}, MSC: $${mscTarget || 1000000}, Price: $${targetPrice || 29}/mo`)
-    } catch (marketError) {
-      console.error('Market sizing failed (non-blocking):', marketError)
-      // Continue without market sizing - it's optional
-    }
+    // =========================================================================
+    // Step 9-10: Market Sizing + Timing Analysis (using pipeline step)
+    // =========================================================================
+    console.log('Step 9-10: Market sizing and timing analysis')
+    const marketResult = await executeStep(marketAnalyzerStep, {
+      hypothesis,
+      targetGeography,
+      mscTarget,
+      targetPrice,
+    }, ctx)
 
-    // Step 10: Run timing analysis
-    console.log('Step 10: Running timing analysis')
-    let timing: TimingResult | undefined
-    try {
-      timing = await analyzeTiming({
-        hypothesis,
-        appName: appData?.name, // App Gap mode: include app name for better Google Trends results
-      })
-      console.log(`Timing analysis complete - Score: ${timing.score}/10`)
-    } catch (timingError) {
-      console.error('Timing analysis failed (non-blocking):', timingError)
-      // Continue without timing - it's optional
-    }
+    const marketSizing = marketResult.data?.marketSizing
+    const timing = marketResult.data?.timing
 
     const processingTimeMs = Date.now() - startTime
 

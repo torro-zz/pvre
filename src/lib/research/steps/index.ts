@@ -57,3 +57,12 @@ export {
   type InterviewQuestions,
   type ThemeAnalysis,
 } from './theme-analyzer'
+
+// Market Analyzer (Phase 4e)
+export {
+  marketAnalyzerStep,
+  type MarketAnalyzerInput,
+  type MarketAnalyzerOutput,
+  type MarketSizingResult,
+  type TimingResult,
+} from './market-analyzer'
