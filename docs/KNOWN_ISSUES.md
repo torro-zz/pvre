@@ -268,6 +268,26 @@ Cards show only headline + minimal detail. "Difficulty" tag and market opportuni
 
 ---
 
+## 📝 DEVELOPMENT NOTES
+
+### Claude Code Skills Must Be in `.claude/skills/`
+**Discovered:** January 8, 2026
+
+The new Claude Code v2.1.x features (`model:`, `context: fork`) **only work for skills in `.claude/skills/`**, not `.claude/commands/`.
+
+| Directory | Features |
+|-----------|----------|
+| `.claude/commands/` | Old location, basic skills only |
+| `.claude/skills/` | New location, supports model selection + forked context |
+
+**Our `/goodnight` skill was moved from `commands/` to `skills/` to enable:**
+- `model: sonnet` — Use Sonnet instead of Opus (faster, cheaper)
+- `context: fork` — Isolated context without conversation history
+
+**Note:** May need to restart Claude Code session for model switching to take effect.
+
+---
+
 ## 🔵 PLANNED FEATURES
 
 ### Dual App Store Support
