@@ -36,10 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
-# claude code (allow agents and commands folders)
+# claude code (allow agents, commands, and rules folders)
 .claude/*
 !.claude/agents/
 !.claude/commands/
+!.claude/rules/
 
 # typescript
 *.tsbuildinfo

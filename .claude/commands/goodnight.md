@@ -1,5 +1,7 @@
 ---
 description: Save session state to RESUME_HERE.md before ending work (asks for notes)
+model: sonnet
+context: fork
 ---
 
 # Goodnight Command
