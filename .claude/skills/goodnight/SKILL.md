@@ -1,6 +1,7 @@
 ---
-description: Save session state to RESUME_HERE.md before ending work (asks for notes)
-model: sonnet
+name: goodnight
+description: Save session state to RESUME_HERE.md before ending work. Trigger with /goodnight or "save session" or "end of day"
+model: claude-sonnet-4-20250514
 context: fork
 ---
 
@@ -117,7 +118,7 @@ Write to `docs/RESUME_HERE.md` and display:
 
 ```
 ✅ Session saved to docs/RESUME_HERE.md
-Goodnight! 🌙
+Goodnight!
 ```
 
 ---

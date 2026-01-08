@@ -270,21 +270,36 @@ Cards show only headline + minimal detail. "Difficulty" tag and market opportuni
 
 ## 📝 DEVELOPMENT NOTES
 
-### Claude Code Skills Must Be in `.claude/skills/`
+### Claude Code Skills Require Directory + SKILL.md
 **Discovered:** January 8, 2026
 
-The new Claude Code v2.1.x features (`model:`, `context: fork`) **only work for skills in `.claude/skills/`**, not `.claude/commands/`.
+Skills require a **directory** containing a `SKILL.md` file (not a standalone `.md` file).
 
-| Directory | Features |
-|-----------|----------|
-| `.claude/commands/` | Old location, basic skills only |
-| `.claude/skills/` | New location, supports model selection + forked context |
+**Correct structure:**
+```
+.claude/skills/goodnight/SKILL.md    ✅ Works
+.claude/skills/goodnight.md          ❌ Not detected
+```
 
-**Our `/goodnight` skill was moved from `commands/` to `skills/` to enable:**
-- `model: sonnet` — Use Sonnet instead of Opus (faster, cheaper)
-- `context: fork` — Isolated context without conversation history
+**Required frontmatter fields:**
+```yaml
+---
+name: goodnight                      # Required - lowercase, hyphens only
+description: What it does            # Required - triggers skill discovery
+model: claude-sonnet-4-20250514      # Optional - model to use
+context: fork                        # Optional - isolated context
+---
+```
 
-**Note:** May need to restart Claude Code session for model switching to take effect.
+**Locations:**
+| Path | Scope |
+|------|-------|
+| `~/.claude/skills/my-skill/` | Personal (all projects) |
+| `.claude/skills/my-skill/` | Project (repo-specific) |
+
+**Our `/goodnight` skill:** `.claude/skills/goodnight/SKILL.md`
+
+**Note:** May need to restart Claude Code session for new skills to be detected.
 
 ---
 

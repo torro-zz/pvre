@@ -1,50 +1,40 @@
 # Resume Point — January 8, 2026
 
-**Last Session:** January 8, 2026 (evening)
+**Last Session:** January 8, 2026
 
 ---
 
 ## What Was Just Completed
 
-### Phase A: Stabilization Sprint ✅ COMPLETE
+### Fixed /goodnight Skill Detection ✅
 
-Fixed the 2 critical bugs from the refactoring continuation plan:
+The skill wasn't being detected because Claude Code requires:
+- **Directory structure:** `.claude/skills/goodnight/SKILL.md` (not standalone `.md`)
+- **Required frontmatter:** `name` field (was missing)
 
-1. **Verdict Messages Contradict** — Fixed by using shared `getVerdictMessage` utility
-2. **Hypothesis Confidence Wrong for App Gap** — Now shows "Signal Quality" in App Gap mode
+**Changes made:**
+- Deleted `.claude/skills/goodnight.md`
+- Created `.claude/skills/goodnight/SKILL.md` with correct structure
+- Updated `docs/KNOWN_ISSUES.md` with proper skill documentation
 
-Added 4 new tests:
-- `verdict-display.test.tsx` (2 tests) — verdict alignment + label toggling
-- `adaptive-fetcher.test.ts` (1 test) — characterization test
-- `job-status-manager.test.ts` (1 test) — characterization test
+### Previous Session (earlier today)
 
-### Claude Code Token Optimization ✅ COMPLETE
-
-Applied optimizations based on Claude Code v2.1.x changelog:
-
-| Optimization | Result |
-|--------------|--------|
-| Goodnight skill | Added `model: sonnet`, `context: fork` |
-| Settings permissions | 343 → 58 lines (wildcards) |
-| CLAUDE.md | 168 → 68 lines (split into rules/) |
-| New rules directory | 5 modular rule files |
-
-Created downloadable guide: `/Users/julientorriani/Downloads/claude-code-optimization-guide.md`
-
-### Today's Commits
-
-```
-96772ec docs: Revise agent model guidance to be more conservative
-60c553f chore: Optimize Claude Code configuration for token efficiency
-be61830 chore: Add architecture notes, cleanup imports, add characterization tests
-4417a15 fix(verdict): Align banner messages with verdict + App Gap labels
-```
+- Fixed verdict message contradictions
+- Fixed "Hypothesis Confidence" label for App Gap mode (now "Signal Quality")
+- Added 4 characterization tests
+- Optimized Claude Code configuration
 
 ---
 
 ## Uncommitted Changes
 
-✅ All changes committed and pushed to main
+⚠️ **WARNING: You have uncommitted changes!**
+
+| File | Status | Purpose |
+|------|--------|---------|
+| `.claude/skills/goodnight.md` | Deleted | Old skill file (wrong format) |
+| `.claude/skills/goodnight/SKILL.md` | New | Correct skill structure |
+| `docs/KNOWN_ISSUES.md` | Modified | Updated skill documentation |
 
 ---
 
@@ -59,13 +49,6 @@ be61830 chore: Add architecture notes, cleanup imports, add characterization tes
 ---
 
 ## What's Next
-
-### Refactoring Status
-
-**COMPLETE** — Declared victory at Phase 4i:
-- Route: 1,368 lines (was 1,700)
-- 8 of 11 pipeline steps integrated
-- Remaining inline code deemed stable (high risk to extract)
 
 ### Medium Priority (from KNOWN_ISSUES.md)
 
@@ -90,10 +73,8 @@ be61830 chore: Add architecture notes, cleanup imports, add characterization tes
 | Project instructions | `CLAUDE.md` |
 | Modular rules | `.claude/rules/` |
 | Known bugs | `docs/KNOWN_ISSUES.md` |
-| Continuation plan | `docs/REFACTORING_CONTINUATION_PLAN.md` |
+| Goodnight skill | `.claude/skills/goodnight/SKILL.md` |
 | Main route | `src/app/api/research/community-voice/route.ts` |
-| Pipeline steps | `src/lib/research/steps/` |
-| Optimization guide | `~/Downloads/claude-code-optimization-guide.md` |
 
 ---
 
