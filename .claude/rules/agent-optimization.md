@@ -6,19 +6,26 @@ When spawning Task agents, choose the right model:
 
 | Task Type | Model | Reason |
 |-----------|-------|--------|
-| Simple file search | `haiku` | Fast, cheap |
-| Code exploration | `haiku` or `sonnet` | Moderate complexity |
-| Complex refactoring | `sonnet` | Needs reasoning |
-| Architecture decisions | `opus` (default) | Full reasoning |
+| Simple file search | `haiku` | Pattern matching only |
+| Basic grep/list | `haiku` | No reasoning needed |
+| Code exploration | `sonnet` | Understanding context matters |
+| Refactoring (scoped) | `sonnet` | Clear boundaries, low risk |
+| Refactoring (complex) | `opus` | Multi-file, architectural decisions |
+| Architecture decisions | `opus` | Risk assessment, tradeoffs |
 
-### Example
+**PVRE-specific:** This codebase has dual-mode architecture, calibrated filters, and LOCKED code. Default to `sonnet` minimum for any exploration, `opus` for anything touching filters or mode-specific code.
+
+### Examples
 
 ```typescript
-// Simple search - use haiku
-Task(subagent_type: "Explore", model: "haiku", prompt: "Find all .tsx files")
+// Simple file listing - haiku is fine
+Task(subagent_type: "Explore", model: "haiku", prompt: "List all .tsx files in src/components")
 
-// Complex analysis - use sonnet
-Task(subagent_type: "Plan", model: "sonnet", prompt: "Plan the refactoring")
+// Understanding code - use sonnet minimum
+Task(subagent_type: "Explore", model: "sonnet", prompt: "How does the pain detector work?")
+
+// Refactoring plan - use opus for this codebase
+Task(subagent_type: "Plan", model: "opus", prompt: "Plan extraction of filter logic")
 ```
 
 ## Skill Optimization
