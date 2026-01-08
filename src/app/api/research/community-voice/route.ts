@@ -6,8 +6,6 @@ import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
 import {
   fetchMultiSourceData,
   extractKeywords,
-  RedditPost,
-  RedditComment,
 } from '@/lib/data-sources'
 import {
   getPainSummary,
@@ -17,23 +15,19 @@ import {
 import { getEmptyAnalysis, type ThemeAnalysis } from '@/lib/analysis/theme-extractor'
 import type { MarketSizingResult } from '@/lib/analysis/market-sizing'
 import type { TimingResult } from '@/lib/analysis/timing-analyzer'
-import {
-  extractSearchKeywords,
-  preFilterByExcludeKeywords,
-  ExtractedKeywords,
-} from '@/lib/reddit/keyword-extractor'
+import { preFilterByExcludeKeywords } from '@/lib/reddit/keyword-extractor'
 import { getSubredditWeights } from '@/lib/analysis/subreddit-weights'
 import {
   startTokenTracking,
   endTokenTracking,
   getCurrentTracker,
 } from '@/lib/anthropic'
-import { recordApiCostsBatch, RecordCostParams } from '@/lib/api-costs'
+import { recordApiCostsBatch, type RecordCostParams } from '@/lib/api-costs'
 import { saveResearchResult } from '@/lib/research/save-result'
 import {
   filterRelevantPosts,
   filterRelevantComments,
-  RelevanceDecision,
+  type RelevanceDecision,
 } from '@/lib/research/relevance-filter'
 import {
   filterSignals,
@@ -50,12 +44,10 @@ import {
 } from '@/lib/adapters'
 import {
   clusterSignals,
-  formatClustersForPrompt,
   type SignalCluster,
-  type ClusteringResult,
 } from '@/lib/embeddings'
-import { StructuredHypothesis, TargetGeography } from '@/types/research'
-import { AppDetails } from '@/lib/data-sources/types'
+import type { StructuredHypothesis, TargetGeography } from '@/types/research'
+import type { AppDetails } from '@/lib/data-sources/types'
 import { analyzeCompetitors, type CompetitorIntelligenceResult } from '@/lib/research/competitor-analyzer'
 import {
   applyAppNameGate,
@@ -68,7 +60,6 @@ import {
   createContext,
   isAppGapMode,
   executeStep,
-  type ResearchContext,
 } from '@/lib/research/pipeline'
 import {
   keywordExtractorStep,
@@ -312,6 +303,7 @@ export async function POST(request: NextRequest) {
     let selectedApps: AppDetails[] | undefined
     let appData: AppDetails | undefined
     let crossStoreAppData: AppDetails | undefined  // App found via cross-store lookup (e.g., Play Store when user submitted App Store URL)
+    let coverageData: Record<string, unknown> | undefined
     if (jobId) {
       const adminClient = createAdminClient()
       // Update status and fetch job data in one query
@@ -324,7 +316,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       // coverage_data is a JSON column that may contain structuredHypothesis and user subreddit selections
-      const coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
+      coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
       if (coverageData?.structuredHypothesis) {
         structuredHypothesis = coverageData.structuredHypothesis as StructuredHypothesis
         console.log('Using structured hypothesis:', {
@@ -397,34 +389,24 @@ export async function POST(request: NextRequest) {
     let sampleSizePerSource = 300
     let subredditVelocities: Map<string, number> | undefined
 
-    if (jobId) {
-      const adminClient = createAdminClient()
-      const { data: jobData } = await adminClient
-        .from('research_jobs')
-        .select('*')
-        .eq('id', jobId)
-        .single()
+    if (coverageData) {
+      // Get sample size (user-selected depth: Quick=150, Standard=300, Deep=450)
+      if (coverageData.sampleSizePerSource) {
+        sampleSizePerSource = coverageData.sampleSizePerSource as number
+        console.log('Using sample size per source:', sampleSizePerSource)
+      }
 
-      const coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
-      if (coverageData) {
-        // Get sample size (user-selected depth: Quick=150, Standard=300, Deep=450)
-        if (coverageData.sampleSizePerSource) {
-          sampleSizePerSource = coverageData.sampleSizePerSource as number
-          console.log('Using sample size per source:', sampleSizePerSource)
+      // Build subreddit velocities map for adaptive time-stratified fetching
+      const subredditsWithVelocity = coverageData.subreddits as Array<{ name: string; postsPerDay?: number }> | undefined
+      if (subredditsWithVelocity) {
+        subredditVelocities = new Map<string, number>()
+        for (const sub of subredditsWithVelocity) {
+          if (sub.postsPerDay !== undefined) {
+            subredditVelocities.set(sub.name, sub.postsPerDay)
+          }
         }
-
-        // Build subreddit velocities map for adaptive time-stratified fetching
-        const subredditsWithVelocity = coverageData.subreddits as Array<{ name: string; postsPerDay?: number }> | undefined
-        if (subredditsWithVelocity) {
-          subredditVelocities = new Map<string, number>()
-          for (const sub of subredditsWithVelocity) {
-            if (sub.postsPerDay !== undefined) {
-              subredditVelocities.set(sub.name, sub.postsPerDay)
-            }
-          }
-          if (subredditVelocities.size > 0) {
-            console.log('Using subreddit velocities for adaptive fetching:', Object.fromEntries(subredditVelocities))
-          }
+        if (subredditVelocities.size > 0) {
+          console.log('Using subreddit velocities for adaptive fetching:', Object.fromEntries(subredditVelocities))
         }
       }
     }

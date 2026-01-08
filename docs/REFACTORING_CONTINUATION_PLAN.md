@@ -57,6 +57,14 @@
 - Adaptive Fetcher
 - Filter Orchestrator (touches LOCKED code)
 
+## Architecture Notes for Future Maintainers
+
+- **Three filter paths:** Tiered, two-stage, and legacy filters emit different metrics and semantics.
+- **Adaptive fetch uses legacy filter:** Expansion uses the legacy filter even when tiered is active.
+- **App Gap mode gotchas:** `@ts-expect-error` property plus double app-name gating.
+- **Credit refund limitation:** Non-job requests cannot auto-refund on failure.
+- **Competitor analysis latency:** Inline execution adds latency to the main request path.
+
 ---
 
 ## Phase C: Future Consideration (Only if triggered)
@@ -66,6 +74,8 @@
 - Route grows past 1,500 lines
 - Repeated incidents in inline modules
 - Significant feature addition requiring orchestration
+- Any new filter branch
+- Any new mode branch
 
 ### Rollback Playbook (if Phase 5 needed later)
 
