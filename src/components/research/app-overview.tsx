@@ -250,10 +250,6 @@ export function AppOverview({ appData, crossStoreAppData }: AppOverviewProps) {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 mt-0.5">✓</span>
-              <span>How people discuss this problem space on Reddit/forums</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-emerald-500 mt-0.5">✓</span>
               <span>Unmet needs and opportunities for a competing product</span>
             </li>
           </ul>

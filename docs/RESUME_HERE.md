@@ -1,35 +1,28 @@
-# Resume Point — January 7, 2026
+# Resume Point — January 8, 2026
 
-**Last Session:** January 7, 2026
+**Last Session:** January 8, 2026
 
 ---
 
 ## What Was Just Completed
 
-### Refactoring PAUSED at Phase 4e
+### Refactoring Complete & Tested — Phase 4i
 
-The codebase refactoring is **intentionally paused** — not abandoned, not incomplete.
+Finished the safe refactoring of the codebase:
 
-**Why we stopped:**
-- Remaining work (filter pipeline, data fetcher) is HIGH RISK
-- Filter pipeline has 75% hit rate calibration that could break
-- Current state is stable, maintainable, and all tests pass
+1. **Phase 4g:** Moved semantic categorization into painAnalyzerStep (~34 lines)
+2. **Phase 4h:** Added subredditWeights to SubredditDiscoveryOutput (eliminated duplicate calculation)
+3. **Phase 4i:** Integrated dataFetcherStep into route (~140 lines removed)
 
-**See:** `docs/REFACTORING_PLAN.md` for full status and continuation options.
+**Route Reduction:** 1,700 → 1,376 lines (19% reduction, 324 lines removed)
 
----
+### E2E Test Passed (Playwright)
 
-## Refactoring Summary
-
-| Phase | Status | What It Did |
-|-------|--------|-------------|
-| 0: Types | ✅ Complete | Single source of truth in `src/types/research/` |
-| 1: Context | ✅ Complete | `ResearchContext` + `isAppGapMode()` helper |
-| 2: Modules | ✅ Partial | App Name Gate, Cross-Store Lookup extracted |
-| 3: Infrastructure | ✅ Complete | `PipelineStep` interface + `executeStep()` helper |
-| 4: Integration | 🟡 Partial | 5/11 steps integrated into route |
-
-**Route:** 1,700 → 1,566 lines (8% reduction)
+Ran full App Gap search for Notion - all systems working:
+- ✅ Cross-store lookup (App Store + Google Play)
+- ✅ 50 pain signals extracted from 500 reviews
+- ✅ All 5 tabs rendering correctly (App, Feedback, Market, Gaps, Verdict)
+- ✅ Processing completed in 91.3 seconds
 
 ---
 
@@ -39,35 +32,41 @@ The codebase refactoring is **intentionally paused** — not abandoned, not inco
 |-------|--------|
 | **Build** | ✅ Passing |
 | **Tests** | 163 passing, 6 skipped |
-| **Dev Server** | Not running |
+| **E2E Test** | ✅ App Gap flow verified |
+| **Dev Server** | Running on port 3000 |
 
 ---
 
-## Uncommitted Files
+## Commits (Pushed to Main)
 
-| File | Status | Action |
-|------|--------|--------|
-| `docs/RESUME_HERE.md` | Modified | This file |
-| `docs/REFACTORING_PLAN.md` | Modified | Updated with status |
-| `scripts/*.ts` (16 files) | Untracked | Debug scripts, can delete or .gitignore |
-| `.claude/agents/` | Untracked | Agent configs |
+All commits have been pushed to main.
 
 ---
 
 ## What's Next
 
-### Option A: Fix Open Issues (Recommended)
+### Option A: Fix Open Issues
 From `docs/KNOWN_ISSUES.md`:
 1. **Verdict Messages Contradict** — Yellow box vs verdict mismatch
 2. **Hypothesis Confidence Wrong for App Gap** — Should show "Signal Quality"
 
-### Option B: Continue Refactoring (Low Risk Only)
-From `docs/REFACTORING_PLAN.md`:
-1. Extract Competitor Detector (~100 lines, low risk)
-2. Extract Result Compiler (~100 lines, low risk)
-
-### Option C: New Features
+### Option B: New Features
 Whatever you need to build next.
+
+---
+
+## Refactoring Summary
+
+The safe refactoring is **complete**. Remaining items (filter pipeline, adaptive fetching) are higher risk and not recommended without dedicated testing time.
+
+| Phase | Status | Reduction |
+|-------|--------|-----------|
+| 0-3 | ✅ Infrastructure | - |
+| 4a-4e | ✅ 5 steps integrated | 1,700 → 1,566 |
+| 4f | ✅ Competitor detector | 1,566 → 1,524 |
+| 4g-4i | ✅ 3 more steps | 1,524 → 1,376 |
+
+**Total:** 19% reduction (324 lines removed)
 
 ---
 
@@ -91,6 +90,7 @@ cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine P
 npm run dev
 npm run test:run
 npm run build
+git push  # Push all local commits
 ```
 
 ---
