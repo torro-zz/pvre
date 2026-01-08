@@ -60,25 +60,27 @@
 
 ---
 
-### Verdict Messages Contradict Each Other
-**Status:** Open
-**Impact:** Users get conflicting guidance
+### ~~Verdict Messages Contradict Each Other~~
+**Status:** ✅ FIXED (Jan 8, 2026)
+**Impact:** ~~Users get conflicting guidance~~
 **Location:** Verdict tab
 
-Yellow recommendation box says "proceed with caution" while verdict section says "pivot". Mixed signals confuse users.
-
-**Fix:** Ensure recommendation text aligns with verdict score and assessment.
+**Fix Applied:**
+- `verdict-hero.tsx` now uses shared `getVerdictMessage` utility instead of duplicating logic
+- Banner action text, colors, and gradient now align with verdict assessment
+- Reduced 47 lines of duplicate code
 
 ---
 
-### Hypothesis Confidence Wrong Metric for App Gap Mode
-**Status:** Open
-**Impact:** Two-axis viability assessment uses irrelevant metric
+### ~~Hypothesis Confidence Wrong Metric for App Gap Mode~~
+**Status:** ✅ FIXED (Jan 8, 2026)
+**Impact:** ~~Two-axis viability assessment uses irrelevant metric~~
 **Location:** Verdict tab
 
-Shows "Hypothesis Confidence" axis in App Gap mode, but no hypothesis was tested — user analyzed an existing app.
-
-**Fix:** For App Gap mode, replace "Hypothesis Confidence" with "Signal Quality" or "Data Confidence". Keep current metric for Hypothesis mode only.
+**Fix Applied:**
+- Added `isAppAnalysis` prop through component chain (`tabbed-view.tsx` → `summary-tab.tsx` → `viability-verdict.tsx` → `dual-verdict-display.tsx`)
+- App Gap mode now shows "Signal Quality" instead of "Hypothesis Confidence"
+- Added 2 regression tests in `verdict-display.test.tsx`
 
 ---
 

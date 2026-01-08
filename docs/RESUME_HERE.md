@@ -1,42 +1,50 @@
 # Resume Point — January 8, 2026
 
-**Last Session:** January 8, 2026
+**Last Session:** January 8, 2026 (evening)
 
 ---
 
 ## What Was Just Completed
 
-### Refactoring Continuation Plan (Codex-Reviewed)
+### Phase A: Stabilization Sprint ✅ COMPLETE
 
-Used sequential thinking + Codex validation to create a smart refactoring plan:
+Fixed the 2 critical bugs from the refactoring continuation plan:
 
-1. **Phase A: Stabilization Sprint** — Fix 2 critical bugs first, add regression tests
-2. **Phase B: Declare Victory** — Document 1,376-line route as "good enough", add guardrails
-3. **Phase C: Future Triggers** — Only continue refactoring if route exceeds 1,500 lines
+1. **Verdict Messages Contradict** — Fixed by using shared `getVerdictMessage` utility
+2. **Hypothesis Confidence Wrong for App Gap** — Now shows "Signal Quality" in App Gap mode
 
-**Key Decision:** Skip Phase 5 (Full Orchestrator) — diminishing returns, high risk since Filter Orchestrator touches LOCKED `universal-filter.ts`.
+Added 4 new tests:
+- `verdict-display.test.tsx` (2 tests) — verdict alignment + label toggling
+- `adaptive-fetcher.test.ts` (1 test) — characterization test
+- `job-status-manager.test.ts` (1 test) — characterization test
 
-**Plan saved to:** `docs/REFACTORING_CONTINUATION_PLAN.md`
+### Claude Code Token Optimization ✅ COMPLETE
+
+Applied optimizations based on Claude Code v2.1.x changelog:
+
+| Optimization | Result |
+|--------------|--------|
+| Goodnight skill | Added `model: sonnet`, `context: fork` |
+| Settings permissions | 343 → 58 lines (wildcards) |
+| CLAUDE.md | 168 → 68 lines (split into rules/) |
+| New rules directory | 5 modular rule files |
+
+Created downloadable guide: `/Users/julientorriani/Downloads/claude-code-optimization-guide.md`
 
 ### Today's Commits
 
 ```
-5c021b0 docs: Add refactoring continuation plan (Codex-reviewed)
-9215cfb docs: Update RESUME_HERE.md for session end
-ea06348 fix(feedback): Show Play Store rating when cross-store data available
-d749b47 fix(app-overview): Remove incorrect Reddit mention from App Gap mode
-9e8450c refactor(pipeline): Integrate dataFetcherStep into route (Phase 4i)
-f9b77c9 refactor(pipeline): Add subredditWeights to SubredditDiscoveryOutput (Phase 4h)
-5ea422e refactor(pipeline): Move semantic categorization into painAnalyzerStep (Phase 4g)
-52d8daf feat(pipeline): Integrate competitorDetectorStep into route (Phase 4f)
-28dd448 feat(pipeline): Add competitorDetectorStep (Phase 4f)
+96772ec docs: Revise agent model guidance to be more conservative
+60c553f chore: Optimize Claude Code configuration for token efficiency
+be61830 chore: Add architecture notes, cleanup imports, add characterization tests
+4417a15 fix(verdict): Align banner messages with verdict + App Gap labels
 ```
 
 ---
 
 ## Uncommitted Changes
 
-All changes committed and pushed to main
+✅ All changes committed and pushed to main
 
 ---
 
@@ -44,27 +52,20 @@ All changes committed and pushed to main
 
 | Check | Status |
 |-------|--------|
-| **Build** | Passing |
-| **Tests** | 163 passing, 6 skipped |
+| **Build** | ✅ Passing |
+| **Tests** | 167 passing, 6 skipped |
 | **Dev Server** | Running on :3000 |
 
 ---
 
 ## What's Next
 
-### Immediate (Phase A from Continuation Plan)
+### Refactoring Status
 
-**Critical Bugs to Fix:**
-
-1. **Verdict Messages Contradict** — Yellow box says "proceed with caution" while verdict says "pivot"
-   - Location: `verdict-hero.tsx`, `viability-verdict.tsx`
-
-2. **Hypothesis Confidence Wrong for App Gap** — Should show "Signal Quality" instead
-   - Location: Verdict tab components
-
-**After Fixing:**
-- Add 2 targeted unit tests (verdict alignment + mode label toggling)
-- E2E test both modes
+**COMPLETE** — Declared victory at Phase 4i:
+- Route: 1,368 lines (was 1,700)
+- 8 of 11 pipeline steps integrated
+- Remaining inline code deemed stable (high risk to extract)
 
 ### Medium Priority (from KNOWN_ISSUES.md)
 
@@ -74,6 +75,12 @@ All changes committed and pushed to main
 - Reddit Metrics Shown in App Gap Mode
 - Market Score Unexplained
 
+### Low Priority (Polish)
+
+- Investor Metrics Repeated on Every Tab
+- Sentiment Overview Format Confusing
+- Opportunity Gaps UI Outdated
+
 ---
 
 ## Key Files Reference
@@ -81,11 +88,12 @@ All changes committed and pushed to main
 | Purpose | File |
 |---------|------|
 | Project instructions | `CLAUDE.md` |
+| Modular rules | `.claude/rules/` |
 | Known bugs | `docs/KNOWN_ISSUES.md` |
-| **Continuation plan** | `docs/REFACTORING_CONTINUATION_PLAN.md` |
-| Refactoring status | `docs/REFACTORING_PLAN.md` |
+| Continuation plan | `docs/REFACTORING_CONTINUATION_PLAN.md` |
 | Main route | `src/app/api/research/community-voice/route.ts` |
 | Pipeline steps | `src/lib/research/steps/` |
+| Optimization guide | `~/Downloads/claude-code-optimization-guide.md` |
 
 ---
 
