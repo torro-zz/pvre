@@ -66,3 +66,10 @@ export {
   type MarketSizingResult,
   type TimingResult,
 } from './market-analyzer'
+
+// Competitor Detector (Phase 4f)
+export {
+  competitorDetectorStep,
+  type CompetitorDetectorInput,
+  type CompetitorDetectorOutput,
+} from './competitor-detector'
