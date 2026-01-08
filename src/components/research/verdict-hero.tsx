@@ -9,6 +9,7 @@ import {
   VerdictColors,
   VerdictLevel,
 } from '@/lib/analysis/viability-calculator'
+import { getVerdictMessage } from '@/lib/utils/verdict-messages'
 
 interface VerdictHeroProps {
   verdict: ViabilityVerdict
@@ -38,50 +39,6 @@ function getVerdictIcon(level: VerdictLevel, hasCriticalConcerns: boolean) {
   }
 }
 
-function getActionMessage(verdict: ViabilityVerdict): string {
-  const hasCriticalConcerns = verdict.dealbreakers.length > 0 ||
-    verdict.redFlags?.some(f => f.severity === 'HIGH')
-
-  if (hasCriticalConcerns) {
-    return 'Review concerns before proceeding'
-  }
-
-  switch (verdict.verdict) {
-    case 'strong':
-      return 'Proceed with confidence'
-    case 'mixed':
-      return 'Validate key assumptions first'
-    case 'weak':
-      return 'Significant pivots may be needed'
-    case 'none':
-      return 'Consider alternative approaches'
-  }
-}
-
-function getVerdictGradient(level: VerdictLevel, hasCriticalConcerns: boolean): string {
-  if (hasCriticalConcerns) {
-    return 'from-amber-500/10 via-amber-500/5 to-transparent'
-  }
-  switch (level) {
-    case 'strong': return 'from-emerald-500/10 via-emerald-500/5 to-transparent'
-    case 'mixed': return 'from-amber-500/10 via-amber-500/5 to-transparent'
-    case 'weak': return 'from-orange-500/10 via-orange-500/5 to-transparent'
-    case 'none': return 'from-red-500/10 via-red-500/5 to-transparent'
-  }
-}
-
-function getActionColors(level: VerdictLevel, hasCriticalConcerns: boolean): { text: string; bg: string } {
-  if (hasCriticalConcerns) {
-    return { text: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' }
-  }
-  switch (level) {
-    case 'strong': return { text: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-900/30' }
-    case 'mixed': return { text: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' }
-    case 'weak': return { text: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/30' }
-    case 'none': return { text: 'text-red-700 dark:text-red-300', bg: 'bg-red-100 dark:bg-red-900/30' }
-  }
-}
-
 export function VerdictHero({
   verdict,
   onSeeWhy,
@@ -92,9 +49,10 @@ export function VerdictHero({
   const hasCriticalConcerns = verdict.dealbreakers.length > 0 ||
     (verdict.redFlags?.some(f => f.severity === 'HIGH') ?? false)
 
-  const actionMessage = getActionMessage(verdict)
-  const actionColors = getActionColors(verdict.verdict, hasCriticalConcerns)
-  const gradient = getVerdictGradient(verdict.verdict, hasCriticalConcerns)
+  const verdictMessage = getVerdictMessage(verdict.overallScore, hasCriticalConcerns)
+  const actionMessage = verdictMessage.action
+  const actionColors = { text: verdictMessage.colors.text, bg: verdictMessage.colors.bg }
+  const gradient = verdictMessage.colors.gradient
 
   return (
     <div className={cn(

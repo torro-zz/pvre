@@ -45,6 +45,7 @@ interface SummaryTabProps {
   competitorResult?: CompetitorIntelligenceResult
   verdict: ViabilityVerdict
   hypothesis: string
+  isAppAnalysis?: boolean
   marketData?: {
     score: number
     som: { value: number; description?: string }
@@ -613,6 +614,7 @@ export function SummaryTab({
   competitorResult,
   verdict,
   hypothesis,
+  isAppAnalysis = false,
   marketData,
   timingData,
   filteringMetrics,
@@ -639,6 +641,7 @@ export function SummaryTab({
             hypothesisConfidence={verdict.hypothesisConfidence!}
             marketOpportunity={verdict.marketOpportunity!}
             overallScore={verdict.overallScore}
+            isAppAnalysis={isAppAnalysis}
           />
         </AnimatedCard>
       )}

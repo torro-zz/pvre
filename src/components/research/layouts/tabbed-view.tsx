@@ -265,6 +265,7 @@ export function TabbedView() {
               competitorResult={competitorResult?.data}
               verdict={viabilityVerdict}
               hypothesis={job.hypothesis}
+              isAppAnalysis={isAppAnalysis}
               marketData={marketData ?? undefined}
               timingData={timingData ?? undefined}
               filteringMetrics={filteringMetrics ?? undefined}
@@ -386,4 +387,3 @@ export function TabbedView() {
     </ResearchTabsProvider>
   )
 }
-

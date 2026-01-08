@@ -29,6 +29,7 @@ interface DualVerdictDisplayProps {
   hypothesisConfidence: HypothesisConfidence
   marketOpportunity: MarketOpportunity
   overallScore?: number // Overall verdict score (0-10)
+  isAppAnalysis?: boolean
   className?: string
 }
 
@@ -130,8 +131,14 @@ export function DualVerdictDisplay({
   hypothesisConfidence,
   marketOpportunity,
   overallScore,
+  isAppAnalysis = false,
   className,
 }: DualVerdictDisplayProps) {
+  const hypothesisLabel = isAppAnalysis ? 'Signal Quality' : 'Hypothesis Confidence'
+  const hypothesisPrompt = isAppAnalysis
+    ? 'How strong is the signal in the reviews?'
+    : 'Did we find YOUR specific hypothesis?'
+
   return (
     <Card className={cn('', className)}>
       <CardHeader className="pb-4">
@@ -148,9 +155,9 @@ export function DualVerdictDisplay({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Hypothesis Confidence */}
           <div className="bg-muted/30 rounded-lg p-4 space-y-3">
-            <h4 className="font-medium text-sm text-center">Hypothesis Confidence</h4>
+            <h4 className="font-medium text-sm text-center">{hypothesisLabel}</h4>
             <p className="text-xs text-muted-foreground text-center">
-              Did we find YOUR specific hypothesis?
+              {hypothesisPrompt}
             </p>
             <div className="flex justify-center">
               <ScoreGauge

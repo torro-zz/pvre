@@ -276,6 +276,7 @@ export function ViabilityVerdictDisplay({
                 hypothesisConfidence={verdict.hypothesisConfidence!}
                 marketOpportunity={verdict.marketOpportunity!}
                 overallScore={verdict.overallScore}
+                isAppAnalysis={isAppAnalysis}
               />
             )}
 
