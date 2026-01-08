@@ -135,6 +135,8 @@ export interface SubredditDiscoveryInput {
 export interface SubredditDiscoveryOutput {
   subreddits: string[]
   subredditVelocities: Map<string, number>
+  /** Relevance weights for each subreddit (0-1 scale) */
+  subredditWeights: Map<string, number>
 }
 
 /**

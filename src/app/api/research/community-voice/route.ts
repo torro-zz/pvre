@@ -466,6 +466,7 @@ export async function POST(request: NextRequest) {
     // Step 2: Discover relevant subreddits using pipeline step
     // The step handles: App Gap skip, user-selected subreddits, Claude discovery
     let subredditsToSearch: string[]
+    let subredditWeights: Map<string, number> = new Map()
     let discoveryResult: { subreddits: string[] }
 
     if (userSelectedSubreddits && userSelectedSubreddits.length > 0) {
@@ -473,6 +474,10 @@ export async function POST(request: NextRequest) {
       console.log('[Subreddit Discovery] Using user-selected:', userSelectedSubreddits.length)
       subredditsToSearch = userSelectedSubreddits.slice(0, 15)
       discoveryResult = { subreddits: subredditsToSearch }
+      // Calculate weights for user-selected subreddits
+      if (subredditsToSearch.length > 0) {
+        subredditWeights = await getSubredditWeights(hypothesis, subredditsToSearch)
+      }
     } else {
       // Use pipeline step for discovery (handles App Gap skip automatically)
       const subredditResult = await executeStep(subredditDiscoveryStep, {
@@ -483,9 +488,11 @@ export async function POST(request: NextRequest) {
       if (subredditResult.skipped) {
         // App Gap mode - step was skipped
         subredditsToSearch = []
+        subredditWeights = new Map()
         discoveryResult = { subreddits: [] }
       } else {
         subredditsToSearch = subredditResult.data?.subreddits || []
+        subredditWeights = subredditResult.data?.subredditWeights || new Map()
         discoveryResult = { subreddits: subredditsToSearch }
       }
     }
@@ -499,15 +506,8 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Subreddits to search:', subredditsToSearch)
-
-    // Step 2.5: Get subreddit relevance weights (skip in App Gap mode)
-    let subredditWeights = new Map<string, number>()
-    if (subredditsToSearch.length > 0) {
-      console.log('Step 2.5: Calculating subreddit relevance weights')
-      subredditWeights = await getSubredditWeights(hypothesis, subredditsToSearch)
+    if (subredditWeights.size > 0) {
       console.log('Subreddit weights:', Object.fromEntries(subredditWeights))
-    } else {
-      console.log('Step 2.5: Skipping subreddit weights (App Gap mode)')
     }
 
     // Step 3: Fetch posts and comments from discovered subreddits

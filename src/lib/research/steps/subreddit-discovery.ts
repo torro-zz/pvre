@@ -84,6 +84,7 @@ export const subredditDiscoveryStep: PipelineStep<SubredditDiscoveryInput, Subre
     return {
       subreddits,
       subredditVelocities: new Map(),
+      subredditWeights,
     }
   },
 }
@@ -99,5 +100,6 @@ export function getEmptySubredditResult(): SubredditDiscoveryOutput {
   return {
     subreddits: [],
     subredditVelocities: new Map(),
+    subredditWeights: new Map(),
   }
 }
