@@ -6,10 +6,8 @@ import { discoverSubreddits } from '@/lib/reddit/subreddit-discovery'
 import {
   fetchMultiSourceData,
   extractKeywords,
-  shouldIncludeHN,
   RedditPost,
   RedditComment,
-  SearchResult,
 } from '@/lib/data-sources'
 import {
   getPainSummary,
@@ -58,8 +56,6 @@ import {
 } from '@/lib/embeddings'
 import { StructuredHypothesis, TargetGeography } from '@/types/research'
 import { AppDetails } from '@/lib/data-sources/types'
-import { googlePlayAdapter } from '@/lib/data-sources/adapters/google-play-adapter'
-import { appStoreAdapter } from '@/lib/data-sources/adapters/app-store-adapter'
 import { analyzeCompetitors, type CompetitorIntelligenceResult } from '@/lib/research/competitor-analyzer'
 import {
   applyAppNameGate,
@@ -67,7 +63,6 @@ import {
   buildAppNameRegex,
   logAppNameGateResult,
 } from '@/lib/research/gates/app-name-gate'
-import { findAndFetchCrossStoreReviews } from '@/lib/research/steps/cross-store-lookup'
 // Pipeline infrastructure (Phase 4)
 import {
   createContext,
@@ -510,145 +505,33 @@ export async function POST(request: NextRequest) {
       console.log('Subreddit weights:', Object.fromEntries(subredditWeights))
     }
 
-    // Step 3: Fetch posts and comments from discovered subreddits
-    // Uses data-sources layer with automatic caching and fallback to backup sources
-    // Data source inclusion is controlled by user selection (if available) or auto-detection
-    // Use extracted primary keywords for better search precision
-    // Jan 2026: Skip Reddit entirely in App Gap mode
-    let rawPosts: RedditPost[] = []
-    let rawComments: RedditComment[] = []
-    let multiSourceData: SearchResult & { sources: string[] } = {
-      posts: [],
-      comments: [],
-      sources: [],
-      metadata: { source: 'none', fetchedAt: new Date(), isStale: false }
-    }
+    // Step 3: Fetch posts and comments using pipeline step
+    // Handles: Reddit + HN (Hypothesis mode), App Store reviews (App Gap mode),
+    // selected apps, and cross-store lookup
+    console.log('Step 3: Fetching data using pipeline step')
+    lastErrorSource = 'arctic_shift' // Reddit/App Store data APIs
+
+    const dataFetchResult = await executeStep(dataFetcherStep, {
+      subreddits: subredditsToSearch,
+      keywords: extractedKeywords,
+      hypothesis,
+      selectedDataSources,
+      selectedApps,
+      sampleSizePerSource,
+      subredditVelocities,
+    }, ctx)
+
+    let rawPosts = dataFetchResult.data?.posts || []
+    let rawComments = dataFetchResult.data?.comments || []
+    const fetchedSources = dataFetchResult.data?.sources || []
+    crossStoreAppData = dataFetchResult.data?.crossStoreAppData
+
     // Keywords for search - used in expansion logic later
     const searchKeywords = extractedKeywords.primary.length > 0
       ? extractedKeywords.primary
       : extractKeywords(hypothesis) // Fallback to basic extraction
 
-    if (subredditsToSearch.length > 0) {
-      // HYPOTHESIS MODE: Fetch from Reddit + other sources
-      const includesHN = selectedDataSources
-        ? selectedDataSources.includes('Hacker News')
-        : shouldIncludeHN(hypothesis) // Fallback to auto-detection if no explicit selection
-
-      // When selectedApps is provided, we fetch directly from those apps (Step 3b)
-      // so we skip the keyword-based search in fetchMultiSourceData
-      const includesGooglePlay = selectedApps && selectedApps.length > 0 ? false : (selectedDataSources?.includes('Google Play') ?? false)
-      const includesAppStore = selectedApps && selectedApps.length > 0 ? false : (selectedDataSources?.includes('App Store') ?? false)
-
-      const hasSelectedApps = selectedApps && selectedApps.length > 0
-      const sourcesList = [
-        'Reddit',
-        includesHN && 'Hacker News',
-        hasSelectedApps && `${selectedApps!.length} selected apps`,
-        !hasSelectedApps && includesGooglePlay && 'Google Play',
-        !hasSelectedApps && includesAppStore && 'App Store'
-      ].filter(Boolean).join(' + ')
-      console.log(`Step 3: Fetching data from ${sourcesList}`)
-      lastErrorSource = 'arctic_shift' // Reddit data API (primary source)
-      multiSourceData = await fetchMultiSourceData({
-        subreddits: subredditsToSearch,
-        keywords: searchKeywords,
-        limit: sampleSizePerSource, // User-selected depth: Quick=150, Standard=300, Deep=450
-        // Note: timeRange is now handled by adaptive time windows based on subreddit velocity
-        // The arctic-shift adapter will use time-stratified fetching for good coverage
-        subredditVelocities, // Posting velocity per subreddit for adaptive time windows
-      }, hypothesis, includesHN, includesGooglePlay, includesAppStore)
-
-      rawPosts = multiSourceData.posts
-      rawComments = multiSourceData.comments
-
-      console.log(`Fetched ${rawPosts.length} posts and ${rawComments.length} comments from ${multiSourceData.sources.join(' + ') || multiSourceData.metadata.source}`)
-    } else {
-      // APP GAP MODE: Skip Reddit, only use app store reviews
-      console.log('Step 3: App Gap mode - skipping Reddit fetch (app store reviews only)')
-    }
-
-    // Step 3b: Fetch reviews for selected apps (user-selected apps from coverage preview)
-    if (selectedApps && selectedApps.length > 0) {
-      console.log(`Step 3b: Fetching reviews for ${selectedApps.length} selected apps`)
-      try {
-        const reviewsPerApp = Math.ceil(100 / selectedApps.length) // Distribute limit across apps
-
-        for (const app of selectedApps) {
-          try {
-            let appReviews: RedditPost[] = []
-
-            if (app.store === 'google_play') {
-              appReviews = await googlePlayAdapter.getReviewsForAppId(app.appId, { limit: reviewsPerApp })
-            } else if (app.store === 'app_store') {
-              appReviews = await appStoreAdapter.getReviewsForAppId(app.appId, { limit: reviewsPerApp })
-            }
-
-            if (appReviews.length > 0) {
-              rawPosts = [...rawPosts, ...appReviews]
-              console.log(`Added ${appReviews.length} reviews from ${app.name} (${app.store})`)
-            }
-          } catch (appError) {
-            console.warn(`Failed to fetch reviews for ${app.name}:`, appError)
-            // Continue with other apps
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch app reviews:', error)
-        // Continue without app reviews - don't fail the entire request
-      }
-    }
-    // Step 3c: For app-centric mode, fetch reviews directly for the specific app
-    else if (appData && appData.appId) {
-      console.log(`Step 3c: Fetching reviews for specific app: ${appData.name} (${appData.appId})`)
-      try {
-        let appReviews: RedditPost[] = []
-
-        if (appData.store === 'google_play') {
-          appReviews = await googlePlayAdapter.getReviewsForAppId(appData.appId, { limit: 500 })
-          if (appReviews.length > 0) {
-            rawPosts = [...rawPosts, ...appReviews]
-            console.log(`Added ${appReviews.length} Google Play reviews for ${appData.name}`)
-          }
-        } else if (appData.store === 'app_store') {
-          appReviews = await appStoreAdapter.getReviewsForAppId(appData.appId, { limit: 500 })
-          if (appReviews.length > 0) {
-            rawPosts = [...rawPosts, ...appReviews]
-            console.log(`Added ${appReviews.length} App Store reviews for ${appData.name}`)
-          }
-        }
-
-        if (appReviews.length === 0) {
-          console.warn(`No reviews found for app ${appData.name} (${appData.appId})`)
-        }
-      } catch (appReviewError) {
-        console.error(`Failed to fetch app reviews for ${appData.name}:`, appReviewError)
-        // Continue without app reviews - don't fail the entire request
-      }
-
-      // Step 3d: Cross-store lookup - find the same app on the OTHER store
-      try {
-        const crossStoreResult = await findAndFetchCrossStoreReviews(appData)
-
-        if (crossStoreResult.matchedApp) {
-          // Store the cross-store app metadata for display in AppOverview
-          crossStoreAppData = crossStoreResult.matchedApp
-          console.log(`Stored cross-store app metadata: ${crossStoreAppData.name} (${crossStoreAppData.store})`)
-
-          if (crossStoreResult.reviews.length > 0) {
-            rawPosts = [...rawPosts, ...crossStoreResult.reviews]
-            console.log(`Added ${crossStoreResult.reviews.length} reviews from cross-store lookup`)
-          }
-        }
-      } catch (crossStoreError) {
-        console.warn(`Cross-store lookup failed (non-blocking):`, crossStoreError)
-        // Continue without cross-store reviews - don't fail the entire request
-      }
-    }
-
-    // Check for data source warnings
-    if (multiSourceData.metadata.warning) {
-      console.warn('Data source warning:', multiSourceData.metadata.warning)
-    }
+    console.log(`Fetched ${rawPosts.length} posts, ${rawComments.length} comments from ${fetchedSources.join(' + ') || 'sources'}`)
 
     // Step 3.5: Pre-filter posts using exclude keywords (cheap local operation)
     if (extractedKeywords.exclude.length > 0) {
@@ -1291,7 +1174,7 @@ export async function POST(request: NextRequest) {
         commentsAnalyzed: finalComments.length,
         processingTimeMs,
         timestamp: new Date().toISOString(),
-        dataSources: multiSourceData.sources.length > 0 ? multiSourceData.sources : ['Reddit'],
+        dataSources: fetchedSources.length > 0 ? fetchedSources : ['Reddit'],
         filteringMetrics,
         tokenUsage: tokenUsage || undefined,
         // Include all Y/N decisions for quality audit
