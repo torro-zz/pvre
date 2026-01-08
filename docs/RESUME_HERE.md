@@ -6,44 +6,37 @@
 
 ## What Was Just Completed
 
-### Refactoring Complete & Tested — Phase 4i
+### Refactoring Continuation Plan (Codex-Reviewed)
 
-Finished safe refactoring of the codebase:
+Used sequential thinking + Codex validation to create a smart refactoring plan:
 
-1. **Phase 4g:** Moved semantic categorization into painAnalyzerStep (~34 lines)
-2. **Phase 4h:** Added subredditWeights to SubredditDiscoveryOutput
-3. **Phase 4i:** Integrated dataFetcherStep into route (~140 lines removed)
+1. **Phase A: Stabilization Sprint** — Fix 2 critical bugs first, add regression tests
+2. **Phase B: Declare Victory** — Document 1,376-line route as "good enough", add guardrails
+3. **Phase C: Future Triggers** — Only continue refactoring if route exceeds 1,500 lines
 
-**Route Reduction:** 1,700 → 1,376 lines (19% reduction, 324 lines removed)
+**Key Decision:** Skip Phase 5 (Full Orchestrator) — diminishing returns, high risk since Filter Orchestrator touches LOCKED `universal-filter.ts`.
 
-### E2E Test Passed (Playwright)
+**Plan saved to:** `docs/REFACTORING_CONTINUATION_PLAN.md`
 
-Ran full App Gap search for Notion - all systems working:
-- Cross-store lookup (App Store + Google Play)
-- 50 pain signals extracted from 500 reviews
-- All 5 tabs rendering correctly
-- Processing completed in 91.3 seconds
+### Today's Commits
 
-### Bug Fixes
-
-| Fix | Commit |
-|-----|--------|
-| Remove incorrect Reddit mention from App Gap mode | `d749b47` |
-| Show Play Store rating in Feedback tab when cross-store data available | `ea06348` |
-
-### Codex MCP Integration
-
-Added OpenAI Codex as an MCP server for collaborative AI work:
-```bash
-claude mcp add codex-cli -- npx -y codex-mcp-server
 ```
-Restart Claude Code to activate.
+5c021b0 docs: Add refactoring continuation plan (Codex-reviewed)
+9215cfb docs: Update RESUME_HERE.md for session end
+ea06348 fix(feedback): Show Play Store rating when cross-store data available
+d749b47 fix(app-overview): Remove incorrect Reddit mention from App Gap mode
+9e8450c refactor(pipeline): Integrate dataFetcherStep into route (Phase 4i)
+f9b77c9 refactor(pipeline): Add subredditWeights to SubredditDiscoveryOutput (Phase 4h)
+5ea422e refactor(pipeline): Move semantic categorization into painAnalyzerStep (Phase 4g)
+52d8daf feat(pipeline): Integrate competitorDetectorStep into route (Phase 4f)
+28dd448 feat(pipeline): Add competitorDetectorStep (Phase 4f)
+```
 
 ---
 
 ## Uncommitted Changes
 
-✅ All changes committed and pushed to main
+All changes committed and pushed to main
 
 ---
 
@@ -51,7 +44,7 @@ Restart Claude Code to activate.
 
 | Check | Status |
 |-------|--------|
-| **Build** | ✅ Passing |
+| **Build** | Passing |
 | **Tests** | 163 passing, 6 skipped |
 | **Dev Server** | Running on :3000 |
 
@@ -59,13 +52,22 @@ Restart Claude Code to activate.
 
 ## What's Next
 
-### Open Issues (from `docs/KNOWN_ISSUES.md`)
+### Immediate (Phase A from Continuation Plan)
 
-**Critical:**
+**Critical Bugs to Fix:**
+
 1. **Verdict Messages Contradict** — Yellow box says "proceed with caution" while verdict says "pivot"
-2. **Hypothesis Confidence Wrong for App Gap** — Should show "Signal Quality" instead
+   - Location: `verdict-hero.tsx`, `viability-verdict.tsx`
 
-**Medium:**
+2. **Hypothesis Confidence Wrong for App Gap** — Should show "Signal Quality" instead
+   - Location: Verdict tab components
+
+**After Fixing:**
+- Add 2 targeted unit tests (verdict alignment + mode label toggling)
+- E2E test both modes
+
+### Medium Priority (from KNOWN_ISSUES.md)
+
 - WTP Comments Truncated
 - Google Trends Keyword Truncated
 - Source Links Don't Go to Specific Reviews
@@ -80,6 +82,7 @@ Restart Claude Code to activate.
 |---------|------|
 | Project instructions | `CLAUDE.md` |
 | Known bugs | `docs/KNOWN_ISSUES.md` |
+| **Continuation plan** | `docs/REFACTORING_CONTINUATION_PLAN.md` |
 | Refactoring status | `docs/REFACTORING_PLAN.md` |
 | Main route | `src/app/api/research/community-voice/route.ts` |
 | Pipeline steps | `src/lib/research/steps/` |
@@ -93,20 +96,6 @@ cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine P
 npm run dev
 npm run test:run
 npm run build
-```
-
----
-
-## Recent Commits (Today)
-
-```
-ea06348 fix(feedback): Show Play Store rating when cross-store data available
-d749b47 fix(app-overview): Remove incorrect Reddit mention from App Gap mode
-9e8450c refactor(pipeline): Integrate dataFetcherStep into route (Phase 4i)
-f9b77c9 refactor(pipeline): Add subredditWeights to SubredditDiscoveryOutput (Phase 4h)
-5ea422e refactor(pipeline): Move semantic categorization into painAnalyzerStep (Phase 4g)
-52d8daf feat(pipeline): Integrate competitorDetectorStep into route (Phase 4f)
-28dd448 feat(pipeline): Add competitorDetectorStep (Phase 4f)
 ```
 
 ---
