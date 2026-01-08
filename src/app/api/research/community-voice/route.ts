@@ -1209,41 +1209,10 @@ export async function POST(request: NextRequest) {
       subredditWeights,
     }, ctx)
 
-    // Get pain signals and summary from step (includes praise filtering for App Gap mode)
-    let filteredPainSignals = painResult.data?.painSignals || []
+    // Get pain signals and summary from step
+    // (includes praise filtering AND semantic categorization for App Gap mode)
+    const filteredPainSignals = painResult.data?.painSignals || []
     const painSummary = painResult.data?.painSummary || getPainSummary([])
-
-    // Step 5.6: Semantic categorization for App Gap mode (Phase 3 - App Store-First Architecture)
-    if (appData?.appId) {
-      console.log('Step 5.6: Applying semantic categorization for App Gap mode')
-      try {
-        const { getSignalCategorizer } = await import('@/lib/analysis/signal-categorizer')
-        const categorizer = getSignalCategorizer()
-
-        // Only categorize app store signals (not Reddit)
-        const appStoreSignals = filteredPainSignals.filter(
-          s => s.source.subreddit === 'google_play' || s.source.subreddit === 'app_store'
-        )
-
-        if (appStoreSignals.length > 0) {
-          console.log(`Categorizing ${appStoreSignals.length} app store signals...`)
-
-          // Categorize in batches
-          for (const signal of appStoreSignals) {
-            const result = await categorizer.categorize(signal.text)
-            signal.feedbackCategory = result.category
-            signal.feedbackCategoryConfidence = result.confidence
-          }
-
-          console.log(`Semantic categorization complete`)
-        }
-      } catch (categorizationError) {
-        console.error('Semantic categorization failed (non-blocking):', categorizationError)
-        // Continue without semantic categories - keyword fallback will be used
-      }
-    }
-
-    // Step 6: Pain summary already calculated by painAnalyzerStep
 
     // =========================================================================
     // Step 7-8: Theme Analysis + Interview Questions (using pipeline step)

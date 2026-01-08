@@ -126,6 +126,31 @@ export const painAnalyzerStep: PipelineStep<PainAnalyzerInput, PainAnalyzerOutpu
           console.error(`  Praise filter failed (non-blocking):`, error)
         }
       }
+
+      // =========================================================================
+      // Step 3.5: Semantic categorization for app store signals
+      // =========================================================================
+      // Re-get app store signals after praise filtering
+      const signalsToCatego = allPainSignals.filter(
+        s => s.source.subreddit === 'google_play' || s.source.subreddit === 'app_store'
+      )
+
+      if (signalsToCatego.length > 0) {
+        console.log(`  Categorizing ${signalsToCatego.length} app store signals...`)
+        try {
+          const { getSignalCategorizer } = await import('@/lib/analysis/signal-categorizer')
+          const categorizer = getSignalCategorizer()
+
+          for (const signal of signalsToCatego) {
+            const result = await categorizer.categorize(signal.text)
+            signal.feedbackCategory = result.category
+            signal.feedbackCategoryConfidence = result.confidence
+          }
+          console.log(`  Semantic categorization complete`)
+        } catch (error) {
+          console.error(`  Semantic categorization failed (non-blocking):`, error)
+        }
+      }
     }
 
     // =========================================================================
