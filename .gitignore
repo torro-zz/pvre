@@ -52,3 +52,11 @@ docs/
 .next */
 .mcp.json
 .playwright-mcp/
+
+# debug/diagnostic scripts (temporary)
+scripts/calibrate-*.ts
+scripts/check-*.ts
+scripts/diagnose-*.ts
+scripts/find-*.ts
+scripts/test-*.ts
+scripts/trace-*.ts
