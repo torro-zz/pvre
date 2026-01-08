@@ -218,6 +218,7 @@ export function TabbedView() {
                 <UserFeedback
                   painSignals={communityVoiceResult.data.painSignals || []}
                   appData={appData ?? undefined}
+                  crossStoreAppData={crossStoreAppData}
                   appName={appData?.name}
                 />
               ) : (

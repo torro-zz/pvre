@@ -28,6 +28,7 @@ import type { AppDetails } from '@/lib/data-sources/types'
 interface UserFeedbackProps {
   painSignals: PainSignal[]
   appData?: AppDetails  // Full app data for overall rating display
+  crossStoreAppData?: AppDetails | null  // App from other store (e.g., Play Store when primary is App Store)
   appName?: string  // Fallback if appData not provided
   analyzedReviewCount?: number  // Total reviews fetched before filtering (default 500)
 }
@@ -460,7 +461,7 @@ function RedditDiscussions({ signals }: { signals: PainSignal[] }) {
   )
 }
 
-export function UserFeedback({ painSignals, appData, appName, analyzedReviewCount = 500 }: UserFeedbackProps) {
+export function UserFeedback({ painSignals, appData, crossStoreAppData, appName, analyzedReviewCount = 500 }: UserFeedbackProps) {
   const sentiment = calculateSentiment(painSignals)
   const opportunities = extractOpportunities(painSignals)
 
@@ -492,63 +493,71 @@ export function UserFeedback({ painSignals, appData, appName, analyzedReviewCoun
       {appData?.rating && (
         <Card className="overflow-hidden">
           <CardContent className="py-3 px-4">
-            <div className="grid grid-cols-2 gap-3">
-              {/* App Store */}
-              <div
-                className={`flex items-center justify-between p-2.5 rounded-lg border-2 transition-all ${
-                  appData.store === 'app_store'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10'
-                    : 'border-dashed border-muted-foreground/20'
-                }`}
-              >
-                <span className={`text-sm font-medium ${appData.store === 'app_store' ? 'text-blue-700 dark:text-blue-400' : 'text-muted-foreground'}`}>
-                  App Store
-                </span>
-                {appData.store === 'app_store' ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
-                        {appData.rating.toFixed(1)}
-                      </span>
-                      <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {formatReviewCount(appData.reviewCount)}
-                    </span>
-                  </div>
-                ) : (
-                  <span className="text-xs text-muted-foreground">N/A</span>
-                )}
-              </div>
+            {(() => {
+              // Determine which app is from which store
+              const appStoreApp = appData.store === 'app_store' ? appData : crossStoreAppData?.store === 'app_store' ? crossStoreAppData : null
+              const playStoreApp = appData.store === 'google_play' ? appData : crossStoreAppData?.store === 'google_play' ? crossStoreAppData : null
 
-              {/* Play Store */}
-              <div
-                className={`flex items-center justify-between p-2.5 rounded-lg border-2 transition-all ${
-                  appData.store === 'google_play'
-                    ? 'border-green-500 bg-green-50 dark:bg-green-500/10'
-                    : 'border-dashed border-muted-foreground/20'
-                }`}
-              >
-                <span className={`text-sm font-medium ${appData.store === 'google_play' ? 'text-green-700 dark:text-green-400' : 'text-muted-foreground'}`}>
-                  Play Store
-                </span>
-                {appData.store === 'google_play' ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
-                        {appData.rating.toFixed(1)}
-                      </span>
-                      <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {formatReviewCount(appData.reviewCount)}
+              return (
+                <div className="grid grid-cols-2 gap-3">
+                  {/* App Store */}
+                  <div
+                    className={`flex items-center justify-between p-2.5 rounded-lg border-2 transition-all ${
+                      appStoreApp
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10'
+                        : 'border-dashed border-muted-foreground/20'
+                    }`}
+                  >
+                    <span className={`text-sm font-medium ${appStoreApp ? 'text-blue-700 dark:text-blue-400' : 'text-muted-foreground'}`}>
+                      App Store
                     </span>
+                    {appStoreApp ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                            {appStoreApp.rating.toFixed(1)}
+                          </span>
+                          <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {formatReviewCount(appStoreApp.reviewCount)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">N/A</span>
+                    )}
                   </div>
-                ) : (
-                  <span className="text-xs text-muted-foreground">N/A</span>
-                )}
-              </div>
-            </div>
+
+                  {/* Play Store */}
+                  <div
+                    className={`flex items-center justify-between p-2.5 rounded-lg border-2 transition-all ${
+                      playStoreApp
+                        ? 'border-green-500 bg-green-50 dark:bg-green-500/10'
+                        : 'border-dashed border-muted-foreground/20'
+                    }`}
+                  >
+                    <span className={`text-sm font-medium ${playStoreApp ? 'text-green-700 dark:text-green-400' : 'text-muted-foreground'}`}>
+                      Play Store
+                    </span>
+                    {playStoreApp ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                            {playStoreApp.rating.toFixed(1)}
+                          </span>
+                          <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {formatReviewCount(playStoreApp.reviewCount)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">N/A</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
           </CardContent>
         </Card>
       )}
