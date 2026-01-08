@@ -61,7 +61,6 @@ import { AppDetails } from '@/lib/data-sources/types'
 import { googlePlayAdapter } from '@/lib/data-sources/adapters/google-play-adapter'
 import { appStoreAdapter } from '@/lib/data-sources/adapters/app-store-adapter'
 import { analyzeCompetitors, type CompetitorIntelligenceResult } from '@/lib/research/competitor-analyzer'
-import { findKnownCompetitors, hasKnownCompetitors } from '@/lib/research/known-competitors'
 import {
   applyAppNameGate,
   extractCoreAppName,
@@ -83,6 +82,7 @@ import {
   painAnalyzerStep,
   themeAnalyzerStep,
   marketAnalyzerStep,
+  competitorDetectorStep,
 } from '@/lib/research/steps'
 
 // Calculate data quality level based on filter rates
@@ -1376,55 +1376,13 @@ export async function POST(request: NextRequest) {
         console.log('Step 11: Running auto-competitor analysis')
         lastErrorSource = 'anthropic'
 
-        // Step 11a: Auto-detect competitors
-        const detectedCompetitors: string[] = []
+        // Step 11a: Auto-detect competitors (using pipeline step)
+        const competitorDetectionResult = await executeStep(competitorDetectorStep, {
+          painSignals: filteredPainSignals,
+          maxCompetitors: 8,
+        }, ctx)
 
-        // 1. Known competitors from static mapping (App Gap mode)
-        if (appData?.name) {
-          const knownComps = findKnownCompetitors(appData.name)
-          if (knownComps.length > 0) {
-            console.log(`Auto-detected ${knownComps.length} known competitors for ${appData.name}:`, knownComps)
-            detectedCompetitors.push(...knownComps)
-          }
-        }
-
-        // 2. Extract competitor mentions from pain signals
-        const competitorMentions = new Set<string>()
-        for (const signal of filteredPainSignals.slice(0, 30)) {
-          // Look for "switched to X", "moved to X", "using X instead", "X is better"
-          const patterns = [
-            /switched\s+to\s+(\w+)/gi,
-            /moved?\s+to\s+(\w+)/gi,
-            /using\s+(\w+)\s+instead/gi,
-            /(\w+)\s+is\s+(?:much\s+)?better/gi,
-            /prefer\s+(\w+)/gi,
-            /try\s+(\w+)/gi,
-          ]
-          const text = `${signal.title || ''} ${signal.text || ''}`
-          for (const pattern of patterns) {
-            const matches = text.matchAll(pattern)
-            for (const match of matches) {
-              const name = match[1]
-              // Filter out common non-competitor words
-              if (name && name.length > 2 && !['the', 'this', 'that', 'they', 'what', 'just', 'now'].includes(name.toLowerCase())) {
-                competitorMentions.add(name)
-              }
-            }
-          }
-        }
-
-        // Add signal-based competitors (up to 5)
-        const signalCompetitors = Array.from(competitorMentions).slice(0, 5)
-        if (signalCompetitors.length > 0) {
-          console.log(`Extracted ${signalCompetitors.length} competitor mentions from signals:`, signalCompetitors)
-          detectedCompetitors.push(...signalCompetitors)
-        }
-
-        // Deduplicate and cap at 8
-        const uniqueCompetitors = [...new Set(detectedCompetitors.map(c => c.toLowerCase()))]
-          .map(c => detectedCompetitors.find(d => d.toLowerCase() === c)!)
-          .slice(0, 8)
-
+        const uniqueCompetitors = competitorDetectionResult.data?.competitors || []
         console.log(`Final competitor list (${uniqueCompetitors.length}):`, uniqueCompetitors)
 
         // Step 11b: Run competitor analysis
