@@ -1,7 +1,8 @@
 /**
  * Timing Analyzer Module
  * Uses Claude to identify market timing signals (tailwinds/headwinds).
- * Now enhanced with real Google Trends data for verified trend direction.
+ * Enhanced with AI Discussion Trends (Reddit) as primary source,
+ * with Google Trends as fallback.
  * Part of the Viability Verdict scoring system (15% weight in full formula).
  */
 
@@ -14,6 +15,10 @@ import {
   getCachedTrendData,
   extractTrendKeywordsWithAI,
 } from "../data-sources/google-trends";
+import {
+  getAIDiscussionTrend,
+  AITrendResult,
+} from "../data-sources/ai-discussion-trends";
 
 export interface TimingInput {
   hypothesis: string;
@@ -35,18 +40,27 @@ export interface TimingResult {
   timingWindow: string; // e.g., "12-18 months"
   verdict: string;
   trend: 'rising' | 'stable' | 'falling';
-  // Google Trends data (null if API failed)
+  // Trend data source indicator
+  trendSource: 'ai_discussion' | 'google_trends' | 'ai_estimate';
+  // Trend data (null if all sources failed)
   trendData: {
     keywords: string[];
     percentageChange: number;
     dataAvailable: boolean;
+    // Source-specific fields
     keywordBreakdown?: KeywordTrend[];
-    // Timeline data for sparkline visualization
+    // Timeline data for sparkline visualization (Google Trends only)
     timelineData?: Array<{
       time: string;
       formattedTime: string;
       value: number[];
     }>;
+    // AI Discussion specific fields
+    totalVolume?: number;
+    sources?: string[];
+    insufficientData?: boolean;
+    change30d?: number;
+    change90d?: number;
   } | null;
 }
 
@@ -58,10 +72,8 @@ export async function analyzeTiming(
     year: 'numeric'
   });
 
-  // Step 1: Try to get real Google Trends data
-  // Use AI to extract problem-focused keywords (not demographics like "professionals")
+  // Step 1: Extract keywords for trend analysis
   let keywords = await extractTrendKeywordsWithAI(input.hypothesis);
-  let trendData: TrendResult | null = null;
 
   // For App Gap mode: ensure the app name is included as a keyword for better relevance
   if (input.appName) {
@@ -73,22 +85,57 @@ export async function analyzeTiming(
     console.log('[Timing] App Gap mode - including app name in keywords:', normalizedAppName);
   }
 
+  // Step 2: Try AI Discussion Trends first (primary source)
+  let aiTrendData: AITrendResult | null = null;
+  let googleTrendData: TrendResult | null = null;
+  let trendSource: 'ai_discussion' | 'google_trends' | 'ai_estimate' = 'ai_estimate';
+
   if (keywords.length > 0) {
-    console.log('[Timing] Fetching Google Trends for:', keywords);
-    trendData = await getCachedTrendData(keywords);
+    console.log('[Timing] Fetching AI Discussion Trends for:', keywords);
+    aiTrendData = await getAIDiscussionTrend(keywords);
+
+    if (aiTrendData?.dataAvailable && !aiTrendData.insufficientData) {
+      trendSource = 'ai_discussion';
+      console.log('[Timing] Using AI Discussion Trends - trend:', aiTrendData.trend, 'change:', aiTrendData.percentageChange);
+    } else {
+      // Step 3: Fall back to Google Trends if AI trends unavailable
+      console.log('[Timing] AI Discussion Trends unavailable, trying Google Trends...');
+      googleTrendData = await getCachedTrendData(keywords);
+
+      if (googleTrendData) {
+        trendSource = 'google_trends';
+        console.log('[Timing] Using Google Trends - trend:', googleTrendData.trend);
+      } else {
+        console.log('[Timing] All trend sources unavailable, using AI estimate');
+      }
+    }
   }
 
-  // Build trend context for AI prompt
-  const trendContext = trendData
-    ? `
-REAL GOOGLE TRENDS DATA (verified):
-- Keywords analyzed: ${trendData.keywords.join(', ')}
-- Trend direction: ${trendData.trend.toUpperCase()} (${trendData.percentageChange > 0 ? '+' : ''}${trendData.percentageChange}% over past year)
-- This is REAL data from Google Trends. Your trend assessment should align with this data.
-`
-    : `
-NOTE: Google Trends data unavailable. Provide your best estimate for trend direction.
+  // Build trend context for AI prompt based on available data
+  let trendContext: string;
+  if (trendSource === 'ai_discussion' && aiTrendData) {
+    trendContext = `
+REAL TREND DATA (from AI Discussion Analysis on Reddit):
+- Keywords analyzed: ${aiTrendData.keywords.join(', ')}
+- Trend direction: ${aiTrendData.trend.toUpperCase()} (${aiTrendData.percentageChange > 0 ? '+' : ''}${aiTrendData.percentageChange}% change)
+- 30-day change: ${aiTrendData.change30d > 0 ? '+' : ''}${aiTrendData.change30d}%
+- 90-day change: ${aiTrendData.change90d > 0 ? '+' : ''}${aiTrendData.change90d}%
+- Data volume: ${aiTrendData.totalVolume} discussions analyzed
+- Confidence: ${aiTrendData.confidence}
+- This is REAL data from Reddit AI discussions. Your trend assessment should align with this data.
 `;
+  } else if (trendSource === 'google_trends' && googleTrendData) {
+    trendContext = `
+REAL GOOGLE TRENDS DATA (verified):
+- Keywords analyzed: ${googleTrendData.keywords.join(', ')}
+- Trend direction: ${googleTrendData.trend.toUpperCase()} (${googleTrendData.percentageChange > 0 ? '+' : ''}${googleTrendData.percentageChange}% over past year)
+- This is REAL data from Google Trends. Your trend assessment should align with this data.
+`;
+  } else {
+    trendContext = `
+NOTE: Real-time trend data unavailable. Provide your best estimate for trend direction based on your knowledge.
+`;
+  }
 
   const prompt = `You are a market timing analyst. Assess whether NOW is a good time to launch this business.
 
@@ -119,7 +166,7 @@ Analyze the timing by identifying:
 
 4. TREND DIRECTION
    - Is interest/demand for this type of solution rising, stable, or falling?
-   ${trendData ? '- USE THE GOOGLE TRENDS DATA ABOVE to inform your assessment.' : ''}
+   ${(aiTrendData || googleTrendData) ? '- USE THE TREND DATA ABOVE to inform your assessment.' : ''}
 
 SCORING GUIDE for timing_score (0-10):
 - Strong tailwinds, few headwinds, clear window → 8-10
@@ -179,8 +226,39 @@ Respond with ONLY valid JSON:
     trend: 'rising' | 'stable' | 'falling';
   }>(content.text, 'timing analysis');
 
-  // Use Google Trends trend if available (more reliable than AI estimate)
-  const finalTrend = trendData ? trendData.trend : data.trend;
+  // Use trend from the selected source to ensure consistency
+  let finalTrend: 'rising' | 'stable' | 'falling';
+  if (trendSource === 'ai_discussion' && aiTrendData) {
+    finalTrend = aiTrendData.trend;
+  } else if (trendSource === 'google_trends' && googleTrendData) {
+    finalTrend = googleTrendData.trend;
+  } else {
+    finalTrend = data.trend; // AI estimate from Claude
+  }
+
+  // Build trend data response based on source
+  let trendDataResponse: TimingResult['trendData'] = null;
+
+  if (trendSource === 'ai_discussion' && aiTrendData) {
+    trendDataResponse = {
+      keywords: aiTrendData.keywords,
+      percentageChange: aiTrendData.percentageChange,
+      dataAvailable: true,
+      totalVolume: aiTrendData.totalVolume,
+      sources: aiTrendData.sources,
+      insufficientData: aiTrendData.insufficientData,
+      change30d: aiTrendData.change30d,
+      change90d: aiTrendData.change90d,
+    };
+  } else if (trendSource === 'google_trends' && googleTrendData) {
+    trendDataResponse = {
+      keywords: googleTrendData.keywords,
+      percentageChange: googleTrendData.percentageChange,
+      dataAvailable: true,
+      keywordBreakdown: googleTrendData.keywordBreakdown,
+      timelineData: googleTrendData.timelineData,
+    };
+  }
 
   return {
     score: data.timing_score,
@@ -190,14 +268,7 @@ Respond with ONLY valid JSON:
     timingWindow: data.timing_window,
     verdict: data.verdict,
     trend: finalTrend,
-    trendData: trendData
-      ? {
-          keywords: trendData.keywords,
-          percentageChange: trendData.percentageChange,
-          dataAvailable: true,
-          keywordBreakdown: trendData.keywordBreakdown,
-          timelineData: trendData.timelineData,
-        }
-      : null,
+    trendSource,
+    trendData: trendDataResponse,
   };
 }

@@ -189,14 +189,45 @@ Comments under "Willingness to Pay Signals" are cut off, unlike other sections w
 
 ---
 
-### Google Trends Keyword Truncated
-**Status:** Open
-**Impact:** Incomplete data display
+### ~~Google Trends Keyword Truncated~~
+**Status:** ✅ REPLACED (Jan 8, 2026)
+**Impact:** ~~Incomplete data display~~
 **Location:** Market tab > Timing section
 
-Shows "dating apps for relation" cut off instead of full keyword.
+~~Shows "dating apps for relation" cut off instead of full keyword.~~
 
-**Fix:** Display full keyword. If space constrained, use tooltip for full text or truncate with "..." and show full on hover.
+**Resolution:** Google Trends API was replaced with AI Discussion Trends (see below). This issue is no longer applicable.
+
+---
+
+### Google Trends API Blocked (429 Errors)
+**Status:** ✅ REPLACED with AI Discussion Trends (Jan 8, 2026)
+**Impact:** Google Trends data unavailable
+**Location:** Market tab > Timing section
+
+**Original Problem:**
+The unofficial `google-trends-api` npm package was blocked by Google (429 rate limit errors). The package hasn't been updated in 5 years and Google actively blocks scrapers.
+
+**Solution Implemented:**
+Built a new "AI Discussion Trends" feature that analyzes Reddit discussions about problems in AI-related contexts:
+- Searches AI subreddits (r/ChatGPT, r/ClaudeAI, etc.) for problem keywords
+- Compares 30-day and 90-day windows to detect trends
+- Weights posts by engagement (upvotes + comments)
+- Falls back to Google Trends only if AI trends unavailable
+
+**New Files:**
+- `src/lib/data-sources/ai-discussion-trends.ts` — Core trend analysis
+- `src/lib/rate-limit/index.ts` — Vercel KV rate limiting
+
+**UI Changes:**
+- Purple "AI Discussion Trends" card shows 30d/90d changes
+- Falls back to Google Trends (blue) if available
+- Falls back to "AI ESTIMATE" if neither available
+
+**Why This Is Better:**
+- People asking AI about problems = active pain signal
+- No rate limiting issues (we control the data pipeline)
+- More relevant to PVRE's pain detection mission
 
 ---
 
@@ -300,6 +331,30 @@ context: fork                        # Optional - isolated context
 **Our `/goodnight` skill:** `.claude/skills/goodnight/SKILL.md`
 
 **Note:** May need to restart Claude Code session for new skills to be detected.
+
+---
+
+## 🟡 REVIEW NEEDED
+
+### AI Discussion Trends Implementation - Review with Codex
+**Status:** Needs Review (Jan 9, 2026)
+**Impact:** New feature may have edge cases
+**Location:** Multiple files
+
+Codex reviewed the AI Discussion Trends implementation and suggested 4 fixes that were applied:
+
+1. **HIGH:** `finalTrend` now matches `trendSource` (was potentially inconsistent)
+2. **MEDIUM:** Rate-limit key format fixed in `getRateLimitStatus`
+3. **MEDIUM:** Strategy B now filters by AI terms (was unused function)
+4. **LOW:** UI fallback for missing `trendSource` (backward compatibility)
+
+**Files to review:**
+- `src/lib/analysis/timing-analyzer.ts` (lines 229-237)
+- `src/lib/rate-limit/index.ts` (lines 188-206)
+- `src/lib/data-sources/ai-discussion-trends.ts` (lines 206-212)
+- `src/components/research/market-tab.tsx` (lines 982-990)
+
+**Action:** Walk through these changes with Codex to verify they're correct and don't introduce regressions.
 
 ---
 

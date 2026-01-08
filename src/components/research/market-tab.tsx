@@ -35,6 +35,7 @@ import {
   BarChart3,
   AlertTriangle,
   Info,
+  MessageSquare,
 } from 'lucide-react'
 import type { CompetitorGap, PositioningRecommendation } from '@/types/research'
 import type { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
@@ -812,8 +813,58 @@ function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
         <CardContent className="pt-6">
           {/* Timing Data Sources */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {/* Google Trends Data - Sparkline Visualization */}
-            {timingData.trendData?.dataAvailable && (
+            {/* AI Discussion Trends - Primary Source */}
+            {timingData.trendSource === 'ai_discussion' && timingData.trendData?.dataAvailable && (
+              <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-900 dark:text-purple-100">AI Discussion Trends</span>
+                  </div>
+                  <TrustBadge level="verified" size="sm" tooltip="Based on Reddit AI conversation analysis" />
+                </div>
+
+                {/* Trend change visualization */}
+                <div className="space-y-3">
+                  {/* 30-day change */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-purple-600 dark:text-purple-400">30-day change</span>
+                    <span className={cn(
+                      "font-semibold text-sm",
+                      (timingData.trendData.change30d || 0) > 0 ? "text-emerald-600" :
+                      (timingData.trendData.change30d || 0) < 0 ? "text-red-600" : "text-slate-600"
+                    )}>
+                      {(timingData.trendData.change30d || 0) > 0 ? '+' : ''}{timingData.trendData.change30d || 0}%
+                    </span>
+                  </div>
+                  {/* 90-day change */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-purple-600 dark:text-purple-400">90-day change</span>
+                    <span className={cn(
+                      "font-semibold text-sm",
+                      (timingData.trendData.change90d || 0) > 0 ? "text-emerald-600" :
+                      (timingData.trendData.change90d || 0) < 0 ? "text-red-600" : "text-slate-600"
+                    )}>
+                      {(timingData.trendData.change90d || 0) > 0 ? '+' : ''}{timingData.trendData.change90d || 0}%
+                    </span>
+                  </div>
+                  {/* Volume indicator */}
+                  <div className="pt-2 border-t border-purple-200 dark:border-purple-700">
+                    <div className="text-xs text-purple-600 dark:text-purple-400">
+                      Based on {timingData.trendData.totalVolume || 0} AI discussions
+                    </div>
+                    {timingData.trendData.sources && timingData.trendData.sources.length > 0 && (
+                      <div className="text-[10px] text-purple-500 dark:text-purple-500 mt-1">
+                        Sources: {timingData.trendData.sources.slice(0, 3).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Google Trends Data - Sparkline Visualization (fallback) */}
+            {timingData.trendSource === 'google_trends' && timingData.trendData?.dataAvailable && (
               <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -928,11 +979,12 @@ function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
             )}
           </div>
 
-          {!timingData.trendData?.dataAvailable && (
+          {/* Show AI estimate warning when trendSource is 'ai_estimate' or undefined (backward compatibility) */}
+          {(timingData.trendSource === 'ai_estimate' || !timingData.trendSource) && (
             <div className="flex items-center gap-2 mb-4 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
               <TrustBadge level="ai-estimate" size="sm" />
               <span className="text-xs text-amber-700 dark:text-amber-400">
-                Trend data based on AI analysis. Real-time Google Trends data unavailable.
+                Trend data based on AI analysis. Real-time trend data unavailable.
               </span>
             </div>
           )}
