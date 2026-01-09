@@ -35,6 +35,7 @@ import {
   filterRelevantPosts,
   filterRelevantComments,
 } from '@/lib/research/relevance-filter'
+import { getSignalCapForSampleSize } from '@/lib/filter/config'
 
 /**
  * Robust JSON array extraction from Claude responses
@@ -163,6 +164,7 @@ export async function POST(request: NextRequest) {
           (coverageData?.sampleSizePerSource as number) || 300,
           1000 // Raised cap since embedding filter makes larger fetches cost-effective
         )
+        const signalCap = getSignalCapForSampleSize(sampleSizePerSource)
 
         // Extract target geography for market sizing scoping
         let targetGeography: TargetGeography | undefined
@@ -341,7 +343,7 @@ export async function POST(request: NextRequest) {
             discovered: discoveredSubreddits,
             analyzed: subredditsToSearch,
           },
-          painSignals: allPainSignals.slice(0, 50),
+          painSignals: allPainSignals.slice(0, signalCap),
           painSummary,
           themeAnalysis,
           interviewQuestions,

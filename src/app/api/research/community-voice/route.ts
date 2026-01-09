@@ -70,6 +70,7 @@ import {
   marketAnalyzerStep,
   competitorDetectorStep,
 } from '@/lib/research/steps'
+import { getSignalCapForSampleSize } from '@/lib/filter/config'
 
 // Calculate data quality level based on filter rates
 function calculateQualityLevel(postFilterRate: number, commentFilterRate: number): 'high' | 'medium' | 'low' {
@@ -410,6 +411,8 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    const signalCap = getSignalCapForSampleSize(sampleSizePerSource)
 
     // =========================================================================
     // CREATE RESEARCH CONTEXT (Phase 4 - Pipeline Infrastructure)
@@ -1142,7 +1145,7 @@ export async function POST(request: NextRequest) {
         discovered: discoveryResult.subreddits,
         analyzed: filteringMetrics.communitiesSearched || subredditsToSearch,
       },
-      painSignals: filteredPainSignals.slice(0, 50), // Return top 50 signals
+      painSignals: filteredPainSignals.slice(0, signalCap),
       painSummary,
       themeAnalysis,
       interviewQuestions,

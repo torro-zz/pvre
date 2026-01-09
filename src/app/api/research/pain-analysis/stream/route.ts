@@ -37,6 +37,7 @@ import {
   filterRelevantPosts,
   filterRelevantComments,
 } from '@/lib/research/relevance-filter'
+import { getSignalCapForSampleSize } from '@/lib/filter/config'
 
 // Robust JSON array extraction with multiple fallback strategies
 function extractJSONArray(text: string): string[] | null {
@@ -197,6 +198,8 @@ export async function POST(request: NextRequest) {
 
         // Extract selected data sources
         const selectedDataSources = coverageData?.selectedDataSources as string[] | undefined
+        const sampleSizePerSource = (coverageData?.sampleSizePerSource as number) || 300
+        const signalCap = getSignalCapForSampleSize(sampleSizePerSource)
 
         // Update step status to in_progress
         await updateStepStatus(jobId, 'pain_analysis', 'in_progress')
@@ -341,7 +344,7 @@ export async function POST(request: NextRequest) {
             discovered: discoveredSubreddits,
             analyzed: subredditsToSearch,
           },
-          painSignals: allPainSignals.slice(0, 50),
+          painSignals: allPainSignals.slice(0, signalCap),
           painSummary,
           themeAnalysis,
           interviewQuestions,

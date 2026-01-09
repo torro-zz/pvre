@@ -177,3 +177,20 @@ export const TIERED_SYNTHESIS_CAPS = {
   STRONG_MAX: 50,
   TOTAL_MAX: 100,
 } as const
+
+/**
+ * Signal caps based on sample size depth (Quick/Standard/Deep).
+ * Keeps response payloads proportional to the fetch depth.
+ */
+export const SIGNAL_CAPS_BY_SAMPLE_SIZE = {
+  150: 50,
+  300: 100,
+  450: 200,
+} as const
+
+export const DEFAULT_SIGNAL_CAP = SIGNAL_CAPS_BY_SAMPLE_SIZE[300]
+
+export function getSignalCapForSampleSize(sampleSizePerSource?: number): number {
+  if (!sampleSizePerSource) return DEFAULT_SIGNAL_CAP
+  return SIGNAL_CAPS_BY_SAMPLE_SIZE[sampleSizePerSource as keyof typeof SIGNAL_CAPS_BY_SAMPLE_SIZE] ?? DEFAULT_SIGNAL_CAP
+}

@@ -1,6 +1,6 @@
 # PVRE Known Issues
 
-*Last updated: January 6, 2026*
+*Last updated: January 9, 2026*
 
 ---
 
@@ -359,6 +359,59 @@ Codex reviewed the AI Discussion Trends implementation and suggested 4 fixes tha
 ---
 
 ## 🔵 PLANNED FEATURES
+
+### Credit/Fuel System Design
+**Status:** Planning Required
+**Priority:** HIGH — Business sustainability
+**Impact:** Pricing fairness, margin protection, user trust
+
+Need to design a credit system that:
+
+1. **Works for all search types:**
+   | Mode | Depth | Sample Size | Signal Cap | Estimated Cost |
+   |------|-------|-------------|------------|----------------|
+   | Hypothesis | Quick | 150 | 50 | TBD |
+   | Hypothesis | Medium | 300 | 100 | TBD |
+   | Hypothesis | Deep | 450 | 200 | TBD |
+   | App Gap | Quick | 150 | 50 | TBD |
+   | App Gap | Medium | 300 | 100 | TBD |
+   | App Gap | Deep | 450 | 200 | TBD |
+
+2. **Shows cost BEFORE search starts:**
+   - Calculate estimated token usage based on depth + mode
+   - Display credit cost on coverage preview screen
+   - User confirms spend before starting
+
+3. **Separates free vs paid usage:**
+   - Pre-search (coverage check, interpretation) = FREE
+   - Actual research = PAID (credits/fuel)
+   - Clear boundary for user
+
+4. **Protects margin for sustainability:**
+   - Cover API costs (Anthropic, embeddings)
+   - Cover server/infrastructure costs
+   - Cover marketing budget
+   - Leave room for growth
+
+**Metrics to track (add to admin analytics):**
+- Token usage per search type/depth
+- API cost per search type/depth
+- Response payload sizes
+- Signal counts by depth tier
+
+**Questions to answer:**
+- Should credits be flat-rate per depth, or variable based on actual usage?
+- How to handle searches that fail/timeout (refund credits)?
+- Should heavy users get volume discounts?
+- How to communicate value vs. cost to users?
+
+**Files to update when implementing:**
+- `src/lib/filter/config.ts` — cost constants
+- `src/app/api/research/coverage-check/route.ts` — show estimated cost
+- `src/components/research/coverage-preview.tsx` — display cost to user
+- `src/app/api/admin/analytics/route.ts` — track usage metrics
+
+---
 
 ### Dual App Store Support
 **Status:** Planned
