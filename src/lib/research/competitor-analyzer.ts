@@ -141,9 +141,11 @@ function filterSelfCompetitorMatrix(
   selfNames: string[]
 ): CompetitorIntelligenceResult['competitorMatrix'] {
   if (selfNames.length === 0) return matrix
+  // Defensive: Claude may return incomplete competitorMatrix without comparison array
+  const comparison = Array.isArray(matrix?.comparison) ? matrix.comparison : []
   return {
-    ...matrix,
-    comparison: matrix.comparison.filter((comp) =>
+    categories: matrix?.categories || [],
+    comparison: comparison.filter((comp) =>
       !isSelfNameMatch(comp.competitorName, selfNames)
     ),
   }
@@ -516,6 +518,15 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
   }
   console.log('[CompetitorAnalyzer] Analysis complete, returning result')
 
+  // Normalize competitorMatrix to ensure it has both categories and comparison arrays
+  const rawMatrix = analysis.competitorMatrix
+  const normalizedMatrix = (rawMatrix && typeof rawMatrix === 'object')
+    ? {
+        categories: Array.isArray(rawMatrix.categories) ? rawMatrix.categories : [],
+        comparison: Array.isArray(rawMatrix.comparison) ? rawMatrix.comparison : [],
+      }
+    : fallbackAnalysis.competitorMatrix
+
   const normalizedAnalysis = {
     marketOverview: analysis.marketOverview ?? fallbackAnalysis.marketOverview,
     competitors: Array.isArray(analysis.competitors) ? analysis.competitors : fallbackAnalysis.competitors,
@@ -523,7 +534,7 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
     positioningRecommendations: Array.isArray(analysis.positioningRecommendations)
       ? analysis.positioningRecommendations
       : fallbackAnalysis.positioningRecommendations,
-    competitorMatrix: analysis.competitorMatrix ?? fallbackAnalysis.competitorMatrix,
+    competitorMatrix: normalizedMatrix,
   }
 
   const competitors: Competitor[] = (normalizedAnalysis.competitors || []).map((c: Partial<Competitor>) => ({
