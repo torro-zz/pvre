@@ -477,29 +477,34 @@ Provide analysis in JSON format. For each competitor, assess:
 
 Identify 4-8 competitors. Return ONLY valid JSON.`
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 4000,
-    messages: [{ role: 'user', content: prompt }],
-  })
-
   const fallbackAnalysis = generateFallbackAnalysis(hypothesis, filteredKnownCompetitors || [])
-  const content = response.content[0]
-
   let analysis = fallbackAnalysis
-  if (!content || content.type !== 'text') {
-    console.error('Unexpected response type from Claude, using fallback')
-  } else {
-    try {
-      let jsonText = content.text.trim()
-      if (jsonText.startsWith('```json')) jsonText = jsonText.slice(7)
-      if (jsonText.startsWith('```')) jsonText = jsonText.slice(3)
-      if (jsonText.endsWith('```')) jsonText = jsonText.slice(0, -3)
-      analysis = JSON.parse(jsonText.trim())
-    } catch {
-      console.error('Failed to parse Claude response, using fallback')
-      analysis = fallbackAnalysis
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const content = response.content[0]
+
+    if (!content || content.type !== 'text') {
+      console.error('Unexpected response type from Claude, using fallback')
+    } else {
+      try {
+        let jsonText = content.text.trim()
+        if (jsonText.startsWith('```json')) jsonText = jsonText.slice(7)
+        if (jsonText.startsWith('```')) jsonText = jsonText.slice(3)
+        if (jsonText.endsWith('```')) jsonText = jsonText.slice(0, -3)
+        analysis = JSON.parse(jsonText.trim())
+      } catch {
+        console.error('Failed to parse Claude response, using fallback')
+      }
     }
+  } catch (apiError) {
+    console.error('Claude API call failed, using fallback:', apiError)
+    // Keep fallbackAnalysis as the analysis
   }
 
   const normalizedAnalysis = {
