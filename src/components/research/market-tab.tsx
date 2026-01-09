@@ -38,6 +38,7 @@ import {
   MessageSquare,
 } from 'lucide-react'
 import type { CompetitorGap, PositioningRecommendation } from '@/types/research'
+import type { UnifiedDiscussionTrends } from '@/types/research/core'
 import type { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 import { MarketSignals } from '@/components/research/market-signals'
 import { TrendSparkline } from '@/components/research/trend-sparkline'
@@ -94,6 +95,8 @@ export function MarketTab({ jobId, hypothesis }: MarketTabProps) {
 
   // Extract discussion velocity from pain summary for timing display
   const discussionVelocity = communityVoiceResult?.data?.painSummary?.discussionVelocity
+  // Extract unified trends (new combined metric)
+  const unifiedTrends = communityVoiceResult?.data?.unifiedTrends
 
   const subTabs: { id: MarketSubTab; label: string; icon: React.ReactNode; available: boolean }[] = [
     { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" />, available: true },
@@ -144,7 +147,7 @@ export function MarketTab({ jobId, hypothesis }: MarketTabProps) {
       )}
 
       {activeSubTab === 'timing' && (
-        <TimingSubTab timingData={timingData} discussionVelocity={discussionVelocity} />
+        <TimingSubTab timingData={timingData} discussionVelocity={discussionVelocity} unifiedTrends={unifiedTrends} />
       )}
 
       {activeSubTab === 'competition' && (
@@ -744,9 +747,10 @@ interface TimingSubTabProps {
     confidence: 'low' | 'medium' | 'high' | 'none'
     insufficientData?: boolean
   }
+  unifiedTrends?: UnifiedDiscussionTrends
 }
 
-function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
+function TimingSubTab({ timingData, discussionVelocity, unifiedTrends }: TimingSubTabProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
 
   const toggleSection = (section: string) => {
@@ -813,49 +817,133 @@ function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
         <CardContent className="pt-6">
           {/* Timing Data Sources */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {/* AI Discussion Trends - Primary Source */}
-            {timingData.trendSource === 'ai_discussion' && timingData.trendData?.dataAvailable && (
+            {/* Unified Discussion Trends - Combines AI Discussion + Pain Signal velocity */}
+            {unifiedTrends && !unifiedTrends.insufficientData && (
               <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <MessageSquare className="h-4 w-4 text-purple-600" />
-                    <span className="text-sm font-semibold text-purple-900 dark:text-purple-100">AI Discussion Trends</span>
+                    <span className="text-sm font-semibold text-purple-900 dark:text-purple-100">Discussion Trends</span>
                   </div>
-                  <TrustBadge level="verified" size="sm" tooltip="Based on Reddit AI conversation analysis" />
+                  <TrustBadge
+                    level={unifiedTrends.confidence === 'high' || unifiedTrends.confidence === 'medium' ? 'verified' : 'calculated'}
+                    size="sm"
+                    tooltip={`Based on ${unifiedTrends.volumeLabel} (${unifiedTrends.confidence} confidence)`}
+                  />
                 </div>
 
                 {/* Trend change visualization */}
                 <div className="space-y-3">
-                  {/* 30-day change */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-purple-600 dark:text-purple-400">30-day change</span>
-                    <span className={cn(
-                      "font-semibold text-sm",
-                      (timingData.trendData.change30d || 0) > 0 ? "text-emerald-600" :
-                      (timingData.trendData.change30d || 0) < 0 ? "text-red-600" : "text-slate-600"
-                    )}>
-                      {(timingData.trendData.change30d || 0) > 0 ? '+' : ''}{timingData.trendData.change30d || 0}%
-                    </span>
+                  {/* 30-day change (if available) */}
+                  {unifiedTrends.change30d !== undefined && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-purple-600 dark:text-purple-400">30-day change</span>
+                      <span className={cn(
+                        "font-semibold text-sm",
+                        unifiedTrends.change30d > 0 ? "text-emerald-600" :
+                        unifiedTrends.change30d < 0 ? "text-red-600" : "text-slate-600"
+                      )}>
+                        {unifiedTrends.change30d > 0 ? '+' : ''}{unifiedTrends.change30d}%
+                      </span>
+                    </div>
+                  )}
+                  {/* 90-day change (if available) */}
+                  {unifiedTrends.change90d !== undefined && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-purple-600 dark:text-purple-400">90-day change</span>
+                      <span className={cn(
+                        "font-semibold text-sm",
+                        unifiedTrends.change90d > 0 ? "text-emerald-600" :
+                        unifiedTrends.change90d < 0 ? "text-red-600" : "text-slate-600"
+                      )}>
+                        {unifiedTrends.change90d > 0 ? '+' : ''}{unifiedTrends.change90d}%
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Comparison bars */}
+                  {(unifiedTrends.recentCount > 0 || unifiedTrends.previousCount > 0) && (
+                    <div className="space-y-2 pt-2 border-t border-purple-200 dark:border-purple-700">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-purple-600 dark:text-purple-400">Recent</span>
+                          <span className="font-semibold text-purple-900 dark:text-purple-100">
+                            {unifiedTrends.recentCount} posts
+                          </span>
+                        </div>
+                        <div className="h-2.5 bg-purple-200 dark:bg-purple-800 rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              unifiedTrends.trend === 'rising' ? 'bg-emerald-500' :
+                              unifiedTrends.trend === 'falling' ? 'bg-red-500' : 'bg-purple-500'
+                            )}
+                            style={{
+                              width: `${Math.min(100, (unifiedTrends.recentCount / Math.max(unifiedTrends.recentCount, unifiedTrends.previousCount, 1)) * 100)}%`
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-purple-600 dark:text-purple-400">Previous</span>
+                          <span className="font-medium text-purple-700 dark:text-purple-300">
+                            {unifiedTrends.previousCount} posts
+                          </span>
+                        </div>
+                        <div className="h-2.5 bg-purple-200 dark:bg-purple-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-purple-400 dark:bg-purple-600 rounded-full transition-all"
+                            style={{
+                              width: `${Math.min(100, (unifiedTrends.previousCount / Math.max(unifiedTrends.recentCount, unifiedTrends.previousCount, 1)) * 100)}%`
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Trend interpretation */}
+                  <div className={cn(
+                    "flex items-center gap-2 p-2 rounded-lg text-xs",
+                    unifiedTrends.trend === 'rising' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' :
+                    unifiedTrends.trend === 'falling' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                    'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                  )}>
+                    {unifiedTrends.trend === 'rising' ? (
+                      <>
+                        <TrendingUp className="h-3.5 w-3.5" />
+                        <span>
+                          <span className="font-semibold">Growing interest</span>
+                          {unifiedTrends.percentageChange !== null && unifiedTrends.percentageChange > 0 && ` (+${unifiedTrends.percentageChange}%)`}
+                        </span>
+                      </>
+                    ) : unifiedTrends.trend === 'falling' ? (
+                      <>
+                        <ChevronDown className="h-3.5 w-3.5" />
+                        <span>
+                          <span className="font-semibold">Declining interest</span>
+                          {unifiedTrends.percentageChange !== null && ` (${unifiedTrends.percentageChange}%)`}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-semibold">Stable interest</span>
+                    )}
                   </div>
-                  {/* 90-day change */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-purple-600 dark:text-purple-400">90-day change</span>
-                    <span className={cn(
-                      "font-semibold text-sm",
-                      (timingData.trendData.change90d || 0) > 0 ? "text-emerald-600" :
-                      (timingData.trendData.change90d || 0) < 0 ? "text-red-600" : "text-slate-600"
-                    )}>
-                      {(timingData.trendData.change90d || 0) > 0 ? '+' : ''}{timingData.trendData.change90d || 0}%
-                    </span>
-                  </div>
-                  {/* Volume indicator */}
+
+                  {/* Volume footer */}
                   <div className="pt-2 border-t border-purple-200 dark:border-purple-700">
                     <div className="text-xs text-purple-600 dark:text-purple-400">
-                      Based on {timingData.trendData.totalVolume || 0} AI discussions
+                      Based on {unifiedTrends.volumeLabel}
                     </div>
-                    {timingData.trendData.sources && timingData.trendData.sources.length > 0 && (
+                    {unifiedTrends.sources && unifiedTrends.sources.length > 0 && (
                       <div className="text-[10px] text-purple-500 dark:text-purple-500 mt-1">
-                        Sources: {timingData.trendData.sources.slice(0, 3).join(', ')}
+                        Sources: {unifiedTrends.sources.slice(0, 3).join(', ')}
+                      </div>
+                    )}
+                    {unifiedTrends.confidence !== 'high' && unifiedTrends.confidence !== 'none' && (
+                      <div className="text-[10px] text-purple-500 dark:text-purple-500 mt-1">
+                        {unifiedTrends.confidence} confidence
                       </div>
                     )}
                   </div>
@@ -882,9 +970,8 @@ function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
               </div>
             )}
 
-            {/* Discussion Velocity - Redesigned with comparison bars */}
-            {/* Only show when we have enough data for meaningful trend analysis */}
-            {discussionVelocity && !discussionVelocity.insufficientData && (discussionVelocity.recentCount > 0 || discussionVelocity.previousCount > 0) && (
+            {/* Legacy fallback: Show old Discussion Velocity card if no unified trends (backward compat) */}
+            {!unifiedTrends && discussionVelocity && !discussionVelocity.insufficientData && (discussionVelocity.recentCount > 0 || discussionVelocity.previousCount > 0) && (
               <div className="p-4 bg-slate-50 dark:bg-slate-950/30 rounded-xl border border-slate-200 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -893,88 +980,27 @@ function TimingSubTab({ timingData, discussionVelocity }: TimingSubTabProps) {
                   </div>
                   <TrustBadge level="calculated" size="sm" tooltip="Calculated from Reddit post timestamps" />
                 </div>
-
-                {/* Comparison bars */}
                 <div className="space-y-2 mb-3">
-                      {/* Recent period */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-600 dark:text-slate-400">Last 90 days</span>
-                          <span className="font-semibold text-slate-900 dark:text-slate-100">
-                            {discussionVelocity.recentCount} posts
-                          </span>
-                        </div>
-                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                          <div
-                            className={cn(
-                              "h-full rounded-full transition-all",
-                              discussionVelocity.trend === 'rising' ? 'bg-emerald-500' :
-                              discussionVelocity.trend === 'declining' ? 'bg-red-500' : 'bg-slate-400'
-                            )}
-                            style={{
-                              width: `${Math.min(100, (discussionVelocity.recentCount / Math.max(discussionVelocity.recentCount, discussionVelocity.previousCount, 1)) * 100)}%`
-                            }}
-                          />
-                        </div>
-                      </div>
-                      {/* Previous period */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-600 dark:text-slate-400">Previous 90 days</span>
-                          <span className="font-medium text-slate-700 dark:text-slate-300">
-                            {discussionVelocity.previousCount} posts
-                          </span>
-                        </div>
-                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-slate-400 dark:bg-slate-500 rounded-full transition-all"
-                            style={{
-                              width: `${Math.min(100, (discussionVelocity.previousCount / Math.max(discussionVelocity.recentCount, discussionVelocity.previousCount, 1)) * 100)}%`
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Trend interpretation */}
-                    <div className={cn(
-                      "flex items-center gap-2 p-2 rounded-lg text-xs",
-                      discussionVelocity.trend === 'rising' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' :
-                      discussionVelocity.trend === 'declining' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-                      'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                    )}>
-                      {discussionVelocity.trend === 'rising' ? (
-                        <>
-                          <TrendingUp className="h-3.5 w-3.5" />
-                          <span>
-                            <span className="font-semibold">Growing interest</span>
-                            {discussionVelocity.percentageChange !== null && ` (+${discussionVelocity.percentageChange}%)`}
-                          </span>
-                        </>
-                      ) : discussionVelocity.trend === 'declining' ? (
-                        <>
-                          <ChevronDown className="h-3.5 w-3.5" />
-                          <span>
-                            <span className="font-semibold">Declining interest</span>
-                            {discussionVelocity.percentageChange !== null && ` (${discussionVelocity.percentageChange}%)`}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="font-semibold">Stable interest</span>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Volume context */}
-                    <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-500">
-                      {discussionVelocity.recentCount < 20 ? 'Low volume market' :
-                       discussionVelocity.recentCount < 100 ? 'Moderate discussion activity' :
-                       'Active market discussions'}
-                      {discussionVelocity.confidence !== 'high' && discussionVelocity.confidence !== 'none' && (
-                        <span className="ml-1">• {discussionVelocity.confidence} confidence</span>
-                      )}
-                    </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-600 dark:text-slate-400">Last 90 days</span>
+                    <span className="font-semibold">{discussionVelocity.recentCount} posts</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-600 dark:text-slate-400">Previous 90 days</span>
+                    <span className="font-medium">{discussionVelocity.previousCount} posts</span>
+                  </div>
+                </div>
+                <div className={cn(
+                  "flex items-center gap-2 p-2 rounded-lg text-xs",
+                  discussionVelocity.trend === 'rising' ? 'bg-emerald-100 text-emerald-700' :
+                  discussionVelocity.trend === 'declining' ? 'bg-red-100 text-red-700' :
+                  'bg-slate-100 text-slate-700'
+                )}>
+                  {discussionVelocity.trend === 'rising' ? 'Growing interest' :
+                   discussionVelocity.trend === 'declining' ? 'Declining interest' :
+                   'Stable interest'}
+                  {discussionVelocity.percentageChange !== null && ` (${discussionVelocity.percentageChange > 0 ? '+' : ''}${discussionVelocity.percentageChange}%)`}
+                </div>
               </div>
             )}
           </div>

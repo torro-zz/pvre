@@ -142,6 +142,35 @@ export interface DiscussionVelocity {
   insufficientData?: boolean
 }
 
+/**
+ * Unified Discussion Trends - combines AI Discussion Trends and Discussion Velocity
+ * into a single metric for clearer display in the Market tab.
+ */
+export interface UnifiedDiscussionTrends {
+  trend: 'rising' | 'stable' | 'falling' | 'insufficient_data'
+  percentageChange: number | null
+  confidence: 'high' | 'medium' | 'low' | 'none'
+
+  // Which source provided the primary data
+  primarySource: 'ai_discussion' | 'pain_signals' | 'combined'
+
+  // Volume info
+  totalVolume: number
+  volumeLabel: string  // "42 AI discussions" or "9 filtered signals"
+
+  // Period breakdown (for comparison bars)
+  recentCount: number
+  previousCount: number
+
+  // Optional 30d/90d changes (from AI Discussion when available)
+  change30d?: number
+  change90d?: number
+
+  // Source details
+  sources?: string[]  // ["r/ChatGPT", "r/ClaudeAI"]
+  insufficientData: boolean
+}
+
 export interface WTPQuote {
   text: string
   subreddit: string

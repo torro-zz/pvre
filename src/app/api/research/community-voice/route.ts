@@ -71,6 +71,8 @@ import {
   competitorDetectorStep,
 } from '@/lib/research/steps'
 import { getSignalCapForSampleSize } from '@/lib/filter/config'
+import { combineDiscussionTrends } from '@/lib/analysis/discussion-trends'
+import type { UnifiedDiscussionTrends } from '@/types/research/core'
 
 // Calculate data quality level based on filter rates
 function calculateQualityLevel(postFilterRate: number, commentFilterRate: number): 'high' | 'medium' | 'low' {
@@ -148,6 +150,8 @@ export interface CommunityVoiceResult {
   }
   marketSizing?: MarketSizingResult
   timing?: TimingResult
+  // Unified discussion trends (combines AI Discussion + Discussion Velocity)
+  unifiedTrends?: UnifiedDiscussionTrends
   // Clustered signals for App Gap mode (Jan 2026)
   clusters?: SignalCluster[]
   metadata: {
@@ -1112,6 +1116,13 @@ export async function POST(request: NextRequest) {
     const marketSizing = marketResult.data?.marketSizing
     const timing = marketResult.data?.timing
 
+    // Combine AI Discussion Trends and Discussion Velocity into unified metric
+    const unifiedTrends = combineDiscussionTrends(
+      timing?.trendData as Parameters<typeof combineDiscussionTrends>[0],
+      painSummary.discussionVelocity,
+      isAppGapMode(ctx) ? 'app-analysis' : 'hypothesis'
+    )
+
     const processingTimeMs = Date.now() - startTime
 
     // Get current tracker before ending session (so we can record individual calls)
@@ -1151,6 +1162,7 @@ export async function POST(request: NextRequest) {
       interviewQuestions,
       marketSizing,
       timing,
+      unifiedTrends,
       // Include clusters for App Gap mode (Jan 2026)
       // @ts-expect-error - appGapClusters added dynamically when appData exists
       clusters: tieredResult?.appGapClusters || undefined,
