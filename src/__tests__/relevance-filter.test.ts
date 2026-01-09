@@ -154,15 +154,15 @@ describe('Relevance Filter', () => {
 
     describe('Non-English Content Detection', () => {
       // Note: The implementation detects non-English via Latin Extended characters (accents)
-      // It uses a heuristic: >30% accented Latin characters = likely non-English
+      // It uses a heuristic: >50% accented Latin characters + minimum 10 non-ASCII letters
       // Cyrillic, Chinese, etc. are stripped before analysis (implementation limitation)
 
-      it('should filter posts with heavily accented text (>30% accented characters)', () => {
+      it('should filter posts with heavily accented text (>50% accented characters)', () => {
         const posts = [
           createMockPost({
             title: 'Título en español',
             // Text with many accented characters (Latin Extended)
-            body: 'Ésta és ùnà prùèbà cón mùchàs lètràs àcéntùàdàs pàrà vèr sí él fíltrò fùncíònà còrrèctàmèntè.',
+            body: 'Éàîöù Éàîöù Éàîöù Éàîöù Éàîöù Éàîöù Éàîöù Éàîöù Éàîöù Éàîöù.',
           }),
           createMockPost({
             title: 'Normal English Post',
@@ -180,8 +180,8 @@ describe('Relevance Filter', () => {
       it('should filter posts with heavily accented titles', () => {
         const posts = [
           createMockPost({
-            // Title with >30% accented characters in Latin Extended range
-            title: 'Éstà és ùnà prùèbà dè títùlò cón àcèntòs èxcèsívòs',
+            // Title with >50% accented characters in Latin Extended range
+            title: 'Éàîöù Éàîöù Éàîöù Éàîöù Éàîöù Éàîöù Éàîöù',
             body: 'This body is in English but the title has too many accented characters for the filter.',
           }),
         ]

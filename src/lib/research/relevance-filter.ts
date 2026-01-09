@@ -126,6 +126,12 @@ const CURIOSITY_MARKERS = [
   'how does', 'what is', 'eli5', 'explain like',
 ]
 
+function hasWordMatch(text: string, word: string): boolean {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`\\b${escaped}\\b`, 'i')
+  return regex.test(text)
+}
+
 /**
  * Calculate pain language boost factor for pre-scoring
  * @returns number - multiplier (0.7 = curiosity penalty, 1.0 = neutral, 1.2-1.5 = pain boost)
@@ -134,13 +140,13 @@ export function getPainLanguageBoost(text: string): number {
   const lowerText = text.toLowerCase()
 
   // Check for curiosity markers (reduce priority)
-  const hasCuriosity = CURIOSITY_MARKERS.some(marker => lowerText.includes(marker))
-  if (hasCuriosity && !PAIN_MARKERS.some(marker => lowerText.includes(marker))) {
+  const hasCuriosity = CURIOSITY_MARKERS.some(marker => hasWordMatch(lowerText, marker))
+  if (hasCuriosity && !PAIN_MARKERS.some(marker => hasWordMatch(lowerText, marker))) {
     return 0.7  // Curiosity without pain = lower priority
   }
 
   // Count pain markers
-  const painCount = PAIN_MARKERS.filter(marker => lowerText.includes(marker)).length
+  const painCount = PAIN_MARKERS.filter(marker => hasWordMatch(lowerText, marker)).length
 
   if (painCount >= 3) return 1.5  // High pain expression
   if (painCount >= 1) return 1.2  // Some pain expression
@@ -537,7 +543,7 @@ const REMOVED_PATTERNS = [
 
 /**
  * Detect if text is primarily non-English
- * Uses a simple heuristic: if >30% of characters are non-ASCII letters, likely non-English
+ * Uses a simple heuristic: if >50% of characters are non-ASCII letters, likely non-English
  */
 function isLikelyNonEnglish(text: string): boolean {
   if (!text || text.length < 20) return false
@@ -546,8 +552,10 @@ function isLikelyNonEnglish(text: string): boolean {
   const letters = text.replace(/[^a-zA-Z\u00C0-\u024F\u1E00-\u1EFF]/g, '')
   const nonAsciiLetters = letters.replace(/[a-zA-Z]/g, '')
 
-  // If more than 30% non-ASCII letters, likely non-English
-  return letters.length > 0 && (nonAsciiLetters.length / letters.length) > 0.3
+  // Require at least 50% non-ASCII letters AND minimum 10 non-ASCII letters
+  return letters.length > 0 &&
+    nonAsciiLetters.length >= 10 &&
+    (nonAsciiLetters.length / letters.length) > 0.5
 }
 
 /**
@@ -736,14 +744,11 @@ Return JSON only:
 /**
  * Stage 1: Domain Gate - Fast AI filter using extracted domain
  * Asks simple question: "Is this post about [domain]?"
- * @param lenientMode - Use more lenient filtering (for title-only posts with less context)
  */
 export async function domainGateFilter(
   posts: RedditPost[],
   domain: string,
-  antiDomains: string[],
-  sendProgress?: (msg: string) => void,
-  lenientMode: boolean = false
+  sendProgress?: (msg: string) => void
 ): Promise<{ passed: RedditPost[]; filtered: RedditPost[]; decisions: RelevanceDecision[] }> {
   if (posts.length === 0 || !domain) {
     return { passed: posts, filtered: [], decisions: [] }
@@ -766,13 +771,6 @@ export async function domainGateFilter(
       const body = (post.body || '').slice(0, 250)
       return `[${idx + 1}] ${post.title}${body ? '\n' + body : ''}`
     }).join('\n\n')
-
-    const antiDomainList = antiDomains.length > 0
-      ? `\nREJECT posts about: ${antiDomains.join(', ')}`
-      : ''
-
-    // Check if domain is compound (contains multiple concepts like "expat loneliness")
-    const isCompoundDomain = domain.includes(' ') && domain.split(' ').length >= 2
 
     // Domain Gate is now just a spam filter - embedding already ensures relevance
     // Only reject obvious spam like gaming, recipes, etc.
@@ -810,7 +808,7 @@ Respond with ${batch.length} Y's unless you see obvious spam.`
         const results = content.text.trim().toUpperCase().replace(/[^YN]/g, '')
 
         batch.forEach((post, idx) => {
-          const decision = results[idx] === 'Y' ? 'Y' : 'N'
+          const decision = results[idx] === 'N' ? 'N' : 'Y'
           if (decision === 'Y') {
             passed.push(post)
           } else {
@@ -945,11 +943,12 @@ export async function problemMatchFilter(
           console.warn(`[problemMatchFilter] Response has ${results.length} chars for ${batch.length} posts, taking last ${batch.length}`)
           results = results.slice(-batch.length)
         } else if (results.length < batch.length) {
-          console.warn(`[problemMatchFilter] Response has ${results.length} chars for ${batch.length} posts, missing will be filtered`)
+          const fallbackTier = useTieredClassification ? 'RELATED' : 'CORE'
+          console.warn(`[problemMatchFilter] Response has ${results.length} chars for ${batch.length} posts, missing will default to ${fallbackTier}`)
         }
 
         batch.forEach((post, idx) => {
-          const result = results[idx]
+          const result = results[idx] || (useTieredClassification ? 'R' : 'Y')
 
           if (useTieredClassification) {
             // Tiered classification
@@ -1458,7 +1457,6 @@ export async function filterRelevantPosts(
   let stage2Core: RedditPost[] = []
   let stage2Related: RedditPost[] = []
   let domain = ''
-  let antiDomains: string[] = []
 
   if (SKIP_AI_GATES) {
     // BYPASS: Trust calibrated embeddings, skip Haiku/Sonnet calls
@@ -1474,13 +1472,11 @@ export async function filterRelevantPosts(
     // STAGE 1: Domain Gate (fast, cheap AI filter)
     const domainResult = await extractProblemDomain(hypothesis, structured)
     domain = domainResult.domain
-    antiDomains = domainResult.antiDomains
     sendProgress?.(`Extracted problem domain: "${domain}"`)
 
     const stage1 = await domainGateFilter(
       postsForDomainGate,
       domain,
-      antiDomains,
       sendProgress
     )
     metrics.stage1Filtered = stage1.filtered.length
@@ -1621,9 +1617,7 @@ export async function filterRelevantPosts(
       const titleOnlyDomain = await domainGateFilter(
         titleOnlyWithKeywords,
         domain,
-        antiDomains,
-        (msg) => sendProgress?.(`[Title-only] ${msg}`),
-        true  // lenientMode for title-only posts
+        (msg) => sendProgress?.(`[Title-only] ${msg}`)
       )
 
       if (titleOnlyDomain.passed.length > 0) {
@@ -2199,11 +2193,11 @@ export async function sampleQualityCheck(
   const removedPostRate = sample.length > 0 ? Math.round((removedCount / sample.length) * 100) : 0
 
   // Stage 2: Extract domain for gate filter
-  const { domain, antiDomains } = await extractProblemDomain(hypothesis, structured)
+  const { domain } = await extractProblemDomain(hypothesis, structured)
 
   // Stage 3: Domain gate filter (cheap Haiku call)
   const { passed: domainPassed, filtered: domainFiltered, decisions: domainDecisions } =
-    await domainGateFilter(qualityPassed, domain, antiDomains)
+    await domainGateFilter(qualityPassed, domain)
 
   // Calculate predicted relevance
   const predictedRelevance = sample.length > 0
