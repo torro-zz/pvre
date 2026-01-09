@@ -109,6 +109,44 @@ export interface AnalyzeCompetitorsOptions {
   geography?: GeographyInfo
   clusters?: SignalCluster[]
   maxCompetitors?: number
+  analyzedAppName?: string | null
+}
+
+function getSelfNames(analyzedAppName?: string | null): string[] {
+  if (!analyzedAppName) return []
+  return analyzedAppName
+    .toLowerCase()
+    .split('|')
+    .map((name) => name.trim())
+    .filter(Boolean)
+}
+
+function isSelfNameMatch(candidate: string, selfNames: string[]): boolean {
+  const normalized = candidate.toLowerCase().trim()
+  if (!normalized) return false
+  return selfNames.some((selfName) =>
+    normalized === selfName ||
+    normalized.includes(selfName) ||
+    selfName.includes(normalized)
+  )
+}
+
+function filterSelfCompetitors(competitors: Competitor[], selfNames: string[]): Competitor[] {
+  if (selfNames.length === 0) return competitors
+  return competitors.filter((competitor) => !isSelfNameMatch(competitor.name, selfNames))
+}
+
+function filterSelfCompetitorMatrix(
+  matrix: CompetitorIntelligenceResult['competitorMatrix'],
+  selfNames: string[]
+): CompetitorIntelligenceResult['competitorMatrix'] {
+  if (selfNames.length === 0) return matrix
+  return {
+    ...matrix,
+    comparison: matrix.comparison.filter((comp) =>
+      !isSelfNameMatch(comp.competitorName, selfNames)
+    ),
+  }
 }
 
 // =============================================================================
@@ -332,15 +370,20 @@ export async function analyzeCompetitors(
     geography,
     clusters,
     maxCompetitors = 8,
+    analyzedAppName,
   } = options
 
   const startTime = Date.now()
+  const selfNames = getSelfNames(analyzedAppName)
 
   // Cap competitors
   const cappedCompetitors = knownCompetitors?.slice(0, maxCompetitors)
+  const filteredKnownCompetitors = cappedCompetitors?.filter(
+    (name) => !isSelfNameMatch(name, selfNames)
+  )
 
-  const competitorListPrompt = cappedCompetitors?.length
-    ? `The user has mentioned these known competitors: ${cappedCompetitors.join(', ')}. Include these and identify additional competitors.`
+  const competitorListPrompt = filteredKnownCompetitors?.length
+    ? `The user has mentioned these known competitors: ${filteredKnownCompetitors.join(', ')}. Include these and identify additional competitors.`
     : 'Identify the main competitors in this space.'
 
   let geographyPrompt = ''
@@ -454,7 +497,7 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
     analysis = JSON.parse(jsonText.trim())
   } catch {
     console.error('Failed to parse Claude response, using fallback')
-    analysis = generateFallbackAnalysis(hypothesis, cappedCompetitors || [])
+    analysis = generateFallbackAnalysis(hypothesis, filteredKnownCompetitors || [])
   }
 
   const competitors: Competitor[] = (analysis.competitors || []).map((c: Partial<Competitor>) => ({
@@ -474,6 +517,8 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
     marketShareEstimate: c.marketShareEstimate || 'moderate',
   }))
 
+  const filteredCompetitors = filterSelfCompetitors(competitors, selfNames)
+
   const gaps: CompetitorGap[] = (analysis.gaps || []).map((g: Partial<CompetitorGap>) => ({
     gap: g.gap || '',
     description: g.description || '',
@@ -487,7 +532,7 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
   }))
 
   const competitionScore = calculateCompetitionScore(
-    competitors,
+    filteredCompetitors,
     gaps,
     analysis.marketOverview
   )
@@ -497,13 +542,16 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
   return {
     hypothesis,
     marketOverview: analysis.marketOverview,
-    competitors,
-    competitorMatrix: analysis.competitorMatrix || { categories: [], comparison: [] },
+    competitors: filteredCompetitors,
+    competitorMatrix: filterSelfCompetitorMatrix(
+      analysis.competitorMatrix || { categories: [], comparison: [] },
+      selfNames
+    ),
     gaps,
     positioningRecommendations: analysis.positioningRecommendations || [],
     competitionScore,
     metadata: {
-      competitorsAnalyzed: competitors.length,
+      competitorsAnalyzed: filteredCompetitors.length,
       processingTimeMs,
       timestamp: new Date().toISOString(),
       autoDetected: !knownCompetitors?.length,

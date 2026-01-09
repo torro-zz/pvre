@@ -15,6 +15,7 @@
 import type { PipelineStep } from '@/lib/research/pipeline'
 import type { ResearchContext } from '@/lib/research/pipeline'
 import { isAppGapMode } from '@/lib/research/pipeline'
+import { extractCoreAppName } from '@/lib/research/gates/app-name-gate'
 import { findKnownCompetitors } from '@/lib/research/known-competitors'
 import type { PainSignal } from './pain-analyzer'
 
@@ -93,6 +94,42 @@ function extractCompetitorMentions(
   return Array.from(mentions)
 }
 
+function buildSelfNames(ctx: ResearchContext): string[] {
+  if (!isAppGapMode(ctx) || !ctx.appData?.name) return []
+
+  const selfNames = new Set<string>()
+  const coreName = extractCoreAppName(ctx.appData.name)
+  if (coreName) {
+    selfNames.add(coreName)
+  }
+
+  const fullName = ctx.appData.name.trim().toLowerCase()
+  if (fullName) {
+    selfNames.add(fullName)
+  }
+
+  const developerName = ctx.appData.developer?.trim().toLowerCase()
+  if (developerName) {
+    selfNames.add(developerName)
+  }
+
+  return Array.from(selfNames)
+}
+
+function filterSelfCompetitors(names: string[], selfNames: string[]): string[] {
+  if (selfNames.length === 0) return names
+
+  return names.filter((name) => {
+    const candidate = name.toLowerCase().trim()
+    if (!candidate) return false
+    return !selfNames.some((selfName) =>
+      candidate === selfName ||
+      candidate.includes(selfName) ||
+      selfName.includes(candidate)
+    )
+  })
+}
+
 // =============================================================================
 // STEP IMPLEMENTATION
 // =============================================================================
@@ -109,6 +146,7 @@ export const competitorDetectorStep: PipelineStep<CompetitorDetectorInput, Compe
   async execute(input, ctx): Promise<CompetitorDetectorOutput> {
     const { painSignals, maxCompetitors = 8 } = input
     const detected: string[] = []
+    const selfNames = buildSelfNames(ctx)
 
     // =========================================================================
     // Step 1: Known competitors from static mapping (App Gap mode only)
@@ -138,14 +176,16 @@ export const competitorDetectorStep: PipelineStep<CompetitorDetectorInput, Compe
     // =========================================================================
     const uniqueCompetitors = [...new Set(detected.map(c => c.toLowerCase()))]
       .map(c => detected.find(d => d.toLowerCase() === c)!)
+
+    const filteredCompetitors = filterSelfCompetitors(uniqueCompetitors, selfNames)
       .slice(0, maxCompetitors)
 
-    console.log(`  Final: ${uniqueCompetitors.length} competitors detected`)
+    console.log(`  Final: ${filteredCompetitors.length} competitors detected`)
 
     return {
-      competitors: uniqueCompetitors,
-      knownCompetitors,
-      signalCompetitors,
+      competitors: filteredCompetitors,
+      knownCompetitors: filterSelfCompetitors(knownCompetitors, selfNames),
+      signalCompetitors: filterSelfCompetitors(signalCompetitors, selfNames),
     }
   },
 }

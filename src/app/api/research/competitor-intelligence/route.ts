@@ -431,6 +431,43 @@ interface GeographyInfo {
   scope?: 'local' | 'national' | 'global'
 }
 
+function getSelfNames(analyzedAppName?: string | null): string[] {
+  if (!analyzedAppName) return []
+  return analyzedAppName
+    .toLowerCase()
+    .split('|')
+    .map((name) => name.trim())
+    .filter(Boolean)
+}
+
+function isSelfNameMatch(candidate: string, selfNames: string[]): boolean {
+  const normalized = candidate.toLowerCase().trim()
+  if (!normalized) return false
+  return selfNames.some((selfName) =>
+    normalized === selfName ||
+    normalized.includes(selfName) ||
+    selfName.includes(normalized)
+  )
+}
+
+function filterSelfCompetitors(competitors: Competitor[], selfNames: string[]): Competitor[] {
+  if (selfNames.length === 0) return competitors
+  return competitors.filter((competitor) => !isSelfNameMatch(competitor.name, selfNames))
+}
+
+function filterSelfCompetitorMatrix(
+  matrix: CompetitorIntelligenceResult['competitorMatrix'],
+  selfNames: string[]
+): CompetitorIntelligenceResult['competitorMatrix'] {
+  if (selfNames.length === 0) return matrix
+  return {
+    ...matrix,
+    comparison: matrix.comparison.filter((comp) =>
+      !isSelfNameMatch(comp.competitorName, selfNames)
+    ),
+  }
+}
+
 async function analyzeCompetitors(
   hypothesis: string,
   knownCompetitors?: string[],
@@ -439,9 +476,14 @@ async function analyzeCompetitors(
   analyzedAppName?: string | null // App Gap mode: normalized app name for self-filtering
 ): Promise<CompetitorIntelligenceResult> {
   const startTime = Date.now()
+  const selfNames = getSelfNames(analyzedAppName)
 
-  const competitorListPrompt = knownCompetitors?.length
-    ? `The user has mentioned these known competitors: ${knownCompetitors.join(', ')}. Include these and identify additional competitors.`
+  const filteredKnownCompetitors = knownCompetitors?.filter(
+    (name) => !isSelfNameMatch(name, selfNames)
+  )
+
+  const competitorListPrompt = filteredKnownCompetitors?.length
+    ? `The user has mentioned these known competitors: ${filteredKnownCompetitors.join(', ')}. Include these and identify additional competitors.`
     : 'Identify the main competitors in this space.'
 
   // Build geography-specific instructions
@@ -600,7 +642,7 @@ Identify 4-8 competitors. Include at least 3 gaps and 2 positioning recommendati
   } catch (parseError) {
     console.error('Failed to parse Claude response, using fallback:', parseError)
     // Generate fallback analysis from input competitors
-    analysis = generateFallbackAnalysis(hypothesis, knownCompetitors || [])
+    analysis = generateFallbackAnalysis(hypothesis, filteredKnownCompetitors || [])
   }
 
   // Ensure all competitors have the enhanced fields with defaults
@@ -621,6 +663,8 @@ Identify 4-8 competitors. Include at least 3 gaps and 2 positioning recommendati
     marketShareEstimate: c.marketShareEstimate || 'moderate',
   }))
 
+  const filteredCompetitors = filterSelfCompetitors(competitors, selfNames)
+
   // Ensure all gaps have enhanced fields
   const gaps: CompetitorGap[] = (analysis.gaps || []).map((g: Partial<CompetitorGap>) => ({
     gap: g.gap || '',
@@ -637,7 +681,7 @@ Identify 4-8 competitors. Include at least 3 gaps and 2 positioning recommendati
 
   // Calculate competition score
   const competitionScore = calculateCompetitionScore(
-    competitors,
+    filteredCompetitors,
     gaps,
     analysis.marketOverview
   )
@@ -646,7 +690,10 @@ Identify 4-8 competitors. Include at least 3 gaps and 2 positioning recommendati
 
   // Normalize competitorMatrix to match expected UI format
   // Claude sometimes returns { name, scores: number[] } instead of { competitorName, scores: { category, score, notes }[] }
-  const normalizedMatrix = normalizeCompetitorMatrix(analysis.competitorMatrix)
+  const normalizedMatrix = filterSelfCompetitorMatrix(
+    normalizeCompetitorMatrix(analysis.competitorMatrix),
+    selfNames
+  )
 
   // Extract comparative mentions from clusters (real user data!)
   let comparativeMentions: ComparativeMentionsResult | undefined
@@ -682,14 +729,14 @@ Identify 4-8 competitors. Include at least 3 gaps and 2 positioning recommendati
     hypothesis,
     analyzedAppName, // For UI self-filtering (App Gap mode only)
     marketOverview: analysis.marketOverview,
-    competitors,
+    competitors: filteredCompetitors,
     competitorMatrix: normalizedMatrix,
     gaps,
     positioningRecommendations: analysis.positioningRecommendations || [],
     competitionScore,
     comparativeMentions,
     metadata: {
-      competitorsAnalyzed: competitors.length,
+      competitorsAnalyzed: filteredCompetitors.length,
       processingTimeMs,
       timestamp: new Date().toISOString(),
     },

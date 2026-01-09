@@ -84,10 +84,16 @@ export default async function ResearchDetailPage({
 
   // Get display title with smart fallback for header
   const getDisplayTitle = (): string => {
-    // Priority: shortTitle > originalInput > app name > smart truncation
+    // App analysis: shortTitle > app name > originalInput
     if (shortTitle) return shortTitle
-    if (originalInput) return originalInput
-    if (isAppAnalysis && appData?.name) return appData.name
+    if (isAppAnalysis) {
+      if (appData?.name) return appData.name
+      if (originalInput) return originalInput
+    } else if (originalInput) {
+      // Hypothesis: shortTitle > originalInput > app name
+      return originalInput
+    }
+    if (appData?.name) return appData.name
 
     // Smart truncation for legacy data
     const hypothesis = researchJob.hypothesis
@@ -103,6 +109,9 @@ export default async function ResearchDetailPage({
 
   // For backwards compatibility
   const result = communityVoiceResult
+  const processingTimeMs =
+    result?.data?.metadata?.processingTimeMs ??
+    competitorResult?.data?.metadata?.processingTimeMs
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -179,10 +188,10 @@ export default async function ResearchDetailPage({
                   <Calendar className="h-4 w-4" />
                   {formatDate(researchJob.created_at)}
                 </span>
-                {result?.data?.metadata?.processingTimeMs && (
+                {processingTimeMs && (
                   <span className="flex items-center gap-1.5">
                     <Clock className="h-4 w-4" />
-                    {(result.data.metadata.processingTimeMs / 1000).toFixed(1)}s processing
+                    {(processingTimeMs / 1000).toFixed(1)}s processing
                   </span>
                 )}
               </div>

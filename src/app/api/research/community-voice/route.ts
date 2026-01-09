@@ -1222,6 +1222,16 @@ export async function POST(request: NextRequest) {
         // Step 11b: Run competitor analysis
         let competitorResult: CompetitorIntelligenceResult | null = null
         try {
+          let analyzedAppName: string | null = null
+          if (appData?.name) {
+            const coreAppName = extractCoreAppName(appData.name)
+            if (appData.developer) {
+              analyzedAppName = `${coreAppName}|${appData.developer.toLowerCase().trim()}`
+            } else {
+              analyzedAppName = coreAppName
+            }
+          }
+
           competitorResult = await analyzeCompetitors({
             hypothesis,
             knownCompetitors: uniqueCompetitors.length > 0 ? uniqueCompetitors : undefined,
@@ -1231,6 +1241,7 @@ export async function POST(request: NextRequest) {
             } : undefined,
             clusters: result.clusters,
             maxCompetitors: 8,
+            analyzedAppName,
           })
 
           console.log(`Competitor analysis complete: ${competitorResult.competitors.length} competitors, score ${competitorResult.competitionScore.score}/10`)

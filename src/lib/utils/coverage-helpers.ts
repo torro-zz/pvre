@@ -69,7 +69,7 @@ export function createSourceCoverageData(
   const totalAppStoreSignals = (iosSignals + gplaySignals) || filteringMetrics.appStoreSignals || 0
 
   // Calculate Reddit-only signals (total minus app store)
-  const redditSignals = totalSignals - totalAppStoreSignals
+  const redditSignals = Math.max(0, totalSignals - totalAppStoreSignals)
 
   // Reddit is COMPLETELY HIDDEN in App Gap mode
   // In Hypothesis mode, only show if communities were actually searched

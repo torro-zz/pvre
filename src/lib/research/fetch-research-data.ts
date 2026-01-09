@@ -186,12 +186,21 @@ export async function fetchResearchData(
 
   // Prepare two-axis input
   const filteringMetrics = communityVoiceResult?.data?.metadata?.filteringMetrics as FilteringMetrics | undefined
+  const metadataSources = communityVoiceResult?.data?.metadata?.dataSources
+  const hasMetadataSources = Array.isArray(metadataSources) && metadataSources.length > 0
+  const communityCount = filteringMetrics?.communitiesSearched?.length || 0
+  const hasRedditSignals = communityCount > 0 && (filteringMetrics?.postsAnalyzed || 0) > 0
+  const twoAxisSources = hasMetadataSources
+    ? metadataSources
+    : isAppAnalysis && !hasRedditSignals
+      ? ['app_stores']
+      : ['reddit']
   const twoAxisInput: TwoAxisInput | undefined = filteringMetrics ? {
     filteringMetrics: {
       coreSignals: filteringMetrics.coreSignals || 0,
       relatedSignals: filteringMetrics.relatedSignals || 0,
       postsAnalyzed: filteringMetrics.postsAnalyzed || 0,
-      sources: ['reddit'],
+      sources: twoAxisSources,
     },
     marketScore: marketScoreInput?.score,
     timingScore: timingScoreInput?.score,
