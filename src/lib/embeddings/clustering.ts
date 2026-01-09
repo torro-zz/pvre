@@ -590,14 +590,17 @@ function truncateText(text: string, maxLength: number): string {
  * Get a summary string for a cluster (for debugging/logging).
  */
 export function getClusterSummary(cluster: SignalCluster): string {
+  // Defensive guards for potentially malformed clusters
+  const sources = cluster.sources ?? {}
   const sourcesList = []
-  if (cluster.sources.appStore > 0) sourcesList.push(`${cluster.sources.appStore} App Store`)
-  if (cluster.sources.googlePlay > 0) sourcesList.push(`${cluster.sources.googlePlay} Google Play`)
-  if (cluster.sources.reddit > 0) sourcesList.push(`${cluster.sources.reddit} Reddit`)
-  if (cluster.sources.trustpilot > 0) sourcesList.push(`${cluster.sources.trustpilot} Trustpilot`)
-  if (cluster.sources.other > 0) sourcesList.push(`${cluster.sources.other} other`)
+  if ((sources.appStore ?? 0) > 0) sourcesList.push(`${sources.appStore} App Store`)
+  if ((sources.googlePlay ?? 0) > 0) sourcesList.push(`${sources.googlePlay} Google Play`)
+  if ((sources.reddit ?? 0) > 0) sourcesList.push(`${sources.reddit} Reddit`)
+  if ((sources.trustpilot ?? 0) > 0) sourcesList.push(`${sources.trustpilot} Trustpilot`)
+  if ((sources.other ?? 0) > 0) sourcesList.push(`${sources.other} other`)
 
-  return `${cluster.label || cluster.id}: ${cluster.size} signals (${sourcesList.join(', ')}), cohesion: ${cluster.avgSimilarity.toFixed(2)}`
+  const avgSimilarity = Number.isFinite(cluster.avgSimilarity) ? cluster.avgSimilarity : 0
+  return `${cluster.label || cluster.id}: ${cluster.size ?? 0} signals (${sourcesList.join(', ') || 'unknown'}), cohesion: ${avgSimilarity.toFixed(2)}`
 }
 
 /**
@@ -613,18 +616,25 @@ export function formatClustersForPrompt(clusters: SignalCluster[]): string {
 
   for (let i = 0; i < clusters.length; i++) {
     const cluster = clusters[i]
+    // Defensive guards for potentially malformed clusters (App Gap mode)
+    const sources = cluster.sources ?? {}
     const sourcesList = []
-    if (cluster.sources.appStore > 0) sourcesList.push(`${cluster.sources.appStore} App Store`)
-    if (cluster.sources.googlePlay > 0) sourcesList.push(`${cluster.sources.googlePlay} Google Play`)
-    if (cluster.sources.reddit > 0) sourcesList.push(`${cluster.sources.reddit} Reddit`)
-    if (cluster.sources.trustpilot > 0) sourcesList.push(`${cluster.sources.trustpilot} Trustpilot`)
+    if ((sources.appStore ?? 0) > 0) sourcesList.push(`${sources.appStore} App Store`)
+    if ((sources.googlePlay ?? 0) > 0) sourcesList.push(`${sources.googlePlay} Google Play`)
+    if ((sources.reddit ?? 0) > 0) sourcesList.push(`${sources.reddit} Reddit`)
+    if ((sources.trustpilot ?? 0) > 0) sourcesList.push(`${sources.trustpilot} Trustpilot`)
 
-    lines.push(`CLUSTER ${i + 1}${cluster.label ? `: "${cluster.label}"` : ''} (${cluster.size} signals)`)
-    lines.push(`├─ Sources: ${sourcesList.join(', ')}`)
-    lines.push(`├─ Cohesion: ${cluster.avgSimilarity.toFixed(2)} (${cluster.avgSimilarity >= 0.8 ? 'very tight' : cluster.avgSimilarity >= 0.7 ? 'tight' : 'moderate'})`)
+    const avgSimilarity = Number.isFinite(cluster.avgSimilarity) ? cluster.avgSimilarity : 0
+    const representativeQuotes = Array.isArray(cluster.representativeQuotes)
+      ? cluster.representativeQuotes
+      : []
+
+    lines.push(`CLUSTER ${i + 1}${cluster.label ? `: "${cluster.label}"` : ''} (${cluster.size ?? 0} signals)`)
+    lines.push(`├─ Sources: ${sourcesList.join(', ') || 'unknown'}`)
+    lines.push(`├─ Cohesion: ${avgSimilarity.toFixed(2)} (${avgSimilarity >= 0.8 ? 'very tight' : avgSimilarity >= 0.7 ? 'tight' : 'moderate'})`)
     lines.push(`└─ Representative quotes:`)
 
-    for (const quote of cluster.representativeQuotes) {
+    for (const quote of representativeQuotes) {
       const sourceLabel = quote.subreddit ? `r/${quote.subreddit}` : quote.source
       lines.push(`   • "${quote.text}" [${sourceLabel}]`)
     }

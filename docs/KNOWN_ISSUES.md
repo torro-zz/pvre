@@ -6,6 +6,59 @@
 
 ## 🔴 CRITICAL — Fix First
 
+### Market/Competition Tab Doesn't Auto-Start in App Gap Mode
+**Status:** FIX APPLIED (Jan 9, 2026) — Needs Testing
+**Impact:** Users must manually click "Run Competitor Intelligence" after research completes
+**Location:** Market tab > Competition section
+
+**Problem:**
+After completing an App Gap search (e.g., Notion), the Market/Competition tab shows:
+- "Complete Your Research" prompt
+- "Run Competitor Intelligence to finalize your research verdict"
+- User must manually click the button
+
+**Expected Behavior:**
+Competitor Intelligence should auto-start as part of the research pipeline, not require manual user action.
+
+**Investigation Notes:**
+- Screenshot shows: Pain Analysis ✅, Market Sizing ✅, Timing Analysis ✅
+- But Competition tab shows manual "Run Competitor Intelligence" button
+- "AI-Suggested Competitors" shows "Analyzing community discussions for competitors..." (loading)
+
+**Files to investigate:**
+- `src/app/api/research/community-voice/route.ts` — main research pipeline
+- `src/app/api/research/competitor-intelligence/route.ts` — competitor analysis API
+- `src/components/research/market-tab.tsx` — UI that shows the prompt
+- `src/components/research/competitor-results.tsx` — competition results display
+
+**Root Cause:** `formatClustersForPrompt` throws on malformed clusters (App Gap only)
+
+In App Gap mode, `result.clusters` is populated from `tieredResult.appGapClusters` and passed to `analyzeCompetitors`.
+This calls `formatClustersForPrompt(clusters)` which expects full `SignalCluster` shape:
+- `sources` (with `appStore`, `googlePlay`)
+- `avgSimilarity` (for `.toFixed()`)
+- `representativeQuotes`
+
+If any cluster object is missing these properties, it throws. The error is caught at line ~1285 in `community-voice/route.ts` and swallowed (logged but non-blocking). Job completes but `competitor_analysis: 'failed'`.
+
+**Why Hypothesis mode works:** It doesn't pass `clusters`, so `formatClustersForPrompt` is never called.
+
+**Files involved:**
+- `src/app/api/research/community-voice/route.ts:1187` — auto-competitor block
+- `src/lib/research/competitor-analyzer.ts` — `formatClustersForPrompt`
+- Catch block at `src/app/api/research/community-voice/route.ts:1285`
+
+**Fix Applied:**
+Added defensive guards in `formatClustersForPrompt` and `getClusterSummary` in `src/lib/embeddings/clustering.ts`:
+- `cluster.sources ?? {}` handles missing sources
+- `Number.isFinite(cluster.avgSimilarity) ? cluster.avgSimilarity : 0` handles missing/invalid avgSimilarity
+- `Array.isArray(cluster.representativeQuotes) ? cluster.representativeQuotes : []` handles missing quotes
+- `cluster.size ?? 0` handles missing size
+
+**Testing Required:** Run a new App Gap search (e.g., Notion) and verify Competitor Intelligence auto-runs without requiring manual button click.
+
+---
+
 ### ~~Google Trends Not Showing in App Gap Mode~~
 **Status:** ✅ FIXED (Jan 5, 2026)
 **Impact:** ~~Users don't see timing/trend data for apps~~
