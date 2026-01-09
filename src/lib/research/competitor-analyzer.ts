@@ -483,24 +483,36 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
     messages: [{ role: 'user', content: prompt }],
   })
 
+  const fallbackAnalysis = generateFallbackAnalysis(hypothesis, filteredKnownCompetitors || [])
   const content = response.content[0]
-  if (content.type !== 'text') {
-    throw new Error('Unexpected response type from Claude')
+
+  let analysis = fallbackAnalysis
+  if (!content || content.type !== 'text') {
+    console.error('Unexpected response type from Claude, using fallback')
+  } else {
+    try {
+      let jsonText = content.text.trim()
+      if (jsonText.startsWith('```json')) jsonText = jsonText.slice(7)
+      if (jsonText.startsWith('```')) jsonText = jsonText.slice(3)
+      if (jsonText.endsWith('```')) jsonText = jsonText.slice(0, -3)
+      analysis = JSON.parse(jsonText.trim())
+    } catch {
+      console.error('Failed to parse Claude response, using fallback')
+      analysis = fallbackAnalysis
+    }
   }
 
-  let analysis
-  try {
-    let jsonText = content.text.trim()
-    if (jsonText.startsWith('```json')) jsonText = jsonText.slice(7)
-    if (jsonText.startsWith('```')) jsonText = jsonText.slice(3)
-    if (jsonText.endsWith('```')) jsonText = jsonText.slice(0, -3)
-    analysis = JSON.parse(jsonText.trim())
-  } catch {
-    console.error('Failed to parse Claude response, using fallback')
-    analysis = generateFallbackAnalysis(hypothesis, filteredKnownCompetitors || [])
+  const normalizedAnalysis = {
+    marketOverview: analysis.marketOverview ?? fallbackAnalysis.marketOverview,
+    competitors: Array.isArray(analysis.competitors) ? analysis.competitors : fallbackAnalysis.competitors,
+    gaps: Array.isArray(analysis.gaps) ? analysis.gaps : fallbackAnalysis.gaps,
+    positioningRecommendations: Array.isArray(analysis.positioningRecommendations)
+      ? analysis.positioningRecommendations
+      : fallbackAnalysis.positioningRecommendations,
+    competitorMatrix: analysis.competitorMatrix ?? fallbackAnalysis.competitorMatrix,
   }
 
-  const competitors: Competitor[] = (analysis.competitors || []).map((c: Partial<Competitor>) => ({
+  const competitors: Competitor[] = (normalizedAnalysis.competitors || []).map((c: Partial<Competitor>) => ({
     name: c.name || 'Unknown',
     website: c.website || null,
     description: c.description || '',
@@ -519,7 +531,7 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
 
   const filteredCompetitors = filterSelfCompetitors(competitors, selfNames)
 
-  const gaps: CompetitorGap[] = (analysis.gaps || []).map((g: Partial<CompetitorGap>) => ({
+  const gaps: CompetitorGap[] = (normalizedAnalysis.gaps || []).map((g: Partial<CompetitorGap>) => ({
     gap: g.gap || '',
     description: g.description || '',
     opportunity: g.opportunity || '',
@@ -534,21 +546,21 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
   const competitionScore = calculateCompetitionScore(
     filteredCompetitors,
     gaps,
-    analysis.marketOverview
+    normalizedAnalysis.marketOverview
   )
 
   const processingTimeMs = Date.now() - startTime
 
   return {
     hypothesis,
-    marketOverview: analysis.marketOverview,
+    marketOverview: normalizedAnalysis.marketOverview,
     competitors: filteredCompetitors,
     competitorMatrix: filterSelfCompetitorMatrix(
-      analysis.competitorMatrix || { categories: [], comparison: [] },
+      normalizedAnalysis.competitorMatrix || { categories: [], comparison: [] },
       selfNames
     ),
     gaps,
-    positioningRecommendations: analysis.positioningRecommendations || [],
+    positioningRecommendations: normalizedAnalysis.positioningRecommendations || [],
     competitionScore,
     metadata: {
       competitorsAnalyzed: filteredCompetitors.length,
