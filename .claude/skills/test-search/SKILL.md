@@ -16,9 +16,22 @@ Run an E2E search test and report detailed observations without consuming main c
 ## Arguments
 
 The skill accepts an optional argument:
-- **Hypothesis mode:** `/test-search Remote workers need async communication tools`
-- **App Gap mode:** `/test-search https://apps.apple.com/app/notion/id1232780281`
-- **No argument:** Uses default test hypothesis
+- **Hypothesis mode:** `/test-search hypothesis: Remote workers need async communication tools`
+- **App Gap mode:** `/test-search app: https://apps.apple.com/app/notion/id1232780281`
+- **App Gap (short):** `/test-search app: Notion` (will search for the app)
+- **No argument:** Defaults to **App Gap mode** with Notion (common test case)
+
+### Mode Detection Rules
+
+**IMPORTANT:** Determine mode BEFORE starting the test:
+
+1. If argument contains `app:` prefix → **App Gap mode**
+2. If argument contains `hypothesis:` prefix → **Hypothesis mode**
+3. If argument starts with `http` or contains `apps.apple.com` or `play.google.com` → **App Gap mode**
+4. If no argument provided → **App Gap mode** with Notion (default test case)
+5. Otherwise → **Hypothesis mode**
+
+**State the detected mode explicitly** at the start of the test.
 
 ---
 
@@ -65,17 +78,27 @@ browser_snapshot
 
 ## Step 4: Enter Search Query
 
-**Default hypothesis (if no argument provided):**
-> "Remote workers need better async video communication tools"
+**Default (if no argument provided) - App Gap mode:**
+> Search for "Notion" app and select it from suggestions
+
+**For Hypothesis mode:**
+> Type the hypothesis text directly
+
+### Steps:
 
 1. Find the search input field
-2. Fill in the hypothesis or app URL
-3. Submit the search
+2. **App Gap mode:** Type app name, wait for suggestions, click the app suggestion
+3. **Hypothesis mode:** Type the hypothesis text directly
+4. Submit/start the search
 
 ```
-browser_fill_form or browser_type into the search field
+browser_type into the search field
+# For App Gap: wait for and click app suggestion
+# For Hypothesis: submit directly
 browser_click the submit/search button
 ```
+
+**IMPORTANT for App Gap:** The app must be selected from the suggestions dropdown - typing a URL alone won't trigger App Gap mode in the UI.
 
 ---
 
