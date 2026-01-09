@@ -373,8 +373,13 @@ export async function analyzeCompetitors(
     analyzedAppName,
   } = options
 
+  console.log('[CompetitorAnalyzer] Starting analysis')
+  console.log('[CompetitorAnalyzer] analyzedAppName:', analyzedAppName)
+  console.log('[CompetitorAnalyzer] knownCompetitors:', knownCompetitors?.length ?? 0)
+
   const startTime = Date.now()
   const selfNames = getSelfNames(analyzedAppName)
+  console.log('[CompetitorAnalyzer] selfNames:', selfNames)
 
   // Cap competitors
   const cappedCompetitors = knownCompetitors?.slice(0, maxCompetitors)
@@ -480,17 +485,19 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
   const fallbackAnalysis = generateFallbackAnalysis(hypothesis, filteredKnownCompetitors || [])
   let analysis = fallbackAnalysis
 
+  console.log('[CompetitorAnalyzer] Calling Claude API...')
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
       messages: [{ role: 'user', content: prompt }],
     })
+    console.log('[CompetitorAnalyzer] Claude API call succeeded')
 
     const content = response.content[0]
 
     if (!content || content.type !== 'text') {
-      console.error('Unexpected response type from Claude, using fallback')
+      console.error('[CompetitorAnalyzer] Unexpected response type from Claude, using fallback')
     } else {
       try {
         let jsonText = content.text.trim()
@@ -498,14 +505,16 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
         if (jsonText.startsWith('```')) jsonText = jsonText.slice(3)
         if (jsonText.endsWith('```')) jsonText = jsonText.slice(0, -3)
         analysis = JSON.parse(jsonText.trim())
+        console.log('[CompetitorAnalyzer] Successfully parsed Claude response')
       } catch {
-        console.error('Failed to parse Claude response, using fallback')
+        console.error('[CompetitorAnalyzer] Failed to parse Claude response, using fallback')
       }
     }
   } catch (apiError) {
-    console.error('Claude API call failed, using fallback:', apiError)
+    console.error('[CompetitorAnalyzer] Claude API call failed, using fallback:', apiError)
     // Keep fallbackAnalysis as the analysis
   }
+  console.log('[CompetitorAnalyzer] Analysis complete, returning result')
 
   const normalizedAnalysis = {
     marketOverview: analysis.marketOverview ?? fallbackAnalysis.marketOverview,

@@ -1280,7 +1280,11 @@ export async function POST(request: NextRequest) {
 
           console.log('Auto-competitor analysis saved successfully')
         } catch (compError) {
-          console.error('Auto-competitor analysis failed (non-blocking):', compError)
+          const errorMessage = compError instanceof Error ? compError.message : String(compError)
+          const errorStack = compError instanceof Error ? compError.stack : undefined
+          console.error('Auto-competitor analysis failed (non-blocking):')
+          console.error('  Error message:', errorMessage)
+          console.error('  Error stack:', errorStack)
           // Still mark job as completed - CV results are valid, competitor is optional
           await adminClient
             .from('research_jobs')
