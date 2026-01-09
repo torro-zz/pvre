@@ -43,6 +43,7 @@ ANTHROPIC_API_KEY
 | Command | Purpose |
 |---------|---------|
 | `/goodnight` | Save session state to `docs/RESUME_HERE.md` |
+| `/test-search [query]` | Run E2E search test via Playwright (forked context, uses sonnet) |
 
 ---
 
