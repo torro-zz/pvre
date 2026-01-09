@@ -1,27 +1,44 @@
-# Resume Point — January 8, 2026
+# Resume Point — January 9, 2026
 
-**Last Session:** January 8, 2026 (Evening)
+**Last Session:** January 9, 2026 (Morning)
 
 ---
 
 ## What Was Just Completed
 
-### AI Discussion Trends Feature (NEW)
+### 1. Relevance Filter Fixes (Codex Review)
+Fixed 5 issues in `relevance-filter.ts`:
+- Word-boundary matching for pain/curiosity detection (prevents `pain` → `painting` false positives)
+- Domain gate defaults missing AI responses to 'Y' (pass)
+- Problem match defaults missing responses to 'R' (related)
+- Non-English threshold tuned to 50% + min 10 chars
+- Removed dead code (unused `antiDomains`, `lenientMode` params)
 
-Replaced broken Google Trends integration with a new "AI Discussion Trends" feature:
+**Commit:** `349caa7 fix: Improve relevance filter accuracy with 5 targeted fixes`
 
-**Problem:**
-- Google Trends API returning 429 errors (rate limited)
-- The `google-trends-api` npm package is 5+ years old and Google actively blocks scrapers
+### 2. Self-Competitor Bug Fix + Result Page Improvements
+- App no longer appears as its own competitor (filtered in 4 places)
+- Result page title prefers app name over URL for app analyses
+- Processing time falls back to competitor metadata
+- Data sources use actual sources, not hard-coded 'reddit'
+- Reddit signal count clamped to prevent negative values
 
-**Solution:**
-- Built new trend analysis using Reddit AI discussions
-- Searches AI subreddits (r/ChatGPT, r/ClaudeAI, etc.) for problem keywords
-- Compares 30-day and 90-day windows to detect rising/stable/falling trends
-- Weights posts by engagement (upvotes + comments)
-- Falls back gracefully to Google Trends or AI estimate
+**Commit:** `9384957 fix: Prevent self-competitor bug and improve result page display`
 
-**Commit:** `fd3c1fe feat: Replace Google Trends with AI Discussion Trends`
+### 3. Dynamic Signal Caps by Search Depth
+Signal caps now scale with search depth:
+| Depth | Sample Size | Signal Cap |
+|-------|-------------|------------|
+| Quick | 150 | 50 |
+| Standard | 300 | 100 |
+| Deep | 450 | 200 |
+
+Added centralized config in `src/lib/filter/config.ts`.
+
+**Commit:** `3256d10 feat: Dynamic signal caps based on search depth`
+
+### 4. Credit System Planning
+Added comprehensive planning entry to `docs/KNOWN_ISSUES.md` for designing fair credit/fuel system across all search types.
 
 ---
 
@@ -37,9 +54,20 @@ Replaced broken Google Trends integration with a new "AI Discussion Trends" feat
 
 ## TODO for Next Session
 
-### 1. Review Codex Fixes (HIGH PRIORITY)
-Codex reviewed the implementation and suggested 4 fixes that were applied. Need to verify they're correct:
+### 1. Test Today's Fixes (HIGH PRIORITY)
+Manual testing needed:
+- [ ] Self-competitor fix — Notion shouldn't appear as competitor of itself
+- [ ] Dynamic signal caps — Deep search should show up to 200 signals
+- [ ] Result page title — should show app name, not URL
 
+### 2. AI Discussion Trends Data Quality (USER REQUEST)
+Check if AI Discussion Trends have enough data to give good results:
+- Are the AI subreddits returning enough posts?
+- Is the 30d/90d comparison meaningful?
+- Does the trend detection work for various hypotheses?
+
+### 3. Review AI Discussion Trends with Codex (STILL PENDING)
+From `docs/KNOWN_ISSUES.md` — 4 fixes were applied but need verification:
 | Fix | File | Lines |
 |-----|------|-------|
 | `finalTrend` matches `trendSource` | `timing-analyzer.ts` | 229-237 |
@@ -47,12 +75,8 @@ Codex reviewed the implementation and suggested 4 fixes that were applied. Need 
 | Strategy B AI terms filter | `ai-discussion-trends.ts` | 206-212 |
 | UI backward compatibility | `market-tab.tsx` | 982-990 |
 
-### 2. Review Filter with Codex (USER REQUEST)
-Look at the universal filter or relevance filter with Codex to see if we can improve it even more.
-
-### 3. Test AI Discussion Trends
-- Run hypothesis mode research and verify purple "AI Discussion Trends" card appears
-- Run App Gap mode research and verify it works there too
+### 4. Credit/Fuel System Design (PLANNING)
+Start designing the credit system — see `docs/KNOWN_ISSUES.md` for full requirements.
 
 ---
 
@@ -60,11 +84,11 @@ Look at the universal filter or relevance filter with Codex to see if we can imp
 
 | Purpose | File |
 |---------|------|
+| Signal cap config | `src/lib/filter/config.ts` |
 | AI Discussion Trends | `src/lib/data-sources/ai-discussion-trends.ts` |
-| Rate limiting | `src/lib/rate-limit/index.ts` |
-| Timing analyzer | `src/lib/analysis/timing-analyzer.ts` |
-| Market tab UI | `src/components/research/market-tab.tsx` |
-| Review needed items | `docs/KNOWN_ISSUES.md` (🟡 REVIEW NEEDED section) |
+| Relevance filter | `src/lib/research/relevance-filter.ts` |
+| Competitor detector | `src/lib/research/steps/competitor-detector.ts` |
+| Known issues & planning | `docs/KNOWN_ISSUES.md` |
 
 ---
 
@@ -79,20 +103,8 @@ npm run build
 
 ---
 
-## Vercel KV Setup (For Production)
-
-The rate limiting module uses Vercel KV in production. To enable:
-
-1. In Vercel dashboard, add a KV store to your project
-2. Environment variables are auto-populated:
-   - `KV_REST_API_URL`
-   - `KV_REST_API_TOKEN`
-
-For local development, the module falls back to in-memory rate limiting.
-
----
-
 ## User Notes
 
-- Review Codex fixes tomorrow - unsure if all changes are correct
-- Also review the filter with Codex to see if it can be improved
+- Check AI Discussion Trends data quality — ensure enough data for good results
+- Credit system needs to be fair for users while protecting margin (marketing, servers, APIs)
+- All today's commits reviewed by Codex CLI
