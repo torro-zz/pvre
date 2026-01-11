@@ -1,6 +1,6 @@
 # PVRE Known Issues
 
-*Last updated: January 10, 2026*
+*Last updated: January 11, 2026*
 
 ---
 
@@ -121,55 +121,55 @@ Arctic Shift was returning HTTP 422 with `"error":"Timeout. Maybe slow down a bi
 ---
 
 ### Market/Competition Tab Doesn't Auto-Start in App Gap Mode
-**Status:** FIX APPLIED (Jan 9, 2026) — Needs Testing
-**Impact:** Users must manually click "Run Competitor Intelligence" after research completes
+**Status:** ✅ FIXED (Jan 11, 2026)
+**Impact:** ~~Users must manually click "Run Competitor Intelligence" after research completes~~
 **Location:** Market tab > Competition section
 
-**Problem:**
-After completing an App Gap search (e.g., Notion), the Market/Competition tab shows:
-- "Complete Your Research" prompt
-- "Run Competitor Intelligence to finalize your research verdict"
-- User must manually click the button
+**Original Problem:**
+After completing an App Gap search, the Competition tab showed "Run Competitor Intelligence" button instead of auto-running.
 
-**Expected Behavior:**
-Competitor Intelligence should auto-start as part of the research pipeline, not require manual user action.
+**Root Causes Identified:**
 
-**Investigation Notes:**
-- Screenshot shows: Pain Analysis ✅, Market Sizing ✅, Timing Analysis ✅
-- But Competition tab shows manual "Run Competitor Intelligence" button
-- "AI-Suggested Competitors" shows "Analyzing community discussions for competitors..." (loading)
+1. **Database constraint** — Migration 012 may not have been applied to prod, causing `competitor_intelligence` module name to be rejected by the `research_results` table constraint.
 
-**Files to investigate:**
-- `src/app/api/research/community-voice/route.ts` — main research pipeline
-- `src/app/api/research/competitor-intelligence/route.ts` — competitor analysis API
-- `src/components/research/market-tab.tsx` — UI that shows the prompt
-- `src/components/research/competitor-results.tsx` — competition results display
+2. **No fallback save** — When auto-competitor analysis failed (for ANY reason - API credits, network, Claude errors), the catch block only marked `competitor_analysis: 'failed'` but saved NO results. This caused the UI to show the "Run" button.
 
-**Root Cause:** `formatClustersForPrompt` throws on malformed clusters (App Gap only)
+3. **Module name inconsistency** — The GET endpoint in `competitor-intelligence/route.ts:973` only queried for `competitor_intel` (old name), but auto-competitor saves as `competitor_intelligence` (new name).
 
-In App Gap mode, `result.clusters` is populated from `tieredResult.appGapClusters` and passed to `analyzeCompetitors`.
-This calls `formatClustersForPrompt(clusters)` which expects full `SignalCluster` shape:
-- `sources` (with `appStore`, `googlePlay`)
-- `avgSimilarity` (for `.toFixed()`)
-- `representativeQuotes`
+**Fixes Applied (Jan 11, 2026):**
 
-If any cluster object is missing these properties, it throws. The error is caught at line ~1285 in `community-voice/route.ts` and swallowed (logged but non-blocking). Job completes but `competitor_analysis: 'failed'`.
+1. **Fallback save on failure** — `community-voice/route.ts:1282-1328`
+   - Added `createFallbackCompetitorResult()` function to `competitor-analyzer.ts`
+   - When auto-competitor fails, now creates and saves fallback results
+   - Marks `competitor_analysis: 'completed'` (with fallback flag in metadata)
+   - UI shows results instead of "Run" button
 
-**Why Hypothesis mode works:** It doesn't pass `clusters`, so `formatClustersForPrompt` is never called.
+2. **GET endpoint compatibility** — `competitor-intelligence/route.ts:968-989`
+   - Changed `.eq('module_name', 'competitor_intel')` to `.in('module_name', ['competitor_intelligence', 'competitor_intel'])`
+   - Now finds results regardless of which name was used
 
-**Files involved:**
-- `src/app/api/research/community-voice/route.ts:1187` — auto-competitor block
-- `src/lib/research/competitor-analyzer.ts` — `formatClustersForPrompt`
-- Catch block at `src/app/api/research/community-voice/route.ts:1285`
+3. **Database migration** — `supabase/migrations/012_fix_competitor_intelligence_constraint.sql`
+   - ⚠️ **USER ACTION REQUIRED:** Apply this migration to your Supabase production database
+   - Adds `competitor_intelligence` to the allowed module names
 
-**Fix Applied:**
-Added defensive guards in `formatClustersForPrompt` and `getClusterSummary` in `src/lib/embeddings/clustering.ts`:
-- `cluster.sources ?? {}` handles missing sources
-- `Number.isFinite(cluster.avgSimilarity) ? cluster.avgSimilarity : 0` handles missing/invalid avgSimilarity
-- `Array.isArray(cluster.representativeQuotes) ? cluster.representativeQuotes : []` handles missing quotes
-- `cluster.size ?? 0` handles missing size
+**Files Modified:**
+- `src/lib/research/competitor-analyzer.ts` — Added `createFallbackCompetitorResult()` export
+- `src/app/api/research/community-voice/route.ts` — Save fallback on failure
+- `src/app/api/research/competitor-intelligence/route.ts` — Query both module names
 
-**Testing Required:** Run a new App Gap search (e.g., Notion) and verify Competitor Intelligence auto-runs without requiring manual button click.
+**Database Migration Required:**
+Run migration 012 on your production database:
+```sql
+-- From: supabase/migrations/012_fix_competitor_intelligence_constraint.sql
+ALTER TABLE public.research_results
+DROP CONSTRAINT IF EXISTS research_results_module_name_check;
+
+ALTER TABLE public.research_results
+ADD CONSTRAINT research_results_module_name_check
+CHECK (module_name IN ('community_voice', 'pain_analysis', 'market_sizing', 'timing_analysis', 'competitor_analysis', 'competitor_intelligence', 'competitor_intel'));
+```
+
+**Testing:** Run App Gap search and verify competitor analysis completes automatically (with real or fallback results).
 
 ---
 

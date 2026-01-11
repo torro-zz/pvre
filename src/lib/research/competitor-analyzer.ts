@@ -294,6 +294,82 @@ function calculateCompetitionScore(
 // FALLBACK ANALYSIS
 // =============================================================================
 
+/**
+ * Create a complete fallback competitor result when analysis fails.
+ * This ensures the UI always has something to display.
+ */
+export function createFallbackCompetitorResult(
+  hypothesis: string,
+  knownCompetitors: string[] = [],
+  errorReason?: string
+): CompetitorIntelligenceResult {
+  const fallback = generateFallbackAnalysis(hypothesis, knownCompetitors)
+
+  // Build complete competitor objects from partial
+  const competitors: Competitor[] = fallback.competitors.map(c => ({
+    name: c.name || 'Unknown',
+    website: c.website || null,
+    description: c.description || '',
+    positioning: c.positioning || 'Unknown',
+    targetAudience: c.targetAudience || 'General market',
+    pricingModel: c.pricingModel || null,
+    pricingRange: c.pricingRange || null,
+    strengths: c.strengths || [],
+    weaknesses: c.weaknesses || [],
+    differentiators: c.differentiators || [],
+    threatLevel: c.threatLevel || 'medium',
+    userSatisfaction: c.userSatisfaction || 3,
+    fundingLevel: c.fundingLevel || 'unknown',
+    marketShareEstimate: c.marketShareEstimate || 'moderate',
+  }))
+
+  // Build complete gap objects from partial
+  const gaps: CompetitorGap[] = fallback.gaps.map(g => ({
+    gap: g.gap || '',
+    description: g.description || '',
+    opportunity: g.opportunity || '',
+    difficulty: g.difficulty || 'medium',
+    opportunityScore: g.opportunityScore || 5,
+    validationSignals: g.validationSignals || [],
+  }))
+
+  // Calculate a basic competition score
+  const competitionScore: CompetitionScoreBreakdown = {
+    score: 5, // Neutral default
+    confidence: 'low',
+    reasoning: errorReason
+      ? `Analysis incomplete: ${errorReason}. Manual research recommended.`
+      : 'Analysis incomplete. Manual research recommended.',
+    factors: {
+      competitorCount: { value: knownCompetitors.length, impact: 0 },
+      fundingLevels: { description: 'Unknown', impact: 0 },
+      userSatisfaction: { average: 0, impact: 0 },
+      marketGaps: { count: 1, impact: 0 },
+      priceHeadroom: { exists: false, impact: 0 },
+    },
+    threats: [],
+  }
+
+  return {
+    hypothesis,
+    marketOverview: fallback.marketOverview,
+    competitors,
+    competitorMatrix: fallback.competitorMatrix,
+    gaps,
+    positioningRecommendations: fallback.positioningRecommendations,
+    competitionScore,
+    metadata: {
+      competitorsAnalyzed: competitors.length,
+      processingTimeMs: 0,
+      timestamp: new Date().toISOString(),
+      autoDetected: true,
+      // @ts-expect-error - Adding fallback flag for UI to detect
+      isFallback: true,
+      fallbackReason: errorReason,
+    },
+  }
+}
+
 function generateFallbackAnalysis(
   hypothesis: string,
   knownCompetitors: string[] = []

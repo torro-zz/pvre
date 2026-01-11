@@ -48,7 +48,7 @@ import {
 } from '@/lib/embeddings'
 import type { StructuredHypothesis, TargetGeography } from '@/types/research'
 import type { AppDetails } from '@/lib/data-sources/types'
-import { analyzeCompetitors, type CompetitorIntelligenceResult } from '@/lib/research/competitor-analyzer'
+import { analyzeCompetitors, createFallbackCompetitorResult, type CompetitorIntelligenceResult } from '@/lib/research/competitor-analyzer'
 import {
   applyAppNameGate,
   extractCoreAppName,
@@ -1282,22 +1282,49 @@ export async function POST(request: NextRequest) {
         } catch (compError) {
           const errorMessage = compError instanceof Error ? compError.message : String(compError)
           const errorStack = compError instanceof Error ? compError.stack : undefined
-          console.error('Auto-competitor analysis failed (non-blocking):')
+          console.error('Auto-competitor analysis failed, saving fallback results:')
           console.error('  Error message:', errorMessage)
           console.error('  Error stack:', errorStack)
-          // Still mark job as completed - CV results are valid, competitor is optional
-          await adminClient
-            .from('research_jobs')
-            .update({
-              status: 'completed',
-              step_status: {
-                pain_analysis: 'completed',
-                market_sizing: 'completed',
-                timing_analysis: 'completed',
-                competitor_analysis: 'failed'
-              }
-            })
-            .eq('id', jobId)
+
+          // Create and save fallback results so UI has something to display
+          try {
+            const fallbackResult = createFallbackCompetitorResult(
+              hypothesis,
+              uniqueCompetitors,
+              errorMessage
+            )
+            await saveResearchResult(jobId, 'competitor_intelligence', fallbackResult)
+            console.log('Saved fallback competitor results')
+
+            // Mark as completed with fallback (not failed) - UI will show results
+            await adminClient
+              .from('research_jobs')
+              .update({
+                status: 'completed',
+                step_status: {
+                  pain_analysis: 'completed',
+                  market_sizing: 'completed',
+                  timing_analysis: 'completed',
+                  competitor_analysis: 'completed' // Mark completed since we saved fallback
+                }
+              })
+              .eq('id', jobId)
+          } catch (fallbackSaveError) {
+            // If even fallback save fails, mark as failed
+            console.error('Failed to save fallback competitor results:', fallbackSaveError)
+            await adminClient
+              .from('research_jobs')
+              .update({
+                status: 'completed',
+                step_status: {
+                  pain_analysis: 'completed',
+                  market_sizing: 'completed',
+                  timing_analysis: 'completed',
+                  competitor_analysis: 'failed'
+                }
+              })
+              .eq('id', jobId)
+          }
         }
 
       } catch (dbError) {

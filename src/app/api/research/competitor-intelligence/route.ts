@@ -965,22 +965,25 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch results from database
+    // Fetch results from database - check both module names for compatibility
+    // 'competitor_intelligence' is the new name, 'competitor_intel' is legacy
     const { data: results, error: fetchError } = await supabase
       .from('research_results')
       .select('*')
       .eq('job_id', jobId)
-      .eq('module_name', 'competitor_intel')
-      .single()
+      .in('module_name', ['competitor_intelligence', 'competitor_intel'])
+      .limit(1)
+      .maybeSingle()
 
     if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
-        return NextResponse.json(
-          { error: 'Results not found' },
-          { status: 404 }
-        )
-      }
       throw fetchError
+    }
+
+    if (!results) {
+      return NextResponse.json(
+        { error: 'Results not found' },
+        { status: 404 }
+      )
     }
 
     return NextResponse.json(results.data)
