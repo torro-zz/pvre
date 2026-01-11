@@ -120,6 +120,47 @@ Arctic Shift was returning HTTP 422 with `"error":"Timeout. Maybe slow down a bi
 
 ---
 
+### Search Takes 4-5+ Minutes (Slowdown from Arctic Shift Fix)
+**Status:** NEEDS OPTIMIZATION (Jan 11, 2026)
+**Impact:** App Gap searches now take 4-5+ minutes instead of ~2 minutes
+**Location:** Multiple pipeline stages
+
+**Problem:**
+The Arctic Shift rate limiting fix (above) changed parallel → sequential API calls, adding significant time to every search.
+
+**Slowdown Breakdown:**
+
+| Component | Time Added | Details |
+|-----------|------------|---------|
+| **Arctic Shift Sequential Calls** | 30-120+ sec | 4 sequential API calls instead of parallel. Each takes 2-10+ sec. 422 errors add 10-20 sec retry delays |
+| **Review Fetching** | 20-60 sec | App Store (150 reviews) + Google Play (150 reviews), multiple pages each |
+| **Claude API Calls** | 30-60 sec | 5-6 calls: pain analysis, theme extraction, market sizing, timing, competitor |
+| **Embedding Generation** | 5-15 sec | Batch embeddings for filtering/clustering |
+
+**Total estimated time: 2-5+ minutes**
+
+**Root Cause:**
+`src/lib/data-sources/ai-discussion-trends.ts:387-416` now runs 4 time windows sequentially:
+- current30d, baseline30d, current90d, baseline90d
+- Previously ran in parallel (~5-10 sec total)
+- Now runs sequentially (~30-120 sec total)
+
+**Optimization Options:**
+
+| Option | Change | Trade-off |
+|--------|--------|-----------|
+| **A: Reduce windows** | Only fetch 30d (skip 90d baseline) | Less accurate trend data |
+| **B: Partial parallel** | Run current+baseline 30d together, then 90d | Medium risk - might still hit 422 |
+| **C: Aggressive caching** | Skip AI trends if cached in last 24h | Slightly stale data |
+| **D: Make AI trends optional** | Skip entirely in App Gap mode | Missing trend analysis |
+| **E: Batch window pairs** | Run 30d pair parallel, wait, then 90d pair parallel | Faster than full sequential, safer than full parallel |
+
+**Files to modify:**
+- `src/lib/data-sources/ai-discussion-trends.ts:387-416` — Sequential loop
+- `src/lib/arctic-shift/client.ts` — Retry delays
+
+---
+
 ### Market/Competition Tab Doesn't Auto-Start in App Gap Mode
 **Status:** ✅ FIXED (Jan 11, 2026)
 **Impact:** ~~Users must manually click "Run Competitor Intelligence" after research completes~~

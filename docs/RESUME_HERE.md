@@ -1,38 +1,31 @@
 # Resume Point — January 11, 2026
 
-**Last Session:** January 11, 2026
+**Last Session:** January 11, 2026 18:05
 
 ---
 
-## What Was Completed
+## What Was Just Completed
 
-### Arctic Shift Rate Limiting — Comprehensive Fix
-Implemented 4-layer solution reviewed and improved by Codex:
+**Recent commits (last 6 hours):**
+- `7e2f35b` fix: Prevent garbage competitors in fallback + add null guard
+- `41eed29` fix: Auto-competitor analysis now saves fallback results on failure
 
-| Layer | Description | Files |
-|-------|-------------|-------|
-| **1. Serialize Requests** | Sequential time window fetching, per-window try/catch | `ai-discussion-trends.ts` |
-| **2. 422 Backoff** | JSON parsing + text fallback, 10-15-20s delays | `client.ts` |
-| **3. Query Caching** | 24h TTL in Supabase, sorted params for deterministic keys | `client.ts`, `cache.ts` |
-| **4. Header Tracking** | Reads rate limit headers on ALL responses, monotonic guard | `rate-limiter.ts`, `client.ts` |
-
-### Codex Review Fixes Applied
-- Rate limit headers captured on error responses (not just success)
-- Monotonic guard prevents stale state overwrites
-- Robust 422 detection with JSON parsing fallback
-- Per-window error isolation for partial results
-
-### Testing Mode Safeguard
-Added explicit mode selection guidance to `CLAUDE.md` to prevent running wrong test mode.
+**Key improvements:**
+- Fixed competitor analysis fallback logic to prevent empty results
+- Added null guards to prevent garbage competitor data
+- Auto-competitor analysis now properly saves fallback results when main analysis fails
 
 ---
 
-## Commits Pushed
+## Uncommitted Changes
 
-```
-2d10390 docs: Add testing mode selection guidance to prevent wrong mode errors
-a883466 fix: Comprehensive Arctic Shift rate limiting solution
-```
+⚠️ **WARNING: You have uncommitted changes!**
+
+| File | Status | Purpose |
+|------|--------|---------|
+| `.claude/commands/` | Untracked directory | New command structure (not yet committed) |
+
+**Note:** The `.claude/commands/` directory appears to be untracked. Consider reviewing and committing if it contains important skill/command definitions.
 
 ---
 
@@ -41,24 +34,35 @@ a883466 fix: Comprehensive Arctic Shift rate limiting solution
 | Check | Status |
 |-------|--------|
 | **Build** | ✅ Passing |
-| **Tests** | ✅ 173 passing, 6 skipped |
-| **Hypothesis Mode** | ✅ Tested - working |
-| **App Gap Mode** | ⚠️ Blocked by Anthropic API credits |
+| **Tests** | 173 passing, 6 skipped |
+| **Dev Server** | ✅ Running on :3000 |
 
 ---
 
 ## What's Next
 
-### 1. Test App Gap Mode (When Credits Available)
-App Gap test was blocked by "credit balance too low" error. Need to:
-- Add credits to Anthropic API account
-- Rerun `/test-search app: Notion` to verify Arctic Shift fix in App Gap mode
+**From KNOWN_ISSUES.md:**
 
-### 2. Competitor Intelligence Auto-Start Verification
-Still pending verification that competitor analysis auto-starts in App Gap mode.
+1. **App Gap Research Pipeline** - CRITICAL issue is currently being investigated
+   - Status: INVESTIGATING (Jan 10, 2026)
+   - Research gets stuck in processing, never completes
+   - Root cause identified as Arctic Shift API rate limiting
+   - Fix applied but needs testing
 
-### 3. Credit/Fuel System Design
-Design credit system for sustainable pricing.
+2. **Arctic Shift Rate Limiting** - Fixed with 4-layer solution
+   - Status: ✅ FIXED (Jan 11, 2026)
+   - Comprehensive solution with serialized requests, 422-specific backoff, caching, and rate limit awareness
+   - Testing required to verify fix works under load
+
+3. **Market/Competition Tab Auto-Start** - Recently fixed
+   - Status: ✅ FIXED (Jan 11, 2026)
+   - Added fallback save and improved compatibility
+   - Database migration may be required in production
+
+**High Priority:**
+- Test App Gap research pipeline to verify Arctic Shift fixes work
+- Apply database migration 012 to production if not yet done
+- Review `.claude/commands/` directory and commit if needed
 
 ---
 
@@ -68,10 +72,8 @@ Design credit system for sustainable pricing.
 |---------|------|
 | Project instructions | `CLAUDE.md` |
 | Known bugs | `docs/KNOWN_ISSUES.md` |
-| Arctic Shift client | `src/lib/arctic-shift/client.ts` |
-| Arctic Shift rate limiter | `src/lib/arctic-shift/rate-limiter.ts` |
-| AI Discussion Trends | `src/lib/data-sources/ai-discussion-trends.ts` |
-| Cache layer | `src/lib/data-sources/cache.ts` |
+| Architecture | `docs/SYSTEM_DOCUMENTATION.md` |
+| Quick reference | `docs/REFERENCE.md` |
 
 ---
 
@@ -86,9 +88,6 @@ npm run build
 
 ---
 
-## Session Summary
-
-Deep-dived into Arctic Shift rate limiting. Implemented comprehensive 4-layer solution (serialize, backoff, cache, header tracking). Codex reviewed and fixed edge cases (header timing, monotonic guards, error isolation). Hypothesis mode tested successfully. App Gap blocked by API credits.
-
 ## User Notes
-*None provided*
+
+*No additional notes provided*
