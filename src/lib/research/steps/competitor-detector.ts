@@ -45,10 +45,20 @@ export interface CompetitorDetectorOutput {
 
 /** Words to filter out when extracting competitor mentions */
 const NON_COMPETITOR_WORDS = new Set([
-  'the', 'this', 'that', 'they', 'what', 'just', 'now',
-  'its', 'your', 'their', 'been', 'have', 'has', 'was',
-  'were', 'are', 'will', 'would', 'could', 'should',
-  'much', 'very', 'really', 'actually', 'finally',
+  // Common words
+  'the', 'this', 'that', 'they', 'what', 'just', 'now', 'and', 'but', 'for',
+  'its', 'your', 'their', 'been', 'have', 'has', 'was', 'with', 'from', 'into',
+  'were', 'are', 'will', 'would', 'could', 'should', 'can', 'may', 'might',
+  'much', 'very', 'really', 'actually', 'finally', 'also', 'even', 'still',
+  // Generic tech words that aren't product names
+  'app', 'apps', 'application', 'applications', 'software', 'program', 'tool', 'tools',
+  'design', 'designs', 'feature', 'features', 'option', 'options', 'setting', 'settings',
+  'update', 'updates', 'version', 'versions', 'platform', 'platforms', 'service', 'services',
+  'something', 'anything', 'everything', 'nothing', 'someone', 'anyone', 'everyone',
+  'other', 'others', 'another', 'same', 'different', 'new', 'old', 'best', 'better', 'worse',
+  // Common verbs/adjectives that might be captured
+  'using', 'used', 'use', 'work', 'works', 'working', 'way', 'ways', 'thing', 'things',
+  'great', 'good', 'bad', 'nice', 'simple', 'easy', 'hard', 'fast', 'slow',
 ])
 
 /** Regex patterns to find competitor mentions in text */

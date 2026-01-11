@@ -1232,7 +1232,10 @@ export async function POST(request: NextRequest) {
         }, ctx)
 
         const uniqueCompetitors = competitorDetectionResult.data?.competitors || []
+        // Known competitors from static mapping (real products) - used for fallback
+        const knownCompetitorsOnly = competitorDetectionResult.data?.knownCompetitors || []
         console.log(`Final competitor list (${uniqueCompetitors.length}):`, uniqueCompetitors)
+        console.log(`Known competitors from mapping (${knownCompetitorsOnly.length}):`, knownCompetitorsOnly)
 
         // Step 11b: Run competitor analysis
         let competitorResult: CompetitorIntelligenceResult | null = null
@@ -1287,10 +1290,11 @@ export async function POST(request: NextRequest) {
           console.error('  Error stack:', errorStack)
 
           // Create and save fallback results so UI has something to display
+          // Only use knownCompetitors (from static mapping) - not regex-extracted garbage
           try {
             const fallbackResult = createFallbackCompetitorResult(
               hypothesis,
-              uniqueCompetitors,
+              knownCompetitorsOnly, // Only real products from static mapping
               errorMessage
             )
             await saveResearchResult(jobId, 'competitor_intelligence', fallbackResult)

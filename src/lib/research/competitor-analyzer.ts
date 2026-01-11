@@ -121,7 +121,9 @@ function getSelfNames(analyzedAppName?: string | null): string[] {
     .filter(Boolean)
 }
 
-function isSelfNameMatch(candidate: string, selfNames: string[]): boolean {
+function isSelfNameMatch(candidate: string | null | undefined, selfNames: string[]): boolean {
+  // Guard against undefined/null candidates (Claude may return malformed data)
+  if (!candidate || typeof candidate !== 'string') return false
   const normalized = candidate.toLowerCase().trim()
   if (!normalized) return false
   return selfNames.some((selfName) =>
