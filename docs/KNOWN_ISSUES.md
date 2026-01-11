@@ -1,10 +1,124 @@
 # PVRE Known Issues
 
-*Last updated: January 9, 2026*
+*Last updated: January 10, 2026*
 
 ---
 
 ## 🔴 CRITICAL — Fix First
+
+### App Gap Mode: Research Pipeline Stuck/Failing
+**Status:** INVESTIGATING (Jan 10, 2026)
+**Impact:** App Gap research fails to complete - stuck in processing
+**Location:** Research pipeline / community-voice API
+
+**Symptoms:**
+1. **Browser:** "Failed to fetch" TypeError in `ResearchTrigger.useEffect.triggerResearch`
+2. **Database:** Job stuck with status `processing`, pain_analysis `pending`
+3. **Updated timestamp:** Only ~1 second after creation (processing never progresses)
+
+**Test Results (Jan 10, 2026 - Notion):**
+```
+Job ID: ca17d01a-cc4e-4601-b64c-75a5c9fcce51
+Status: processing (stuck)
+step_status:
+  pain_analysis: pending (never starts)
+  market_sizing: locked
+  timing_analysis: locked
+  competitor_analysis: locked
+created_at: 2026-01-10T11:59:05
+updated_at: 2026-01-10T11:59:06 (only 1 second later!)
+```
+
+**What Works:**
+- App URL validation ✅
+- App metadata extraction ✅
+- Job creation in database ✅
+- Review source configuration ✅
+
+**What Fails:**
+- Actual pain analysis processing ❌
+- Community voice API doesn't respond ❌
+- No progress beyond initial job creation ❌
+
+**Files involved:**
+- `src/components/research/research-trigger.tsx` — triggers fetch
+- `src/app/api/research/community-voice/route.ts` — main research API (likely crashing)
+- `src/lib/research/competitor-analyzer.ts` — defensive guards added today
+
+**Recent Changes (Jan 10, 2026):**
+Added defensive guards in `competitor-analyzer.ts`:
+- `Array.isArray()` checks for knownCompetitors and clusters
+- try/catch around `formatClustersForPrompt`
+- These guards look correct per Codex review, but timing correlates
+
+**Root Cause: Arctic Shift API Rate Limiting**
+
+Server logs reveal the actual error:
+```
+HTTP 422: Unprocessable Entity
+{"data":null,"error":"Timeout. Maybe slow down a bit"}
+```
+
+The research IS running and got to timing analysis, but Arctic Shift is rate-limiting requests:
+- Multiple 422 errors from `arctic-shift.photon-reddit.com`
+- Affects AI Discussion Trends fetching
+- Error bubbles up and crashes the entire research pipeline
+
+**Files involved:**
+- `src/lib/arctic-shift/client.ts:71` — throws on 422
+- `src/lib/data-sources/ai-discussion-trends.ts` — calls Arctic Shift
+- `src/lib/analysis/timing-analyzer.ts:95` — calls AI Discussion Trends
+
+**NOT related to:**
+- Defensive guards in `competitor-analyzer.ts` (those are fine)
+- Module loading issues
+- Browser timeout
+
+**Fix Applied (Jan 10, 2026):**
+Added try/catch in `src/lib/analysis/timing-analyzer.ts:95-101` to make AI Discussion Trends non-blocking:
+- If Arctic Shift fails, logs warning and continues
+- Falls back to Google Trends or AI estimate
+- Research pipeline no longer crashes on rate limiting
+
+**Testing Required:** Run App Gap search and verify it completes even if Arctic Shift is rate-limited
+
+---
+
+### ~~Arctic Shift API Rate Limiting~~
+**Status:** ✅ FIXED (Jan 11, 2026)
+**Impact:** ~~AI Discussion Trends unreliable, will fail with multiple concurrent users~~
+**Location:** `src/lib/arctic-shift/client.ts`, `src/lib/data-sources/ai-discussion-trends.ts`
+
+**Problem:**
+Arctic Shift was returning HTTP 422 with `"error":"Timeout. Maybe slow down a bit"` due to parallel request bursts.
+
+**Solution Implemented (4-layer approach):**
+
+1. **Serialized AI Discussion Trends** — `ai-discussion-trends.ts:387-392`
+   - Changed from parallel to sequential time window fetching
+   - Reduces parallel burst by 75%
+
+2. **422-specific longer backoff** — `client.ts:86-97`
+   - Detects 422 "Timeout" errors specifically
+   - Uses 10-15-20 second delays instead of 1-2-4 seconds
+   - Gives server time to recover
+
+3. **Query-level caching** — `client.ts:47-54`, `cache.ts:180-252`
+   - Caches individual API responses in Supabase (24-hour TTL)
+   - Repeat queries hit cache, reducing API load significantly
+
+4. **Rate limit header awareness** — `rate-limiter.ts:27-85`, `client.ts:61-66,83-84`
+   - Reads `X-RateLimit-Remaining` and `X-RateLimit-Reset` headers
+   - Proactively pauses when near API limit
+   - Logs warnings when limit is low
+
+**Files modified:**
+- `src/lib/arctic-shift/client.ts` — Caching, 422 backoff, header tracking
+- `src/lib/arctic-shift/rate-limiter.ts` — Rate limit header state tracking
+- `src/lib/data-sources/ai-discussion-trends.ts` — Sequential time windows
+- `src/lib/data-sources/cache.ts` — Query-level cache functions
+
+---
 
 ### Market/Competition Tab Doesn't Auto-Start in App Gap Mode
 **Status:** FIX APPLIED (Jan 9, 2026) — Needs Testing

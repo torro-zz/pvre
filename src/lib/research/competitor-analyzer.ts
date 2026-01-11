@@ -383,10 +383,11 @@ export async function analyzeCompetitors(
   const selfNames = getSelfNames(analyzedAppName)
   console.log('[CompetitorAnalyzer] selfNames:', selfNames)
 
-  // Cap competitors
-  const cappedCompetitors = knownCompetitors?.slice(0, maxCompetitors)
-  const filteredKnownCompetitors = cappedCompetitors?.filter(
-    (name) => !isSelfNameMatch(name, selfNames)
+  // Cap competitors and filter invalid entries (ensure array)
+  const safeCompetitors = Array.isArray(knownCompetitors) ? knownCompetitors : []
+  const cappedCompetitors = safeCompetitors.slice(0, maxCompetitors)
+  const filteredKnownCompetitors = cappedCompetitors.filter(
+    (name) => typeof name === 'string' && name.trim() && !isSelfNameMatch(name, selfNames)
   )
 
   const competitorListPrompt = filteredKnownCompetitors?.length
@@ -404,10 +405,19 @@ The founder is targeting ${geography.location} specifically (${geography.scope} 
   }
 
   let evidencePrompt = ''
-  if (clusters && clusters.length > 0) {
-    const totalSignals = clusters.reduce((sum, c) => sum + c.size, 0)
-    const formattedClusters = formatClustersForPrompt(clusters)
-    evidencePrompt = `
+  // Defensive: Ensure clusters is an array before processing
+  if (Array.isArray(clusters) && clusters.length > 0) {
+    // Filter out invalid cluster entries (null, undefined, non-objects)
+    const validClusters = clusters.filter(
+      (c): c is SignalCluster => c != null && typeof c === 'object'
+    )
+
+    if (validClusters.length > 0) {
+      try {
+        // Safe reducer with numeric coercion for missing/invalid size
+        const totalSignals = validClusters.reduce((sum, c) => sum + (Number(c.size) || 0), 0)
+        const formattedClusters = formatClustersForPrompt(validClusters)
+        evidencePrompt = `
 
 === REAL USER FEEDBACK (${totalSignals} signals, pre-clustered) ===
 
@@ -415,6 +425,11 @@ ${formattedClusters}
 
 CRITICAL: Ground gaps in the user feedback clusters above. Reference specific clusters.
 `
+      } catch (clusterError) {
+        // Log but don't fail - competitor analysis can proceed without cluster evidence
+        console.warn('[CompetitorAnalyzer] Failed to format clusters for prompt:', clusterError)
+      }
+    }
   }
 
   const prompt = `You are a competitive intelligence analyst. Analyze the competitive landscape for:

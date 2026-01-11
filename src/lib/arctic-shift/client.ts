@@ -11,7 +11,8 @@ import {
   SearchSubredditsParams,
   ArcticShiftResponse,
 } from './types'
-import { rateLimitedFetch } from './rate-limiter'
+import { rateLimitedFetch, updateRateLimitState, getRateLimitDelay } from './rate-limiter'
+import { generateQueryCacheKey, getQueryCache, setQueryCache } from '@/lib/data-sources/cache'
 
 const BASE_URL = 'https://arctic-shift.photon-reddit.com'
 const DEFAULT_LIMIT = 50
@@ -24,26 +25,47 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 function buildQueryString(params: Record<string, string | number | boolean | undefined>): string {
   const searchParams = new URLSearchParams()
 
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
+  Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .forEach(([key, value]) => {
       searchParams.append(key, String(value))
-    }
-  })
+    })
 
   return searchParams.toString()
 }
 
-// Generic fetch with error handling and retries
+// Generic fetch with error handling, caching, and retries
 // All requests go through the rate limiter to handle concurrent users
+// Handles 422 "Timeout" errors with longer backoff (server-side query timeouts)
+// Uses query-level caching to reduce API load (24-hour TTL)
 async function fetchWithRetry<T>(
   url: string,
   retries = 3,
-  delayMs = 1000
+  delayMs = 1000,
+  useCache = true
 ): Promise<T> {
+  // Check cache first (for cacheable requests)
+  if (useCache) {
+    const cacheKey = generateQueryCacheKey(url)
+    const cached = await getQueryCache<T>(cacheKey)
+    if (cached) {
+      console.log('[ArcticShift] Cache hit:', url.slice(0, 100))
+      return cached
+    }
+  }
+
   let lastError: Error | null = null
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
+      // Check if API rate limit headers indicate we should wait
+      const rateLimitDelay = getRateLimitDelay()
+      if (rateLimitDelay > 0) {
+        console.log(`[ArcticShift] Waiting ${rateLimitDelay}ms for API rate limit reset...`)
+        await delay(rateLimitDelay)
+      }
+
       // Log request URL for debugging (only first attempt to reduce noise)
       if (attempt === 0) {
         console.log('[ArcticShift] Request:', url)
@@ -59,6 +81,9 @@ async function fetchWithRetry<T>(
         })
       )
 
+      // Update rate limit state from response headers (for adaptive throttling)
+      updateRateLimitState(response.headers)
+
       if (!response.ok) {
         // Get response body for better error diagnosis
         const errorBody = await response.text()
@@ -68,10 +93,47 @@ async function fetchWithRetry<T>(
           body: errorBody.slice(0, 500), // Limit body size for logs
           url,
         })
+
+        // Special handling for 422 "Timeout" errors from Arctic Shift
+        // These indicate server-side query timeouts, not rate limits
+        // Use longer backoff to give the server time to recover
+        if (response.status === 422) {
+          let is422Timeout = false
+          try {
+            const parsed = JSON.parse(errorBody) as {
+              error?: string
+              message?: string
+              detail?: string
+              errors?: string[] | string
+            }
+            const fields = [parsed.error, parsed.message, parsed.detail]
+            const errorList = Array.isArray(parsed.errors) ? parsed.errors : [parsed.errors]
+            const combined = [...fields, ...errorList].filter((value): value is string => Boolean(value))
+            is422Timeout = combined.some((value) => value.toLowerCase().includes('timeout'))
+          } catch {
+            is422Timeout = errorBody.toLowerCase().includes('timeout')
+          }
+          if (is422Timeout && attempt < retries - 1) {
+            const timeoutDelay = 10000 + (attempt * 5000) // 10s, 15s, 20s
+            console.warn(`[ArcticShift] Server timeout (422), waiting ${timeoutDelay / 1000}s before retry...`)
+            await delay(timeoutDelay)
+            continue // Skip to next attempt
+          }
+        }
+
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
       const data = await response.json()
+
+      // Cache successful responses (async, don't wait)
+      if (useCache) {
+        const cacheKey = generateQueryCacheKey(url)
+        setQueryCache(cacheKey, data, url).catch(() => {
+          // Ignore cache write errors
+        })
+      }
+
       return data as T
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))

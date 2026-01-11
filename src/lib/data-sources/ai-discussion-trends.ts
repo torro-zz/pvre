@@ -384,15 +384,36 @@ export async function getAIDiscussionTrend(keywords: string[]): Promise<AITrendR
       baseline90d: { after: daysAgo(180), before: daysAgo(90) },
     }
 
-    // Fetch posts for all windows in parallel
-    const [current30dPosts, baseline30dPosts, current90dPosts, baseline90dPosts] = await Promise.all(
-      [
-        getPostsForWindow(cleanKeywords, windows.current30d.after, windows.current30d.before),
-        getPostsForWindow(cleanKeywords, windows.baseline30d.after, windows.baseline30d.before),
-        getPostsForWindow(cleanKeywords, windows.current90d.after, windows.current90d.before),
-        getPostsForWindow(cleanKeywords, windows.baseline90d.after, windows.baseline90d.before),
-      ]
-    )
+    // Fetch posts for all windows sequentially to avoid overwhelming Arctic Shift API
+    // (Parallel requests caused 422 "Timeout" errors - see KNOWN_ISSUES.md)
+    let current30dPosts: PostWithWeight[] = []
+    let baseline30dPosts: PostWithWeight[] = []
+    let current90dPosts: PostWithWeight[] = []
+    let baseline90dPosts: PostWithWeight[] = []
+
+    try {
+      current30dPosts = await getPostsForWindow(cleanKeywords, windows.current30d.after, windows.current30d.before)
+    } catch (error) {
+      console.warn('[AITrend] Failed to fetch current 30d window:', error)
+    }
+
+    try {
+      baseline30dPosts = await getPostsForWindow(cleanKeywords, windows.baseline30d.after, windows.baseline30d.before)
+    } catch (error) {
+      console.warn('[AITrend] Failed to fetch baseline 30d window:', error)
+    }
+
+    try {
+      current90dPosts = await getPostsForWindow(cleanKeywords, windows.current90d.after, windows.current90d.before)
+    } catch (error) {
+      console.warn('[AITrend] Failed to fetch current 90d window:', error)
+    }
+
+    try {
+      baseline90dPosts = await getPostsForWindow(cleanKeywords, windows.baseline90d.after, windows.baseline90d.before)
+    } catch (error) {
+      console.warn('[AITrend] Failed to fetch baseline 90d window:', error)
+    }
 
     // Calculate weighted sums
     const current30d = calculateWeightedSum(current30dPosts)

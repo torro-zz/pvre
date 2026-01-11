@@ -3,8 +3,10 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { RedditPost, RedditComment, CachedData } from './types'
+import crypto from 'crypto'
 
 const CACHE_TTL_DAYS = 90 // 90-day TTL for cache entries (Reddit data is valuable and stable)
+const QUERY_CACHE_TTL_HOURS = 24 // 24-hour TTL for Arctic Shift query results
 
 export interface CacheResult {
   posts: RedditPost[]
@@ -172,5 +174,79 @@ export async function clearExpiredCache(): Promise<number> {
   } catch (error) {
     console.warn('Cache cleanup failed:', error)
     return 0
+  }
+}
+
+// =============================================================================
+// QUERY-LEVEL CACHE (for Arctic Shift API requests)
+// =============================================================================
+
+/**
+ * Generate cache key for an Arctic Shift API query
+ * Uses SHA256 hash of the full URL to create a unique, fixed-length key
+ */
+export function generateQueryCacheKey(url: string): string {
+  const hash = crypto.createHash('sha256').update(url).digest('hex').slice(0, 32)
+  return `arctic_query:${hash}`
+}
+
+/**
+ * Get cached query result from Supabase
+ * Returns null if not cached or expired
+ */
+export async function getQueryCache<T>(cacheKey: string): Promise<T | null> {
+  try {
+    const supabase = createAdminClient()
+
+    const { data, error } = await supabase
+      .from('reddit_cache')
+      .select('posts, expires_at')
+      .eq('cache_key', cacheKey)
+      .single()
+
+    if (error || !data) {
+      return null
+    }
+
+    const expiresAt = data.expires_at ? new Date(data.expires_at) : new Date(0)
+    if (expiresAt < new Date()) {
+      return null // Expired
+    }
+
+    // The 'posts' column stores the raw API response
+    return data.posts as T
+  } catch (error) {
+    console.warn('[QueryCache] Lookup failed:', error)
+    return null
+  }
+}
+
+/**
+ * Store query result in Supabase cache
+ * Uses 24-hour TTL for query results
+ */
+export async function setQueryCache<T>(cacheKey: string, result: T, url?: string): Promise<void> {
+  try {
+    const supabase = createAdminClient()
+
+    const expiresAt = new Date(Date.now() + QUERY_CACHE_TTL_HOURS * 60 * 60 * 1000)
+
+    await supabase.from('reddit_cache').upsert(
+      {
+        cache_key: cacheKey,
+        subreddit: 'arctic_query', // Marker for query cache entries
+        search_query: url?.slice(0, 500) || '', // Store URL for debugging (truncated)
+        posts: JSON.parse(JSON.stringify(result)), // Store raw API response
+        comments: [], // Not used for query cache
+        fetched_at: new Date().toISOString(),
+        expires_at: expiresAt.toISOString(),
+      },
+      {
+        onConflict: 'cache_key',
+      }
+    )
+  } catch (error) {
+    console.warn('[QueryCache] Write failed:', error)
+    // Don't throw - cache failure shouldn't block main flow
   }
 }

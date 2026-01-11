@@ -92,7 +92,13 @@ export async function analyzeTiming(
 
   if (keywords.length > 0) {
     console.log('[Timing] Fetching AI Discussion Trends for:', keywords);
-    aiTrendData = await getAIDiscussionTrend(keywords);
+    try {
+      aiTrendData = await getAIDiscussionTrend(keywords);
+    } catch (aiTrendError) {
+      // Non-blocking: Arctic Shift rate limiting or other errors shouldn't crash research
+      console.warn('[Timing] AI Discussion Trends failed (non-blocking):', aiTrendError instanceof Error ? aiTrendError.message : aiTrendError);
+      aiTrendData = null;
+    }
 
     if (aiTrendData?.dataAvailable && !aiTrendData.insufficientData) {
       trendSource = 'ai_discussion';
