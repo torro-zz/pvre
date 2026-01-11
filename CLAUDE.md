@@ -45,6 +45,18 @@ ANTHROPIC_API_KEY
 | `/goodnight` | Save session state to `docs/RESUME_HERE.md` |
 | `/test-search [query]` | Run E2E search test via Playwright (forked context, uses sonnet) |
 
+### Testing Mode Selection (CRITICAL)
+
+**STOP and think before running `/test-search`:**
+
+| Context | Use This |
+|---------|----------|
+| Fixing App Gap issues | `/test-search app: Notion` or `/test-search` (defaults to App Gap) |
+| Fixing Hypothesis issues | `/test-search hypothesis: [problem statement]` |
+| General testing after shared code changes | **Run BOTH modes** |
+
+**Common mistake:** Passing plain text triggers Hypothesis mode. If you were debugging App Gap, you must use `app:` prefix or no argument (defaults to App Gap with Notion).
+
 ---
 
 ## References
