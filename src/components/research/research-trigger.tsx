@@ -247,7 +247,7 @@ export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
             <Progress value={progressPercent} className="h-2 mb-2" />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>{elapsedSeconds}s elapsed</span>
-              <span>~2 min total</span>
+              <span>~4 min total</span>
             </div>
           </div>
 
@@ -285,7 +285,7 @@ export function ResearchTrigger({ jobId, hypothesis }: ResearchTriggerProps) {
           </div>
 
           <p className="text-sm text-muted-foreground text-center">
-            This takes 1-2 minutes. Feel free to leave — results save automatically.
+            This takes 2-4 minutes. Feel free to leave — results save automatically.
           </p>
         </CardContent>
       </Card>

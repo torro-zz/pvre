@@ -234,6 +234,7 @@ async function markJobFailed(
 }
 
 export async function POST(request: NextRequest) {
+  console.log('\n\n========== COMMUNITY-VOICE REQUEST STARTED ==========')
   const startTime = Date.now()
 
   // Start token tracking for this request
@@ -258,11 +259,13 @@ export async function POST(request: NextRequest) {
 
     // Store userId for refund in case of error
     currentUserId = user.id
+    console.log(`[CV] Auth passed for user: ${user.id.slice(0, 8)}...`)
 
     // Parse request body
     const body = await request.json()
     const { hypothesis, jobId } = body
     currentJobId = jobId
+    console.log(`[CV] Job: ${jobId}, Hypothesis: "${hypothesis?.slice(0, 50)}..."`)
 
     // Set request context for fair scheduling across concurrent research jobs
     // Each job gets limited concurrent requests (2 max) to prevent one job hogging bandwidth
@@ -276,7 +279,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Check credits before running research
+    console.log('[CV] Checking credits...')
+    const creditCheckStart = Date.now()
     const creditCheck = await checkUserCredits(user.id)
+    console.log(`[CV] Credit check done in ${Date.now() - creditCheckStart}ms, hasCredits: ${creditCheck.hasCredits}`)
     if (!creditCheck.hasCredits) {
       return NextResponse.json(
         {
@@ -292,7 +298,10 @@ export async function POST(request: NextRequest) {
     const researchJobId = jobId || crypto.randomUUID()
 
     // Deduct credit atomically before running research
+    console.log('[CV] Deducting credit...')
+    const deductStart = Date.now()
     const creditDeducted = await deductCredit(user.id, researchJobId)
+    console.log(`[CV] Credit deducted in ${Date.now() - deductStart}ms`)
     if (!creditDeducted) {
       return NextResponse.json(
         {
@@ -318,12 +327,15 @@ export async function POST(request: NextRequest) {
       const adminClient = createAdminClient()
       // Update status and fetch job data in one query
       // Use raw query since coverage_data may not be in generated types
+      console.log('[CV] Fetching job data and updating status...')
+      const jobFetchStart = Date.now()
       const { data: jobData } = await adminClient
         .from('research_jobs')
         .update({ status: 'processing' })
         .eq('id', jobId)
         .select('*')
         .single()
+      console.log(`[CV] Job data fetched in ${Date.now() - jobFetchStart}ms`)
 
       // coverage_data is a JSON column that may contain structuredHypothesis and user subreddit selections
       coverageData = (jobData as Record<string, unknown>)?.coverage_data as Record<string, unknown> | undefined
@@ -502,6 +514,7 @@ export async function POST(request: NextRequest) {
     // Step 3: Fetch posts and comments using pipeline step
     // Handles: Reddit + HN (Hypothesis mode), App Store reviews (App Gap mode),
     // selected apps, and cross-store lookup
+    const step3Start = Date.now()
     console.log('Step 3: Fetching data using pipeline step')
     lastErrorSource = 'arctic_shift' // Reddit/App Store data APIs
 
@@ -525,7 +538,7 @@ export async function POST(request: NextRequest) {
       ? extractedKeywords.primary
       : extractKeywords(hypothesis) // Fallback to basic extraction
 
-    console.log(`Fetched ${rawPosts.length} posts, ${rawComments.length} comments from ${fetchedSources.join(' + ') || 'sources'}`)
+    console.log(`Step 3 COMPLETE: Fetched ${rawPosts.length} posts, ${rawComments.length} comments from ${fetchedSources.join(' + ') || 'sources'} in ${Date.now() - step3Start}ms`)
 
     // Step 3.5: Pre-filter posts using exclude keywords (cheap local operation)
     if (extractedKeywords.exclude.length > 0) {
@@ -537,6 +550,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 4: Filter posts and comments for relevance
+    const step4Start = Date.now()
     console.log('Step 4: Filtering for relevance to hypothesis')
     lastErrorSource = 'anthropic' // Claude API for filtering
 
@@ -568,9 +582,11 @@ export async function POST(request: NextRequest) {
       console.log(`[Tiered] Normalized ${normalizedPosts.length} posts`)
 
       // Run the tiered filter
+      const tieredFilterStart = Date.now()
       tieredResult = await filterSignalsTiered(normalizedPosts, hypothesis, {
         onProgress: (msg) => console.log(msg),
       })
+      console.log(`[Tiered] Filter COMPLETE in ${Date.now() - tieredFilterStart}ms`)
 
       // Get analysis signals (CORE + STRONG only)
       const analysisSignals = getSignalsForAnalysis(tieredResult)
@@ -942,7 +958,7 @@ export async function POST(request: NextRequest) {
     const totalSignals = filteringMetrics.coreSignals + filteringMetrics.relatedSignals
     const needsMoreData = filteringMetrics.coreSignals < MIN_CORE_SIGNALS || totalSignals < MIN_TOTAL_SIGNALS
 
-    if (needsMoreData && !userSelectedSubreddits) {
+    if (needsMoreData && !userSelectedSubreddits && !isAppGapMode(ctx)) {
       console.log(`Step 4.5: Below threshold (${filteringMetrics.coreSignals} core, ${totalSignals} total). Attempting adaptive fetch...`)
 
       try {
@@ -1075,9 +1091,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log(`Step 4 COMPLETE: Filtering done in ${Date.now() - step4Start}ms (${finalCoreItems.length} core, ${finalRelatedItems.length} related, ${finalComments.length} comments)`)
+
     // =========================================================================
     // Step 5: Pain Analysis (using pipeline step)
     // =========================================================================
+    const step5Start = Date.now()
     console.log('Step 5: Analyzing pain signals')
     const painResult = await executeStep(painAnalyzerStep, {
       corePosts: finalCoreItems,
@@ -1090,6 +1109,7 @@ export async function POST(request: NextRequest) {
     // (includes praise filtering AND semantic categorization for App Gap mode)
     const filteredPainSignals = painResult.data?.painSignals || []
     const painSummary = painResult.data?.painSummary || getPainSummary([])
+    console.log(`Step 5 COMPLETE: Pain analysis done in ${Date.now() - step5Start}ms (${filteredPainSignals.length} signals)`)
 
     // =========================================================================
     // Step 7-8: Theme Analysis + Interview Questions (using pipeline step)

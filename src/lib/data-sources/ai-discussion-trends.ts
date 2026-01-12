@@ -150,11 +150,29 @@ async function searchAISubreddits(
   afterTimestamp: number,
   beforeTimestamp: number
 ): Promise<RedditPost[]> {
+  // Arctic Shift times out on multi-word title queries; only use single-word keywords.
+  const safeKeywords = keywords
+    .map((keyword) => keyword.trim())
+    .filter((keyword) => keyword.length > 2 && !/\s/.test(keyword))
+    .slice(0, 3)
+
+  if (safeKeywords.length === 0) {
+    console.log('[AITrend:StrategyA] Skipping: no single-word keywords available')
+    return []
+  }
+
   const allPosts: RedditPost[] = []
+  const startTime = Date.now()
+  let callCount = 0
 
   // Search each AI subreddit for each keyword
+  // WARNING: This is O(subreddits × keywords) = potentially 35+ API calls per window!
+  console.log(`[AITrend:StrategyA] Starting: ${AI_SUBREDDITS.length} subreddits × ${safeKeywords.length} keywords = ${AI_SUBREDDITS.length * safeKeywords.length} API calls`)
+
   for (const subreddit of AI_SUBREDDITS) {
-    for (const keyword of keywords) {
+    for (const keyword of safeKeywords) {
+      callCount++
+      const callStart = Date.now()
       try {
         // Search in title (most relevant)
         const posts = await searchPosts({
@@ -166,12 +184,14 @@ async function searchAISubreddits(
           sort: 'desc',
         })
         allPosts.push(...posts)
+        console.log(`[AITrend:StrategyA] Call ${callCount}/${AI_SUBREDDITS.length * keywords.length}: r/${subreddit} "${keyword}" - ${posts.length} posts, ${Date.now() - callStart}ms`)
       } catch (error) {
-        console.warn(`[AITrend] Failed to search r/${subreddit} for "${keyword}":`, error)
+        console.warn(`[AITrend:StrategyA] Call ${callCount} FAILED (${Date.now() - callStart}ms): r/${subreddit} "${keyword}":`, error)
       }
     }
   }
 
+  console.log(`[AITrend:StrategyA] Complete: ${callCount} calls, ${allPosts.length} posts, ${Date.now() - startTime}ms total`)
   return allPosts
 }
 
@@ -190,10 +210,16 @@ async function searchGlobalWithAITerms(
   beforeTimestamp: number
 ): Promise<RedditPost[]> {
   const allPosts: RedditPost[] = []
+  const startTime = Date.now()
+  let callCount = 0
 
   // Search AI subreddits more broadly, then filter
-  for (const subreddit of AI_SUBREDDITS.slice(0, 4)) {
-    // Top 4 most active
+  const subredditsToSearch = AI_SUBREDDITS.slice(0, 4) // Top 4 most active
+  console.log(`[AITrend:StrategyB] Starting: ${subredditsToSearch.length} subreddits`)
+
+  for (const subreddit of subredditsToSearch) {
+    callCount++
+    const callStart = Date.now()
     try {
       const posts = await searchPosts({
         subreddit,
@@ -213,11 +239,13 @@ async function searchGlobalWithAITerms(
       })
 
       allPosts.push(...relevantPosts)
+      console.log(`[AITrend:StrategyB] Call ${callCount}/${subredditsToSearch.length}: r/${subreddit} - ${posts.length} fetched, ${relevantPosts.length} relevant, ${Date.now() - callStart}ms`)
     } catch (error) {
-      console.warn(`[AITrend] Failed global search in r/${subreddit}:`, error)
+      console.warn(`[AITrend:StrategyB] Call ${callCount} FAILED (${Date.now() - callStart}ms): r/${subreddit}:`, error)
     }
   }
 
+  console.log(`[AITrend:StrategyB] Complete: ${callCount} calls, ${allPosts.length} posts, ${Date.now() - startTime}ms total`)
   return allPosts
 }
 
@@ -391,29 +419,46 @@ export async function getAIDiscussionTrend(keywords: string[]): Promise<AITrendR
     let current90dPosts: PostWithWeight[] = []
     let baseline90dPosts: PostWithWeight[] = []
 
+    const totalStart = Date.now()
+    console.log(`\n[AITrend] Starting 4 sequential window fetches for keywords: ${cleanKeywords.join(', ')}`)
+
+    let windowStart = Date.now()
     try {
+      console.log(`[AITrend] Window 1/4: current30d...`)
       current30dPosts = await getPostsForWindow(cleanKeywords, windows.current30d.after, windows.current30d.before)
+      console.log(`[AITrend] Window 1/4 complete: ${current30dPosts.length} posts, ${Date.now() - windowStart}ms`)
     } catch (error) {
-      console.warn('[AITrend] Failed to fetch current 30d window:', error)
+      console.warn(`[AITrend] Window 1/4 FAILED after ${Date.now() - windowStart}ms:`, error)
     }
 
+    windowStart = Date.now()
     try {
+      console.log(`[AITrend] Window 2/4: baseline30d...`)
       baseline30dPosts = await getPostsForWindow(cleanKeywords, windows.baseline30d.after, windows.baseline30d.before)
+      console.log(`[AITrend] Window 2/4 complete: ${baseline30dPosts.length} posts, ${Date.now() - windowStart}ms`)
     } catch (error) {
-      console.warn('[AITrend] Failed to fetch baseline 30d window:', error)
+      console.warn(`[AITrend] Window 2/4 FAILED after ${Date.now() - windowStart}ms:`, error)
     }
 
+    windowStart = Date.now()
     try {
+      console.log(`[AITrend] Window 3/4: current90d...`)
       current90dPosts = await getPostsForWindow(cleanKeywords, windows.current90d.after, windows.current90d.before)
+      console.log(`[AITrend] Window 3/4 complete: ${current90dPosts.length} posts, ${Date.now() - windowStart}ms`)
     } catch (error) {
-      console.warn('[AITrend] Failed to fetch current 90d window:', error)
+      console.warn(`[AITrend] Window 3/4 FAILED after ${Date.now() - windowStart}ms:`, error)
     }
 
+    windowStart = Date.now()
     try {
+      console.log(`[AITrend] Window 4/4: baseline90d...`)
       baseline90dPosts = await getPostsForWindow(cleanKeywords, windows.baseline90d.after, windows.baseline90d.before)
+      console.log(`[AITrend] Window 4/4 complete: ${baseline90dPosts.length} posts, ${Date.now() - windowStart}ms`)
     } catch (error) {
-      console.warn('[AITrend] Failed to fetch baseline 90d window:', error)
+      console.warn(`[AITrend] Window 4/4 FAILED after ${Date.now() - windowStart}ms:`, error)
     }
+
+    console.log(`[AITrend] ALL WINDOWS COMPLETE: ${Date.now() - totalStart}ms total\n`)
 
     // Calculate weighted sums
     const current30d = calculateWeightedSum(current30dPosts)
