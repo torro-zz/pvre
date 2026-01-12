@@ -42,6 +42,41 @@ const MIN_VOLUME_THRESHOLD = 15
 // Cache TTL in milliseconds (24 hours)
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 
+// Debug logging - set DEBUG_AI_TREND=true to enable verbose logs
+const DEBUG = process.env.DEBUG_AI_TREND === 'true'
+
+// Common stop words to filter out when extracting tokens
+const STOP_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+  'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
+  'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+  'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those',
+  'i', 'you', 'he', 'she', 'it', 'we', 'they', 'what', 'which', 'who',
+  'when', 'where', 'why', 'how', 'all', 'each', 'every', 'both', 'few',
+  'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
+  'own', 'same', 'so', 'than', 'too', 'very', 'just', 'also', 'now',
+])
+
+// Short domain-specific tokens that should NOT be filtered out (important signal)
+const ALLOWED_SHORT_TOKENS = new Set([
+  'ai', 'ml', 'llm', 'nlp', 'cv', 'dl',  // AI/ML terms
+  'ui', 'ux', 'api', 'sdk', 'cli',       // Tech terms
+  'saas', 'b2b', 'b2c', 'crm', 'erp',    // Business terms
+  'ios', 'aws', 'gcp',                    // Platform terms
+])
+
+// Special tokens with punctuation that should be preserved as-is
+const PUNCTUATION_TOKENS: Record<string, string> = {
+  'c++': 'cpp',
+  'c#': 'csharp',
+  '.net': 'dotnet',
+  'node.js': 'nodejs',
+  'vue.js': 'vuejs',
+  'react.js': 'reactjs',
+  'next.js': 'nextjs',
+  'r&d': 'research',
+}
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -137,6 +172,118 @@ function getTrendDirection(change: number): 'rising' | 'stable' | 'falling' {
   return 'stable'
 }
 
+/**
+ * Extract single-word tokens from keywords (including multi-word phrases)
+ * Filters out stop words and short tokens, returns unique tokens capped at limit
+ *
+ * Handles:
+ * - Multi-word phrases → individual tokens
+ * - Short domain terms (AI, ML, LLM) → preserved via allowlist
+ * - Punctuation tokens (C++, C#, node.js) → normalized (cpp, csharp, nodejs)
+ */
+function extractSearchTokens(keywords: string[], limit: number = 3): string[] {
+  const tokens = new Set<string>()
+
+  for (const keyword of keywords) {
+    let lowerKeyword = keyword.toLowerCase().trim()
+
+    // Check for punctuation tokens first (exact match for whole keyword)
+    if (PUNCTUATION_TOKENS[lowerKeyword]) {
+      tokens.add(PUNCTUATION_TOKENS[lowerKeyword])
+      continue
+    }
+
+    // Check for punctuation tokens within the phrase and replace them
+    // e.g., "node.js sdk" → extract "nodejs" then continue with "sdk"
+    for (const [punctToken, normalized] of Object.entries(PUNCTUATION_TOKENS)) {
+      if (lowerKeyword.includes(punctToken)) {
+        tokens.add(normalized)
+        // Remove the matched token from the string to avoid double-processing
+        lowerKeyword = lowerKeyword.replace(punctToken, ' ')
+      }
+    }
+
+    // Split on whitespace and common separators
+    const words = lowerKeyword.split(/[\s\-_,]+/)
+
+    for (const word of words) {
+      // Clean: remove leading/trailing punctuation but preserve internal structure
+      const cleaned = word.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '').trim()
+      if (!cleaned) continue
+
+      // Check punctuation tokens for individual words too
+      if (PUNCTUATION_TOKENS[cleaned]) {
+        tokens.add(PUNCTUATION_TOKENS[cleaned])
+        continue
+      }
+
+      // Skip stop words
+      if (STOP_WORDS.has(cleaned)) continue
+
+      // Allow short tokens if they're in the allowlist (AI, ML, etc.)
+      if (cleaned.length <= 2 && !ALLOWED_SHORT_TOKENS.has(cleaned)) continue
+
+      // Must be alphanumeric (or in allowlist)
+      if (!/^[a-z0-9]+$/i.test(cleaned) && !ALLOWED_SHORT_TOKENS.has(cleaned)) continue
+
+      tokens.add(cleaned)
+    }
+  }
+
+  // Return as array, capped at limit
+  return Array.from(tokens).slice(0, limit)
+}
+
+/**
+ * Debug logger - only logs when DEBUG_AI_TREND=true
+ */
+function debugLog(message: string, ...args: unknown[]): void {
+  if (DEBUG) {
+    console.log(message, ...args)
+  }
+}
+
+/**
+ * Escape special regex characters in a string
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Check if a term is purely alphanumeric (safe for word-boundary matching)
+ */
+function isAlphanumericOnly(term: string): boolean {
+  return /^[a-z0-9]+$/i.test(term)
+}
+
+/**
+ * Check if text contains a term, using word-boundary matching for short alphanumeric tokens
+ * to prevent false positives (e.g., "net" matching "internet")
+ *
+ * - Short alphanumeric tokens (<=4 chars): word-boundary match (whole word only)
+ * - Tokens with special chars (c++, c#, .net): escaped includes() match
+ * - Longer tokens/phrases: simple includes() for flexibility
+ */
+function textContainsTerm(text: string, term: string): boolean {
+  // For short alphanumeric tokens, use word-boundary matching
+  if (term.length <= 4 && isAlphanumericOnly(term)) {
+    const regex = new RegExp(`\\b${term}\\b`, 'i')
+    return regex.test(text)
+  }
+
+  // For tokens with special characters, use escaped regex for exact match
+  // This handles c++, c#, .net, etc. safely
+  if (!isAlphanumericOnly(term) && !term.includes(' ')) {
+    const escaped = escapeRegex(term)
+    const regex = new RegExp(escaped, 'i')
+    return regex.test(text)
+  }
+
+  // For longer terms or phrases, simple includes is fine
+  return text.includes(term)
+}
+
 // =============================================================================
 // SEARCH FUNCTIONS
 // =============================================================================
@@ -144,49 +291,48 @@ function getTrendDirection(change: number): 'rising' | 'stable' | 'falling' {
 /**
  * Strategy A: Search AI-specific subreddits for problem keywords
  * High precision - people discussing problems in AI contexts
+ *
+ * Arctic Shift times out on multi-word title queries, so we extract
+ * single-word tokens from all keywords (including phrases).
  */
 async function searchAISubreddits(
   keywords: string[],
   afterTimestamp: number,
   beforeTimestamp: number
 ): Promise<RedditPost[]> {
-  // Arctic Shift times out on multi-word title queries; only use single-word keywords.
-  const safeKeywords = keywords
-    .map((keyword) => keyword.trim())
-    .filter((keyword) => keyword.length > 2 && !/\s/.test(keyword))
-    .slice(0, 3)
+  // Extract single-word tokens from all keywords (handles multi-word phrases)
+  const searchTokens = extractSearchTokens(keywords, 3)
 
-  if (safeKeywords.length === 0) {
-    console.log('[AITrend:StrategyA] Skipping: no single-word keywords available')
+  if (searchTokens.length === 0) {
+    console.log('[AITrend:StrategyA] Skipping: no valid tokens extracted from keywords')
     return []
   }
 
   const allPosts: RedditPost[] = []
   const startTime = Date.now()
+  const totalCalls = AI_SUBREDDITS.length * searchTokens.length
+
+  console.log(`[AITrend:StrategyA] Starting: ${AI_SUBREDDITS.length} subreddits × ${searchTokens.length} tokens = ${totalCalls} API calls (tokens: ${searchTokens.join(', ')})`)
+
   let callCount = 0
-
-  // Search each AI subreddit for each keyword
-  // WARNING: This is O(subreddits × keywords) = potentially 35+ API calls per window!
-  console.log(`[AITrend:StrategyA] Starting: ${AI_SUBREDDITS.length} subreddits × ${safeKeywords.length} keywords = ${AI_SUBREDDITS.length * safeKeywords.length} API calls`)
-
   for (const subreddit of AI_SUBREDDITS) {
-    for (const keyword of safeKeywords) {
+    for (const token of searchTokens) {
       callCount++
       const callStart = Date.now()
       try {
         // Search in title (most relevant)
         const posts = await searchPosts({
           subreddit,
-          title: keyword,
+          title: token,
           after: String(afterTimestamp),
           before: String(beforeTimestamp),
           limit: 100,
           sort: 'desc',
         })
         allPosts.push(...posts)
-        console.log(`[AITrend:StrategyA] Call ${callCount}/${AI_SUBREDDITS.length * keywords.length}: r/${subreddit} "${keyword}" - ${posts.length} posts, ${Date.now() - callStart}ms`)
+        debugLog(`[AITrend:StrategyA] Call ${callCount}/${totalCalls}: r/${subreddit} "${token}" - ${posts.length} posts, ${Date.now() - callStart}ms`)
       } catch (error) {
-        console.warn(`[AITrend:StrategyA] Call ${callCount} FAILED (${Date.now() - callStart}ms): r/${subreddit} "${keyword}":`, error)
+        console.warn(`[AITrend:StrategyA] Call ${callCount}/${totalCalls} FAILED (${Date.now() - callStart}ms): r/${subreddit} "${token}":`, error)
       }
     }
   }
@@ -203,6 +349,8 @@ async function searchAISubreddits(
  * AI subreddits and filter by keyword + AI term presence in results.
  * Posts in AI subreddits that don't mention AI terms are filtered out
  * to ensure we're capturing genuine AI-related discussions.
+ *
+ * Matching uses BOTH original phrases AND extracted tokens for better recall.
  */
 async function searchGlobalWithAITerms(
   keywords: string[],
@@ -211,12 +359,16 @@ async function searchGlobalWithAITerms(
 ): Promise<RedditPost[]> {
   const allPosts: RedditPost[] = []
   const startTime = Date.now()
-  let callCount = 0
+
+  // Build match terms: original keywords + extracted tokens for better recall
+  const tokens = extractSearchTokens(keywords, 5)
+  const matchTerms = [...new Set([...keywords.map((k) => k.toLowerCase()), ...tokens])]
 
   // Search AI subreddits more broadly, then filter
   const subredditsToSearch = AI_SUBREDDITS.slice(0, 4) // Top 4 most active
-  console.log(`[AITrend:StrategyB] Starting: ${subredditsToSearch.length} subreddits`)
+  console.log(`[AITrend:StrategyB] Starting: ${subredditsToSearch.length} subreddits, matching ${matchTerms.length} terms`)
 
+  let callCount = 0
   for (const subreddit of subredditsToSearch) {
     callCount++
     const callStart = Date.now()
@@ -229,19 +381,20 @@ async function searchGlobalWithAITerms(
         sort: 'desc',
       })
 
-      // Filter to posts that mention keywords AND AI terms
+      // Filter to posts that mention keywords/tokens AND AI terms
       // This ensures we're capturing genuine AI-related problem discussions
+      // Uses word-boundary matching for short tokens to prevent false positives
       const relevantPosts = posts.filter((post) => {
         const text = `${post.title} ${post.selftext}`.toLowerCase()
-        const hasKeyword = keywords.some((kw) => text.includes(kw.toLowerCase()))
+        const hasKeyword = matchTerms.some((term) => textContainsTerm(text, term))
         const hasAITerm = containsAITerms(post)
         return hasKeyword && hasAITerm
       })
 
       allPosts.push(...relevantPosts)
-      console.log(`[AITrend:StrategyB] Call ${callCount}/${subredditsToSearch.length}: r/${subreddit} - ${posts.length} fetched, ${relevantPosts.length} relevant, ${Date.now() - callStart}ms`)
+      debugLog(`[AITrend:StrategyB] Call ${callCount}/${subredditsToSearch.length}: r/${subreddit} - ${posts.length} fetched, ${relevantPosts.length} relevant, ${Date.now() - callStart}ms`)
     } catch (error) {
-      console.warn(`[AITrend:StrategyB] Call ${callCount} FAILED (${Date.now() - callStart}ms): r/${subreddit}:`, error)
+      console.warn(`[AITrend:StrategyB] Call ${callCount}/${subredditsToSearch.length} FAILED (${Date.now() - callStart}ms): r/${subreddit}:`, error)
     }
   }
 
@@ -420,45 +573,45 @@ export async function getAIDiscussionTrend(keywords: string[]): Promise<AITrendR
     let baseline90dPosts: PostWithWeight[] = []
 
     const totalStart = Date.now()
-    console.log(`\n[AITrend] Starting 4 sequential window fetches for keywords: ${cleanKeywords.join(', ')}`)
+    debugLog(`\n[AITrend] Starting 4 sequential window fetches for keywords: ${cleanKeywords.join(', ')}`)
 
     let windowStart = Date.now()
     try {
-      console.log(`[AITrend] Window 1/4: current30d...`)
+      debugLog(`[AITrend] Window 1/4: current30d...`)
       current30dPosts = await getPostsForWindow(cleanKeywords, windows.current30d.after, windows.current30d.before)
-      console.log(`[AITrend] Window 1/4 complete: ${current30dPosts.length} posts, ${Date.now() - windowStart}ms`)
+      debugLog(`[AITrend] Window 1/4 complete: ${current30dPosts.length} posts, ${Date.now() - windowStart}ms`)
     } catch (error) {
       console.warn(`[AITrend] Window 1/4 FAILED after ${Date.now() - windowStart}ms:`, error)
     }
 
     windowStart = Date.now()
     try {
-      console.log(`[AITrend] Window 2/4: baseline30d...`)
+      debugLog(`[AITrend] Window 2/4: baseline30d...`)
       baseline30dPosts = await getPostsForWindow(cleanKeywords, windows.baseline30d.after, windows.baseline30d.before)
-      console.log(`[AITrend] Window 2/4 complete: ${baseline30dPosts.length} posts, ${Date.now() - windowStart}ms`)
+      debugLog(`[AITrend] Window 2/4 complete: ${baseline30dPosts.length} posts, ${Date.now() - windowStart}ms`)
     } catch (error) {
       console.warn(`[AITrend] Window 2/4 FAILED after ${Date.now() - windowStart}ms:`, error)
     }
 
     windowStart = Date.now()
     try {
-      console.log(`[AITrend] Window 3/4: current90d...`)
+      debugLog(`[AITrend] Window 3/4: current90d...`)
       current90dPosts = await getPostsForWindow(cleanKeywords, windows.current90d.after, windows.current90d.before)
-      console.log(`[AITrend] Window 3/4 complete: ${current90dPosts.length} posts, ${Date.now() - windowStart}ms`)
+      debugLog(`[AITrend] Window 3/4 complete: ${current90dPosts.length} posts, ${Date.now() - windowStart}ms`)
     } catch (error) {
       console.warn(`[AITrend] Window 3/4 FAILED after ${Date.now() - windowStart}ms:`, error)
     }
 
     windowStart = Date.now()
     try {
-      console.log(`[AITrend] Window 4/4: baseline90d...`)
+      debugLog(`[AITrend] Window 4/4: baseline90d...`)
       baseline90dPosts = await getPostsForWindow(cleanKeywords, windows.baseline90d.after, windows.baseline90d.before)
-      console.log(`[AITrend] Window 4/4 complete: ${baseline90dPosts.length} posts, ${Date.now() - windowStart}ms`)
+      debugLog(`[AITrend] Window 4/4 complete: ${baseline90dPosts.length} posts, ${Date.now() - windowStart}ms`)
     } catch (error) {
       console.warn(`[AITrend] Window 4/4 FAILED after ${Date.now() - windowStart}ms:`, error)
     }
 
-    console.log(`[AITrend] ALL WINDOWS COMPLETE: ${Date.now() - totalStart}ms total\n`)
+    console.log(`[AITrend] Fetched 4 windows in ${Date.now() - totalStart}ms (${current30dPosts.length + baseline30dPosts.length + current90dPosts.length + baseline90dPosts.length} total posts)`)
 
     // Calculate weighted sums
     const current30d = calculateWeightedSum(current30dPosts)
