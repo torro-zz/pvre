@@ -19,7 +19,7 @@ import { extractSearchKeywords } from '@/lib/reddit/keyword-extractor'
 import { StructuredHypothesis } from '@/types/research'
 import { sampleQualityCheck, QualitySampleResult } from '@/lib/research/relevance-filter'
 import { redditAdapter } from '@/lib/data-sources'
-import { searchSubreddits } from '@/lib/arctic-shift/client'
+import { searchSubreddits, setRequestContext, clearRequestContext } from '@/lib/arctic-shift/client'
 import {
   USE_TIERED_FILTER,
   tieredSampleQualityCheck,
@@ -134,6 +134,10 @@ function extractProblemPhrases(structured: StructuredHypothesis): string[] {
 }
 
 export async function POST(req: Request) {
+  // Set request context to 'coverage' priority for fast Arctic Shift access
+  // Coverage checks get dedicated high-priority queue (8/sec guaranteed)
+  setRequestContext('coverage')
+
   try {
     // Check authentication (but don't charge credits)
     const supabase = await createClient()
@@ -431,5 +435,8 @@ export async function POST(req: Request) {
       { error: 'Coverage check failed. Please try again.' },
       { status: 500 }
     )
+  } finally {
+    // Always reset request context to defaults
+    clearRequestContext()
   }
 }

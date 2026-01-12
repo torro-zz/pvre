@@ -7,6 +7,7 @@ import {
   fetchMultiSourceData,
   extractKeywords,
 } from '@/lib/data-sources'
+import { setRequestContext, clearRequestContext } from '@/lib/arctic-shift/client'
 import {
   getPainSummary,
   type PainSignal,
@@ -262,6 +263,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { hypothesis, jobId } = body
     currentJobId = jobId
+
+    // Set request context for fair scheduling across concurrent research jobs
+    // Each job gets limited concurrent requests (2 max) to prevent one job hogging bandwidth
+    setRequestContext('research', jobId)
 
     if (!hypothesis || typeof hypothesis !== 'string') {
       return NextResponse.json(
@@ -1364,6 +1369,9 @@ export async function POST(request: NextRequest) {
       { error: error instanceof Error ? error.message : 'Research failed' },
       { status: 500 }
     )
+  } finally {
+    // Always reset request context to defaults
+    clearRequestContext()
   }
 }
 

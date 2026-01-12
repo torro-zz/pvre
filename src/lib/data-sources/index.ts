@@ -354,9 +354,13 @@ export async function fetchRedditData(params: SearchParams): Promise<SearchResul
   }
 }
 
+// Fast-first coverage sample size (smaller for speed)
+const COVERAGE_SAMPLE_SIZE = 50
+
 /**
  * Check data coverage for a hypothesis (used by coverage-check endpoint)
  * Now includes posting velocity for adaptive time-stratified fetching
+ * Uses fast-first optimization with smaller sample size (50 vs 100)
  */
 export async function checkCoverage(
   subreddits: string[],
@@ -382,9 +386,10 @@ export async function checkCoverage(
   }
 
   // Check post count AND velocity for each subreddit
+  // Use smaller sample size (50) for fast-first coverage checks
   for (const subreddit of subreddits) {
     try {
-      const stats = await sourceUsed.getPostStats(subreddit, keywords)
+      const stats = await sourceUsed.getPostStats(subreddit, keywords, COVERAGE_SAMPLE_SIZE)
       coverageResults.push({
         name: subreddit,
         estimatedPosts: stats.count,

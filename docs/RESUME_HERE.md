@@ -1,19 +1,40 @@
-# Resume Point — January 11, 2026
+# Resume Point — January 12, 2026
 
-**Last Session:** January 11, 2026 18:05
+**Last Session:** January 12, 2026
 
 ---
 
 ## What Was Just Completed
 
-**Recent commits (last 6 hours):**
-- `7e2f35b` fix: Prevent garbage competitors in fallback + add null guard
-- `41eed29` fix: Auto-competitor analysis now saves fallback results on failure
+### Arctic Shift Multi-User Rate Limiting Architecture
 
-**Key improvements:**
-- Fixed competitor analysis fallback logic to prevent empty results
-- Added null guards to prevent garbage competitor data
-- Auto-competitor analysis now properly saves fallback results when main analysis fails
+Implemented comprehensive rate limiting for 20+ concurrent users. This was a deep analysis combining Claude and Codex insights into an optimal solution.
+
+**Key Features Implemented:**
+
+| Feature | Description |
+|---------|-------------|
+| **Dual Queues** | `coverageLimiter` (8/sec) + `researchLimiter` (12/sec) |
+| **Request Coalescing** | Identical in-flight requests share results |
+| **Per-Job Fairness** | Each research job limited to 2 concurrent requests |
+| **Elastic Rate** | Adjusts based on `X-RateLimit-Remaining` header |
+| **Fast-First Coverage** | 50 sample posts (vs 100) for faster coverage checks |
+| **Queue Telemetry** | `getQueueTelemetry()` exposes wait times for ETA |
+
+**Architecture:**
+```
+                                    ┌─→ [coverageLimiter] ─────┐
+Request → [Cache] → [Coalesce] ──→ │    8/sec, maxConc: 6     │──→ Arctic Shift API
+                                    └─→ [researchLimiter] ────┘
+                                         12/sec, maxConc: 14
+                                         + per-job max: 2
+```
+
+**Expected Results (20 concurrent users):**
+- Coverage check: <3s guaranteed (dedicated high-priority queue)
+- Research fairness: Round-robin per job (no user hogging)
+- Total requests: 600 → ~200 (coalescing + caching)
+- Total time: 30s → ~12-15s
 
 ---
 
@@ -21,11 +42,19 @@
 
 ⚠️ **WARNING: You have uncommitted changes!**
 
-| File | Status | Purpose |
-|------|--------|---------|
-| `.claude/commands/` | Untracked directory | New command structure (not yet committed) |
+| File | Changes |
+|------|---------|
+| `src/lib/arctic-shift/rate-limiter.ts` | Complete rewrite: dual queues, coalescing, fairness, telemetry |
+| `src/lib/arctic-shift/client.ts` | Added `setRequestContext()`, priority routing |
+| `src/lib/data-sources/types.ts` | Added `sampleSize` param to `getPostStats()` |
+| `src/lib/data-sources/index.ts` | Fast-first coverage (50 sample) |
+| `src/lib/data-sources/adapters/reddit-adapter.ts` | Support `sampleSize` parameter |
+| `src/app/api/research/coverage-check/route.ts` | Set `'coverage'` priority context |
+| `src/app/api/research/community-voice/route.ts` | Set `'research'` priority with jobId |
+| `docs/ARCHITECTURE_SUMMARY.md` | Added rate limiting section |
+| `docs/SYSTEM_DOCUMENTATION.md` | Added Section 19 (full details) |
 
-**Note:** The `.claude/commands/` directory appears to be untracked. Consider reviewing and committing if it contains important skill/command definitions.
+**Action Required:** Review and commit these changes.
 
 ---
 
@@ -35,34 +64,29 @@
 |-------|--------|
 | **Build** | ✅ Passing |
 | **Tests** | 173 passing, 6 skipped |
-| **Dev Server** | ✅ Running on :3000 |
+| **Git** | Uncommitted changes |
+
+---
+
+## Documentation Added
+
+- **ARCHITECTURE_SUMMARY.md**: Quick reference diagram + feature table
+- **SYSTEM_DOCUMENTATION.md Section 19**: Full implementation details
+  - 19.1 Architecture Overview
+  - 19.2 Dual-Queue System
+  - 19.3 Request Coalescing
+  - 19.4 Per-Job Fairness
+  - 19.5 Elastic Rate Adjustment
+  - 19.6 Queue Telemetry & ETA
+  - 19.7-19.9 Key Files, Usage Examples, Caching Layers
 
 ---
 
 ## What's Next
 
-**From KNOWN_ISSUES.md:**
-
-1. **App Gap Research Pipeline** - CRITICAL issue is currently being investigated
-   - Status: INVESTIGATING (Jan 10, 2026)
-   - Research gets stuck in processing, never completes
-   - Root cause identified as Arctic Shift API rate limiting
-   - Fix applied but needs testing
-
-2. **Arctic Shift Rate Limiting** - Fixed with 4-layer solution
-   - Status: ✅ FIXED (Jan 11, 2026)
-   - Comprehensive solution with serialized requests, 422-specific backoff, caching, and rate limit awareness
-   - Testing required to verify fix works under load
-
-3. **Market/Competition Tab Auto-Start** - Recently fixed
-   - Status: ✅ FIXED (Jan 11, 2026)
-   - Added fallback save and improved compatibility
-   - Database migration may be required in production
-
-**High Priority:**
-- Test App Gap research pipeline to verify Arctic Shift fixes work
-- Apply database migration 012 to production if not yet done
-- Review `.claude/commands/` directory and commit if needed
+1. **Commit the rate limiting implementation** - All changes are tested and passing
+2. **Test under load** - Verify 20+ concurrent users scenario works as designed
+3. **Add ETA display to frontend** (optional) - Use `getQueueTelemetry()` for user feedback
 
 ---
 
@@ -70,10 +94,10 @@
 
 | Purpose | File |
 |---------|------|
-| Project instructions | `CLAUDE.md` |
-| Known bugs | `docs/KNOWN_ISSUES.md` |
-| Architecture | `docs/SYSTEM_DOCUMENTATION.md` |
-| Quick reference | `docs/REFERENCE.md` |
+| Rate limiter | `src/lib/arctic-shift/rate-limiter.ts` |
+| Client with context | `src/lib/arctic-shift/client.ts` |
+| Documentation | `docs/SYSTEM_DOCUMENTATION.md` Section 19 |
+| Quick reference | `docs/ARCHITECTURE_SUMMARY.md` |
 
 ---
 

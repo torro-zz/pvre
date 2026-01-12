@@ -11,7 +11,13 @@ import {
   SearchSubredditsParams,
   ArcticShiftResponse,
 } from './types'
-import { rateLimitedFetch, updateRateLimitState, getRateLimitDelay } from './rate-limiter'
+import {
+  rateLimitedHttpFetch,
+  updateRateLimitState,
+  getRateLimitDelay,
+  type RequestPriority,
+  type RateLimitedFetchOptions,
+} from './rate-limiter'
 import { generateQueryCacheKey, getQueryCache, setQueryCache } from '@/lib/data-sources/cache'
 
 const BASE_URL = 'https://arctic-shift.photon-reddit.com'
@@ -20,6 +26,38 @@ const REQUEST_DELAY_MS = 300 // Delay between requests for legacy functions
 
 // Helper to add delay between requests (only used for legacy functions)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+// Request context for priority routing
+// Set this before making requests to route them appropriately
+let currentRequestPriority: RequestPriority = 'research'
+let currentJobId: string | undefined
+
+/**
+ * Set the request context for priority routing
+ * Call this at the start of a coverage check or research flow
+ */
+export function setRequestContext(priority: RequestPriority, jobId?: string): void {
+  currentRequestPriority = priority
+  currentJobId = jobId
+}
+
+/**
+ * Clear the request context (reset to defaults)
+ */
+export function clearRequestContext(): void {
+  currentRequestPriority = 'research'
+  currentJobId = undefined
+}
+
+/**
+ * Get current request options for rate limiting
+ */
+function getRequestOptions(): RateLimitedFetchOptions {
+  return {
+    priority: currentRequestPriority,
+    jobId: currentJobId,
+  }
+}
 
 // Build query string from params
 function buildQueryString(params: Record<string, string | number | boolean | undefined>): string {
@@ -35,10 +73,11 @@ function buildQueryString(params: Record<string, string | number | boolean | und
   return searchParams.toString()
 }
 
-// Generic fetch with error handling, caching, and retries
+// Generic fetch with error handling, caching, retries, and priority routing
 // All requests go through the rate limiter to handle concurrent users
 // Handles 422 "Timeout" errors with longer backoff (server-side query timeouts)
 // Uses query-level caching to reduce API load (24-hour TTL)
+// Uses request coalescing to share identical in-flight requests
 async function fetchWithRetry<T>(
   url: string,
   retries = 3,
@@ -68,17 +107,21 @@ async function fetchWithRetry<T>(
 
       // Log request URL for debugging (only first attempt to reduce noise)
       if (attempt === 0) {
-        console.log('[ArcticShift] Request:', url)
+        const priority = currentRequestPriority
+        console.log(`[ArcticShift] Request (${priority}):`, url.slice(0, 100))
       }
 
-      // Use rate limiter to prevent API overload from concurrent users
-      const response = await rateLimitedFetch(() =>
-        fetch(url, {
+      // Use rate limiter with coalescing to prevent API overload
+      // Priority and jobId are automatically applied from context
+      const response = await rateLimitedHttpFetch(
+        url,
+        () => fetch(url, {
           headers: {
             'Accept': 'application/json',
             'User-Agent': 'PVRE/1.0 (research tool)',
           },
-        })
+        }),
+        getRequestOptions()
       )
 
       // Update rate limit state from response headers (for adaptive throttling)

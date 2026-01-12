@@ -190,8 +190,13 @@ export interface DataSource {
   searchPosts(params: SearchParams): Promise<RedditPost[]>
   searchComments(params: SearchParams): Promise<RedditComment[]>
   getPostCount(subreddit: string, keywords?: string[]): Promise<number>
-  /** Get post count AND posting velocity for adaptive time-stratified fetching */
-  getPostStats(subreddit: string, keywords?: string[]): Promise<PostStats>
+  /**
+   * Get post count AND posting velocity for adaptive time-stratified fetching
+   * @param subreddit - Subreddit to check
+   * @param keywords - Optional keywords (not used for Arctic Shift due to 422 errors)
+   * @param sampleSize - Number of posts to sample (default: 100, use 50 for fast coverage checks)
+   */
+  getPostStats(subreddit: string, keywords?: string[], sampleSize?: number): Promise<PostStats>
   getSamplePosts(subreddit: string, limit?: number, keywords?: string[]): Promise<SamplePost[]>
 }
 

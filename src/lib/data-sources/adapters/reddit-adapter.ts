@@ -22,6 +22,7 @@ import {
 import {
   searchPosts as arcticSearchPosts,
   searchComments as arcticSearchComments,
+  setRequestContext,
 } from '../../arctic-shift/client'
 import {
   RedditPost as ArcticPost,
@@ -36,6 +37,12 @@ const ARCTIC_SHIFT_BASE = 'https://arctic-shift.photon-reddit.com'
 const statsCache = new Map<string, { stats: PostStats; fetchedAt: number }>()
 const STATS_CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
 const HEALTH_CHECK_TIMEOUT = 5000
+
+// Fast-first coverage optimization
+// Coverage checks use smaller sample (50) for speed
+// Full research uses larger sample (100) for accuracy
+const COVERAGE_SAMPLE_SIZE = 50
+const RESEARCH_SAMPLE_SIZE = 100
 
 /**
  * Reddit adapter implementing the unified DataSourceAdapter interface
@@ -105,8 +112,12 @@ export class RedditAdapter implements DataSourceAdapter {
    * Get post count AND posting velocity for adaptive time-stratified fetching
    * Velocity is calculated from the timestamp spread of sample posts
    * Results are cached to avoid redundant API calls
+   *
+   * @param subreddit - Subreddit to check
+   * @param _keywords - Keywords (unused - causes 422 errors on Arctic Shift)
+   * @param sampleSize - Number of posts to sample (default: 100, use 50 for fast coverage)
    */
-  async getPostStats(subreddit: string): Promise<PostStats> {
+  async getPostStats(subreddit: string, _keywords?: string[], sampleSize: number = RESEARCH_SAMPLE_SIZE): Promise<PostStats> {
     // 1. Check in-memory cache first (fastest)
     const cachedEntry = statsCache.get(subreddit.toLowerCase())
     if (cachedEntry && Date.now() - cachedEntry.fetchedAt < STATS_CACHE_TTL_MS) {
@@ -126,11 +137,11 @@ export class RedditAdapter implements DataSourceAdapter {
       return stats
     }
 
-    // 3. Fetch fresh data from API
+    // 3. Fetch fresh data from API (use sampleSize for fast-first coverage)
     try {
       const posts = await arcticSearchPosts({
         subreddit,
-        limit: 100,
+        limit: sampleSize, // 50 for coverage, 100 for research
         sort: 'desc', // Newest first
       })
 
