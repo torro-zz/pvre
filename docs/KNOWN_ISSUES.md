@@ -10,7 +10,7 @@
 
 Three issues discovered during post-fix verification:
 
-1. **Hypothesis Mode: Competitor Analysis Requires Manual Trigger** — App Gap auto-runs, Hypothesis doesn't
+1. ~~**Hypothesis Mode: Competitor Analysis Requires Manual Trigger**~~ — ✅ FIXED
 2. **Timing Tab Missing Trend Visualizations** — Google Trends and AI Discussion Trends not displayed
 3. **WTP Signals Missing Source Attribution** — Can't verify quotes are real
 
@@ -641,48 +641,100 @@ For App Gap mode, Reddit is noise. Suggested approach:
 
 ## 🔴 CRITICAL — Fix First
 
-### Hypothesis Mode: Competitor Analysis Requires Manual Trigger
-**Status:** Open
-**Impact:** Inconsistent UX between modes - Hypothesis mode feels incomplete
-**Location:** `src/app/api/research/community-voice/route.ts`
+### ~~Hypothesis Mode: Competitor Analysis Requires Manual Trigger~~
+**Status:** ✅ FIXED (Jan 13, 2026) — with follow-up issues identified by Codex
+**Impact:** ~~Inconsistent UX between modes - Hypothesis mode feels incomplete~~
+**Location:** `src/app/api/research/community-voice/stream/route.ts`
 **Discovered:** January 13, 2026
 
-**Problem:**
-In **App Gap mode**, competitor analysis runs automatically as part of the unified flow (lines 1247-1357 in community-voice route). The job completes with all 4 dimensions scored.
+**Problem (RESOLVED):**
+In **App Gap mode**, competitor analysis ran automatically. In **Hypothesis mode**, it did NOT auto-run because the streaming endpoint (`community-voice/stream/route.ts`) was missing the auto-competitor logic that existed in the non-streaming endpoint.
 
-In **Hypothesis mode**, competitor analysis does NOT auto-run. The job gets stuck with:
-- `step_status: { pain_analysis: "pending", market_sizing: "locked", ... }`
-- Only 3/4 dimensions available
-- User must manually click "Run Competitor Intelligence" button
+**Root Cause:**
+- App Gap mode uses `/api/research/community-voice` (non-streaming, has auto-competitor)
+- Hypothesis mode uses `/api/research/community-voice/stream` (SSE streaming, was missing auto-competitor)
 
-**Why This Happens:**
-The community-voice route has auto-competitor logic (line 1247+), but the step_status is never updated to `pain_analysis: "completed"` in Hypothesis mode, which blocks the entire step chain.
+**Fix Applied:**
+Added auto-competitor analysis to the streaming endpoint (lines 410-473):
+1. After saving `community_voice` results, update `step_status` to mark pain_analysis complete
+2. Auto-run `analyzeCompetitors()`
+3. Save `competitor_intelligence` results
+4. Mark job as "completed" with all 4 dimensions
 
-**Expected Behavior:**
-Both modes should behave the same:
-1. Research completes
-2. Competitor analysis runs automatically
-3. All 4 dimensions scored
-4. Job status = "completed"
+**Files Modified:**
+- `src/app/api/research/community-voice/stream/route.ts` — Added auto-competitor logic (lines 386-473)
 
-**Files to Investigate:**
-- `src/app/api/research/community-voice/route.ts` — Auto-competitor logic (lines 1233-1357)
-- `src/app/api/research/community-voice/stream/route.ts` — Streaming endpoint (may have different flow)
-- Step status update logic — Why doesn't Hypothesis mode update `pain_analysis` to "completed"?
+**Behavior Now:**
+Both modes complete with all 4 dimensions:
+- `pain_analysis: 'completed'`
+- `market_sizing: 'completed'`
+- `timing_analysis: 'completed'`
+- `competitor_analysis: 'completed'`
 
-**Temporary Workaround:**
-Manually fix step_status via database, then call competitor-intelligence API:
-```typescript
-// Update step_status to unblock competitor analysis
-await supabase.from('research_jobs').update({
-  step_status: {
-    pain_analysis: 'completed',
-    market_sizing: 'completed',
-    timing_analysis: 'completed',
-    competitor_analysis: 'pending'
-  }
-}).eq('id', jobId)
-```
+#### Codex Review Follow-up Issues (Jan 13, 2026)
+
+The following issues were identified by Codex during code review of the fix:
+
+---
+
+**🔴 HIGH: Community Voice Save Failure Not Handled**
+**Status:** ✅ FIXED (Jan 13, 2026)
+**Location:** `stream/route.ts:381-484`
+
+~~If `saveResearchResult(jobId, 'community_voice', ...)` fails, the code just logs the error and continues to competitor analysis anyway.~~
+
+**Fix Applied:**
+Restructured lines 381-484 to wrap save + competitor logic in single try-catch:
+- On failure: marks job as `failed` with `error_source: 'database'`
+- Sends SSE error event to client
+- Closes stream and returns early (skips competitor)
+- Matches non-streaming route behavior
+
+**Files Modified:** `src/app/api/research/community-voice/stream/route.ts`
+
+---
+
+**🟡 MEDIUM: Streaming Route Not Full Parity with Non-Streaming**
+**Status:** Open
+**Location:** `stream/route.ts:416-420`
+
+The auto-competitor logic in the streaming route is missing inputs that the non-streaming route uses:
+- No competitor detection step (extracts competitors from pain signals)
+- No `knownCompetitors` parameter
+- No `targetGeography` parameter
+- No `clusters` parameter (App Gap only, acceptable)
+- No `maxCompetitors` parameter
+- No `analyzedAppName` parameter (App Gap only, acceptable)
+
+**Impact:** Lower quality competitor analysis results in Hypothesis mode. The non-streaming route runs a full competitor detection step that extracts competitor names from pain signals before running analysis.
+
+**Recommended Fix:** Extract competitor detection logic into a shared function and call it from both routes.
+
+---
+
+**🟡 MEDIUM: SSE Doesn't Signal Competitor Failure to Client**
+**Status:** Open
+**Location:** `stream/route.ts:438-472`
+
+If competitor analysis fails, the client still receives a final `complete` event with no indication of failure. The database shows `competitor_analysis: 'failed'` but the UI won't know unless it polls.
+
+**Expected:** Send an error or warning SSE event when competitor analysis fails so the UI can show appropriate feedback.
+
+**Recommended Fix:** Add `sendEvent(controller, { type: 'error', step: 'competitor', message: '...' })` before the final complete event when competitor fails.
+
+---
+
+**🟢 LOW: Duplicate Result Payload in SSE**
+**Status:** Open
+**Location:** `stream/route.ts:402-408, 476-481`
+
+The large `result` object is sent twice:
+1. In `community_voice_done` progress event (line 407)
+2. In final `complete` event (line 480)
+
+**Impact:** Increased SSE payload size and client buffering pressure.
+
+**Recommended Fix:** Remove `data: { result }` from the final `complete` event since it was already sent.
 
 ---
 

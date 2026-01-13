@@ -31,6 +31,7 @@ import {
   applySubredditWeights,
 } from '@/lib/analysis/subreddit-weights'
 import { saveResearchResult } from '@/lib/research/save-result'
+import { analyzeCompetitors, createFallbackCompetitorResult } from '@/lib/research/competitor-analyzer'
 import {
   filterRelevantPosts,
   filterRelevantComments,
@@ -377,16 +378,121 @@ export async function POST(request: NextRequest) {
           },
         }
 
-        // Save results if jobId provided
+        // Save results and run competitor analysis if jobId provided
         if (jobId) {
           try {
             await saveResearchResult(jobId, 'community_voice', result)
-          } catch (saveError) {
-            console.error('Failed to save results:', saveError)
+
+            // Update step_status to mark pain analysis complete, start competitor
+            await adminClient.from('research_jobs').update({
+              status: 'processing',
+              step_status: {
+                pain_analysis: 'completed',
+                market_sizing: 'completed',
+                timing_analysis: 'completed',
+                competitor_analysis: 'in_progress'
+              }
+            }).eq('id', jobId)
+
+            // Send initial completion (community voice done)
+            sendEvent(controller, {
+              type: 'progress',
+              step: 'community_voice_done',
+              message: 'Pain analysis complete!',
+              data: { result },
+            })
+
+            // =========================================================================
+            // AUTO-COMPETITOR ANALYSIS (Jan 2026 - Unified Flow for Hypothesis Mode)
+            // =========================================================================
+            send('competitor', 'Running competitor analysis...')
+
+            try {
+              // Run competitor analysis (no clusters in Hypothesis mode - that's App Gap only)
+              const competitorResult = await analyzeCompetitors({
+                hypothesis,
+              })
+
+              // Save competitor results
+              await saveResearchResult(jobId, 'competitor_intelligence', competitorResult)
+
+              // Mark job as fully completed
+              await adminClient.from('research_jobs').update({
+                status: 'completed',
+                step_status: {
+                  pain_analysis: 'completed',
+                  market_sizing: 'completed',
+                  timing_analysis: 'completed',
+                  competitor_analysis: 'completed'
+                }
+              }).eq('id', jobId)
+
+              send('competitor', `Competitor analysis complete - ${competitorResult.competitors.length} competitors found`)
+
+            } catch (compError) {
+              const errorMessage = compError instanceof Error ? compError.message : String(compError)
+              console.error('Auto-competitor analysis failed:', errorMessage)
+
+              // Save fallback results so UI has something to display
+              try {
+                const fallbackResult = createFallbackCompetitorResult(hypothesis, [], errorMessage)
+                await saveResearchResult(jobId, 'competitor_intelligence', fallbackResult)
+
+                // Still mark as completed (with fallback data)
+                await adminClient.from('research_jobs').update({
+                  status: 'completed',
+                  step_status: {
+                    pain_analysis: 'completed',
+                    market_sizing: 'completed',
+                    timing_analysis: 'completed',
+                    competitor_analysis: 'completed'
+                  }
+                }).eq('id', jobId)
+
+                send('competitor', 'Competitor analysis completed (with limited data)')
+              } catch (fallbackError) {
+                console.error('Failed to save fallback competitor results:', fallbackError)
+                // Mark competitor as failed but job as completed
+                await adminClient.from('research_jobs').update({
+                  status: 'completed',
+                  step_status: {
+                    pain_analysis: 'completed',
+                    market_sizing: 'completed',
+                    timing_analysis: 'completed',
+                    competitor_analysis: 'failed'
+                  }
+                }).eq('id', jobId)
+              }
+            }
+          } catch (error) {
+            console.error('Failed to save results or run competitor:', error)
+
+            await adminClient.from('research_jobs').update({
+              status: 'failed',
+              error_source: 'database',
+              error_message: error instanceof Error ? error.message : 'Save failed'
+            }).eq('id', jobId)
+
+            sendEvent(controller, {
+              type: 'error',
+              step: 'save',
+              message: 'Failed to save research results',
+            })
+
+            controller.close()
+            return
           }
+        } else {
+          // Send initial completion (community voice done)
+          sendEvent(controller, {
+            type: 'progress',
+            step: 'community_voice_done',
+            message: 'Pain analysis complete!',
+            data: { result },
+          })
         }
 
-        // Send completion
+        // Send final completion
         sendEvent(controller, {
           type: 'complete',
           step: 'done',
