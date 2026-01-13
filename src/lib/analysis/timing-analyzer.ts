@@ -113,7 +113,13 @@ export async function analyzeTiming(
     } else {
       // Step 3: Fall back to Google Trends if AI trends unavailable
       console.log('[Timing] AI Discussion Trends unavailable, trying Google Trends...');
-      googleTrendData = await getCachedTrendData(keywords);
+      try {
+        googleTrendData = await getCachedTrendData(keywords);
+      } catch (googleTrendError) {
+        // Non-blocking: Google Trends errors shouldn't crash research
+        console.warn('[Timing] Google Trends failed (non-blocking):', googleTrendError instanceof Error ? googleTrendError.message : googleTrendError);
+        googleTrendData = null;
+      }
 
       if (googleTrendData) {
         trendSource = 'google_trends';
