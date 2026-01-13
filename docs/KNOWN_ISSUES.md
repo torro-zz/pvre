@@ -13,8 +13,111 @@ Three issues discovered during post-fix verification:
 1. ~~**Hypothesis Mode: Competitor Analysis Requires Manual Trigger**~~ — ✅ FIXED
 2. **Timing Tab Missing Trend Visualizations** — 🟡 PARTIAL (UI fixed, data availability issue)
 3. **WTP Signals Missing Source Attribution** — Can't verify quotes are real
+4. **NEW: Timing Analysis Failing Silently** — Recent researches have no timing data at all
 
 See detailed entries below (after UI/UX Review Findings section).
+
+---
+
+### 🔴 Timing Analysis Failing Silently (RESUME HERE - Jan 14)
+**Status:** Open — Root cause identified, fix needed
+**Impact:** Timing tab shows "Not analyzed yet" for recent researches
+**Priority:** HIGH — Affects all new Hypothesis mode researches
+**Discovered:** January 13, 2026 (evening debugging session)
+
+#### Problem
+Recent researches (last ~7 hours) have **no timing data at all** (`timing: null` in saved results). Older researches have timing with `trendSource: 'ai_estimate'` but no visualizations.
+
+#### Evidence
+```bash
+# Check any research for timing data:
+curl -s "http://localhost:3000/api/research/results?jobId=<JOB_ID>" -b /tmp/cookies.txt | \
+  jq '.[] | select(.module_name == "community_voice") | .data | has("timing")'
+
+# Recent jobs return: false
+# Older jobs (before ~12:00 UTC Jan 13) return: true
+```
+
+#### Root Cause Analysis
+
+**1. Timing analyzer throws, market-analyzer catches and returns undefined:**
+```typescript
+// src/lib/research/steps/market-analyzer.ts:92-106
+(async (): Promise<TimingResult | undefined> => {
+  try {
+    const result = await analyzeTiming({...})
+    return result
+  } catch (error) {
+    console.error('Timing analysis failed (non-blocking):', error)
+    return undefined  // <-- timing becomes null in saved results
+  }
+})()
+```
+
+**2. External APIs failing:**
+- **Google Trends:** Returns HTML instead of JSON (rate limiting or API change)
+  ```
+  [GoogleTrends] API error: Unexpected token '<', "<html lang"... is not valid JSON
+  ```
+- **AI Discussion Trends:** Requires ~100 Arctic Shift API calls, often fails
+- **Final Claude API call:** If this throws after both trend sources fail, whole function fails
+
+**3. No fallback when Claude API fails:**
+The timing analyzer's final step calls Claude to generate scores/analysis. If this fails, there's no fallback — the entire timing result is lost.
+
+#### Proposed Fix
+
+**Option A: Wrap Claude call in try-catch with fallback (Quick fix)**
+```typescript
+// In timing-analyzer.ts, wrap the Claude API call:
+try {
+  const response = await createMessage({...})
+  // ... parse response
+} catch (error) {
+  console.warn('[Timing] Claude API failed, using minimal fallback:', error)
+  return {
+    score: 5,  // Neutral default
+    confidence: 'low',
+    trendSource: 'ai_estimate',
+    tailwinds: [],
+    headwinds: [],
+    timingWindow: 'Unknown',
+    verdict: 'Unable to analyze timing due to API error',
+    trend: 'stable',
+    trendData: null,
+  }
+}
+```
+
+**Option B: Add retry logic to timing analyzer (More robust)**
+- Retry Claude API call up to 3 times with exponential backoff
+- Cache successful timing results for similar hypotheses
+
+**Option C: Fix external API issues (Long-term)**
+- Investigate Google Trends HTML response (may need API key or different endpoint)
+- Add circuit breaker for Arctic Shift rate limiting
+
+#### Files to Modify
+- `src/lib/analysis/timing-analyzer.ts` — Add fallback for Claude API failure
+- `src/lib/data-sources/google-trends.ts` — Investigate HTML response issue
+
+#### Test After Fix
+```bash
+# Run a new research and verify timing is saved:
+curl -X POST http://localhost:3000/api/research/community-voice \
+  -b /tmp/cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{"hypothesis":"Test timing fix"}'
+
+# Then check results for timing:
+curl -s "http://localhost:3000/api/research/results?jobId=<NEW_JOB_ID>" -b /tmp/cookies.txt | \
+  jq '.[] | select(.module_name == "community_voice") | .data.timing'
+```
+
+#### Related Work Completed (Jan 13)
+- ✅ UI fix committed (`e8bd1f2`) — Shows visualizations when data exists
+- ✅ Parallel fetch implemented — Both AI Discussion and Google Trends fetched simultaneously
+- ✅ New fields added — `googleTimeline`, `googleKeywords`, etc. stored even when AI is primary
 
 ---
 
