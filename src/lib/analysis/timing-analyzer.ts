@@ -56,6 +56,14 @@ export interface TimingResult {
       formattedTime: string;
       value: number[];
     }>;
+    googleTimeline?: Array<{
+      time: string;
+      formattedTime: string;
+      value: number[];
+    }>;
+    googleKeywords?: string[];
+    googleKeywordBreakdown?: KeywordTrend[];
+    googleDataAvailable?: boolean;
     // AI Discussion specific fields
     totalVolume?: number;
     sources?: string[];
@@ -92,41 +100,30 @@ export async function analyzeTiming(
   let trendSource: 'ai_discussion' | 'google_trends' | 'ai_estimate' = 'ai_estimate';
 
   if (keywords.length > 0) {
-    // Skip AI Discussion Trends for App Gap mode - it analyzes app reviews, not Reddit discussions
-    // This avoids ~100 sequential Arctic Shift API calls that add 30+ minutes to App Gap searches
-    if (input.isAppGapMode) {
-      console.log('[Timing] Skipping AI Discussion Trends for App Gap mode (not relevant for app review analysis)');
-    } else {
-      console.log('[Timing] Fetching AI Discussion Trends for:', keywords);
-      try {
-        aiTrendData = await getAIDiscussionTrend(keywords);
-      } catch (aiTrendError) {
-        // Non-blocking: Arctic Shift rate limiting or other errors shouldn't crash research
-        console.warn('[Timing] AI Discussion Trends failed (non-blocking):', aiTrendError instanceof Error ? aiTrendError.message : aiTrendError);
-        aiTrendData = null;
-      }
-    }
+    const [aiTrendResult, googleTrendResult] = await Promise.allSettled([
+      input.isAppGapMode
+        ? Promise.resolve(null)
+        : getAIDiscussionTrend(keywords).catch(err => {
+            console.warn('[Timing] AI Discussion Trends failed (non-blocking):', err instanceof Error ? err.message : err);
+            return null;
+          }),
+      getCachedTrendData(keywords).catch(err => {
+        console.warn('[Timing] Google Trends failed (non-blocking):', err instanceof Error ? err.message : err);
+        return null;
+      })
+    ]);
+
+    aiTrendData = aiTrendResult.status === 'fulfilled' ? aiTrendResult.value : null;
+    googleTrendData = googleTrendResult.status === 'fulfilled' ? googleTrendResult.value : null;
 
     if (aiTrendData?.dataAvailable && !aiTrendData.insufficientData) {
       trendSource = 'ai_discussion';
       console.log('[Timing] Using AI Discussion Trends - trend:', aiTrendData.trend, 'change:', aiTrendData.percentageChange);
+    } else if (googleTrendData?.timelineData?.length) {
+      trendSource = 'google_trends';
+      console.log('[Timing] Using Google Trends - trend:', googleTrendData.trend);
     } else {
-      // Step 3: Fall back to Google Trends if AI trends unavailable
-      console.log('[Timing] AI Discussion Trends unavailable, trying Google Trends...');
-      try {
-        googleTrendData = await getCachedTrendData(keywords);
-      } catch (googleTrendError) {
-        // Non-blocking: Google Trends errors shouldn't crash research
-        console.warn('[Timing] Google Trends failed (non-blocking):', googleTrendError instanceof Error ? googleTrendError.message : googleTrendError);
-        googleTrendData = null;
-      }
-
-      if (googleTrendData) {
-        trendSource = 'google_trends';
-        console.log('[Timing] Using Google Trends - trend:', googleTrendData.trend);
-      } else {
-        console.log('[Timing] All trend sources unavailable, using AI estimate');
-      }
+      console.log('[Timing] All trend sources unavailable, using AI estimate');
     }
   }
 
@@ -268,6 +265,10 @@ Respond with ONLY valid JSON:
       insufficientData: aiTrendData.insufficientData,
       change30d: aiTrendData.change30d,
       change90d: aiTrendData.change90d,
+      googleTimeline: googleTrendData?.timelineData || undefined,
+      googleKeywords: googleTrendData?.keywords || undefined,
+      googleKeywordBreakdown: googleTrendData?.keywordBreakdown || undefined,
+      googleDataAvailable: !!(googleTrendData?.timelineData?.length),
     };
   } else if (trendSource === 'google_trends' && googleTrendData) {
     trendDataResponse = {
@@ -276,6 +277,10 @@ Respond with ONLY valid JSON:
       dataAvailable: true,
       keywordBreakdown: googleTrendData.keywordBreakdown,
       timelineData: googleTrendData.timelineData,
+      googleTimeline: googleTrendData.timelineData || undefined,
+      googleKeywords: googleTrendData.keywords || undefined,
+      googleKeywordBreakdown: googleTrendData.keywordBreakdown || undefined,
+      googleDataAvailable: !!(googleTrendData.timelineData?.length),
     };
   }
 

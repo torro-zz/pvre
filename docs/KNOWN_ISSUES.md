@@ -11,7 +11,7 @@
 Three issues discovered during post-fix verification:
 
 1. ~~**Hypothesis Mode: Competitor Analysis Requires Manual Trigger**~~ — ✅ FIXED
-2. **Timing Tab Missing Trend Visualizations** — Google Trends and AI Discussion Trends not displayed
+2. **Timing Tab Missing Trend Visualizations** — 🟡 PARTIAL (UI fixed, data availability issue)
 3. **WTP Signals Missing Source Attribution** — Can't verify quotes are real
 
 See detailed entries below (after UI/UX Review Findings section).
@@ -739,36 +739,184 @@ The large `result` object is sent twice:
 ---
 
 ### Timing Tab Missing Google Trends and AI Discussion Trends
-**Status:** Open
-**Impact:** Users see timing score but no supporting visualizations
-**Location:** `src/components/research/market-tab.tsx` (Timing sub-tab)
+**Status:** 🟡 PARTIAL FIX (January 13, 2026) — UI changes applied, underlying data availability issue
+**Impact:** ~~Users see timing score but no supporting visualizations~~
+**Location:** `src/components/research/market-tab.tsx`, `src/lib/analysis/timing-analyzer.ts`
 **Discovered:** January 13, 2026
 
-**Problem:**
-1. **Market Overview shows trend data** — "Trend search" section displays Google Trends score
-2. **Timing tab shows nothing** — No Google Trends chart, no AI Discussion Trends visualization
-3. **AI Discussion Trends missing entirely** — The feature built to show Reddit discussion volume over time is not visible anywhere
+**Problem (RESOLVED):**
+1. ~~**Timing tab shows nothing** — No Google Trends chart, no AI Discussion Trends visualization~~
+2. ~~**AI Discussion Trends missing entirely** — The purple card with 30d/90d changes not visible~~
+3. **Tailwinds/Headwinds displayed correctly** — No changes needed
 
-**What Should Display:**
-- Google Trends chart (if available) showing interest over time
-- AI Discussion Trends card showing:
-  - 30-day vs 90-day discussion volume comparison
-  - Trend direction (rising/falling/stable)
-  - Source subreddits analyzed
-- Tailwinds/Headwinds list (this DOES display correctly)
+---
 
-**Data Availability:**
-The timing data EXISTS in the database (timing score 8.2, tailwinds, headwinds). The issue is the UI not rendering the trend visualizations.
+#### Root Cause Analysis (Codex-Reviewed)
 
-**Files to Investigate:**
-- `src/components/research/market-tab.tsx` — Timing sub-tab rendering
-- `src/lib/analysis/timing-analyzer.ts` — Returns `aiDiscussionTrend` and `googleTrends` data
-- Check if timing result includes `aiDiscussionTrend` field and if UI reads it
+**TWO separate data paths with different problems:**
 
-**Related:**
-- AI Discussion Trends was built in Jan 8, 2026 (see "Google Trends API Blocked" section below)
-- Should show purple "AI Discussion Trends" card with 30d/90d changes
-- Falls back to Google Trends (blue) if AI trends unavailable
+| Visualization | Data Source | UI File | Problem |
+|---------------|-------------|---------|---------|
+| Purple "Discussion Trends" card | `communityVoiceResult.data.unifiedTrends` | `market-tab.tsx:821` | Hidden when `insufficientData === true` |
+| Blue "Google Trends" chart | `timingData.trendData.timelineData` | `market-tab.tsx:955` | Data never fetched when AI Discussion succeeds |
+
+**Data Path 1: Purple Card (UI gating issue)**
+- Source: `unifiedTrends` from `combineDiscussionTrends()` in `discussion-trends.ts`
+- UI condition: `{unifiedTrends && !unifiedTrends.insufficientData}`
+- Problem: Card hidden entirely when `insufficientData === true`, even if useful data exists
+
+**Data Path 2: Blue Chart (Architecture issue)**
+- Source: `timing-analyzer.ts` lines 89-131 uses fallback hierarchy:
+  1. Try AI Discussion Trends first
+  2. If fails → try Google Trends
+  3. If fails → use AI estimate
+- Problem: When AI Discussion succeeds, Google Trends is **never fetched**
+- Result: `timelineData` is empty/undefined — no data to display
+
+---
+
+#### Proposed Solution (Plan v2 — Codex Approved)
+
+**Phase 0: Diagnostic**
+Add logging to `TimingSubTab` in `market-tab.tsx` to confirm what data exists:
+```typescript
+console.log('[TimingSubTab] Debug:', {
+  hasUnifiedTrends: !!unifiedTrends,
+  unifiedTrendsInsufficient: unifiedTrends?.insufficientData,
+  unifiedTrendsRecentCount: unifiedTrends?.recentCount,
+  trendSource: timingData?.trendSource,
+  hasTimelineData: !!timingData?.trendData?.timelineData?.length,
+});
+```
+
+**Phase 1: Fix Purple Card (UI only)**
+
+File: `src/components/research/market-tab.tsx`
+
+Change 1 — Relax hiding condition (line 821):
+```typescript
+// FROM:
+{unifiedTrends && !unifiedTrends.insufficientData && (...)}
+
+// TO: Show if any useful data exists
+{unifiedTrends && ((unifiedTrends.recentCount ?? 0) > 0 || (unifiedTrends.previousCount ?? 0) > 0) && (...)}
+```
+
+Change 2 — Add low-confidence warning INSIDE the card (after line 822):
+```typescript
+{(unifiedTrends.insufficientData || unifiedTrends.confidence === 'low' || unifiedTrends.confidence === 'none') && (
+  <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 rounded text-xs text-amber-700 dark:text-amber-400">
+    <AlertTriangle className="h-3 w-3" />
+    <span>Limited data — interpret with caution</span>
+  </div>
+)}
+```
+
+**Phase 2: Fix Blue Chart (Architecture change)**
+
+File: `src/lib/analysis/timing-analyzer.ts`
+
+Change 1 — Fetch both sources in parallel (lines 89-131):
+```typescript
+const [aiTrendResult, googleTrendResult] = await Promise.allSettled([
+  input.isAppGapMode ? Promise.resolve(null) : getAIDiscussionTrend(keywords),
+  getCachedTrendData(keywords)
+]);
+
+aiTrendData = aiTrendResult.status === 'fulfilled' ? aiTrendResult.value : null;
+googleTrendData = googleTrendResult.status === 'fulfilled' ? googleTrendResult.value : null;
+
+// Determine primary source for score calculation
+if (aiTrendData?.dataAvailable && !aiTrendData.insufficientData) {
+  trendSource = 'ai_discussion';
+} else if (googleTrendData?.dataAvailable) {
+  trendSource = 'google_trends';
+} else {
+  trendSource = 'ai_estimate';
+}
+```
+
+Change 2 — Add new fields to `trendData` in return (additive, backward compatible):
+```typescript
+trendData: {
+  ...existingFields,
+  // NEW: Google Trends data (available even when AI Discussion is primary)
+  googleTimeline: googleTrendData?.timelineData || null,
+  googleKeywords: googleTrendData?.keywords || null,
+  googleKeywordBreakdown: googleTrendData?.keywordBreakdown || null,
+  googleDataAvailable: !!googleTrendData?.dataAvailable,
+}
+```
+
+Change 3 — Update UI to show Google Trends when data exists (`market-tab.tsx:955`):
+```typescript
+// FROM:
+{timingData.trendSource === 'google_trends' && timingData.trendData?.dataAvailable && (...)}
+
+// TO: Show if Google data exists (with supplementary label if AI is primary)
+{(timingData.trendData?.googleTimeline?.length > 0 ||
+  (timingData.trendSource === 'google_trends' && timingData.trendData?.timelineData?.length > 0)) && (...)}
+```
+
+---
+
+#### Backward Compatibility
+
+| Scenario | Behavior |
+|----------|----------|
+| Old results without `googleTimeline` | Check `timelineData` + `trendSource === 'google_trends'` |
+| Old results with `insufficientData: true` | Now shows with warning (improvement) |
+| New results | Both visualizations when both sources succeed |
+
+---
+
+#### Test Cases
+
+| Test | Mode | Expected |
+|------|------|----------|
+| AI success + Google success | Hypothesis | Purple card + Blue chart |
+| AI success + Google failure | Hypothesis | Purple card only |
+| AI insufficient + Google success | Hypothesis | Purple card with warning + Blue chart |
+| Both fail | Either | Amber "AI Estimate" warning |
+| App Gap (AI skipped) | App Gap | Blue chart only |
+
+---
+
+#### Fix Applied (January 13, 2026)
+
+**Changes to `src/components/research/market-tab.tsx`:**
+1. Changed purple card condition from `!unifiedTrends.insufficientData` to show if any counts exist
+2. Added amber "Limited data" warning inside card when `insufficientData` or low confidence
+3. Changed blue chart condition to show if `googleTimeline` data exists (not just when primary source)
+4. Added "(supplementary)" label when Google Trends is secondary to AI Discussion
+
+**Changes to `src/lib/analysis/timing-analyzer.ts`:**
+1. Added new optional fields to `TimingResult.trendData`: `googleTimeline`, `googleKeywords`, `googleKeywordBreakdown`, `googleDataAvailable`
+2. Changed from sequential fetch (AI → Google fallback) to parallel fetch using `Promise.allSettled`
+3. Both sources fetched simultaneously, Google data stored even when AI Discussion is primary
+4. Primary source still determines timing score calculation
+
+**Result:**
+- Purple "Discussion Trends" card shows when data exists (with warning if limited)
+- Blue "Google Trends" chart shows when timeline data exists (labeled "supplementary" if AI is primary)
+- Both can display simultaneously for new searches
+- Backward compatible with old saved results
+
+**Verification:** Build passes, 176 tests pass
+
+**Current Reality (January 13, 2026 - Evening Update):**
+
+The UI fix is applied and working correctly. HOWEVER, there's an underlying data availability issue:
+
+| Observed Behavior | Cause | Impact |
+|-------------------|-------|--------|
+| Recent researches have NO timing data (null) | Timing analysis throwing exceptions silently | Timing tab shows "Not analyzed yet" |
+| Older researches have timing with `ai_estimate` | AI Discussion & Google Trends both fail | No trend visualizations, only score |
+| Google Trends API returns HTML errors | Rate limiting or API changes | Google Trends chart never displays |
+
+**Root Cause:** The timing analyzer's final Claude API call can fail, causing the entire function to throw (caught by market analyzer step, returning `undefined`). When both trend data sources fail (common), users see only AI-estimated scores with no supporting visualizations.
+
+**Recommended Next Step:** Add retry logic or better error handling to the timing analyzer's Claude API call to ensure timing data is always saved, even if with `ai_estimate` fallback. Consider caching Google Trends data more aggressively.
 
 ---
 

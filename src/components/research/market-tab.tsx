@@ -818,7 +818,7 @@ function TimingSubTab({ timingData, discussionVelocity, unifiedTrends }: TimingS
           {/* Timing Data Sources */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             {/* Unified Discussion Trends - Combines AI Discussion + Pain Signal velocity */}
-            {unifiedTrends && !unifiedTrends.insufficientData && (
+            {unifiedTrends && ((unifiedTrends.recentCount ?? 0) > 0 || (unifiedTrends.previousCount ?? 0) > 0) && (
               <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -831,6 +831,13 @@ function TimingSubTab({ timingData, discussionVelocity, unifiedTrends }: TimingS
                     tooltip={`Based on ${unifiedTrends.volumeLabel} (${unifiedTrends.confidence} confidence)`}
                   />
                 </div>
+
+                {(unifiedTrends.insufficientData || unifiedTrends.confidence === 'low' || unifiedTrends.confidence === 'none') && (
+                  <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 rounded text-xs text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="h-3 w-3" />
+                    <span>Limited data — interpret with caution</span>
+                  </div>
+                )}
 
                 {/* Trend change visualization */}
                 <div className="space-y-3">
@@ -952,20 +959,26 @@ function TimingSubTab({ timingData, discussionVelocity, unifiedTrends }: TimingS
             )}
 
             {/* Google Trends Data - Sparkline Visualization (fallback) */}
-            {timingData.trendSource === 'google_trends' && timingData.trendData?.dataAvailable && (
+            {((timingData.trendData?.googleTimeline?.length ?? 0) > 0 ||
+              (timingData.trendSource === 'google_trends' && (timingData.trendData?.timelineData?.length ?? 0) > 0)) && (
               <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Google Trends</span>
+                    <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                      Google Trends
+                      {timingData.trendSource !== 'google_trends' && (
+                        <span className="text-xs font-normal text-blue-600 dark:text-blue-400 ml-1">(supplementary)</span>
+                      )}
+                    </span>
                   </div>
                   <TrustBadge level="verified" size="sm" tooltip="Real data from Google Trends API" />
                 </div>
                 {/* Sparkline chart with all keywords */}
                 <TrendSparkline
-                  timelineData={timingData.trendData.timelineData || []}
-                  keywords={timingData.trendData.keywords}
-                  keywordBreakdown={timingData.trendData.keywordBreakdown}
+                  timelineData={timingData.trendData?.googleTimeline || timingData.trendData?.timelineData || []}
+                  keywords={timingData.trendData?.googleKeywords || timingData.trendData?.keywords || []}
+                  keywordBreakdown={timingData.trendData?.googleKeywordBreakdown || timingData.trendData?.keywordBreakdown}
                 />
               </div>
             )}
