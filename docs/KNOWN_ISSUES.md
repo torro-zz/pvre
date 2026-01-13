@@ -1,10 +1,22 @@
 # PVRE Known Issues
 
-*Last updated: January 13, 2026*
+*Last updated: January 13, 2026 (evening)*
 
 ---
 
 ## 🔴 CRITICAL — Fix First
+
+### NEW ISSUES (Jan 13, 2026 - User Reported)
+
+Three issues discovered during post-fix verification:
+
+1. **Hypothesis Mode: Competitor Analysis Requires Manual Trigger** — App Gap auto-runs, Hypothesis doesn't
+2. **Timing Tab Missing Trend Visualizations** — Google Trends and AI Discussion Trends not displayed
+3. **WTP Signals Missing Source Attribution** — Can't verify quotes are real
+
+See detailed entries below (after UI/UX Review Findings section).
+
+---
 
 ### UI/UX Review Findings (Claude + Codex, Jan 13, 2026)
 
@@ -624,6 +636,140 @@ For App Gap mode, Reddit is noise. Suggested approach:
 **Files:**
 - `src/components/research/coverage-preview.tsx` — main UI component
 - `src/app/api/research/coverage-check/route.ts` — API that generates coverage data
+
+---
+
+## 🔴 CRITICAL — Fix First
+
+### Hypothesis Mode: Competitor Analysis Requires Manual Trigger
+**Status:** Open
+**Impact:** Inconsistent UX between modes - Hypothesis mode feels incomplete
+**Location:** `src/app/api/research/community-voice/route.ts`
+**Discovered:** January 13, 2026
+
+**Problem:**
+In **App Gap mode**, competitor analysis runs automatically as part of the unified flow (lines 1247-1357 in community-voice route). The job completes with all 4 dimensions scored.
+
+In **Hypothesis mode**, competitor analysis does NOT auto-run. The job gets stuck with:
+- `step_status: { pain_analysis: "pending", market_sizing: "locked", ... }`
+- Only 3/4 dimensions available
+- User must manually click "Run Competitor Intelligence" button
+
+**Why This Happens:**
+The community-voice route has auto-competitor logic (line 1247+), but the step_status is never updated to `pain_analysis: "completed"` in Hypothesis mode, which blocks the entire step chain.
+
+**Expected Behavior:**
+Both modes should behave the same:
+1. Research completes
+2. Competitor analysis runs automatically
+3. All 4 dimensions scored
+4. Job status = "completed"
+
+**Files to Investigate:**
+- `src/app/api/research/community-voice/route.ts` — Auto-competitor logic (lines 1233-1357)
+- `src/app/api/research/community-voice/stream/route.ts` — Streaming endpoint (may have different flow)
+- Step status update logic — Why doesn't Hypothesis mode update `pain_analysis` to "completed"?
+
+**Temporary Workaround:**
+Manually fix step_status via database, then call competitor-intelligence API:
+```typescript
+// Update step_status to unblock competitor analysis
+await supabase.from('research_jobs').update({
+  step_status: {
+    pain_analysis: 'completed',
+    market_sizing: 'completed',
+    timing_analysis: 'completed',
+    competitor_analysis: 'pending'
+  }
+}).eq('id', jobId)
+```
+
+---
+
+### Timing Tab Missing Google Trends and AI Discussion Trends
+**Status:** Open
+**Impact:** Users see timing score but no supporting visualizations
+**Location:** `src/components/research/market-tab.tsx` (Timing sub-tab)
+**Discovered:** January 13, 2026
+
+**Problem:**
+1. **Market Overview shows trend data** — "Trend search" section displays Google Trends score
+2. **Timing tab shows nothing** — No Google Trends chart, no AI Discussion Trends visualization
+3. **AI Discussion Trends missing entirely** — The feature built to show Reddit discussion volume over time is not visible anywhere
+
+**What Should Display:**
+- Google Trends chart (if available) showing interest over time
+- AI Discussion Trends card showing:
+  - 30-day vs 90-day discussion volume comparison
+  - Trend direction (rising/falling/stable)
+  - Source subreddits analyzed
+- Tailwinds/Headwinds list (this DOES display correctly)
+
+**Data Availability:**
+The timing data EXISTS in the database (timing score 8.2, tailwinds, headwinds). The issue is the UI not rendering the trend visualizations.
+
+**Files to Investigate:**
+- `src/components/research/market-tab.tsx` — Timing sub-tab rendering
+- `src/lib/analysis/timing-analyzer.ts` — Returns `aiDiscussionTrend` and `googleTrends` data
+- Check if timing result includes `aiDiscussionTrend` field and if UI reads it
+
+**Related:**
+- AI Discussion Trends was built in Jan 8, 2026 (see "Google Trends API Blocked" section below)
+- Should show purple "AI Discussion Trends" card with 30d/90d changes
+- Falls back to Google Trends (blue) if AI trends unavailable
+
+---
+
+### WTP Signals Missing Source Attribution
+**Status:** Open
+**Impact:** Users can't verify WTP signals are real - trust/credibility issue
+**Location:** `src/components/research/quotes-panel.tsx` or similar
+**Discovered:** January 13, 2026
+
+**Problem:**
+In the **Evidence > Quotes > WTP Signals** section:
+1. WTP (Willingness to Pay) signals have **no source links** — unlike Key Pain Quotes which DO show sources
+2. The displayed WTP quotes cannot be verified as real user comments
+3. Unclear if these are:
+   - Extracted from actual user posts/reviews
+   - AI-generated summaries
+   - Hallucinated content
+
+**Example:**
+```
+Key Pain Quotes:
+  "I hate when my sitter cancels last minute..."
+  Source: r/dogs • 2 days ago  [✅ Has source]
+
+WTP Signals:
+  "I would pay $50/month for a reliable service..."
+  [❌ No source, no date, no verification]
+```
+
+**Expected Behavior:**
+WTP Signals should have the same source attribution as Key Pain Quotes:
+- Source link (Reddit post URL, App Store review link)
+- Date/timestamp
+- Community or platform name
+- Upvote/engagement count (if available)
+
+**Root Cause Investigation:**
+1. Check how WTP signals are extracted — `pain-detector.ts` or theme extractor?
+2. Do WTP signals retain source metadata when extracted?
+3. Is the source data available but UI not rendering it?
+4. Or are WTP signals AI-generated without grounding in real quotes?
+
+**Files to Investigate:**
+- `src/components/research/quotes-panel.tsx` — Quote display component
+- `src/lib/analysis/pain-detector.ts` — WTP signal extraction
+- `src/lib/analysis/theme-extractor.ts` — May extract WTP patterns
+- `CommunityVoiceResult.wtpSignals` type definition
+
+**Trust Impact:**
+If WTP signals are AI-generated without real sources, they should either be:
+1. Removed entirely (misleading)
+2. Clearly labeled as "AI-inferred" (not real quotes)
+3. Fixed to only show actual user quotes with sources
 
 ---
 
