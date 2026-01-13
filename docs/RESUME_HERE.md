@@ -1,107 +1,82 @@
-# Resume Point — January 12, 2026
+# Resume Point — January 13, 2026
 
-**Last Session:** January 12, 2026
+**Last Session:** January 13, 2026
 
 ---
 
 ## What Was Just Completed
 
-### Arctic Shift Multi-User Rate Limiting Architecture
+### ✅ App Gap Slowdown Fix (Jan 13, 2026)
 
-Implemented comprehensive rate limiting for 20+ concurrent users. This was a deep analysis combining Claude and Codex insights into an optimal solution.
+**Problem:** App Gap searches took 30-35+ minutes instead of ~4 minutes
 
-**Key Features Implemented:**
+**Root Cause Confirmed:** `getAIDiscussionTrend()` in `ai-discussion-trends.ts` makes ~100 sequential Arctic Shift API calls — even for App Gap mode where Reddit data is completely irrelevant.
 
-| Feature | Description |
-|---------|-------------|
-| **Dual Queues** | `coverageLimiter` (8/sec) + `researchLimiter` (12/sec) |
-| **Request Coalescing** | Identical in-flight requests share results |
-| **Per-Job Fairness** | Each research job limited to 2 concurrent requests |
-| **Elastic Rate** | Adjusts based on `X-RateLimit-Remaining` header |
-| **Fast-First Coverage** | 50 sample posts (vs 100) for faster coverage checks |
-| **Queue Telemetry** | `getQueueTelemetry()` exposes wait times for ETA |
+**Fix Applied:**
+1. `src/lib/analysis/timing-analyzer.ts` — Added `isAppGapMode` check to skip AI Discussion Trends
+2. `src/lib/research/steps/market-analyzer.ts` — Now passes `isAppGapMode: isAppGapMode(ctx)` to timing analyzer
 
-**Architecture:**
-```
-                                    ┌─→ [coverageLimiter] ─────┐
-Request → [Cache] → [Coalesce] ──→ │    8/sec, maxConc: 6     │──→ Arctic Shift API
-                                    └─→ [researchLimiter] ────┘
-                                         12/sec, maxConc: 14
-                                         + per-job max: 2
-```
+**Expected improvement:** App Gap searches: 30+ min → ~4 min (8x faster)
 
-**Expected Results (20 concurrent users):**
-- Coverage check: <3s guaranteed (dedicated high-priority queue)
-- Research fairness: Round-robin per job (no user hogging)
-- Total requests: 600 → ~200 (coalescing + caching)
-- Total time: 30s → ~12-15s
+**Build & Tests:** All passing (173 tests)
 
 ---
 
 ## Uncommitted Changes
 
-⚠️ **WARNING: You have uncommitted changes!**
-
 | File | Changes |
 |------|---------|
-| `src/lib/arctic-shift/rate-limiter.ts` | Complete rewrite: dual queues, coalescing, fairness, telemetry |
-| `src/lib/arctic-shift/client.ts` | Added `setRequestContext()`, priority routing |
-| `src/lib/data-sources/types.ts` | Added `sampleSize` param to `getPostStats()` |
-| `src/lib/data-sources/index.ts` | Fast-first coverage (50 sample) |
-| `src/lib/data-sources/adapters/reddit-adapter.ts` | Support `sampleSize` parameter |
-| `src/app/api/research/coverage-check/route.ts` | Set `'coverage'` priority context |
-| `src/app/api/research/community-voice/route.ts` | Set `'research'` priority with jobId |
-| `docs/ARCHITECTURE_SUMMARY.md` | Added rate limiting section |
-| `docs/SYSTEM_DOCUMENTATION.md` | Added Section 19 (full details) |
-
-**Action Required:** Review and commit these changes.
-
----
-
-## Build & Test Status
-
-| Check | Status |
-|-------|--------|
-| **Build** | ✅ Passing |
-| **Tests** | 173 passing, 6 skipped |
-| **Git** | Uncommitted changes |
-
----
-
-## Documentation Added
-
-- **ARCHITECTURE_SUMMARY.md**: Quick reference diagram + feature table
-- **SYSTEM_DOCUMENTATION.md Section 19**: Full implementation details
-  - 19.1 Architecture Overview
-  - 19.2 Dual-Queue System
-  - 19.3 Request Coalescing
-  - 19.4 Per-Job Fairness
-  - 19.5 Elastic Rate Adjustment
-  - 19.6 Queue Telemetry & ETA
-  - 19.7-19.9 Key Files, Usage Examples, Caching Layers
+| `src/lib/analysis/timing-analyzer.ts` | Added `isAppGapMode` to skip AI Discussion Trends |
+| `src/lib/research/steps/market-analyzer.ts` | Passes `isAppGapMode` to timing analyzer |
+| `docs/KNOWN_ISSUES.md` | Marked slowdown as FIXED with implementation details |
+| `docs/RESUME_HERE.md` | This file |
+| `add-credits.mjs` | Helper script to add dev credits (can delete) |
+| `test-app-gap-e2e.mjs` | Untracked test file (can delete) |
 
 ---
 
 ## What's Next
 
-1. **Commit the rate limiting implementation** - All changes are tested and passing
-2. **Test under load** - Verify 20+ concurrent users scenario works as designed
-3. **Add ETA display to frontend** (optional) - Use `getQueueTelemetry()` for user feedback
+### 🟡 Verify Fix with Live Test
+
+Run an App Gap search to confirm ~4 minute completion:
+
+```bash
+# 1. Ensure dev server is running
+npm run dev
+
+# 2. Add credits if needed
+node add-credits.mjs
+
+# 3. Run App Gap search for Notion in browser
+# Open http://localhost:3000
+# Select "Analyze an App" tab
+# Enter: https://apps.apple.com/us/app/notion-notes-docs-tasks/id1232780281
+
+# Expected: Complete in ~4 minutes instead of 30+
+```
+
+### Optional: Commit the Fix
+
+```bash
+git add src/lib/analysis/timing-analyzer.ts src/lib/research/steps/market-analyzer.ts docs/KNOWN_ISSUES.md
+git commit -m "fix: Skip AI Discussion Trends for App Gap mode (30+ min → ~4 min)"
+```
 
 ---
 
-## Key Files Reference
+## Key Files
 
 | Purpose | File |
 |---------|------|
-| Rate limiter | `src/lib/arctic-shift/rate-limiter.ts` |
-| Client with context | `src/lib/arctic-shift/client.ts` |
-| Documentation | `docs/SYSTEM_DOCUMENTATION.md` Section 19 |
-| Quick reference | `docs/ARCHITECTURE_SUMMARY.md` |
+| Fix location | `src/lib/analysis/timing-analyzer.ts` (lines 27, 95-108) |
+| Fix location | `src/lib/research/steps/market-analyzer.ts` (lines 95, 99) |
+| Known issues | `docs/KNOWN_ISSUES.md` |
+| AI Discussion Trends | `src/lib/data-sources/ai-discussion-trends.ts` |
 
 ---
 
-## Quick Start Commands
+## Quick Commands
 
 ```bash
 cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine PVRE"
@@ -112,6 +87,10 @@ npm run build
 
 ---
 
-## User Notes
+## Session Notes
 
-*No additional notes provided*
+Investigation completed successfully:
+- Live E2E test confirmed 35+ minute searches
+- Code analysis traced bottleneck to `getAIDiscussionTrend()` (~100 Arctic Shift API calls)
+- Fix implemented: skip AI Discussion Trends for App Gap mode
+- Build and all tests pass

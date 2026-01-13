@@ -24,6 +24,7 @@ export interface TimingInput {
   hypothesis: string;
   industry?: string;
   appName?: string; // For App Gap mode: include app name in Google Trends keywords
+  isAppGapMode?: boolean; // Skip AI Discussion Trends for App Gap mode (performance optimization)
 }
 
 export interface TimingSignal {
@@ -91,13 +92,19 @@ export async function analyzeTiming(
   let trendSource: 'ai_discussion' | 'google_trends' | 'ai_estimate' = 'ai_estimate';
 
   if (keywords.length > 0) {
-    console.log('[Timing] Fetching AI Discussion Trends for:', keywords);
-    try {
-      aiTrendData = await getAIDiscussionTrend(keywords);
-    } catch (aiTrendError) {
-      // Non-blocking: Arctic Shift rate limiting or other errors shouldn't crash research
-      console.warn('[Timing] AI Discussion Trends failed (non-blocking):', aiTrendError instanceof Error ? aiTrendError.message : aiTrendError);
-      aiTrendData = null;
+    // Skip AI Discussion Trends for App Gap mode - it analyzes app reviews, not Reddit discussions
+    // This avoids ~100 sequential Arctic Shift API calls that add 30+ minutes to App Gap searches
+    if (input.isAppGapMode) {
+      console.log('[Timing] Skipping AI Discussion Trends for App Gap mode (not relevant for app review analysis)');
+    } else {
+      console.log('[Timing] Fetching AI Discussion Trends for:', keywords);
+      try {
+        aiTrendData = await getAIDiscussionTrend(keywords);
+      } catch (aiTrendError) {
+        // Non-blocking: Arctic Shift rate limiting or other errors shouldn't crash research
+        console.warn('[Timing] AI Discussion Trends failed (non-blocking):', aiTrendError instanceof Error ? aiTrendError.message : aiTrendError);
+        aiTrendData = null;
+      }
     }
 
     if (aiTrendData?.dataAvailable && !aiTrendData.insufficientData) {

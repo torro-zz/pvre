@@ -92,9 +92,11 @@ export const marketAnalyzerStep: PipelineStep<MarketAnalyzerInput, MarketAnalyze
       (async (): Promise<TimingResult | undefined> => {
         try {
           const appData = getAppData(ctx)
+          const appGapMode = isAppGapMode(ctx)
           const result = await analyzeTiming({
             hypothesis,
             appName: appData?.name, // App Gap mode: include app name for Google Trends
+            isAppGapMode: appGapMode, // Skip AI Discussion Trends for App Gap mode (performance)
           })
           console.log(`  Timing analysis complete - Score: ${result.score}/10`)
           return result
