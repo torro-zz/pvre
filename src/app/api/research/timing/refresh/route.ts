@@ -70,9 +70,12 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now();
 
     // Run timing analysis with appName for better Google Trends results
+    // Skip AI Discussion Trends for App Gap mode (irrelevant for app review analysis)
+    const isAppGapMode = coverageData?.mode === 'app-analysis';
     const result = await analyzeTiming({
       hypothesis: job.hypothesis,
-      appName
+      appName,
+      isAppGapMode
     });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);

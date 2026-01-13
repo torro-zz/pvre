@@ -326,7 +326,9 @@ export async function POST(request: NextRequest) {
         send('timing', 'Analyzing market timing...')
         let timing: TimingResult | undefined
         try {
-          timing = await analyzeTiming({ hypothesis })
+          // Skip AI Discussion Trends for App Gap mode (irrelevant for app review analysis)
+          const isAppGapMode = coverageData?.mode === 'app-analysis'
+          timing = await analyzeTiming({ hypothesis, isAppGapMode })
           send('timing', `Timing analysis complete - Score: ${timing.score}/10`)
         } catch (error) {
           console.error('Timing analysis failed:', error)
