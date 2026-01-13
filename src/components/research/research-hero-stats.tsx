@@ -124,6 +124,15 @@ export function ResearchHeroStats({
                 label="WTP Signals"
                 value={wtpCount}
                 subValue={wtpStrength === 'none' ? 'No payment intent' : wtpStrength === 'weak' ? 'Weak' : wtpStrength === 'moderate' ? 'Moderate' : 'Strong'}
+                subValueTooltip={
+                  wtpStrength === 'none'
+                    ? "WTP (Willingness to Pay) signals are mentions of paying for solutions, price discussions, or subscription willingness. None found - this is a validation gap."
+                    : wtpStrength === 'weak'
+                    ? "WTP (Willingness to Pay): 1-3 signals found. Some payment intent detected, but gather more evidence to validate monetization potential."
+                    : wtpStrength === 'moderate'
+                    ? "WTP (Willingness to Pay): 4-8 signals found. Good evidence of payment intent. Users are discussing paying for solutions."
+                    : "WTP (Willingness to Pay): 9+ signals found. Strong monetization signal - many users actively discuss paying for solutions."
+                }
                 accent={wtpCount > 0}
               />
               {wtpCount === 0 && (
@@ -259,10 +268,26 @@ export function ResearchHeroStats({
             {/* Filtering transparency - shows how many posts were found vs matched */}
             {totalPostsFound > 0 && postsAnalyzed > 0 && (
               <div className="flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5" />
-                <span>
-                  {totalPostsFound.toLocaleString()} found → {postsAnalyzed.toLocaleString()} matched ({((postsAnalyzed / totalPostsFound) * 100).toFixed(1)}%)
-                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="flex items-center gap-1.5 cursor-help hover:text-foreground transition-colors">
+                      <Filter className="w-3.5 h-3.5" />
+                      <span>
+                        {totalPostsFound.toLocaleString()} found → {postsAnalyzed.toLocaleString()} matched ({((postsAnalyzed / totalPostsFound) * 100).toFixed(1)}%)
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[280px]">
+                    <p className="text-xs">
+                      <strong>Match Rate:</strong> {((postsAnalyzed / totalPostsFound) * 100).toFixed(1)}%
+                      {((postsAnalyzed / totalPostsFound) * 100) < 10
+                        ? " — Low match rate. Many posts were off-topic. Consider refining your hypothesis."
+                        : ((postsAnalyzed / totalPostsFound) * 100) < 30
+                        ? " — Moderate match rate. Some filtering applied to focus on relevant discussions."
+                        : " — Good match rate. Most posts directly discuss your problem space."}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
                 <DataSourceBadge type="verified" showLabel={false} />
               </div>
             )}
@@ -270,10 +295,20 @@ export function ResearchHeroStats({
         )}
 
         {dateRange && (
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5" />
-            <span>{dateRange.oldest} → {dateRange.newest}</span>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="flex items-center gap-1.5 cursor-help hover:text-foreground transition-colors">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>{dateRange.oldest} → {dateRange.newest}</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[260px]">
+              <p className="text-xs">
+                <strong>Data Range:</strong> Posts from {dateRange.oldest} to {dateRange.newest}.
+                Older discussions may reflect outdated pain points. Recent data (last 30-90 days) is most actionable.
+              </p>
+            </TooltipContent>
+          </Tooltip>
         )}
 
         {processingTimeMs !== undefined && (

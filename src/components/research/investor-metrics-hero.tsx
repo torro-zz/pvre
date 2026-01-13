@@ -553,6 +553,13 @@ export function InvestorMetricsHero({
               colorType: 'score' as const,
               interpretiveLabel: getPainLabel(painScore),
               interpretiveLabelColor: getScoreColor(painScore, 'score'),
+              tooltip: painScore >= 8
+                ? "Pain Score 8-10 (Strong): Users express urgent, frequent frustration. High willingness to seek solutions."
+                : painScore >= 6
+                ? "Pain Score 6-7.9 (Moderate): Clear frustration detected, but may not be urgent. Good opportunity with positioning."
+                : painScore >= 4
+                ? "Pain Score 4-5.9 (Low): Some awareness of the problem, but limited urgency. May need market education."
+                : "Pain Score 0-3.9 (Minimal): Little evidence of pain. Consider pivoting or broadening hypothesis.",
             },
             {
               label: 'Signals',
@@ -571,6 +578,13 @@ export function InvestorMetricsHero({
               colorType: 'count' as const,
               interpretiveLabel: wtpCount > 0 ? '💰 found' : undefined,
               interpretiveLabelColor: wtpCount > 0 ? 'text-emerald-500' : undefined,
+              tooltip: wtpCount === 0
+                ? "WTP (Willingness to Pay): Mentions of paying for solutions, price discussions, or subscription willingness. None found - this is a validation gap."
+                : wtpCount <= 3
+                ? `WTP (Willingness to Pay): ${wtpCount} signal${wtpCount === 1 ? '' : 's'} found. Some payment intent - gather more evidence to validate monetization.`
+                : wtpCount <= 8
+                ? `WTP (Willingness to Pay): ${wtpCount} signals found. Good evidence of payment intent from users.`
+                : `WTP (Willingness to Pay): ${wtpCount} signals found. Strong monetization signal - many users discuss paying for solutions.`,
             },
             {
               label: 'Market',
@@ -587,6 +601,15 @@ export function InvestorMetricsHero({
               colorType: 'score' as const,
               interpretiveLabel: timingScore !== undefined ? getTimingLabel(timingScore) : undefined,
               interpretiveLabelColor: timingScore !== undefined ? getScoreColor(timingScore, 'score') : undefined,
+              tooltip: timingScore === undefined
+                ? "Timing analysis not available. Based on market trends and tailwinds/headwinds."
+                : timingScore >= 8
+                ? "Timing 8-10 (Rising): Strong tailwinds detected. Market interest growing - good time to enter."
+                : timingScore >= 6
+                ? "Timing 6-7.9 (Stable): Balanced market conditions. No urgent timing pressure either way."
+                : timingScore >= 4
+                ? "Timing 4-5.9 (Uncertain): Mixed signals in market trends. Timing may be challenging."
+                : "Timing 0-3.9 (Declining): Headwinds detected. Consider timing carefully before entering.",
             },
             {
               label: 'Verdict',
@@ -596,6 +619,13 @@ export function InvestorMetricsHero({
               colorType: 'score' as const,
               interpretiveLabel: getVerdictLabel(verdict?.overallScore || 0).text,
               interpretiveLabelColor: getVerdictLabel(verdict?.overallScore || 0).color,
+              tooltip: (verdict?.overallScore || 0) >= 7.5
+                ? "Verdict 7.5+ (Strong Signal): Multiple positive signals align. Proceed with confidence but validate key assumptions."
+                : (verdict?.overallScore || 0) >= 5.0
+                ? "Verdict 5.0-7.4 (Mixed Signal): Some promising signals, some concerns. Investigate gaps before committing."
+                : (verdict?.overallScore || 0) >= 4.0
+                ? "Verdict 4.0-4.9 (Weak Signal): Significant gaps in evidence. Consider pivoting or deeper validation."
+                : "Verdict <4.0 (No Signal): Insufficient evidence found. Strongly consider alternative approaches.",
             },
           ]}
           onScrollToSection={onScrollToSection}
@@ -749,14 +779,42 @@ export function InvestorMetricsHero({
               <span>{dataSources.join(' · ')}</span>
             </div>
           )}
-          <div className="flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5" />
-            <span>{communitiesCount} communities</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>{postsAnalyzed.toLocaleString()} posts</span>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="flex items-center gap-1.5 cursor-help hover:text-foreground transition-colors">
+                <Users className="w-3.5 h-3.5" />
+                <span>{communitiesCount} communities</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[240px]">
+              <p className="text-xs">
+                <strong>Sample Breadth:</strong> Data from {communitiesCount} communit{communitiesCount === 1 ? 'y' : 'ies'}.
+                {communitiesCount < 3
+                  ? " Limited perspective — consider validating across more sources."
+                  : communitiesCount < 7
+                  ? " Moderate coverage — results reflect several audience segments."
+                  : " Good coverage — diverse perspectives captured."}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="flex items-center gap-1.5 cursor-help hover:text-foreground transition-colors">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>{postsAnalyzed.toLocaleString()} posts</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[260px]">
+              <p className="text-xs">
+                <strong>Sample Size:</strong> {postsAnalyzed.toLocaleString()} relevant posts analyzed.
+                {postsAnalyzed < 20
+                  ? " Small sample — interpret scores cautiously. Results may not be representative."
+                  : postsAnalyzed < 50
+                  ? " Moderate sample — provides directional insights."
+                  : " Good sample size — provides statistically meaningful insights."}
+              </p>
+            </TooltipContent>
+          </Tooltip>
           {recencyScore !== undefined && (
             <div className="flex items-center gap-1.5">
               <span>Recency: {Math.round(recencyScore * 100)}%</span>

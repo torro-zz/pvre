@@ -36,6 +36,7 @@ import { calculateOverallPainScore } from '@/lib/analysis/pain-detector'
 import { fetchResearchData, formatDate } from '@/lib/research/fetch-research-data'
 import { ResearchDataProvider } from '@/components/research/research-data-provider'
 import { ResultsLayout } from '@/components/research/layouts'
+import { MarketTab } from '@/components/research/market-tab'
 
 export const dynamic = 'force-dynamic'
 
@@ -231,6 +232,7 @@ export default async function ResearchDetailPage({
         {/* Results or status message */}
         {/* Show partial results during processing if we have any results */}
         {(researchJob.status === 'processing' || researchJob.status === 'pending') && (communityVoiceResult?.data || competitorResult?.data) ? (
+          <ResearchDataProvider data={researchData}>
           <ResearchTabsProvider>
           <PartialResultsContainer
             jobId={id}
@@ -332,36 +334,12 @@ export default async function ResearchDetailPage({
               )}
             </TabsContent>
 
-            {/* Market Tab - simplified for partial results */}
+            {/* Market Tab - Full component with sub-tabs */}
             <TabsContent value="market">
-              {marketData ? (
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <div>
-                        <h3 className="text-lg font-semibold">Market Sizing Analysis</h3>
-                        <p className="text-sm text-muted-foreground">TAM/SAM/SOM estimation</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-3xl font-bold">{marketData.score.toFixed(1)}<span className="text-lg text-muted-foreground">/10</span></div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="py-12">
-                    <div className="text-center">
-                      <PieChart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Market Sizing Processing</h3>
-                      <p className="text-muted-foreground">Analysis is still in progress...</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              <MarketTab jobId={id} hypothesis={researchJob.hypothesis} />
             </TabsContent>
 
-            {/* Timing Tab - simplified for partial results */}
+            {/* Timing Tab - Shows timing score summary */}
             <TabsContent value="timing">
               {timingData ? (
                 <Card>
@@ -369,12 +347,33 @@ export default async function ResearchDetailPage({
                     <div className="flex items-center justify-between mb-6">
                       <div>
                         <h3 className="text-lg font-semibold">Market Timing Analysis</h3>
-                        <p className="text-sm text-muted-foreground">Tailwinds and headwinds</p>
+                        <p className="text-sm text-muted-foreground">
+                          Trend: <span className={timingData.trend === 'rising' ? 'text-emerald-600' : timingData.trend === 'stable' ? 'text-amber-600' : 'text-red-600'}>
+                            {timingData.trend === 'rising' ? '↑ Rising' : timingData.trend === 'stable' ? '→ Stable' : '↓ Falling'}
+                          </span>
+                        </p>
                       </div>
                       <div className="text-right">
                         <div className="text-3xl font-bold">{timingData.score.toFixed(1)}<span className="text-lg text-muted-foreground">/10</span></div>
+                        <Badge variant="secondary" className="text-xs mt-1">
+                          {timingData.timingWindow}
+                        </Badge>
                       </div>
                     </div>
+                    <p className="text-sm text-muted-foreground">{timingData.verdict}</p>
+                    {(timingData.tailwinds?.length || timingData.headwinds?.length) ? (
+                      <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-emerald-600 font-medium">{timingData.tailwinds?.length || 0} Tailwinds</span>
+                        </div>
+                        <div>
+                          <span className="text-red-600 font-medium">{timingData.headwinds?.length || 0} Headwinds</span>
+                        </div>
+                      </div>
+                    ) : null}
+                    <p className="text-xs text-muted-foreground mt-4 pt-4 border-t italic">
+                      For detailed timing analysis with trends and market forces, see the Market tab &rarr; Timing sub-tab.
+                    </p>
                   </CardContent>
                 </Card>
               ) : (
@@ -418,6 +417,7 @@ export default async function ResearchDetailPage({
             </ControlledTabs>
           </PartialResultsContainer>
           </ResearchTabsProvider>
+          </ResearchDataProvider>
         ) : researchJob.status === 'processing' ? (
           <StatusPoller jobId={id} initialStatus="processing" hypothesis={researchJob.hypothesis} />
         ) : researchJob.status === 'pending' ? (

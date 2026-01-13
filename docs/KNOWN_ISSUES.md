@@ -6,6 +6,241 @@
 
 ## 🔴 CRITICAL — Fix First
 
+### UI/UX Review Findings (Claude + Codex, Jan 13, 2026)
+
+Comprehensive collaborative review of all tabs on the research results page identified the following issues:
+
+---
+
+#### ~~Market & Timing Tabs Not Rendering Content~~
+**Status:** ✅ FIXED (Jan 13, 2026)
+**Impact:** ~~Release blocker - appears as broken product~~
+**Location:** `src/app/(dashboard)/research/[id]/page.tsx`
+
+**Problem (RESOLVED):**
+- Market tab showed only header: "Market Sizing Analysis - TAM/SAM/SOM estimation - 9.0/10"
+- Timing tab showed only header: "Market Timing Analysis - Tailwinds and headwinds - 8.2/10"
+- Database HAD full data but UI was NOT rendering it
+
+**Root Cause:**
+The page has two rendering paths:
+1. For `pending`/`processing` jobs: Used simplified "partial results" view with only score headers
+2. For `completed` jobs: Used full `ResultsLayout` with `MarketTab` component
+
+The test job had status `pending` (stuck) which triggered the simplified view.
+
+**Fix Applied:**
+1. Added `import { MarketTab } from '@/components/research/market-tab'`
+2. Wrapped partial results view in `ResearchDataProvider` (was missing context)
+3. Replaced simplified Market tab placeholder with full `<MarketTab />` component
+4. Updated Timing tab to show full data (score, trend, tailwinds/headwinds count)
+
+**Files Changed:**
+- `src/app/(dashboard)/research/[id]/page.tsx` (lines 39, 235, 338-390, 423)
+
+**Verification:**
+- Sizing sub-tab: TAM/SAM/SOM funnel renders with full data
+- Timing sub-tab: Full tailwinds (5) and headwinds (3) displayed
+- All 173 tests pass
+
+**Test Job:** `611e50c1-7153-4b29-98dd-1210c3673eba` (Pet Sitter hypothesis)
+
+---
+
+#### Score Contradictions Undermine Credibility
+**Status:** 🟡 PARTIAL FIX (Jan 13, 2026)
+**Impact:** Users will question scoring logic
+**Location:** Verdict tab, Community tab
+
+**Problems Found:**
+
+1. **Pain Score 10.0 + "LIMITED EVIDENCE"**
+   - Community tab shows Pain Score 10.0/10 (perfect)
+   - But also shows orange "LIMITED EVIDENCE" confidence badge
+   - These are intentionally independent metrics (intensity vs sample size)
+   - **Status:** By design - Pain Score measures intensity, Limited Evidence measures sample size
+   - **Future:** Consider adding tooltip explaining the distinction
+
+2. **Verdict 9.5 with Missing Dimension**
+   - ✅ **FIXED:** Now shows prominent "3/4 dimensions" amber badge next to verdict
+   - ✅ **FIXED:** Uses `calibratedVerdictLabel` which accounts for sample size limitations
+   - Verdict Hero now shows both "STRONG SIGNAL" AND "3/4 dimensions" badges side by side
+   - **File:** `src/components/research/verdict-hero.tsx` lines 77-88
+
+3. **Component Math Doesn't Match**
+   - Weighted components: Pain 10.0 @47%, Market 9.0 @33%, Timing 8.2 @20% = ~9.3
+   - But Verdict shows 9.5/10
+   - **Explanation:** Score calibration (`applyScoreCalibration`) pushes mid-range scores further from center (5.5)
+   - **Future:** Add formula tooltip showing raw score vs calibrated score
+
+---
+
+#### ~~Opaque Scoring - No Formula Visibility~~
+**Status:** ✅ FIXED (Jan 13, 2026)
+**Impact:** ~~Users can't verify or understand scores~~
+**Location:** Verdict tab breakdown
+
+**Problems (RESOLVED):**
+- ✅ Formula tooltip added to verdict score showing weighted calculation
+- ✅ Shows: Pain (47%), Market (33%), Timing (20%) with individual scores
+- ✅ Shows raw score vs calibrated score with explanation
+- "0.7% penetration needed" metric still needs explanation (separate issue)
+
+**Fix Applied:**
+- Added `getFormulaExplanation()` helper function to `verdict-hero.tsx`
+- Wrapped score in Tooltip showing dimension breakdown
+- Shows calibration note when raw ≠ calibrated score
+
+**File:** `src/components/research/verdict-hero.tsx` lines 46-66, 100-126
+
+---
+
+#### ~~Partial Assessment Not Properly Gated~~
+**Status:** ✅ FIXED (Jan 13, 2026)
+**Impact:** ~~Misleading confidence levels~~
+**Location:** Verdict tab
+
+**Problem (RESOLVED):**
+- ✅ Now shows prominent "3/4 dimensions" amber badge next to verdict label
+- ✅ Uses `calibratedVerdictLabel` which adjusts label based on sample size
+- ✅ Badge only appears when `verdict.isComplete === false`
+
+**Fix Applied:**
+- Added conditional Badge component rendering partial dimension count
+- Styled with amber border/text for visibility
+
+**File:** `src/components/research/verdict-hero.tsx` lines 133-137
+
+---
+
+#### ~~Missing Metric Definitions~~
+**Status:** ✅ FIXED (Jan 13, 2026)
+**Impact:** ~~Users don't understand what metrics mean~~
+**Location:** Investor Metrics Hero, Research Hero Stats
+
+**Fixes Applied:**
+
+1. **WTP Signals - Full tooltips with scale:**
+   - None (0): "...validation gap"
+   - Weak (1-3): "Some payment intent - gather more evidence"
+   - Moderate (4-8): "Good evidence of payment intent"
+   - Strong (9+): "Strong monetization signal"
+   - **Files:** `research-hero-stats.tsx:127-135`, `investor-metrics-hero.tsx:574-580`
+
+2. **Pain Score - Scale tooltips:**
+   - Minimal (0-3.9): "Little evidence of pain"
+   - Low (4-5.9): "Some awareness, limited urgency"
+   - Moderate (6-7.9): "Clear frustration, may not be urgent"
+   - Strong (8-10): "Urgent, frequent frustration"
+   - **File:** `investor-metrics-hero.tsx:556-562`
+
+3. **Timing Score - Scale tooltips:**
+   - Declining (0-3.9): "Headwinds detected"
+   - Uncertain (4-5.9): "Mixed signals"
+   - Stable (6-7.9): "Balanced market conditions"
+   - Rising (8-10): "Strong tailwinds"
+   - **File:** `investor-metrics-hero.tsx:604-612`
+
+4. **Verdict Score - Scale tooltips:**
+   - No Signal (0-3.4): "Insufficient evidence"
+   - Weak (3.5-5.4): "Significant gaps"
+   - Mixed (5.5-7.4): "Some promising, some concerns"
+   - Strong (7.5-10): "Multiple positive signals align"
+   - **File:** `investor-metrics-hero.tsx:622-628`
+
+5. **Core Signals** - Already had tooltip: "Core signals directly match your hypothesis"
+6. **Confidence thresholds** - Already had tooltip: "Very Low (<10), Low (10-30), Medium (30-100), High (100+)"
+
+---
+
+#### ~~Data Limitations Not Surfaced~~
+**Status:** ✅ FIXED (Jan 13, 2026)
+**Impact:** ~~Users don't know data constraints~~
+**Location:** Research Hero Stats, Investor Metrics Hero
+
+**Fixes Applied:**
+
+1. **Date Range Tooltip** — Shows date range with interpretation:
+   - Explains that older data may reflect outdated pain points
+   - Notes that recent data (30-90 days) is most actionable
+   - **File:** `research-hero-stats.tsx:295-311`
+
+2. **Match Rate Tooltip** — Explains relevance filtering:
+   - <10%: "Low match rate. Many posts were off-topic."
+   - 10-30%: "Moderate match rate. Some filtering applied."
+   - >30%: "Good match rate. Most posts directly discuss your problem."
+   - **File:** `research-hero-stats.tsx:269-291`
+
+3. **Sample Size Tooltip** — Explains post count significance:
+   - <20 posts: "Small sample — interpret cautiously"
+   - 20-50 posts: "Moderate sample — directional insights"
+   - 50+ posts: "Good sample size — statistically meaningful"
+   - **File:** `investor-metrics-hero.tsx:800-817`
+
+4. **Sample Breadth Tooltip** — Explains community count:
+   - <3 communities: "Limited perspective"
+   - 3-7 communities: "Moderate coverage"
+   - 7+ communities: "Good coverage — diverse perspectives"
+   - **File:** `investor-metrics-hero.tsx:782-799`
+
+**Note:** All metrics now have hover tooltips with interpretation guidance.
+
+---
+
+#### Theme Overlap and Generic Summary
+**Status:** 🟢 INVESTIGATED - LOW (Future Enhancement)
+**Impact:** Reduced actionability of insights
+**Location:** `src/lib/analysis/theme-extractor.ts`
+
+**Problems:**
+- "Unreliable sitters" and "Communication mismatch" overlap conceptually
+- Executive Summary generic, doesn't tie to quantified themes
+- Could be more actionable with theme-specific recommendations
+
+**Investigation (Jan 13, 2026):**
+
+Theme extraction is AI-driven using Claude (`theme-extractor.ts:321-338`). The current prompt includes:
+- "Each theme name MUST be a descriptive phrase of 3-6 words"
+- Bad examples listed (vague themes)
+- Good examples listed (specific themes)
+
+**Root Cause:**
+Theme overlap occurs because Claude identifies related but distinct pain points. Without semantic similarity checking, two themes about different aspects of the same problem (e.g., "sitter reliability" vs "sitter communication") are both extracted.
+
+**Recommended Fix Approaches:**
+
+1. **Post-processing deduplication** (Medium effort):
+   - After Claude returns themes, compute semantic similarity between theme names
+   - Merge themes with >0.8 similarity, combining their frequencies
+   - Requires embedding API call
+
+2. **Prompt engineering** (Low effort, lower reliability):
+   - Add explicit instruction: "Avoid overlapping themes. If two themes describe the same root problem, combine them."
+   - Risk: May overcorrect and lose distinct nuances
+
+3. **Executive summary enhancement** (Low effort):
+   - Update prompt line 309: Change from generic summary to:
+   ```
+   "summary": "Executive summary referencing top 2 themes by frequency with their counts (e.g., 'Theme X (mentioned 12 times) and Theme Y (8 mentions) dominate...')"
+   ```
+
+**Decision:** Defer to future sprint. Current behavior is functional, just suboptimal. Risk of prompt changes causing regressions outweighs LOW priority benefit.
+
+---
+
+### Quick Wins for Above Issues
+
+| Fix | Effort | Impact | Status |
+|-----|--------|--------|--------|
+| ~~Debug Market/Timing tab rendering~~ | ~~Medium~~ | ~~Critical~~ | ✅ DONE |
+| ~~Add score formula tooltip~~ | ~~Low~~ | ~~High~~ | ✅ DONE |
+| ~~Add metric definitions tooltips~~ | ~~Low~~ | ~~Medium~~ | ✅ DONE |
+| ~~Add data limitations callout~~ | ~~Low~~ | ~~Medium~~ | ✅ DONE |
+| ~~Gate confidence when incomplete~~ | ~~Medium~~ | ~~High~~ | ✅ DONE |
+| ~~Resolve score contradictions~~ | ~~Medium~~ | ~~Critical~~ | ✅ DONE |
+
+---
+
 ### ~~App Gap Mode: Research Pipeline Stuck/Failing~~
 **Status:** ✅ VERIFIED FIXED (Jan 13, 2026)
 **Impact:** ~~App Gap research fails to complete - stuck in processing~~
