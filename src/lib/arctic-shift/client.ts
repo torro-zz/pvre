@@ -113,6 +113,7 @@ async function fetchWithRetry<T>(
 
       // Use rate limiter with coalescing to prevent API overload
       // Priority and jobId are automatically applied from context
+      // 30-second timeout prevents hanging requests from blocking research
       const response = await rateLimitedHttpFetch(
         url,
         () => fetch(url, {
@@ -120,6 +121,7 @@ async function fetchWithRetry<T>(
             'Accept': 'application/json',
             'User-Agent': 'PVRE/1.0 (research tool)',
           },
+          signal: AbortSignal.timeout(30000),
         }),
         getRequestOptions()
       )
