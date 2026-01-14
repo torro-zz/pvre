@@ -91,8 +91,9 @@ export const marketAnalyzerStep: PipelineStep<MarketAnalyzerInput, MarketAnalyze
       // Timing analysis
       (async (): Promise<TimingResult | undefined> => {
         try {
-          const appData = getAppData(ctx)
+          // Check mode FIRST - getAppData throws if not in App Gap mode
           const appGapMode = isAppGapMode(ctx)
+          const appData = appGapMode ? getAppData(ctx) : null
           const result = await analyzeTiming({
             hypothesis,
             appName: appData?.name, // App Gap mode: include app name for Google Trends
