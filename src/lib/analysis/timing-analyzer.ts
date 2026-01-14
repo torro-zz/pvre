@@ -20,6 +20,37 @@ import {
   AITrendResult,
 } from "../data-sources/ai-discussion-trends";
 
+// Timeout wrapper for external API calls
+const TREND_DATA_TIMEOUT_MS = 15000; // 15 seconds max for trend data fetching
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`[Timing] ${label} timed out after ${ms}ms`);
+      resolve(fallback);
+    }, ms);
+  });
+
+  const guardedPromise = promise.then(
+    (value) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      return value;
+    },
+    (error) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      throw error;
+    }
+  );
+
+  return Promise.race([guardedPromise, timeoutPromise]);
+}
+
 export interface TimingInput {
   hypothesis: string;
   industry?: string;
@@ -82,7 +113,12 @@ export async function analyzeTiming(
   });
 
   // Step 1: Extract keywords for trend analysis
-  let keywords = await extractTrendKeywordsWithAI(input.hypothesis);
+  let keywords: string[] = [];
+  try {
+    keywords = await extractTrendKeywordsWithAI(input.hypothesis);
+  } catch (error) {
+    console.warn('[Timing] Keyword extraction failed, continuing without trends:', error instanceof Error ? error.message : error);
+  }
 
   // For App Gap mode: ensure the app name is included as a keyword for better relevance
   if (input.appName) {
@@ -100,17 +136,28 @@ export async function analyzeTiming(
   let trendSource: 'ai_discussion' | 'google_trends' | 'ai_estimate' = 'ai_estimate';
 
   if (keywords.length > 0) {
+    // Fetch trend data with timeout protection to prevent slow external APIs from blocking
     const [aiTrendResult, googleTrendResult] = await Promise.allSettled([
       input.isAppGapMode
         ? Promise.resolve(null)
-        : getAIDiscussionTrend(keywords).catch(err => {
-            console.warn('[Timing] AI Discussion Trends failed (non-blocking):', err instanceof Error ? err.message : err);
-            return null;
-          }),
-      getCachedTrendData(keywords).catch(err => {
-        console.warn('[Timing] Google Trends failed (non-blocking):', err instanceof Error ? err.message : err);
-        return null;
-      })
+        : withTimeout(
+            getAIDiscussionTrend(keywords).catch(err => {
+              console.warn('[Timing] AI Discussion Trends failed (non-blocking):', err instanceof Error ? err.message : err);
+              return null;
+            }),
+            TREND_DATA_TIMEOUT_MS,
+            null,
+            'AI Discussion Trends'
+          ),
+      withTimeout(
+        getCachedTrendData(keywords).catch(err => {
+          console.warn('[Timing] Google Trends failed (non-blocking):', err instanceof Error ? err.message : err);
+          return null;
+        }),
+        TREND_DATA_TIMEOUT_MS,
+        null,
+        'Google Trends'
+      )
     ]);
 
     aiTrendData = aiTrendResult.status === 'fulfilled' ? aiTrendResult.value : null;
@@ -151,6 +198,39 @@ REAL GOOGLE TRENDS DATA (verified):
     trendContext = `
 NOTE: Real-time trend data unavailable. Provide your best estimate for trend direction based on your knowledge.
 `;
+  }
+
+  const fallbackTrend: 'rising' | 'stable' | 'falling' =
+    aiTrendData?.trend ?? googleTrendData?.trend ?? 'stable';
+
+  let trendDataResponse: TimingResult['trendData'] = null;
+  if (trendSource === 'ai_discussion' && aiTrendData) {
+    trendDataResponse = {
+      keywords: aiTrendData.keywords,
+      percentageChange: aiTrendData.percentageChange,
+      dataAvailable: true,
+      totalVolume: aiTrendData.totalVolume,
+      sources: aiTrendData.sources,
+      insufficientData: aiTrendData.insufficientData,
+      change30d: aiTrendData.change30d,
+      change90d: aiTrendData.change90d,
+      googleTimeline: googleTrendData?.timelineData || undefined,
+      googleKeywords: googleTrendData?.keywords || undefined,
+      googleKeywordBreakdown: googleTrendData?.keywordBreakdown || undefined,
+      googleDataAvailable: !!(googleTrendData?.timelineData?.length),
+    };
+  } else if (trendSource === 'google_trends' && googleTrendData) {
+    trendDataResponse = {
+      keywords: googleTrendData.keywords,
+      percentageChange: googleTrendData.percentageChange,
+      dataAvailable: true,
+      keywordBreakdown: googleTrendData.keywordBreakdown,
+      timelineData: googleTrendData.timelineData,
+      googleTimeline: googleTrendData.timelineData || undefined,
+      googleKeywords: googleTrendData.keywords || undefined,
+      googleKeywordBreakdown: googleTrendData.keywordBreakdown || undefined,
+      googleDataAvailable: !!(googleTrendData.timelineData?.length),
+    };
   }
 
   const prompt = `You are a market timing analyst. Assess whether NOW is a good time to launch this business.
@@ -214,25 +294,7 @@ Respond with ONLY valid JSON:
   "confidence": "<high|medium|low>"
 }`;
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1500,
-    messages: [{ role: "user", content: prompt }]
-  });
-
-  // Track token usage
-  const tracker = getCurrentTracker();
-  if (tracker && response.usage) {
-    trackUsage(tracker, response.usage, "claude-sonnet-4-20250514");
-  }
-
-  const content = response.content[0];
-  if (content.type !== "text") {
-    throw new Error("Unexpected response type from Claude");
-  }
-
-  // Parse JSON from response with repair capability
-  const data = parseClaudeJSON<{
+  let data: {
     timing_score: number;
     confidence: 'high' | 'medium' | 'low';
     tailwinds: { signal: string; impact: 'high' | 'medium' | 'low'; description: string }[];
@@ -240,7 +302,42 @@ Respond with ONLY valid JSON:
     timing_window: string;
     verdict: string;
     trend: 'rising' | 'stable' | 'falling';
-  }>(content.text, 'timing analysis');
+  };
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1500,
+      messages: [{ role: "user", content: prompt }]
+    });
+
+    // Track token usage
+    const tracker = getCurrentTracker();
+    if (tracker && response.usage) {
+      trackUsage(tracker, response.usage, "claude-sonnet-4-20250514");
+    }
+
+    const content = response.content[0];
+    if (content.type !== "text") {
+      throw new Error("Unexpected response type from Claude");
+    }
+
+    // Parse JSON from response with repair capability
+    data = parseClaudeJSON<typeof data>(content.text, 'timing analysis');
+  } catch (error) {
+    console.warn('[Timing] Claude API failed, using fallback:', error instanceof Error ? error.message : error);
+    return {
+      score: 5,
+      confidence: 'low',
+      trendSource,
+      tailwinds: [],
+      headwinds: [],
+      timingWindow: 'Unknown',
+      verdict: 'Unable to analyze timing due to API error',
+      trend: fallbackTrend,
+      trendData: trendDataResponse,
+    };
+  }
 
   // Use trend from the selected source to ensure consistency
   let finalTrend: 'rising' | 'stable' | 'falling';
@@ -250,38 +347,6 @@ Respond with ONLY valid JSON:
     finalTrend = googleTrendData.trend;
   } else {
     finalTrend = data.trend; // AI estimate from Claude
-  }
-
-  // Build trend data response based on source
-  let trendDataResponse: TimingResult['trendData'] = null;
-
-  if (trendSource === 'ai_discussion' && aiTrendData) {
-    trendDataResponse = {
-      keywords: aiTrendData.keywords,
-      percentageChange: aiTrendData.percentageChange,
-      dataAvailable: true,
-      totalVolume: aiTrendData.totalVolume,
-      sources: aiTrendData.sources,
-      insufficientData: aiTrendData.insufficientData,
-      change30d: aiTrendData.change30d,
-      change90d: aiTrendData.change90d,
-      googleTimeline: googleTrendData?.timelineData || undefined,
-      googleKeywords: googleTrendData?.keywords || undefined,
-      googleKeywordBreakdown: googleTrendData?.keywordBreakdown || undefined,
-      googleDataAvailable: !!(googleTrendData?.timelineData?.length),
-    };
-  } else if (trendSource === 'google_trends' && googleTrendData) {
-    trendDataResponse = {
-      keywords: googleTrendData.keywords,
-      percentageChange: googleTrendData.percentageChange,
-      dataAvailable: true,
-      keywordBreakdown: googleTrendData.keywordBreakdown,
-      timelineData: googleTrendData.timelineData,
-      googleTimeline: googleTrendData.timelineData || undefined,
-      googleKeywords: googleTrendData.keywords || undefined,
-      googleKeywordBreakdown: googleTrendData.keywordBreakdown || undefined,
-      googleDataAvailable: !!(googleTrendData.timelineData?.length),
-    };
   }
 
   return {
