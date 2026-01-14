@@ -419,7 +419,7 @@ export default async function ResearchDetailPage({
           </ResearchTabsProvider>
           </ResearchDataProvider>
         ) : researchJob.status === 'processing' ? (
-          <StatusPoller jobId={id} initialStatus="processing" hypothesis={researchJob.hypothesis} />
+          <StatusPoller jobId={id} initialStatus="processing" hypothesis={researchJob.hypothesis} jobCreatedAt={researchJob.created_at} />
         ) : researchJob.status === 'pending' ? (
           <ResearchTrigger jobId={id} hypothesis={researchJob.hypothesis} />
         ) : researchJob.status === 'failed' ? (
