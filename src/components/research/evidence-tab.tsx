@@ -738,6 +738,10 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
                   const signalType = isLegacyString ? 'explicit' : signal.type
                   const url = isLegacyString ? undefined : signal.url
                   const sourceReliability = isLegacyString ? 'low' : signal.sourceReliability
+                  const createdUtc = isLegacyString ? undefined : signal.createdUtc
+                  const upvotes = isLegacyString ? undefined : signal.upvotes
+                  const numComments = isLegacyString ? undefined : signal.numComments
+                  const rating = isLegacyString ? undefined : signal.rating
 
                   return (
                     <WtpQuoteCard
@@ -747,6 +751,10 @@ export function EvidenceTab({ communityVoiceResult, filteringMetrics }: Evidence
                       signalType={signalType}
                       url={url}
                       sourceReliability={sourceReliability}
+                      createdUtc={createdUtc}
+                      upvotes={upvotes}
+                      numComments={numComments}
+                      rating={rating}
                     />
                   )
                 })}

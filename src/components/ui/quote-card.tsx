@@ -27,6 +27,16 @@ function formatNumber(num: number): string {
   return num.toString()
 }
 
+function formatUtcDate(timestamp?: number): string | null {
+  if (!timestamp || timestamp <= 0) return null
+  const date = new Date(timestamp * 1000)
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 // Minimum engagement threshold - quotes below this are flagged as low confidence
 const MIN_ENGAGEMENT_THRESHOLD = 2  // upvotes <= 1 are considered low engagement
 
@@ -407,12 +417,30 @@ interface WtpQuoteCardProps {
   signalType?: 'explicit' | 'inferred'  // explicit = clear payment language, inferred = AI interpretation
   url?: string  // Original post/comment URL
   sourceReliability?: 'high' | 'medium' | 'low'  // high=app reviews, medium=HN, low=Reddit
+  createdUtc?: number
+  upvotes?: number
+  numComments?: number
+  rating?: number
   className?: string
 }
 
-export function WtpQuoteCard({ quote, source, signalType = 'explicit', url, sourceReliability, className }: WtpQuoteCardProps) {
+export function WtpQuoteCard({
+  quote,
+  source,
+  signalType = 'explicit',
+  url,
+  sourceReliability,
+  createdUtc,
+  upvotes,
+  numComments,
+  rating,
+  className,
+}: WtpQuoteCardProps) {
   const isInferred = signalType === 'inferred'
   const isLowReliability = sourceReliability === 'low'
+  const formattedDate = formatUtcDate(createdUtc)
+  const hasRating = typeof rating === 'number'
+  const hasEngagement = upvotes !== undefined || numComments !== undefined
 
   return (
     <div className={cn(
@@ -469,6 +497,14 @@ export function WtpQuoteCard({ quote, source, signalType = 'explicit', url, sour
         <Quote className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
         <p className="text-sm italic leading-relaxed">"{quote}"</p>
       </div>
+
+      {(formattedDate || hasRating || hasEngagement) && (
+        <div className="mt-2 pl-6 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          {formattedDate && <span>{formattedDate}</span>}
+          {hasRating && <span>Rating {rating}/5</span>}
+          <EngagementDisplay upvotes={upvotes} numComments={numComments} />
+        </div>
+      )}
 
       {/* Reliability note for low-reliability sources */}
       {isLowReliability && (

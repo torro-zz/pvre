@@ -1,6 +1,6 @@
 # PVRE Known Issues
 
-*Last updated: January 14, 2026*
+*Last updated: January 14, 2026 (evening)*
 
 ---
 
@@ -1103,6 +1103,143 @@ If WTP signals are AI-generated without real sources, they should either be:
 ---
 
 ## 🟡 MEDIUM — Next Sprint
+
+### "Verify Yourself" Tooltip Is Misleading (Jan 14, 2026)
+**Status:** Open
+**Impact:** Users can't actually verify the data - misleading UX claim
+**Location:** `src/components/research/market-tab.tsx` — Verified Market Signals section
+**Discovered:** January 14, 2026
+
+**Problem:**
+The Discussion Volume metric shows a tooltip "Direct from API — you can verify this yourself" but:
+1. There's no way for users to verify this data
+2. No link to the API or source
+3. No explanation of where "400" comes from or how it was calculated
+4. Implies transparency that doesn't exist
+
+**Expected Behavior:**
+Either:
+- **Option A:** Remove the misleading "verify yourself" claim
+- **Option B:** Actually provide a verification link/method (e.g., link to Arctic Shift search with same keywords)
+- **Option C:** Show the API query parameters used so users could theoretically reproduce
+
+**Files to Modify:**
+- `src/components/research/market-tab.tsx` — Remove or fix the tooltip text
+
+---
+
+### Discussion Volume Match Rate (12%) Needs Explanation (Jan 14, 2026)
+**Status:** Open
+**Impact:** Users don't understand what the metric means - is 12% good or bad?
+**Location:** `src/components/research/market-tab.tsx` — Verified Market Signals section
+**Discovered:** January 14, 2026
+
+**Problem:**
+Shows "400" discussion volume with "47 matched (12%)" below, but:
+1. No context for whether 12% is good, average, or poor
+2. "Matched" isn't defined — matched to what? Hypothesis? Keywords?
+3. No guidance on interpretation
+4. "Proxy for problem awareness" tooltip doesn't explain the percentage
+
+**Expected Behavior:**
+Add interpretation guidance similar to other metrics:
+```
+Match Rate Interpretation:
+- <5%: Low relevance — discussions may be off-topic
+- 5-15%: Moderate — some signal in noise
+- 15-30%: Good — strong problem awareness
+- >30%: Excellent — highly focused discussions
+```
+
+**Files to Modify:**
+- `src/components/research/market-tab.tsx` — Add interpretation tooltip/guidance
+
+---
+
+### Competition Matrix Shows "Unknown" for All Competitors (Jan 14, 2026)
+**Status:** Open
+**Impact:** Comparison Matrix is useless without competitor names
+**Location:** `src/components/research/competitor-results.tsx` — Comparison Matrix section
+**Discovered:** January 14, 2026
+
+**Problem:**
+The Comparison Matrix table shows "Unknown" for all 6 competitor rows instead of actual competitor names. The matrix has useful dimension scores (Weather Protection, Portability, etc.) but competitors aren't identified.
+
+**Evidence:**
+```
+| Competitor | Weather Protection | Portability | Cigar Focus | Price Point | Avg |
+|------------|-------------------|-------------|-------------|-------------|-----|
+| Unknown    | 7                 | 9           | 9           | 6           | 7.8 |
+| Unknown    | 3                 | 8           | 8           | 8           | 6.8 |
+| Unknown    | 8                 | 4           | 3           | 5           | 5   |
+```
+
+**Root Cause Investigation:**
+1. Check if competitor names are in the API response but not rendered
+2. Check `comparisonMatrix` data structure — does it have `name` field?
+3. Check if the matrix is being populated correctly from competitor analysis
+
+**Files to Investigate:**
+- `src/components/research/competitor-results.tsx` — Matrix rendering
+- `src/app/api/research/competitor-intelligence/route.ts` — Matrix generation
+- `CompetitorIntelligenceResult.comparisonMatrix` type definition
+
+---
+
+### Direct Competitor Links Mostly Broken (Jan 14, 2026)
+**Status:** Open
+**Impact:** Users can't verify competitors exist or research them
+**Location:** `src/components/research/competitor-results.tsx` — Direct Competitors section
+**Discovered:** January 14, 2026
+
+**Problem:**
+In the Direct Competitors list, most "Visit Website" links return 404 or don't work. Only ~1 in 6 links tested worked correctly.
+
+**Likely Causes:**
+1. AI-generated URLs that don't exist
+2. Company names mapped to wrong domains
+3. Outdated URL patterns (e.g., .com vs .io)
+4. URL formatting issues (missing https://, wrong TLD)
+
+**Expected Behavior:**
+Either:
+- **Option A:** Validate URLs before displaying (HEAD request check)
+- **Option B:** Use search engine "I'm Feeling Lucky" style links instead
+- **Option C:** Remove links entirely if not reliable (just show company name)
+- **Option D:** Add disclaimer "Links may be outdated - verify before visiting"
+
+**Files to Modify:**
+- `src/app/api/research/competitor-intelligence/route.ts` — URL generation
+- `src/components/research/competitor-results.tsx` — Link display/validation
+
+---
+
+### Missing Alternative Competitor Category: Offline Solutions (Jan 14, 2026)
+**Status:** Open
+**Impact:** Incomplete competitive landscape — misses non-digital alternatives
+**Location:** `src/app/api/research/competitor-intelligence/route.ts` — Competitor analysis
+**Discovered:** January 14, 2026
+
+**Problem:**
+For the "cigar smoking in winter" hypothesis, the competitor analysis missed obvious offline alternatives:
+1. **Restaurants with outdoor heating** — heated patios, smoking-allowed venues
+2. **Cigar lounges** — indoor smoking venues in cities
+3. **Heated garages/sheds** — DIY solutions people already use
+
+These are real competitors to any digital/product solution because they solve the same problem. Users may choose these alternatives instead of buying a product.
+
+**Expected Behavior:**
+The competitor analysis prompt should explicitly ask for:
+1. Digital/app solutions
+2. Physical products
+3. **Service-based alternatives** (lounges, venues, rentals)
+4. **DIY/behavioral workarounds** (what people already do)
+
+**Files to Modify:**
+- `src/app/api/research/competitor-intelligence/route.ts` — Competitor detection prompt
+- Add explicit instruction to include non-digital alternatives
+
+---
 
 ### WTP Comments Truncated and Unreadable
 **Status:** Open

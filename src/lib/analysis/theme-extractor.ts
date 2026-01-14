@@ -98,6 +98,10 @@ export interface WtpSignal {
   type: 'explicit' | 'inferred'  // explicit = clear payment language, inferred = AI interpretation
   url?: string  // Original post/comment URL
   sourceReliability?: 'high' | 'medium' | 'low'  // high=app reviews, medium=HN, low=Reddit
+  createdUtc?: number
+  upvotes?: number
+  numComments?: number
+  rating?: number
 }
 
 export interface ThemeAnalysis {
@@ -967,4 +971,3 @@ function detectPainIndicators(text: string): string[] {
 
   return indicators
 }
-

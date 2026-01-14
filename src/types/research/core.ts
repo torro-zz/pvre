@@ -175,6 +175,10 @@ export interface WTPQuote {
   text: string
   subreddit: string
   url?: string
+  createdUtc?: number
+  upvotes?: number
+  numComments?: number
+  rating?: number
 }
 
 export interface SubredditCount {

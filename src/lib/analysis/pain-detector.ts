@@ -943,7 +943,7 @@ export interface PainSummary {
   // Transparency metrics
   dataConfidence: 'very_low' | 'low' | 'medium' | 'high'
   strongestSignals: string[]
-  wtpQuotes: { text: string; subreddit: string; url?: string }[]
+  wtpQuotes: { text: string; subreddit: string; url?: string; createdUtc?: number; upvotes?: number; numComments?: number; rating?: number }[]
   // v3.0: Temporal distribution for recency awareness
   temporalDistribution: {
     last30Days: number
@@ -1659,7 +1659,7 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
 
   const subredditCounts: Record<string, number> = {}
   const signalCounts: Record<string, number> = {}
-  const wtpQuotes: { text: string; subreddit: string; url?: string }[] = []
+  const wtpQuotes: { text: string; subreddit: string; url?: string; createdUtc?: number; upvotes?: number; numComments?: number; rating?: number }[] = []
   const emotionCounts: EmotionsBreakdown = { ...emptyEmotions }
 
   let totalScore = 0
@@ -1708,6 +1708,10 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
             text: signal.text.slice(0, 200) + (signal.text.length > 200 ? '...' : ''),
             subreddit: signal.source.subreddit,
             url: signal.source.url,
+            createdUtc: signal.source.createdUtc,
+            upvotes: signal.source.upvotes,
+            numComments: signal.source.numComments,
+            rating: signal.source.rating,
           })
         }
       }
