@@ -375,7 +375,7 @@ export function createFallbackCompetitorResult(
   // Build complete competitor objects from partial
   const competitors: Competitor[] = fallback.competitors.map(c => ({
     name: c.name || 'Unknown',
-    website: c.website || null,
+    website: null,  // Always null - we use Google search links instead of AI-generated URLs
     description: c.description || '',
     positioning: c.positioning || 'Unknown',
     targetAudience: c.targetAudience || 'General market',
@@ -600,7 +600,6 @@ Provide analysis in JSON format. For each competitor, assess:
   "competitors": [
     {
       "name": "Name",
-      "website": "URL or null",
       "description": "What they do",
       "positioning": "How positioned",
       "targetAudience": "Who they target",
@@ -734,7 +733,7 @@ Identify 4-8 competitors across these categories. Return ONLY valid JSON.`
 
   const competitors: Competitor[] = (normalizedAnalysis.competitors || []).map((c: Partial<Competitor>) => ({
     name: c.name || 'Unknown',
-    website: c.website || null,
+    website: null,  // Always null - we use Google search links instead of AI-generated URLs
     description: c.description || '',
     positioning: c.positioning || '',
     targetAudience: c.targetAudience || '',

@@ -1,96 +1,82 @@
-# Resume Point — January 13, 2026
+# Resume Here
 
-**Last Session:** January 13, 2026
-
----
-
-## What Was Just Completed
-
-### ✅ App Gap Slowdown Fix (Jan 13, 2026)
-
-**Problem:** App Gap searches took 30-35+ minutes instead of ~4 minutes
-
-**Root Cause Confirmed:** `getAIDiscussionTrend()` in `ai-discussion-trends.ts` makes ~100 sequential Arctic Shift API calls — even for App Gap mode where Reddit data is completely irrelevant.
-
-**Fix Applied:**
-1. `src/lib/analysis/timing-analyzer.ts` — Added `isAppGapMode` check to skip AI Discussion Trends
-2. `src/lib/research/steps/market-analyzer.ts` — Now passes `isAppGapMode: isAppGapMode(ctx)` to timing analyzer
-
-**Expected improvement:** App Gap searches: 30+ min → ~4 min (8x faster)
-
-**Build & Tests:** All passing (173 tests)
+*Last updated: January 14, 2026 (evening)*
 
 ---
 
-## Uncommitted Changes
+## Continue Tomorrow
 
-| File | Changes |
-|------|---------|
-| `src/lib/analysis/timing-analyzer.ts` | Added `isAppGapMode` to skip AI Discussion Trends |
-| `src/lib/research/steps/market-analyzer.ts` | Passes `isAppGapMode` to timing analyzer |
-| `docs/KNOWN_ISSUES.md` | Marked slowdown as FIXED with implementation details |
-| `docs/RESUME_HERE.md` | This file |
-| `add-credits.mjs` | Helper script to add dev credits (can delete) |
-| `test-app-gap-e2e.mjs` | Untracked test file (can delete) |
+**Work through `docs/KNOWN_ISSUES.md`** — prioritized list of open issues.
+
+### Quick Wins (5-10 min each)
+| Issue | Location |
+|-------|----------|
+| "Verify Yourself" tooltip misleading | `market-tab.tsx` |
+| Match rate (12%) needs explanation | `market-tab.tsx` |
+
+### Investigation Needed
+| Issue | Impact |
+|-------|--------|
+| Competition Matrix shows "Unknown" for all competitors | Core feature broken |
+| Direct competitor links mostly broken (~5/6 return 404) | User-facing embarrassment |
+| Missing offline alternatives (restaurants, cigar lounges) | Incomplete analysis |
+
+### Medium Priority (Streaming Parity)
+- Streaming route missing full competitor detection logic
+- SSE doesn't signal competitor failure to client
 
 ---
 
-## What's Next
+## What Was Completed Today (Jan 14)
 
-### 🟡 Verify Fix with Live Test
+### 1. WTP Source Attribution Fix ✅
+**Commit:** `bd1bad1` - fix: Add source attribution to WTP signals
 
-Run an App Gap search to confirm ~4 minute completion:
+WTP signals now display full metadata like Key Pain Quotes:
+- Date (formatted as "Jan 14, 2026")
+- Engagement (↑ upvotes, 💬 comments)
+- Rating for app store reviews
+
+**Files modified:**
+- `src/lib/analysis/pain-detector.ts`
+- `src/components/ui/quote-card.tsx`
+- `src/types/research/core.ts`
+- `src/components/research/evidence-tab.tsx`
+- `src/components/research/community-voice-results.tsx`
+
+### 2. Earlier Today
+- Arctic Shift 30-second timeout fix (`d8f6198`)
+- Re-run functionality for stuck jobs (`64b7a9b`)
+- Timing analysis fix (timeout protection, Claude API fallback)
+
+---
+
+## Build Status
 
 ```bash
-# 1. Ensure dev server is running
-npm run dev
-
-# 2. Add credits if needed
-node add-credits.mjs
-
-# 3. Run App Gap search for Notion in browser
-# Open http://localhost:3000
-# Select "Analyze an App" tab
-# Enter: https://apps.apple.com/us/app/notion-notes-docs-tasks/id1232780281
-
-# Expected: Complete in ~4 minutes instead of 30+
-```
-
-### Optional: Commit the Fix
-
-```bash
-git add src/lib/analysis/timing-analyzer.ts src/lib/research/steps/market-analyzer.ts docs/KNOWN_ISSUES.md
-git commit -m "fix: Skip AI Discussion Trends for App Gap mode (30+ min → ~4 min)"
+npm run build    # ✅ Passes
+npm run test:run # ✅ 176 tests pass
 ```
 
 ---
 
-## Key Files
+## Cleanup Needed
 
-| Purpose | File |
-|---------|------|
-| Fix location | `src/lib/analysis/timing-analyzer.ts` (lines 27, 95-108) |
-| Fix location | `src/lib/research/steps/market-analyzer.ts` (lines 95, 99) |
-| Known issues | `docs/KNOWN_ISSUES.md` |
-| AI Discussion Trends | `src/lib/data-sources/ai-discussion-trends.ts` |
+Many debugging test files in repo root from timing investigation:
+- `test-timing-*.mjs`
+- `check-*.mjs`
+- `verify-timing-*.mjs`
+
+Consider deleting once timing is confirmed stable.
 
 ---
 
-## Quick Commands
+## Quick Start
 
 ```bash
 cd "/Users/julientorriani/Documents/Development/Pre-Validation Research Engine PVRE"
 npm run dev
-npm run test:run
-npm run build
+
+# Read the prioritized issue list:
+cat docs/KNOWN_ISSUES.md | head -200
 ```
-
----
-
-## Session Notes
-
-Investigation completed successfully:
-- Live E2E test confirmed 35+ minute searches
-- Code analysis traced bottleneck to `getAIDiscussionTrend()` (~100 Arctic Shift API calls)
-- Fix implemented: skip AI Discussion Trends for App Gap mode
-- Build and all tests pass

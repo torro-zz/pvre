@@ -33,7 +33,6 @@ import {
   ThumbsUp,
   ThumbsDown,
   Search,
-  ExternalLink,
 } from 'lucide-react'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 import type { ComparativeMentionsResult } from '@/lib/analysis/comparative-mentions'
@@ -41,15 +40,11 @@ import { extractCompetitorPricing, type PricingSuggestion } from '@/lib/analysis
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 /**
- * Get the best URL for a competitor - use website if available, otherwise Google search.
- * AI-generated URLs can be unreliable (404s), but when present they're worth trying.
+ * Generate a Google search URL for a competitor.
+ * We always use search links because AI-generated URLs are unreliable (404s).
  */
-function getCompetitorUrl(name: string, website: string | null | undefined): { url: string; isSearch: boolean } {
-  if (website) {
-    const url = website.startsWith('http') ? website : `https://${website}`
-    return { url, isSearch: false }
-  }
-  return { url: `https://www.google.com/search?q=${encodeURIComponent(name)}`, isSearch: true }
+function getCompetitorSearchUrl(name: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(name)}`
 }
 
 interface CompetitorResultsProps {
@@ -1158,27 +1153,22 @@ function CompetitorCard({ competitor, expanded, onToggle, categoryBadge }: Compe
             <div className="flex items-center gap-2 flex-wrap">
               <CardTitle className="text-base flex items-center gap-2">
                 {competitor.name}
-                {(() => {
-                  const { url, isSearch } = getCompetitorUrl(competitor.name, competitor.website)
-                  return (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-muted-foreground hover:text-primary"
-                        >
-                          {isSearch ? <Search className="h-3.5 w-3.5" /> : <ExternalLink className="h-3.5 w-3.5" />}
-                        </a>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <span>{isSearch ? `Search for ${competitor.name}` : 'Visit website'}</span>
-                      </TooltipContent>
-                    </Tooltip>
-                  )
-                })()}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a
+                      href={getCompetitorSearchUrl(competitor.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-muted-foreground hover:text-primary"
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <span>Search for {competitor.name}</span>
+                  </TooltipContent>
+                </Tooltip>
               </CardTitle>
               {categoryBadge}
             </div>
@@ -1285,27 +1275,22 @@ function CompetitorCardCompact({ competitor, onClick }: CompetitorCardCompactPro
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h4 className="font-medium text-sm truncate">{competitor.name}</h4>
-              {(() => {
-                const { url, isSearch } = getCompetitorUrl(competitor.name, competitor.website)
-                return (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-muted-foreground hover:text-primary flex-shrink-0"
-                      >
-                        {isSearch ? <Search className="h-3 w-3" /> : <ExternalLink className="h-3 w-3" />}
-                      </a>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <span>{isSearch ? 'Search' : 'Visit'}</span>
-                    </TooltipContent>
-                  </Tooltip>
-                )
-              })()}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href={getCompetitorSearchUrl(competitor.name)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-muted-foreground hover:text-primary flex-shrink-0"
+                  >
+                    <Search className="h-3 w-3" />
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <span>Search</span>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
               {competitor.positioning}
