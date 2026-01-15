@@ -462,6 +462,13 @@ export async function POST(request: NextRequest) {
                     competitor_analysis: 'failed'
                   }
                 }).eq('id', jobId)
+
+                // Signal competitor failure to client (non-fatal - research still completed)
+                sendEvent(controller, {
+                  type: 'error',
+                  step: 'competitor',
+                  message: 'Competitor analysis failed - you can run it manually from the results page',
+                })
               }
             }
           } catch (error) {
