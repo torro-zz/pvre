@@ -153,7 +153,6 @@ export interface Competitor {
 // Extended competitor types for Competitor Intelligence module
 export interface CompetitorDetailed {
   name: string
-  website: string | null
   description: string
   positioning: string
   targetAudience: string
@@ -162,6 +161,13 @@ export interface CompetitorDetailed {
   strengths: string[]
   weaknesses: string[]
   differentiators: string[]
+  appStoreData?: {
+    rating: number
+    reviewCount: number
+    store: 'app_store' | 'google_play'
+    appId: string
+    appUrl: string
+  }
 }
 
 export interface CompetitorGap {

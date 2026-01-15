@@ -920,15 +920,29 @@ Identify 4-8 competitors across these categories. Return ONLY valid JSON.`
     return results
   }
 
-  // Enrich competitors with real app store ratings (throttled to avoid rate limits)
+  // Enrich competitors with real app store ratings
+  // Global time budget: 15s max for all lookups to avoid excessive latency
+  const LOOKUP_TIME_BUDGET_MS = 15000
+  const lookupStartTime = Date.now()
+  let lookupTimedOut = false
+
   const enrichedCompetitors = await processWithConcurrency(
     filteredCompetitors,
     async (competitor) => {
+      // Check global time budget before each lookup
+      if (lookupTimedOut || (Date.now() - lookupStartTime) > LOOKUP_TIME_BUDGET_MS) {
+        lookupTimedOut = true
+        return competitor // Skip lookup, return as-is
+      }
       const appStoreData = await lookupAppStoreRating(competitor.name)
       return appStoreData ? { ...competitor, appStoreData } : competitor
     },
     2 // Max 2 concurrent lookups
   )
+
+  if (lookupTimedOut) {
+    console.log('[CompetitorAnalyzer] App store lookups timed out (15s budget exceeded)')
+  }
 
   const gaps: CompetitorGap[] = (normalizedAnalysis.gaps || []).map((g: Partial<CompetitorGap>) => ({
     gap: g.gap || '',

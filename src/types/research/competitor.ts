@@ -46,10 +46,18 @@ export type GapDifficulty = 'low' | 'medium' | 'high'
  * - types/research.ts CompetitorDetailed (adds positioning, pricing, target audience)
  * - competitor-analyzer.ts Competitor (adds threat level, satisfaction, funding, market share)
  */
+// App store data for verified ratings
+export interface AppStoreData {
+  rating: number           // 1-5 stars (real)
+  reviewCount: number      // Number of reviews
+  store: 'app_store' | 'google_play'
+  appId: string
+  appUrl: string           // Link to app store page
+}
+
 export interface Competitor {
   // Core identity
   name: string
-  website: string | null
   description: string
 
   // Positioning
@@ -67,13 +75,12 @@ export interface Competitor {
 
   // Competitive assessment
   threatLevel: ThreatLevel
-  userSatisfaction: number // 0-10 scale
+  userSatisfaction: number // 0-10 scale (AI estimate)
   fundingLevel: FundingLevel
   marketShareEstimate: MarketShareEstimate
 
-  // Legacy field mapping
-  /** @deprecated Use website instead */
-  url?: string
+  // Real app store data (when available)
+  appStoreData?: AppStoreData
 }
 
 /**
