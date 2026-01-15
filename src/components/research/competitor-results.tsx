@@ -1119,7 +1119,6 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
 interface CompetitorCardProps {
   competitor: {
     name: string
-    website: string | null
     description: string
     positioning: string
     targetAudience: string
@@ -1236,7 +1235,6 @@ function CompetitorCard({ competitor, expanded, onToggle, categoryBadge }: Compe
 interface CompetitorCardCompactProps {
   competitor: {
     name: string
-    website: string | null
     positioning: string
     pricingModel: string | null
     pricingRange: string | null

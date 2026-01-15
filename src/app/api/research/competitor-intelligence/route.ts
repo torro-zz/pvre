@@ -50,7 +50,6 @@ async function updateStepStatus(
 
 export interface Competitor {
   name: string
-  website: string | null
   description: string
   positioning: string
   targetAudience: string
@@ -366,7 +365,6 @@ function generateFallbackAnalysis(
   // Generate basic competitor profiles from names
   const competitors: Partial<Competitor>[] = knownCompetitors.map(name => ({
     name,
-    website: null,
     description: `${name} is a competitor in this market space. Analysis details unavailable due to processing error.`,
     positioning: 'Unknown',
     targetAudience: 'General market',
@@ -560,7 +558,6 @@ ${clusters && clusters.length > 0 ? `- evidenceCount: Number of signals supporti
   "competitors": [
     {
       "name": "Competitor name",
-      "website": "website URL or null",
       "description": "What they do",
       "positioning": "How they position themselves",
       "targetAudience": "Who they target",
@@ -657,7 +654,6 @@ Identify 4-8 competitors across these categories. Include at least 3 gaps and 2 
   // Ensure all competitors have the enhanced fields with defaults
   const competitors: Competitor[] = (analysis.competitors || []).map((c: Partial<Competitor>) => ({
     name: c.name || 'Unknown',
-    website: c.website || null,
     description: c.description || '',
     positioning: c.positioning || '',
     targetAudience: c.targetAudience || '',

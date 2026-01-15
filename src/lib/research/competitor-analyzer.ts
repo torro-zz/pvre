@@ -17,7 +17,6 @@ const anthropic = new Anthropic()
 
 export interface Competitor {
   name: string
-  website: string | null
   description: string
   positioning: string
   targetAudience: string
@@ -375,7 +374,6 @@ export function createFallbackCompetitorResult(
   // Build complete competitor objects from partial
   const competitors: Competitor[] = fallback.competitors.map(c => ({
     name: c.name || 'Unknown',
-    website: c.website || null,
     description: c.description || '',
     positioning: c.positioning || 'Unknown',
     targetAudience: c.targetAudience || 'General market',
@@ -449,7 +447,6 @@ function generateFallbackAnalysis(
 } {
   const competitors: Partial<Competitor>[] = knownCompetitors.map(name => ({
     name,
-    website: null,
     description: `${name} is a competitor in this market space.`,
     positioning: 'Unknown',
     targetAudience: 'General market',
@@ -600,7 +597,6 @@ Provide analysis in JSON format. For each competitor, assess:
   "competitors": [
     {
       "name": "Name",
-      "website": "URL or null",
       "description": "What they do",
       "positioning": "How positioned",
       "targetAudience": "Who they target",
@@ -734,7 +730,6 @@ Identify 4-8 competitors across these categories. Return ONLY valid JSON.`
 
   const competitors: Competitor[] = (normalizedAnalysis.competitors || []).map((c: Partial<Competitor>) => ({
     name: c.name || 'Unknown',
-    website: c.website || null,
     description: c.description || '',
     positioning: c.positioning || '',
     targetAudience: c.targetAudience || '',
