@@ -611,7 +611,16 @@ ${clusters && clusters.length > 0 ? `- evidenceCount: Number of signals supporti
   ]
 }
 
-Identify 4-8 competitors. Include at least 3 gaps and 2 positioning recommendations. Return ONLY valid JSON, no markdown formatting.`
+COMPETITOR TYPES TO INCLUDE:
+Include a diverse mix of alternatives that solve the same problem:
+1. **Digital/App solutions** - Software, apps, online services
+2. **Physical products** - Hardware, equipment, tangible goods
+3. **Service-based alternatives** - Venues, lounges, rentals, professional services
+4. **DIY/Behavioral workarounds** - Common solutions people already use
+
+Don't limit competitors to just tech products. Users choose between ALL alternatives that solve their problem.
+
+Identify 4-8 competitors across these categories. Include at least 3 gaps and 2 positioning recommendations. Return ONLY valid JSON, no markdown formatting.`
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',

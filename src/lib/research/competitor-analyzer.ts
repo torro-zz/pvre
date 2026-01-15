@@ -653,7 +653,16 @@ Provide analysis in JSON format. For each competitor, assess:
 
 IMPORTANT: The competitorMatrix.comparison array MUST include an entry for EACH competitor with their actual name in the "competitorName" field. Do not leave comparison empty.
 
-Identify 4-8 competitors. Return ONLY valid JSON.`
+COMPETITOR TYPES TO INCLUDE:
+Include a diverse mix of alternatives that solve the same problem:
+1. **Digital/App solutions** - Software, apps, online services
+2. **Physical products** - Hardware, equipment, tangible goods
+3. **Service-based alternatives** - Venues, lounges, rentals, professional services
+4. **DIY/Behavioral workarounds** - Common solutions people already use (e.g., "people currently just use X")
+
+Don't limit competitors to just tech products. Users choose between ALL alternatives that solve their problem.
+
+Identify 4-8 competitors across these categories. Return ONLY valid JSON.`
 
   const fallbackAnalysis = generateFallbackAnalysis(hypothesis, filteredKnownCompetitors || [])
   let analysis = fallbackAnalysis
