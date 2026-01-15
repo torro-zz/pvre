@@ -1167,19 +1167,10 @@ function CompetitionSubTab({ competitorData, jobId, hypothesis, onNavigate }: Co
 
   const gapsCount = competitorData.gaps?.length || 0
   const positioningCount = competitorData.positioningRecommendations?.length || 0
-  const competitorCount = competitorData.competitors?.length || 0
 
   return (
     <div className="space-y-6">
       <CompetitorResults results={competitorData} />
-
-      {/* Refinement option - Add more competitors */}
-      <CompetitorRunner
-        jobId={jobId}
-        hypothesis={hypothesis}
-        refinementMode={true}
-        currentCompetitorCount={competitorCount}
-      />
 
       {/* Cross-links to related sections */}
       {onNavigate && (gapsCount > 0 || positioningCount > 0) && (
