@@ -32,25 +32,10 @@ import {
   MessageSquare,
   ThumbsUp,
   ThumbsDown,
-  Search,
-  ExternalLink,
 } from 'lucide-react'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 import type { ComparativeMentionsResult } from '@/lib/analysis/comparative-mentions'
 import { extractCompetitorPricing, type PricingSuggestion } from '@/lib/analysis/pricing-utils'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-
-/**
- * Get the best URL for a competitor - use website if available, otherwise Google search.
- * AI-generated URLs can be unreliable (404s), but when present they're worth trying.
- */
-function getCompetitorUrl(name: string, website: string | null | undefined): { url: string; isSearch: boolean } {
-  if (website) {
-    const url = website.startsWith('http') ? website : `https://${website}`
-    return { url, isSearch: false }
-  }
-  return { url: `https://www.google.com/search?q=${encodeURIComponent(name)}`, isSearch: true }
-}
 
 interface CompetitorResultsProps {
   results: CompetitorIntelligenceResult
@@ -58,7 +43,7 @@ interface CompetitorResultsProps {
 
 export function CompetitorResults({ results }: CompetitorResultsProps) {
   const [expandedCompetitor, setExpandedCompetitor] = useState<string | null>(null)
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['marketOverview', 'platformsCommunities', 'comparisonMatrix', 'comparativeMentions', 'adjacentTools'])) // Secondary sections collapsed by default
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['marketOverview', 'platformsCommunities', 'comparisonMatrix', 'adjacentTools'])) // Secondary sections collapsed by default - comparativeMentions expanded (real data!)
   const [showAllPlatforms, setShowAllPlatforms] = useState(false)
   const [showAllAdjacent, setShowAllAdjacent] = useState(false)
   const INITIAL_DISPLAY_COUNT = 3
@@ -760,11 +745,14 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
                 <CardTitle className="text-lg flex items-center gap-2">
                   <BarChart3 className="h-5 w-5" />
                   Comparison Matrix
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700 text-xs font-normal">
+                    AI Estimates
+                  </Badge>
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   {collapsedSections.has('comparisonMatrix') && (
-                    <span className="text-sm text-muted-foreground">
-                      Compare across {filteredCompetitorMatrix?.categories?.length || 0} dimensions
+                    <span className="text-xs text-muted-foreground">
+                      Not verified data
                     </span>
                   )}
                   <ChevronDown className={`h-5 w-5 transition-transform ${!collapsedSections.has('comparisonMatrix') ? 'rotate-180' : ''}`} />
@@ -1156,29 +1144,8 @@ function CompetitorCard({ competitor, expanded, onToggle, categoryBadge }: Compe
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <CardTitle className="text-base flex items-center gap-2">
+              <CardTitle className="text-base">
                 {competitor.name}
-                {(() => {
-                  const { url, isSearch } = getCompetitorUrl(competitor.name, competitor.website)
-                  return (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-muted-foreground hover:text-primary"
-                        >
-                          {isSearch ? <Search className="h-3.5 w-3.5" /> : <ExternalLink className="h-3.5 w-3.5" />}
-                        </a>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <span>{isSearch ? `Search for ${competitor.name}` : 'Visit website'}</span>
-                      </TooltipContent>
-                    </Tooltip>
-                  )
-                })()}
               </CardTitle>
               {categoryBadge}
             </div>
@@ -1283,30 +1250,7 @@ function CompetitorCardCompact({ competitor, onClick }: CompetitorCardCompactPro
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h4 className="font-medium text-sm truncate">{competitor.name}</h4>
-              {(() => {
-                const { url, isSearch } = getCompetitorUrl(competitor.name, competitor.website)
-                return (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-muted-foreground hover:text-primary flex-shrink-0"
-                      >
-                        {isSearch ? <Search className="h-3 w-3" /> : <ExternalLink className="h-3 w-3" />}
-                      </a>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <span>{isSearch ? 'Search' : 'Visit'}</span>
-                    </TooltipContent>
-                  </Tooltip>
-                )
-              })()}
-            </div>
+            <h4 className="font-medium text-sm truncate">{competitor.name}</h4>
             <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
               {competitor.positioning}
             </p>
