@@ -101,6 +101,15 @@ function sendEvent(controller: ReadableStreamDefaultController, event: ProgressE
   controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
 }
 
+// Safe version that won't throw if stream is closed (for use in error handlers)
+function safeSendEvent(controller: ReadableStreamDefaultController, event: ProgressEvent) {
+  try {
+    sendEvent(controller, event)
+  } catch (e) {
+    console.warn('[SSE] Failed to send event (stream may be closed):', event.step, e)
+  }
+}
+
 function calculateQualityLevel(postFilterRate: number, commentFilterRate: number): 'high' | 'medium' | 'low' {
   const avgFilterRate = (postFilterRate + commentFilterRate) / 2
   if (avgFilterRate <= 40) return 'high'
@@ -434,7 +443,8 @@ export async function POST(request: NextRequest) {
               console.error('Auto-competitor analysis failed:', errorMessage)
 
               // Signal competitor failure to client immediately (non-fatal - research still completed)
-              sendEvent(controller, {
+              // Use safeSendEvent to prevent stream errors from escalating to job failure
+              safeSendEvent(controller, {
                 type: 'error',
                 step: 'competitor',
                 message: 'Competitor analysis failed - you can run it manually from the results page',
