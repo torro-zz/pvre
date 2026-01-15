@@ -1049,140 +1049,86 @@ The UI fix is applied and working correctly. HOWEVER, there's an underlying data
 
 ---
 
-### WTP Signals Missing Source Attribution
-**Status:** Open
-**Impact:** Users can't verify WTP signals are real - trust/credibility issue
-**Location:** `src/components/research/quotes-panel.tsx` or similar
+### ~~WTP Signals Missing Source Attribution~~
+**Status:** ✅ FIXED (January 14, 2026)
+**Impact:** ~~Users can't verify WTP signals are real - trust/credibility issue~~
+**Location:** `src/components/ui/quote-card.tsx`, `src/lib/analysis/pain-detector.ts`
 **Discovered:** January 13, 2026
 
-**Problem:**
-In the **Evidence > Quotes > WTP Signals** section:
-1. WTP (Willingness to Pay) signals have **no source links** — unlike Key Pain Quotes which DO show sources
-2. The displayed WTP quotes cannot be verified as real user comments
-3. Unclear if these are:
-   - Extracted from actual user posts/reviews
-   - AI-generated summaries
-   - Hallucinated content
+**Problem (RESOLVED):**
+WTP signals were capturing source metadata (URL, date, engagement, rating) but only displaying text, source name, and URL. Date, engagement, and star ratings were stripped during aggregation.
 
-**Example:**
-```
-Key Pain Quotes:
-  "I hate when my sitter cancels last minute..."
-  Source: r/dogs • 2 days ago  [✅ Has source]
+**Root Cause:**
+1. `getPainSummary()` in `pain-detector.ts` was only copying `text`, `subreddit`, `url` to wtpQuotes
+2. `WtpQuoteCard` component wasn't rendering date/engagement even when available
 
-WTP Signals:
-  "I would pay $50/month for a reliable service..."
-  [❌ No source, no date, no verification]
-```
+**Fix Applied:**
+1. **Data enrichment:** `pain-detector.ts` now includes `createdUtc`, `upvotes`, `numComments`, `rating` in wtpQuotes
+2. **Type updates:** `WTPQuote` interface in `core.ts` and `WtpSignal` in `theme-extractor.ts` updated
+3. **UI display:** `WtpQuoteCard` now shows date, engagement, and rating when available
+4. **Prop wiring:** `evidence-tab.tsx` and `community-voice-results.tsx` pass the new fields through
 
-**Expected Behavior:**
-WTP Signals should have the same source attribution as Key Pain Quotes:
-- Source link (Reddit post URL, App Store review link)
-- Date/timestamp
-- Community or platform name
-- Upvote/engagement count (if available)
+**WTP quotes now display:**
+- Date (formatted as "Jan 14, 2026")
+- Engagement (↑ upvotes, 💬 comments)
+- Rating (for app store reviews: "Rating 4/5")
 
-**Root Cause Investigation:**
-1. Check how WTP signals are extracted — `pain-detector.ts` or theme extractor?
-2. Do WTP signals retain source metadata when extracted?
-3. Is the source data available but UI not rendering it?
-4. Or are WTP signals AI-generated without grounding in real quotes?
-
-**Files to Investigate:**
-- `src/components/research/quotes-panel.tsx` — Quote display component
-- `src/lib/analysis/pain-detector.ts` — WTP signal extraction
-- `src/lib/analysis/theme-extractor.ts` — May extract WTP patterns
-- `CommunityVoiceResult.wtpSignals` type definition
-
-**Trust Impact:**
-If WTP signals are AI-generated without real sources, they should either be:
-1. Removed entirely (misleading)
-2. Clearly labeled as "AI-inferred" (not real quotes)
-3. Fixed to only show actual user quotes with sources
+**Backward compatible:** Old saved results without these fields still render correctly (all fields optional)
 
 ---
 
 ## 🟡 MEDIUM — Next Sprint
 
-### "Verify Yourself" Tooltip Is Misleading (Jan 14, 2026)
-**Status:** Open
-**Impact:** Users can't actually verify the data - misleading UX claim
-**Location:** `src/components/research/market-tab.tsx` — Verified Market Signals section
-**Discovered:** January 14, 2026
+### ~~"Verify Yourself" Tooltip Is Misleading~~
+**Status:** ✅ FIXED (January 15, 2026)
+**Commit:** `a8a8b90`
 
-**Problem:**
-The Discussion Volume metric shows a tooltip "Direct from API — you can verify this yourself" but:
-1. There's no way for users to verify this data
-2. No link to the API or source
-3. No explanation of where "400" comes from or how it was calculated
-4. Implies transparency that doesn't exist
+**Problem (RESOLVED):**
+The "verified" badge tooltip said "you can verify this yourself" but there was no way to actually verify.
 
-**Expected Behavior:**
-Either:
-- **Option A:** Remove the misleading "verify yourself" claim
-- **Option B:** Actually provide a verification link/method (e.g., link to Arctic Shift search with same keywords)
-- **Option C:** Show the API query parameters used so users could theoretically reproduce
+**Fix Applied:**
+Changed tooltip from "Direct from API — you can verify this yourself" to "Data retrieved directly from source API (Reddit, App Store)"
 
-**Files to Modify:**
-- `src/components/research/market-tab.tsx` — Remove or fix the tooltip text
+**File Modified:** `src/components/ui/data-source-badge.tsx`
 
 ---
 
-### Discussion Volume Match Rate (12%) Needs Explanation (Jan 14, 2026)
-**Status:** Open
-**Impact:** Users don't understand what the metric means - is 12% good or bad?
-**Location:** `src/components/research/market-tab.tsx` — Verified Market Signals section
-**Discovered:** January 14, 2026
+### ~~Discussion Volume Match Rate Needs Explanation~~
+**Status:** ✅ FIXED (January 15, 2026)
+**Commit:** `a8a8b90`
 
-**Problem:**
-Shows "400" discussion volume with "47 matched (12%)" below, but:
-1. No context for whether 12% is good, average, or poor
-2. "Matched" isn't defined — matched to what? Hypothesis? Keywords?
-3. No guidance on interpretation
-4. "Proxy for problem awareness" tooltip doesn't explain the percentage
+**Problem (RESOLVED):**
+Match rate percentage shown without explanation of what it means or whether it's good/bad.
 
-**Expected Behavior:**
-Add interpretation guidance similar to other metrics:
-```
-Match Rate Interpretation:
-- <5%: Low relevance — discussions may be off-topic
+**Fix Applied:**
+Added clickable tooltip on the match rate with interpretation guidance:
+- <5%: Low — many posts were off-topic
 - 5-15%: Moderate — some signal in noise
 - 15-30%: Good — strong problem awareness
 - >30%: Excellent — highly focused discussions
-```
 
-**Files to Modify:**
-- `src/components/research/market-tab.tsx` — Add interpretation tooltip/guidance
+**File Modified:** `src/components/research/market-signals.tsx`
 
 ---
 
-### Competition Matrix Shows "Unknown" for All Competitors (Jan 14, 2026)
-**Status:** Open
-**Impact:** Comparison Matrix is useless without competitor names
-**Location:** `src/components/research/competitor-results.tsx` — Comparison Matrix section
-**Discovered:** January 14, 2026
+### ~~Competition Matrix Shows "Unknown" for All Competitors~~
+**Status:** ✅ FIXED (January 15, 2026)
+**Commit:** `1171f65`
 
-**Problem:**
-The Comparison Matrix table shows "Unknown" for all 6 competitor rows instead of actual competitor names. The matrix has useful dimension scores (Weather Protection, Portability, etc.) but competitors aren't identified.
+**Problem (RESOLVED):**
+The Comparison Matrix showed "Unknown" for all competitor rows instead of actual names.
 
-**Evidence:**
-```
-| Competitor | Weather Protection | Portability | Cigar Focus | Price Point | Avg |
-|------------|-------------------|-------------|-------------|-------------|-----|
-| Unknown    | 7                 | 9           | 9           | 6           | 7.8 |
-| Unknown    | 3                 | 8           | 8           | 8           | 6.8 |
-| Unknown    | 8                 | 4           | 3           | 5           | 5   |
-```
+**Root Cause:**
+The `competitor-analyzer.ts` prompt had an empty `comparison: []` array with no example showing the expected format. Claude didn't know to include `competitorName` in matrix entries.
 
-**Root Cause Investigation:**
-1. Check if competitor names are in the API response but not rendered
-2. Check `comparisonMatrix` data structure — does it have `name` field?
-3. Check if the matrix is being populated correctly from competitor analysis
+**Fix Applied (3 layers):**
+1. **Prompt fix:** Added example showing `competitorName` and `scores` structure
+2. **Backend fallback:** Cross-references matrix entries with competitors array by index
+3. **UI fallback:** For existing saved data, maps "Unknown" names to competitors by index
 
-**Files to Investigate:**
-- `src/components/research/competitor-results.tsx` — Matrix rendering
-- `src/app/api/research/competitor-intelligence/route.ts` — Matrix generation
-- `CompetitorIntelligenceResult.comparisonMatrix` type definition
+**Files Modified:**
+- `src/lib/research/competitor-analyzer.ts` — Prompt + normalization + fallback
+- `src/components/research/competitor-results.tsx` — UI cross-reference fallback
 
 ---
 
