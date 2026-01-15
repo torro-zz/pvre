@@ -1139,9 +1139,9 @@ The `competitor-analyzer.ts` prompt had an empty `comparison: []` array with no 
 
 ### ~~Direct Competitor Links Mostly Broken (Jan 14, 2026)~~
 **Status:** ✅ FIXED (January 15, 2026)
-**Commit:** `13bf56a`
+**Commits:** `13bf56a`, `88e7aa3`, `7600f64`
 **Impact:** ~~Users can't verify competitors exist or research them~~
-**Location:** `src/components/research/competitor-results.tsx` — Direct Competitors section
+**Location:** Multiple files
 **Discovered:** January 14, 2026
 
 **Problem (RESOLVED):**
@@ -1150,16 +1150,21 @@ In the Direct Competitors list, most "Visit Website" links returned 404 or didn'
 **Root Cause:**
 AI-generated URLs were unreliable - Claude guessed/hallucinated domains that often didn't exist.
 
-**Fix Applied:**
-Replaced direct website links with Google search links. Users now click to search for the competitor name, which always works and lets them verify the competitor exists.
+**Final Fix (Option D - commit `7600f64`):**
+Removed AI-generated URLs entirely. Now always use Google search links.
 
 Changes:
-- Added `getCompetitorSearchUrl()` helper function
-- Changed link icon from ExternalLink to Search
-- Added tooltip explaining the link destination
-- Links now reliably work (Google search always succeeds)
+1. Removed "website" field from Claude prompts
+2. Force `website: null` in backend normalization
+3. Simplified frontend to always use Google search links
+4. All competitor links now show Search icon
 
-**File Modified:** `src/components/research/competitor-results.tsx`
+**Files Modified:**
+- `src/lib/research/competitor-analyzer.ts`
+- `src/app/api/research/competitor-intelligence/route.ts`
+- `src/components/research/competitor-results.tsx`
+
+**Backward Compatible:** Old saved data with URLs still renders (URLs ignored, search used instead).
 
 ---
 
