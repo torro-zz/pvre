@@ -46,7 +46,7 @@ const typeConfig: Record<DataSourceType, Omit<SourceConfig, 'shortLabel'>> = {
     icon: <CheckCircle2 className="h-3 w-3" />,
     label: 'VERIFIED',
     color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
-    tooltip: 'Direct from API — you can verify this yourself',
+    tooltip: 'Data retrieved directly from source API (Reddit, App Store)',
   },
   calculated: {
     icon: <Calculator className="h-3 w-3" />,

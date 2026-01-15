@@ -150,15 +150,33 @@ export function MarketSignals({
               <div className="text-xl font-bold text-purple-900 dark:text-purple-100">
                 {formatNumber(totalPostsFound)}
               </div>
-              <div className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400">
-                <Filter className="h-2.5 w-2.5" />
-                {postsAnalyzed?.toLocaleString() || '—'} matched
-                {relevanceRate !== null && (
-                  <span className="text-purple-500 dark:text-purple-400">
-                    ({relevanceRate}%)
-                  </span>
-                )}
-              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 cursor-help">
+                    <Filter className="h-2.5 w-2.5" />
+                    {postsAnalyzed?.toLocaleString() || '—'} matched
+                    {relevanceRate !== null && (
+                      <span className="text-purple-500 dark:text-purple-400">
+                        ({relevanceRate}%)
+                      </span>
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[280px]">
+                  <div className="space-y-1.5">
+                    <p className="font-medium">Match Rate: {relevanceRate}%</p>
+                    <p className="text-xs opacity-90">
+                      Percentage of posts that passed relevance filtering for your hypothesis.
+                    </p>
+                    <div className="text-xs opacity-75 pt-1 border-t border-white/20">
+                      {relevanceRate !== null && relevanceRate < 5 && "Low — many posts were off-topic"}
+                      {relevanceRate !== null && relevanceRate >= 5 && relevanceRate < 15 && "Moderate — some signal in noise"}
+                      {relevanceRate !== null && relevanceRate >= 15 && relevanceRate < 30 && "Good — strong problem awareness"}
+                      {relevanceRate !== null && relevanceRate >= 30 && "Excellent — highly focused discussions"}
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="mt-1.5 text-[10px] text-purple-500 dark:text-purple-400 flex items-center gap-1 cursor-help">
