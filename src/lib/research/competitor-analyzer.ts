@@ -138,6 +138,71 @@ function filterSelfCompetitors(competitors: Competitor[], selfNames: string[]): 
   return competitors.filter((competitor) => !isSelfNameMatch(competitor.name, selfNames))
 }
 
+// =============================================================================
+// NORMALIZE COMPETITOR MATRIX (handle Claude response format variations)
+// =============================================================================
+
+/**
+ * Claude sometimes returns competitorMatrix in different formats:
+ * - Expected: { competitorName: string, scores: { category, score, notes }[] }
+ * - Received: { name: string, scores: number[] } or malformed entries
+ *
+ * This function normalizes to the expected format.
+ */
+function normalizeCompetitorMatrix(
+  matrix: {
+    categories?: string[]
+    comparison?: unknown[]
+  } | null | undefined
+): { categories: string[]; comparison: { competitorName: string; scores: { category: string; score: number; notes: string }[] }[] } {
+  if (!matrix || !matrix.categories || !matrix.comparison) {
+    return { categories: [], comparison: [] }
+  }
+
+  const categories = matrix.categories
+  const normalizedComparison = matrix.comparison
+    .filter((comp): comp is Record<string, unknown> =>
+      comp !== null && typeof comp === 'object'
+    )
+    .map(comp => {
+      // Handle both 'competitorName' and 'name' field names
+      const competitorName =
+        (typeof comp.competitorName === 'string' && comp.competitorName) ||
+        (typeof comp.name === 'string' && comp.name) ||
+        'Unknown'
+
+      // Handle both array of objects and array of numbers for scores
+      let scores: { category: string; score: number; notes: string }[]
+      const rawScores = comp.scores
+
+      if (Array.isArray(rawScores) && rawScores.length > 0) {
+        if (typeof rawScores[0] === 'number') {
+          // Scores is number[] - convert to { category, score, notes }[]
+          scores = rawScores.map((score, index) => ({
+            category: categories[index] || `Category ${index + 1}`,
+            score: typeof score === 'number' ? score : 0,
+            notes: ''
+          }))
+        } else {
+          // Scores is already objects - normalize notes field
+          scores = rawScores
+            .filter((s): s is Record<string, unknown> => s !== null && typeof s === 'object')
+            .map(s => ({
+              category: typeof s.category === 'string' ? s.category : '',
+              score: typeof s.score === 'number' ? s.score : 0,
+              notes: typeof s.notes === 'string' ? s.notes : ''
+            }))
+        }
+      } else {
+        scores = []
+      }
+
+      return { competitorName, scores }
+    })
+
+  return { categories, comparison: normalizedComparison }
+}
+
 function filterSelfCompetitorMatrix(
   matrix: CompetitorIntelligenceResult['competitorMatrix'],
   selfNames: string[]
@@ -551,8 +616,19 @@ Provide analysis in JSON format. For each competitor, assess:
     }
   ],
   "competitorMatrix": {
-    "categories": ["Feature Set", "Pricing", "UX"],
-    "comparison": []
+    "categories": ["Feature Set", "Pricing", "User Experience", "Brand Recognition", "Customer Support"],
+    "comparison": [
+      {
+        "competitorName": "Competitor 1 Name",
+        "scores": [
+          {"category": "Feature Set", "score": 8, "notes": "Comprehensive features"},
+          {"category": "Pricing", "score": 6, "notes": "Premium pricing"},
+          {"category": "User Experience", "score": 7, "notes": "Clean interface"},
+          {"category": "Brand Recognition", "score": 5, "notes": "Moderate awareness"},
+          {"category": "Customer Support", "score": 6, "notes": "Email only"}
+        ]
+      }
+    ]
   },
   "gaps": [
     {
@@ -574,6 +650,8 @@ Provide analysis in JSON format. For each competitor, assess:
     }
   ]
 }
+
+IMPORTANT: The competitorMatrix.comparison array MUST include an entry for EACH competitor with their actual name in the "competitorName" field. Do not leave comparison empty.
 
 Identify 4-8 competitors. Return ONLY valid JSON.`
 
@@ -611,13 +689,28 @@ Identify 4-8 competitors. Return ONLY valid JSON.`
   }
   console.log('[CompetitorAnalyzer] Analysis complete, returning result')
 
-  // Normalize competitorMatrix to ensure it has both categories and comparison arrays
+  // Normalize competitorMatrix to ensure proper format (handles Claude response variations)
   const rawMatrix = analysis.competitorMatrix
-  const normalizedMatrix = (rawMatrix && typeof rawMatrix === 'object')
-    ? {
-        categories: Array.isArray(rawMatrix.categories) ? rawMatrix.categories : [],
-        comparison: Array.isArray(rawMatrix.comparison) ? rawMatrix.comparison : [],
+  const processedMatrix = normalizeCompetitorMatrix(rawMatrix)
+
+  // Get competitor names from the competitors array for cross-referencing
+  const competitorNames = Array.isArray(analysis.competitors)
+    ? analysis.competitors.map((c: { name?: string }) => c.name || 'Unknown')
+    : []
+
+  // Cross-reference: if matrix entries have "Unknown" names, try to map by index
+  const crossReferencedMatrix = {
+    categories: processedMatrix.categories,
+    comparison: processedMatrix.comparison.map((entry, index) => {
+      if (entry.competitorName === 'Unknown' && competitorNames[index]) {
+        return { ...entry, competitorName: competitorNames[index] }
       }
+      return entry
+    })
+  }
+
+  const normalizedMatrix = crossReferencedMatrix.comparison.length > 0
+    ? crossReferencedMatrix
     : fallbackAnalysis.competitorMatrix
 
   const normalizedAnalysis = {

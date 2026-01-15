@@ -240,11 +240,19 @@ export function CompetitorResults({ results }: CompetitorResultsProps) {
     const selfFilter = results.analyzedAppName?.toLowerCase().trim() || null
     const selfNames = selfFilter?.split('|').filter(Boolean) || []
 
+    // Get competitor names from competitors array for cross-referencing
+    const competitorNamesFromArray = results.competitors?.map(c => c.name) || []
+
     // Normalize comparison entries to expected format
     const normalizedComparison = results.competitorMatrix.comparison
-      .map((comp) => {
+      .map((comp, index) => {
         // Handle both 'competitorName' and 'name' field names
-        const competitorName = comp.competitorName || (comp as { name?: string }).name || 'Unknown'
+        let competitorName = comp.competitorName || (comp as { name?: string }).name || 'Unknown'
+
+        // Cross-reference: if still "Unknown", try to map by index to competitors array
+        if (competitorName === 'Unknown' && competitorNamesFromArray[index]) {
+          competitorName = competitorNamesFromArray[index]
+        }
 
         // Handle both array of objects and array of numbers for scores
         let scores: { category: string; score: number; notes?: string }[]
