@@ -841,15 +841,17 @@ The auto-competitor logic in the streaming route is missing inputs that the non-
 
 ---
 
-**🟡 MEDIUM: SSE Doesn't Signal Competitor Failure to Client**
-**Status:** Open
-**Location:** `stream/route.ts:438-472`
+**~~🟡 MEDIUM: SSE Doesn't Signal Competitor Failure to Client~~**
+**Status:** ✅ FIXED (January 15, 2026)
+**Commit:** `2792f6f`
 
-If competitor analysis fails, the client still receives a final `complete` event with no indication of failure. The database shows `competitor_analysis: 'failed'` but the UI won't know unless it polls.
+**Problem (RESOLVED):**
+Client received no indication when competitor analysis failed in streaming mode.
 
-**Expected:** Send an error or warning SSE event when competitor analysis fails so the UI can show appropriate feedback.
+**Fix Applied:**
+Added `sendEvent(controller, { type: 'error', step: 'competitor', message: '...' })` when competitor analysis fails, so the UI can display appropriate feedback.
 
-**Recommended Fix:** Add `sendEvent(controller, { type: 'error', step: 'competitor', message: '...' })` before the final complete event when competitor fails.
+**File Modified:** `src/app/api/research/community-voice/stream/route.ts`
 
 ---
 
@@ -1160,30 +1162,23 @@ Either:
 
 ---
 
-### Missing Alternative Competitor Category: Offline Solutions (Jan 14, 2026)
-**Status:** Open
-**Impact:** Incomplete competitive landscape — misses non-digital alternatives
-**Location:** `src/app/api/research/competitor-intelligence/route.ts` — Competitor analysis
-**Discovered:** January 14, 2026
+### ~~Missing Alternative Competitor Category: Offline Solutions~~
+**Status:** ✅ FIXED (January 15, 2026)
+**Commit:** `8e748c8`
 
-**Problem:**
-For the "cigar smoking in winter" hypothesis, the competitor analysis missed obvious offline alternatives:
-1. **Restaurants with outdoor heating** — heated patios, smoking-allowed venues
-2. **Cigar lounges** — indoor smoking venues in cities
-3. **Heated garages/sheds** — DIY solutions people already use
+**Problem (RESOLVED):**
+Competitor analysis only returned tech products, missing offline alternatives like venues, services, and DIY solutions.
 
-These are real competitors to any digital/product solution because they solve the same problem. Users may choose these alternatives instead of buying a product.
-
-**Expected Behavior:**
-The competitor analysis prompt should explicitly ask for:
-1. Digital/app solutions
+**Fix Applied:**
+Updated prompts in both routes to explicitly request:
+1. Digital/App solutions
 2. Physical products
-3. **Service-based alternatives** (lounges, venues, rentals)
-4. **DIY/behavioral workarounds** (what people already do)
+3. Service-based alternatives (venues, lounges, rentals)
+4. DIY/Behavioral workarounds
 
-**Files to Modify:**
-- `src/app/api/research/competitor-intelligence/route.ts` — Competitor detection prompt
-- Add explicit instruction to include non-digital alternatives
+**Files Modified:**
+- `src/lib/research/competitor-analyzer.ts`
+- `src/app/api/research/competitor-intelligence/route.ts`
 
 ---
 
