@@ -32,6 +32,7 @@ import {
   MessageSquare,
   ThumbsUp,
   ThumbsDown,
+  CheckCircle,
 } from 'lucide-react'
 import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-intelligence/route'
 import type { ComparativeMentionsResult } from '@/lib/analysis/comparative-mentions'
@@ -39,6 +40,12 @@ import { extractCompetitorPricing, type PricingSuggestion } from '@/lib/analysis
 
 interface CompetitorResultsProps {
   results: CompetitorIntelligenceResult
+}
+
+function formatNumber(num: number): string {
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
+  return num.toLocaleString()
 }
 
 export function CompetitorResults({ results }: CompetitorResultsProps) {
@@ -1127,6 +1134,13 @@ interface CompetitorCardProps {
     strengths: string[]
     weaknesses: string[]
     differentiators: string[]
+    appStoreData?: {
+      rating: number
+      reviewCount: number
+      store: 'app_store' | 'google_play'
+      appId: string
+      appUrl: string
+    }
   }
   expanded: boolean
   onToggle: () => void
@@ -1151,6 +1165,28 @@ function CompetitorCard({ competitor, expanded, onToggle, categoryBadge }: Compe
             <CardDescription className="mt-1 text-sm line-clamp-1">
               {competitor.positioning}
             </CardDescription>
+            {competitor.appStoreData ? (
+              <div className="mt-2 flex items-center gap-1.5">
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-xs">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Verified
+                </Badge>
+                <span className="text-sm font-medium">
+                  {competitor.appStoreData.rating.toFixed(1)}★
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  ({formatNumber(competitor.appStoreData.reviewCount)} reviews)
+                </span>
+                <a
+                  href={competitor.appStoreData.appUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  {competitor.appStoreData.store === 'app_store' ? 'App Store' : 'Play Store'}
+                </a>
+              </div>
+            ) : null}
           </div>
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}

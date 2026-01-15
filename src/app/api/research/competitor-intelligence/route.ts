@@ -63,6 +63,13 @@ export interface Competitor {
   userSatisfaction: number // 1-5 scale estimate
   fundingLevel: 'bootstrapped' | 'seed' | 'series-a' | 'series-b-plus' | 'public' | 'unknown'
   marketShareEstimate: 'dominant' | 'significant' | 'moderate' | 'small' | 'emerging'
+  appStoreData?: {
+    rating: number
+    reviewCount: number
+    store: 'app_store' | 'google_play'
+    appId: string
+    appUrl: string
+  }
 }
 
 export interface CompetitorGap {

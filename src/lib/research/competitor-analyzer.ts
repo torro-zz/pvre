@@ -8,8 +8,153 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { formatClustersForPrompt, type SignalCluster } from '@/lib/embeddings'
+import { AppStoreAdapter } from '@/lib/data-sources/adapters/app-store-adapter'
+import { GooglePlayAdapter } from '@/lib/data-sources/adapters/google-play-adapter'
 
 const anthropic = new Anthropic()
+const appStoreAdapter = new AppStoreAdapter()
+const googlePlayAdapter = new GooglePlayAdapter()
+
+interface AppStoreData {
+  rating: number
+  reviewCount: number
+  store: 'app_store' | 'google_play'
+  appId: string
+  appUrl: string
+}
+
+/**
+ * Timeout wrapper with graceful error handling
+ *
+ * For app store lookups, we want ANY failure (timeout, network error, API error)
+ * to return the fallback value. This is intentional - missing rating data is
+ * acceptable, but crashes/hangs are not.
+ *
+ * Behavior:
+ * - Returns result if promise resolves before timeout
+ * - Returns fallback if promise rejects (any error)
+ * - Returns fallback if timeout fires first
+ * - Clears timer on resolve/reject to avoid leaks
+ */
+async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timeoutId: NodeJS.Timeout
+
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => resolve(fallback), ms)
+  })
+
+  const wrapped = promise
+    .then((result) => {
+      clearTimeout(timeoutId)
+      return result
+    })
+    .catch(() => {
+      clearTimeout(timeoutId)
+      return fallback
+    })
+
+  return Promise.race([wrapped, timeout])
+}
+
+// Short/common names that are too ambiguous for confident matching
+const AMBIGUOUS_NAMES = new Set([
+  'flow', 'bolt', 'do', 'go', 'now', 'one', 'pro', 'plus', 'app', 'hub',
+  'dash', 'sync', 'link', 'note', 'task', 'list', 'time', 'work', 'team'
+])
+
+/**
+ * Check if app name is a confident match for competitor name
+ * More strict than simple prefix matching to avoid false positives
+ */
+function isConfidentMatch(appName: string, competitorName: string): boolean {
+  const appLower = appName.toLowerCase().trim()
+  const compLower = competitorName.toLowerCase().trim()
+
+  // Skip ambiguous short names - too many false positives
+  if (compLower.length < 4 || AMBIGUOUS_NAMES.has(compLower)) {
+    // For short names, require EXACT match only
+    return appLower === compLower
+  }
+
+  // Exact match
+  if (appLower === compLower) return true
+
+  // App name starts with competitor name followed by word boundary
+  // e.g., "Notion" matches "Notion - Notes & Tasks" but not "Notional Banking App"
+  if (appLower.startsWith(compLower)) {
+    const nextChar = appLower[compLower.length]
+    if (!nextChar || [' ', '-', ':', '–', '—', '.'].includes(nextChar)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Try to find competitor in app stores and get real rating
+ * Returns null if not found or no confident match
+ *
+ * Safeguards:
+ * - 5s timeout per store lookup
+ * - Strict name matching to avoid false positives
+ * - Prefers higher review count for ambiguous matches
+ */
+async function lookupAppStoreRating(competitorName: string): Promise<AppStoreData | null> {
+  const TIMEOUT_MS = 5000
+
+  try {
+    // Try App Store first (usually has cleaner data)
+    const appStoreResult = await withTimeout(
+      appStoreAdapter.searchAppsWithDetails(competitorName, { maxApps: 5 }),
+      TIMEOUT_MS,
+      null
+    )
+
+    // Find confident match with highest review count
+    const appStoreMatches = (appStoreResult?.apps || [])
+      .filter(app => isConfidentMatch(app.name, competitorName) && app.rating > 0)
+      .sort((a, b) => b.reviewCount - a.reviewCount)
+
+    if (appStoreMatches.length > 0) {
+      const best = appStoreMatches[0]
+      return {
+        rating: best.rating,
+        reviewCount: best.reviewCount,
+        store: 'app_store',
+        appId: best.appId,
+        appUrl: best.url,
+      }
+    }
+
+    // Fallback to Google Play
+    const playResult = await withTimeout(
+      googlePlayAdapter.searchAppsWithDetails(competitorName, { maxApps: 5 }),
+      TIMEOUT_MS,
+      null
+    )
+
+    const playMatches = (playResult?.apps || [])
+      .filter(app => isConfidentMatch(app.name, competitorName) && app.rating > 0)
+      .sort((a, b) => b.reviewCount - a.reviewCount)
+
+    if (playMatches.length > 0) {
+      const best = playMatches[0]
+      return {
+        rating: best.rating,
+        reviewCount: best.reviewCount,
+        store: 'google_play',
+        appId: best.appId,
+        appUrl: best.url,
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.warn(`[CompetitorAnalyzer] App store lookup failed for "${competitorName}":`, error)
+    return null
+  }
+}
 
 // =============================================================================
 // TYPES
@@ -29,6 +174,7 @@ export interface Competitor {
   userSatisfaction: number
   fundingLevel: 'bootstrapped' | 'seed' | 'series-a' | 'series-b-plus' | 'public' | 'unknown'
   marketShareEstimate: 'dominant' | 'significant' | 'moderate' | 'small' | 'emerging'
+  appStoreData?: AppStoreData
 }
 
 export interface CompetitorGap {
@@ -746,6 +892,44 @@ Identify 4-8 competitors across these categories. Return ONLY valid JSON.`
 
   const filteredCompetitors = filterSelfCompetitors(competitors, selfNames)
 
+  /**
+   * Process array with limited concurrency to avoid rate limiting
+   * Uses a simple semaphore pattern
+   */
+  async function processWithConcurrency<T, R>(
+    items: T[],
+    fn: (item: T) => Promise<R>,
+    concurrency: number
+  ): Promise<R[]> {
+    const results: R[] = new Array(items.length)
+    let currentIndex = 0
+
+    async function worker() {
+      while (currentIndex < items.length) {
+        const index = currentIndex++
+        results[index] = await fn(items[index])
+      }
+    }
+
+    // Spawn `concurrency` workers
+    const workers = Array(Math.min(concurrency, items.length))
+      .fill(null)
+      .map(() => worker())
+
+    await Promise.all(workers)
+    return results
+  }
+
+  // Enrich competitors with real app store ratings (throttled to avoid rate limits)
+  const enrichedCompetitors = await processWithConcurrency(
+    filteredCompetitors,
+    async (competitor) => {
+      const appStoreData = await lookupAppStoreRating(competitor.name)
+      return appStoreData ? { ...competitor, appStoreData } : competitor
+    },
+    2 // Max 2 concurrent lookups
+  )
+
   const gaps: CompetitorGap[] = (normalizedAnalysis.gaps || []).map((g: Partial<CompetitorGap>) => ({
     gap: g.gap || '',
     description: g.description || '',
@@ -759,7 +943,7 @@ Identify 4-8 competitors across these categories. Return ONLY valid JSON.`
   }))
 
   const competitionScore = calculateCompetitionScore(
-    filteredCompetitors,
+    enrichedCompetitors,
     gaps,
     normalizedAnalysis.marketOverview
   )
@@ -769,7 +953,7 @@ Identify 4-8 competitors across these categories. Return ONLY valid JSON.`
   return {
     hypothesis,
     marketOverview: normalizedAnalysis.marketOverview,
-    competitors: filteredCompetitors,
+    competitors: enrichedCompetitors,
     competitorMatrix: filterSelfCompetitorMatrix(
       normalizedAnalysis.competitorMatrix || { categories: [], comparison: [] },
       selfNames
@@ -778,7 +962,7 @@ Identify 4-8 competitors across these categories. Return ONLY valid JSON.`
     positioningRecommendations: normalizedAnalysis.positioningRecommendations || [],
     competitionScore,
     metadata: {
-      competitorsAnalyzed: filteredCompetitors.length,
+      competitorsAnalyzed: enrichedCompetitors.length,
       processingTimeMs,
       timestamp: new Date().toISOString(),
       autoDetected: !knownCompetitors?.length,
