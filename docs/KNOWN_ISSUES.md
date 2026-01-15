@@ -843,13 +843,16 @@ The auto-competitor logic in the streaming route is missing inputs that the non-
 
 **~~🟡 MEDIUM: SSE Doesn't Signal Competitor Failure to Client~~**
 **Status:** ✅ FIXED (January 15, 2026)
-**Commit:** `2792f6f`
+**Commits:** `2792f6f`, `e3ebd78`
 
 **Problem (RESOLVED):**
 Client received no indication when competitor analysis failed in streaming mode.
 
 **Fix Applied:**
-Added `sendEvent(controller, { type: 'error', step: 'competitor', message: '...' })` when competitor analysis fails, so the UI can display appropriate feedback.
+1. Initial fix (`2792f6f`): Added error event emission
+2. Follow-up (`e3ebd78`): Emit error immediately when competitor analysis fails, not just when fallback save also fails (Codex review feedback)
+
+Error is now emitted right when `analyzeCompetitors()` throws, ensuring users always know when competitor analysis failed - even if we successfully saved fallback placeholder data.
 
 **File Modified:** `src/app/api/research/community-voice/stream/route.ts`
 
@@ -1134,31 +1137,29 @@ The `competitor-analyzer.ts` prompt had an empty `comparison: []` array with no 
 
 ---
 
-### Direct Competitor Links Mostly Broken (Jan 14, 2026)
-**Status:** Open
-**Impact:** Users can't verify competitors exist or research them
+### ~~Direct Competitor Links Mostly Broken (Jan 14, 2026)~~
+**Status:** ✅ FIXED (January 15, 2026)
+**Commit:** `13bf56a`
+**Impact:** ~~Users can't verify competitors exist or research them~~
 **Location:** `src/components/research/competitor-results.tsx` — Direct Competitors section
 **Discovered:** January 14, 2026
 
-**Problem:**
-In the Direct Competitors list, most "Visit Website" links return 404 or don't work. Only ~1 in 6 links tested worked correctly.
+**Problem (RESOLVED):**
+In the Direct Competitors list, most "Visit Website" links returned 404 or didn't work. Only ~1 in 6 links tested worked correctly.
 
-**Likely Causes:**
-1. AI-generated URLs that don't exist
-2. Company names mapped to wrong domains
-3. Outdated URL patterns (e.g., .com vs .io)
-4. URL formatting issues (missing https://, wrong TLD)
+**Root Cause:**
+AI-generated URLs were unreliable - Claude guessed/hallucinated domains that often didn't exist.
 
-**Expected Behavior:**
-Either:
-- **Option A:** Validate URLs before displaying (HEAD request check)
-- **Option B:** Use search engine "I'm Feeling Lucky" style links instead
-- **Option C:** Remove links entirely if not reliable (just show company name)
-- **Option D:** Add disclaimer "Links may be outdated - verify before visiting"
+**Fix Applied:**
+Replaced direct website links with Google search links. Users now click to search for the competitor name, which always works and lets them verify the competitor exists.
 
-**Files to Modify:**
-- `src/app/api/research/competitor-intelligence/route.ts` — URL generation
-- `src/components/research/competitor-results.tsx` — Link display/validation
+Changes:
+- Added `getCompetitorSearchUrl()` helper function
+- Changed link icon from ExternalLink to Search
+- Added tooltip explaining the link destination
+- Links now reliably work (Google search always succeeds)
+
+**File Modified:** `src/components/research/competitor-results.tsx`
 
 ---
 
