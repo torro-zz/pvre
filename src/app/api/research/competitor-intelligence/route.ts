@@ -560,6 +560,7 @@ ${clusters && clusters.length > 0 ? `- evidenceCount: Number of signals supporti
   "competitors": [
     {
       "name": "Competitor name",
+      "website": "website URL or null",
       "description": "What they do",
       "positioning": "How they position themselves",
       "targetAudience": "Who they target",
@@ -656,7 +657,7 @@ Identify 4-8 competitors across these categories. Include at least 3 gaps and 2 
   // Ensure all competitors have the enhanced fields with defaults
   const competitors: Competitor[] = (analysis.competitors || []).map((c: Partial<Competitor>) => ({
     name: c.name || 'Unknown',
-    website: null,  // Always null - we use Google search links instead of AI-generated URLs
+    website: c.website || null,
     description: c.description || '',
     positioning: c.positioning || '',
     targetAudience: c.targetAudience || '',
