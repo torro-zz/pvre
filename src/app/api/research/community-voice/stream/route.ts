@@ -433,6 +433,13 @@ export async function POST(request: NextRequest) {
               const errorMessage = compError instanceof Error ? compError.message : String(compError)
               console.error('Auto-competitor analysis failed:', errorMessage)
 
+              // Signal competitor failure to client immediately (non-fatal - research still completed)
+              sendEvent(controller, {
+                type: 'error',
+                step: 'competitor',
+                message: 'Competitor analysis failed - you can run it manually from the results page',
+              })
+
               // Save fallback results so UI has something to display
               try {
                 const fallbackResult = createFallbackCompetitorResult(hypothesis, [], errorMessage)
@@ -453,6 +460,7 @@ export async function POST(request: NextRequest) {
               } catch (fallbackError) {
                 console.error('Failed to save fallback competitor results:', fallbackError)
                 // Mark competitor as failed but job as completed
+                // (Error already emitted above when competitor analysis failed)
                 await adminClient.from('research_jobs').update({
                   status: 'completed',
                   step_status: {
@@ -462,13 +470,6 @@ export async function POST(request: NextRequest) {
                     competitor_analysis: 'failed'
                   }
                 }).eq('id', jobId)
-
-                // Signal competitor failure to client (non-fatal - research still completed)
-                sendEvent(controller, {
-                  type: 'error',
-                  step: 'competitor',
-                  message: 'Competitor analysis failed - you can run it manually from the results page',
-                })
               }
             }
           } catch (error) {
