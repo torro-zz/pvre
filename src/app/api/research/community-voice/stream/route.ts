@@ -510,12 +510,11 @@ export async function POST(request: NextRequest) {
           })
         }
 
-        // Send final completion
+        // Send final completion (result already sent in community_voice_done)
         sendEvent(controller, {
           type: 'complete',
           step: 'done',
           message: 'Research complete!',
-          data: { result },
         })
 
         controller.close()

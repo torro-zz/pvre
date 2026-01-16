@@ -85,7 +85,11 @@ function buildCommunityVoiceContext(data: CommunityVoiceResult): string {
   if (data.painSummary.wtpQuotes?.length) {
     parts.push('## Willingness to Pay Quotes')
     data.painSummary.wtpQuotes.forEach(q => {
-      parts.push(`- "${q.text}" — r/${q.subreddit}`)
+      // Truncate for prompt to control costs
+      const truncatedText = q.text.length > 250
+        ? q.text.slice(0, 250) + '...'
+        : q.text
+      parts.push(`- "${truncatedText}" — r/${q.subreddit}`)
     })
     parts.push('')
   }

@@ -122,6 +122,16 @@ function getSourceTextClass(source: string): string {
   return ''
 }
 
+// Get link text based on source type
+function getSourceLinkText(source: string): string {
+  const sourceType = getSourceType(source)
+  if (sourceType === 'hackernews') return 'View on HN'
+  if (sourceType === 'google_play') return 'View on Google Play'
+  if (sourceType === 'app_store') return 'View on App Store'
+  if (sourceType === 'trustpilot') return 'View on Trustpilot'
+  return 'View on Reddit'
+}
+
 interface QuoteCardProps {
   data: QuoteData
   trustLevel?: TrustLevel
@@ -261,7 +271,7 @@ export function QuoteCard({
               rel="noopener noreferrer"
               className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
             >
-              View original
+              {getSourceLinkText(data.source)}
               <ExternalLink className="h-3 w-3" />
             </a>
           )}
@@ -312,7 +322,7 @@ export function QuoteCard({
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-primary transition-colors"
-              title={data.isDeleted ? "Post may be deleted - click to check" : "View original post"}
+              title={data.isDeleted ? "Post may be deleted - click to check" : getSourceLinkText(data.source)}
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
@@ -460,7 +470,7 @@ export function WtpQuoteCard({
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-primary transition-colors"
-              title="View original post"
+              title={getSourceLinkText(source)}
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </a>

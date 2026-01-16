@@ -1705,7 +1705,7 @@ export function getPainSummary(signals: PainSignal[]): PainSummary {
 
         if (hasExplicitPaymentIntent) {
           wtpQuotes.push({
-            text: signal.text.slice(0, 200) + (signal.text.length > 200 ? '...' : ''),
+            text: signal.text,
             subreddit: signal.source.subreddit,
             url: signal.source.url,
             createdUtc: signal.source.createdUtc,

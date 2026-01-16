@@ -57,7 +57,7 @@ function formatSourceName(subreddit: string): string {
 function getSourceLinkText(subreddit: string): string {
   const sourceType = getSourceType(subreddit)
   if (sourceType === 'hackernews') return 'View on HN'
-  if (sourceType === 'google_play') return 'View on Play Store'
+  if (sourceType === 'google_play') return 'View on Google Play'
   if (sourceType === 'app_store') return 'View on App Store'
   if (sourceType === 'trustpilot') return 'View on Trustpilot'
   return 'View on Reddit'

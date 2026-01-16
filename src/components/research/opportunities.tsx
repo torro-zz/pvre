@@ -363,11 +363,62 @@ function ExpandableQuote({ need }: { need: UnmetNeed }) {
             rel="noopener noreferrer"
             className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors"
           >
-            View source
+            {need.subreddit === 'google_play' ? 'View on Google Play' :
+             need.subreddit === 'app_store' ? 'View on App Store' :
+             'View on Reddit'}
             <ExternalLink className="h-2.5 w-2.5" />
           </a>
         )}
       </div>
+    </div>
+  )
+}
+
+// Expandable quote component for WTP signals
+function ExpandableWtpQuote({ quote }: { quote: { text: string; subreddit: string; url?: string } }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const isLong = quote.text.length > 120
+  const displayText = isExpanded || !isLong ? quote.text : quote.text.slice(0, 120) + '...'
+
+  return (
+    <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
+      <blockquote className="text-sm italic">
+        &quot;{displayText}&quot;
+        {isLong && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="ml-1 text-primary hover:underline font-medium not-italic"
+          >
+            {isExpanded ? 'Show less' : 'Read more'}
+          </button>
+        )}
+      </blockquote>
+      <p className="text-sm text-muted-foreground mt-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5">
+          {quote.subreddit === 'google_play' ? (
+            <>📱 Google Play Review</>
+          ) : quote.subreddit === 'app_store' ? (
+            <>🍎 App Store Review</>
+          ) : quote.subreddit?.startsWith('r/') || quote.subreddit?.includes('reddit') ? (
+            <>💬 {quote.subreddit}</>
+          ) : (
+            <>💬 r/{quote.subreddit}</>
+          )}
+        </span>
+        {quote.url && (
+          <a
+            href={quote.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+          >
+            {quote.subreddit === 'google_play' ? 'View on Google Play' :
+             quote.subreddit === 'app_store' ? 'View on App Store' :
+             'View on Reddit'}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+      </p>
     </div>
   )
 }
@@ -512,33 +563,7 @@ export function Opportunities({ appData, painSignals, painSummary, wtpQuotes }: 
             </h3>
             <div className="space-y-3">
               {wtpQuotes.slice(0, 5).map((quote, i) => (
-                <div key={i} className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
-                  <blockquote className="text-sm italic">"{quote.text}"</blockquote>
-                  <p className="text-sm text-muted-foreground mt-2 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      {quote.subreddit === 'google_play' ? (
-                        <>📱 Google Play Review</>
-                      ) : quote.subreddit === 'app_store' ? (
-                        <>🍎 App Store Review</>
-                      ) : quote.subreddit?.startsWith('r/') || quote.subreddit?.includes('reddit') ? (
-                        <>💬 {quote.subreddit}</>
-                      ) : (
-                        <>💬 r/{quote.subreddit}</>
-                      )}
-                    </span>
-                    {quote.url && (
-                      <a
-                        href={quote.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-                      >
-                        View source
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </p>
-                </div>
+                <ExpandableWtpQuote key={i} quote={quote} />
               ))}
             </div>
           </CardContent>

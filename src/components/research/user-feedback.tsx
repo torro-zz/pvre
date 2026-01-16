@@ -79,6 +79,52 @@ const OPPORTUNITY_CATEGORIES = {
 
 type OpportunityCategory = keyof typeof OPPORTUNITY_CATEGORIES
 
+type SourceType = 'reddit' | 'hackernews' | 'google_play' | 'app_store' | 'trustpilot' | 'unknown'
+
+function getSourceType(subreddit?: string): SourceType {
+  if (!subreddit) return 'unknown'
+  const lower = subreddit.toLowerCase()
+  if (lower === 'hackernews' || lower === 'askhn' || lower === 'showhn') return 'hackernews'
+  if (lower === 'google_play') return 'google_play'
+  if (lower === 'app_store') return 'app_store'
+  if (lower === 'trustpilot') return 'trustpilot'
+  return 'reddit'
+}
+
+function formatSourceName(subreddit?: string): string {
+  if (!subreddit) return 'Unknown'
+  const sourceType = getSourceType(subreddit)
+  if (sourceType === 'hackernews') {
+    if (subreddit.toLowerCase() === 'askhn') return 'Ask HN'
+    if (subreddit.toLowerCase() === 'showhn') return 'Show HN'
+    return 'Hacker News'
+  }
+  if (sourceType === 'google_play') return 'Google Play'
+  if (sourceType === 'app_store') return 'App Store'
+  if (sourceType === 'trustpilot') return 'Trustpilot'
+  return `r/${subreddit.replace(/^r\//, '')}`
+}
+
+function getSourceBadgeClass(subreddit?: string): string {
+  const sourceType = getSourceType(subreddit)
+  if (sourceType === 'hackernews') return 'bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-950/50 dark:text-orange-400 dark:border-orange-800'
+  if (sourceType === 'google_play') return 'bg-green-50 text-green-700 border-green-300 dark:bg-green-950/50 dark:text-green-400 dark:border-green-800'
+  if (sourceType === 'app_store') return 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800'
+  if (sourceType === 'trustpilot') return 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-800'
+  if (sourceType === 'unknown') return 'bg-muted text-muted-foreground border-muted-foreground/20'
+  return 'bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-950/50 dark:text-orange-400 dark:border-orange-800'
+}
+
+function getSourceLinkText(subreddit?: string): string {
+  const sourceType = getSourceType(subreddit)
+  if (sourceType === 'hackernews') return 'View on HN'
+  if (sourceType === 'google_play') return 'View on Google Play'
+  if (sourceType === 'app_store') return 'View on App Store'
+  if (sourceType === 'trustpilot') return 'View on Trustpilot'
+  if (sourceType === 'unknown') return 'View source'
+  return 'View on Reddit'
+}
+
 // Signal with additional category information for deduplication
 interface CategorizedSignal {
   signal: PainSignal
@@ -339,8 +385,8 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
   )
 }
 
-// Reddit quote component
-function RedditQuote({ signal }: { signal: PainSignal }) {
+// Source quote component
+function SourceQuote({ signal }: { signal: PainSignal }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const text = signal.text
   const isLong = text.length > 200
@@ -350,8 +396,8 @@ function RedditQuote({ signal }: { signal: PainSignal }) {
   return (
     <div className="py-3 border-b last:border-0">
       <div className="flex items-center gap-2 mb-1.5">
-        <Badge variant="outline" className="text-[10px] py-0 bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-950/50 dark:text-orange-400 dark:border-orange-800">
-          r/{subreddit}
+        <Badge variant="outline" className={`text-[10px] py-0 ${getSourceBadgeClass(subreddit)}`}>
+          {formatSourceName(subreddit)}
         </Badge>
         {signal.intensity === 'high' && (
           <Badge variant="outline" className="text-[10px] py-0 text-red-600 border-red-300">
@@ -382,15 +428,15 @@ function RedditQuote({ signal }: { signal: PainSignal }) {
           rel="noopener noreferrer"
           className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1"
         >
-          View on Reddit <ExternalLink className="h-3 w-3" />
+          {getSourceLinkText(subreddit)} <ExternalLink className="h-3 w-3" />
         </a>
       )}
     </div>
   )
 }
 
-// Reddit discussions section
-function RedditDiscussions({ signals }: { signals: PainSignal[] }) {
+// Community discussions section
+function CommunityDiscussions({ signals }: { signals: PainSignal[] }) {
   const [expanded, setExpanded] = useState(false)
   const displaySignals = expanded ? signals : signals.slice(0, 3)
 
@@ -418,13 +464,13 @@ function RedditDiscussions({ signals }: { signals: PainSignal[] }) {
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          What people are saying about this app on Reddit
+          What people are saying about this app across communities
         </p>
         {topSubreddits.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {topSubreddits.map(([sub, count]) => (
               <Badge key={sub} variant="outline" className="text-[10px]">
-                r/{sub} ({count})
+                {formatSourceName(sub)} ({count})
               </Badge>
             ))}
           </div>
@@ -434,7 +480,7 @@ function RedditDiscussions({ signals }: { signals: PainSignal[] }) {
       <CardContent className="pt-4">
         <div className="space-y-0">
           {displaySignals.map((signal, i) => (
-            <RedditQuote key={i} signal={signal} />
+            <SourceQuote key={i} signal={signal} />
           ))}
         </div>
 
@@ -465,8 +511,8 @@ export function UserFeedback({ painSignals, appData, crossStoreAppData, appName,
   const sentiment = calculateSentiment(painSignals)
   const opportunities = extractOpportunities(painSignals)
 
-  // Separate Reddit signals for community discussions section
-  const redditSignals = painSignals.filter(
+  // Separate non-app-store signals for community discussions section
+  const communitySignals = painSignals.filter(
     s => s.source.subreddit && s.source.subreddit !== 'google_play' && s.source.subreddit !== 'app_store'
   )
 
@@ -661,9 +707,9 @@ export function UserFeedback({ painSignals, appData, crossStoreAppData, appName,
         </CardContent>
       </Card>
 
-      {/* Reddit Community Discussions - Show first as it's often more insightful */}
-      {redditSignals.length > 0 && (
-        <RedditDiscussions signals={redditSignals} />
+      {/* Community Discussions - Show first as it's often more insightful */}
+      {communitySignals.length > 0 && (
+        <CommunityDiscussions signals={communitySignals} />
       )}
 
       {/* Opportunities Header */}

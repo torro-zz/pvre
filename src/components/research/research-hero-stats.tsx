@@ -57,6 +57,11 @@ export function ResearchHeroStats({
   isAppAnalysis = false,
   appData,
 }: ResearchHeroStatsProps) {
+  const normalizedDataSources = dataSources.map((source) => source.toLowerCase())
+  const hasAppStoreSource = normalizedDataSources.some((source) =>
+    ['google play', 'app store', 'app stores', 'app_stores'].some((token) => source.includes(token)),
+  )
+  const isAppGapMode = isAppAnalysis || (hasAppStoreSource && communitiesCount === 0)
 
   // Determine WTP strength for visual indicator
   const getWtpStrength = (count: number): 'none' | 'weak' | 'moderate' | 'strong' => {
@@ -242,13 +247,13 @@ export function ResearchHeroStats({
         )}
 
         {/* App Gap mode: Show App Store metrics */}
-        {isAppAnalysis && appData ? (
+        {isAppGapMode ? (
           <>
             <div className="flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5" />
-              <span>{appData.reviewsAnalyzed ?? postsAnalyzed} reviews analyzed</span>
+              <span>{appData?.reviewsAnalyzed ?? postsAnalyzed} reviews analyzed</span>
             </div>
-            {appData.rating && (
+            {appData?.rating && (
               <div className="flex items-center gap-1.5">
                 <span className="text-amber-500">★</span>
                 <span>{appData.rating.toFixed(1)}/5</span>

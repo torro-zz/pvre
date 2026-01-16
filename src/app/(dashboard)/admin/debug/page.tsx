@@ -56,6 +56,42 @@ interface ResearchResult {
   created_at: string
 }
 
+type SourceType = 'reddit' | 'hackernews' | 'google_play' | 'app_store' | 'trustpilot' | 'unknown'
+
+function getSourceType(source?: string): SourceType {
+  if (!source) return 'unknown'
+  const lower = source.toLowerCase()
+  if (lower === 'hackernews' || lower === 'askhn' || lower === 'showhn' || lower === 'hacker news') return 'hackernews'
+  if (lower === 'google_play' || lower === 'google play') return 'google_play'
+  if (lower === 'app_store' || lower === 'app store') return 'app_store'
+  if (lower === 'trustpilot') return 'trustpilot'
+  return 'reddit'
+}
+
+function formatSourceName(source?: string): string {
+  if (!source) return 'Unknown'
+  const sourceType = getSourceType(source)
+  if (sourceType === 'hackernews') {
+    if (source.toLowerCase() === 'askhn') return 'Ask HN'
+    if (source.toLowerCase() === 'showhn') return 'Show HN'
+    return 'Hacker News'
+  }
+  if (sourceType === 'google_play') return 'Google Play'
+  if (sourceType === 'app_store') return 'App Store'
+  if (sourceType === 'trustpilot') return 'Trustpilot'
+  return `r/${source.replace(/^r\//, '')}`
+}
+
+function getSourceLinkText(source?: string): string {
+  const sourceType = getSourceType(source)
+  if (sourceType === 'hackernews') return 'View on HN'
+  if (sourceType === 'google_play') return 'View on Google Play'
+  if (sourceType === 'app_store') return 'View on App Store'
+  if (sourceType === 'trustpilot') return 'View on Trustpilot'
+  if (sourceType === 'unknown') return 'View source'
+  return 'View on Reddit'
+}
+
 // Helper function to calculate full viability verdict (same logic as user-facing page)
 function calculateFullVerdict(
   cvResult: ResearchResult | undefined,
@@ -534,7 +570,7 @@ export default function AdminDebugPage() {
                                       </div>
                                     </div>
                                     <div className="text-xs text-muted-foreground text-right ml-4">
-                                      <div>r/{signal.source?.subreddit}</div>
+                                      <div>{formatSourceName(signal.source?.subreddit)}</div>
                                       <div>{signal.source?.type}</div>
                                     </div>
                                   </div>
@@ -605,8 +641,8 @@ export default function AdminDebugPage() {
                                           </div>
                                           <div className="text-sm space-y-1">
                                             <div>
-                                              Subreddit:{' '}
-                                              <strong>r/{signal.source?.subreddit}</strong>
+                                              Source:{' '}
+                                              <strong>{formatSourceName(signal.source?.subreddit)}</strong>
                                             </div>
                                             <div>
                                               Type: <strong>{signal.source?.type}</strong>
@@ -618,7 +654,7 @@ export default function AdminDebugPage() {
                                                 rel="noopener noreferrer"
                                                 className="text-blue-600 hover:underline flex items-center gap-1"
                                               >
-                                                View on Reddit
+                                                {getSourceLinkText(signal.source?.subreddit)}
                                                 <ExternalLink className="h-3 w-3" />
                                               </a>
                                             )}

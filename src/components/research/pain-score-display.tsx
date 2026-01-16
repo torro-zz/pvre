@@ -178,7 +178,7 @@ export function PainScoreDisplay({
             <span className="mr-2">💰</span>
             <span className="font-semibold tracking-wide">WTP QUOTE: </span>
             <span className="text-muted-foreground">
-              &quot;{wtpQuote.text.length > 80 ? wtpQuote.text.slice(0, 80) + '...' : wtpQuote.text}&quot;
+              &quot;{wtpQuote.text}&quot;
             </span>
             {wtpQuote.subreddit && (
               <span className="text-xs text-muted-foreground/70 ml-2">— r/{wtpQuote.subreddit}</span>

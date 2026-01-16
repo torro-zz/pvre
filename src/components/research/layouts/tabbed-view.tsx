@@ -97,8 +97,8 @@ export function TabbedView() {
       {/* Investor Metrics Hero - Collapsible (collapsed by default) */}
       {communityVoiceResult?.data && (
         <CollapsibleSection
-          title="Key Metrics"
-          badge={viabilityVerdict.overallScore > 0 ? `Score: ${viabilityVerdict.overallScore.toFixed(1)}` : undefined}
+          title="Investor Metrics"
+          badge={viabilityVerdict.overallScore > 0 ? `${viabilityVerdict.overallScore.toFixed(1)}/10 — ${viabilityVerdict.overallScore >= 7.5 ? 'Strong Signal' : viabilityVerdict.overallScore >= 5 ? 'Mixed Signal' : 'Weak Signal'}` : undefined}
           badgeVariant={viabilityVerdict.overallScore >= 7 ? 'success' : viabilityVerdict.overallScore >= 4 ? 'warning' : 'destructive'}
           defaultOpen={false}
           icon={<BarChart3 className="h-4 w-4" />}

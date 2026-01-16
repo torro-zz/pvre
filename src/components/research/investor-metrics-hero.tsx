@@ -14,7 +14,6 @@ import {
   Database,
   Info,
   ArrowRight,
-  Sparkles,
   Target,
   XCircle,
   HelpCircle,
@@ -528,16 +527,7 @@ export function InvestorMetricsHero({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
-        <div className="flex items-center gap-3">
-          <motion.div
-            initial={{ scale: 0, rotate: -180 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ duration: 0.5, delay: 0.2, type: 'spring', stiffness: 200 }}
-          >
-            <Sparkles className="h-5 w-5 text-primary" />
-          </motion.div>
-          <h2 className="font-semibold text-base">Investor Metrics</h2>
-        </div>
+        <h2 className="font-semibold text-base">Investor Metrics</h2>
         {/* Removed redundant badges - consolidated warning banner shown below */}
       </motion.div>
 
