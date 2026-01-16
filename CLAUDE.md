@@ -2,7 +2,44 @@
 
 **Read at every session start. These rules are MANDATORY.**
 
-*Last updated: January 8, 2026*
+*Last updated: January 16, 2026*
+
+---
+
+## Session Start (DO THIS FIRST)
+
+1. **Read `docs/RESUME_HERE.md`** — Where we left off, what's in progress
+2. **Scan `docs/KNOWN_ISSUES.md`** (first 50 lines) — What's currently broken
+3. **If RESUME_HERE.md is >3 days old:** Ask user "Where did we leave off?"
+
+---
+
+## Session End (BEFORE CLOSING)
+
+Run `/goodnight` to save context for next session.
+
+---
+
+## Capture Immediately (SURVIVES COMPACTION)
+
+Context compacts ~10 times per session. **Write to files immediately, not later:**
+
+| Event | Action | File |
+|-------|--------|------|
+| **Decision made** (chose X over Y) | Append immediately | `docs/DECISIONS.md` |
+| **Approach failed** (tried X, didn't work) | Append immediately | `docs/DECISIONS.md` |
+| **Bug discovered** | Add immediately | `docs/KNOWN_ISSUES.md` |
+| **Gotcha learned** (surprising behavior) | Append immediately | `docs/agent-learnings.md` |
+
+**Format for quick decisions:**
+```markdown
+### {Title}
+**Date:** {today}
+**Decision:** {what we chose}
+**Why:** {1 sentence}
+```
+
+**If you're about to say "let's remember this for later" — write it NOW instead.**
 
 ---
 
@@ -27,14 +64,18 @@
 
 ---
 
-## Environment Variables
+## File Size Limits (ENFORCE)
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
-ANTHROPIC_API_KEY
-```
+Keep docs lean to avoid token bloat:
+
+| File | Max Size | Strategy |
+|------|----------|----------|
+| `RESUME_HERE.md` | <100 lines | Overwrite each session (don't append) |
+| `KNOWN_ISSUES.md` | <150 lines | Archive resolved to `docs/archive/` |
+| `agent-learnings.md` | <200 lines | Run `/learner` monthly to compress |
+| `DECISIONS.md` | <50 entries | Archive oldest when exceeded |
+
+**When updating these files:** Check line count. If over limit, prune/archive first.
 
 ---
 
@@ -42,8 +83,9 @@ ANTHROPIC_API_KEY
 
 | Command | Purpose |
 |---------|---------|
-| `/goodnight` | Save session state to `docs/RESUME_HERE.md` |
-| `/test-search [query]` | Run E2E search test via Playwright (forked context, uses sonnet) |
+| `/goodnight` | Save session state (ALWAYS run before ending) |
+| `/test-search [query]` | Run E2E search test (forked context, sonnet) |
+| `/learner` | Compress learnings, update agent knowledge |
 
 ### Testing Mode Selection (CRITICAL)
 
@@ -55,7 +97,7 @@ ANTHROPIC_API_KEY
 | Fixing Hypothesis issues | `/test-search hypothesis: [problem statement]` |
 | General testing after shared code changes | **Run BOTH modes** |
 
-**Common mistake:** Passing plain text triggers Hypothesis mode. If you were debugging App Gap, you must use `app:` prefix or no argument (defaults to App Gap with Notion).
+**Common mistake:** Passing plain text triggers Hypothesis mode. If debugging App Gap, use `app:` prefix.
 
 ---
 
@@ -63,11 +105,24 @@ ANTHROPIC_API_KEY
 
 | Doc | Purpose |
 |-----|---------|
-| `docs/KNOWN_ISSUES.md` | Current bugs |
-| `docs/RESUME_HERE.md` | Session resume point |
+| `docs/RESUME_HERE.md` | Session resume point (read first!) |
+| `docs/KNOWN_ISSUES.md` | Current bugs (open issues only) |
+| `docs/DECISIONS.md` | Why we chose X over Y |
+| `docs/CONTEXT_SYSTEM.md` | How context preservation works (reusable template) |
 | `docs/REFERENCE.md` | File locations |
 | `docs/ARCHITECTURE_SUMMARY.md` | Quick architecture |
 | `docs/SYSTEM_DOCUMENTATION.md` | Full architecture |
+
+---
+
+## Environment Variables
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+ANTHROPIC_API_KEY
+```
 
 ---
 
