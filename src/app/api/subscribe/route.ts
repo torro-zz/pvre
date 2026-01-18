@@ -4,12 +4,46 @@ import { createAdminClient } from '@/lib/supabase/admin'
 const MAILERLITE_API_KEY = process.env.MAILERLITE_API_KEY
 const MAILERLITE_GROUP_PVRE = process.env.MAILERLITE_GROUP_PVRE
 
+// Simple in-memory rate limiting (resets on deploy)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
+const RATE_LIMIT_MAX = 5 // max requests per window
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000 // 1 hour in ms
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now()
+  const record = rateLimitMap.get(ip)
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW })
+    return false
+  }
+
+  if (record.count >= RATE_LIMIT_MAX) {
+    return true
+  }
+
+  record.count++
+  return false
+}
+
 /**
  * POST /api/subscribe - Subscribe to the waitlist
  * Public endpoint - no auth required
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting by IP
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ||
+               request.headers.get('x-real-ip') ||
+               'unknown'
+
+    if (isRateLimited(ip)) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
     const body = await request.json()
     const { name, email } = body
 
