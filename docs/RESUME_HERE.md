@@ -1,40 +1,44 @@
-# Resume Point — January 16, 2026
+# Resume Point — January 18, 2026
 
 ## Session Focus
-Simplified Hypothesis mode Summary tab from "everything collapsed" to true summary.
+Fixed Summary tab navigation buttons that weren't working.
 
 ---
 
 ## What Was Completed
 
-1. **Summary tab radically simplified** — Single card with verdict + bullet points + data quality one-liner
-   - Removed: DualVerdictDisplay, Score Breakdown, Data Quality card, Red Flags card
-   - Added: Merged insights + red flags as ✓/⚠ bullets
-   - File went from 537 → 284 lines
+1. **Summary tab navigation buttons now work** — Used `useResearchTabs` context directly instead of broken callback props
+   - Evidence → `evidence` tab
+   - Market → `market` tab (Overview sub-tab)
+   - Gaps → `market` tab → **Opportunities sub-tab** (deep-link)
+   - Next Steps → `action` tab
+   - Added `marketSubTab` to context for deep-linking
+   - Files: `summary-tab.tsx`, `research-tabs-context.tsx`, `market-tab.tsx`
 
-2. **Cleanup** — Removed unused sub-components (InsightCard, DataQualityCard, etc.)
+2. **Documentation updated** — Moved issue from KNOWN_ISSUES.md to RESOLVED_ISSUES.md
 
-3. **Build + Tests pass** — 176 tests passing
+---
+
+## Open Questions / Decisions Pending
+
+1. **App Gap mode** — Consider similar simplification approach (see LOW priority in KNOWN_ISSUES.md)
 
 ---
 
 ## What's Not Working
 
-**Summary tab navigation buttons** — The [Evidence] [Market] [Gaps] [Next Steps] buttons don't navigate to the correct tabs. Only two callbacks exist (`onViewEvidence`, `onViewAction`). See KNOWN_ISSUES.md for details.
+See `docs/KNOWN_ISSUES.md` for current issues:
+- 🔴 HIGH: App Gap Mode signal yield (0.5% of reviews become signals)
+- 🟡 MEDIUM: Market Score unexplained, Streaming route parity
 
 ---
 
-## What's Next
+## What's Next (Priority Order)
 
-1. **Fix Summary tab buttons** — Add proper tab navigation (MEDIUM priority)
-2. **App Gap mode simplification** — Consider similar approach for App Gap tabs
-3. **HIGH priority:** App Gap signal yield issue (only 0.5% of reviews become signals)
-
----
-
-## Uncommitted Changes
-
-Multiple files changed — run `git status` to see full list.
+1. **App Gap signal yield** — HIGH priority - investigate relaxing filters for app reviews
+2. **Market Score explanation** — Add tooltip/context for score meaning
+3. **Streaming route parity** — Extract competitor detection to shared function
+4. **App Gap mode simplification** — Consider similar Summary approach
 
 ---
 

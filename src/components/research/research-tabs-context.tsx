@@ -2,14 +2,17 @@
 
 import { createContext, useContext, useState, ReactNode, useCallback } from 'react'
 
-type TabValue = 'summary' | 'evidence' | 'market' | 'action' | 'community' | 'app-overview' | 'user-feedback' | 'opportunities' | 'verdict'
-type CommunitySubTab = 'themes' | 'signals' | 'quotes' | 'interview'
+export type TabValue = 'summary' | 'evidence' | 'market' | 'action' | 'community' | 'app-overview' | 'user-feedback' | 'opportunities' | 'verdict'
+export type CommunitySubTab = 'themes' | 'signals' | 'quotes' | 'interview'
+export type MarketSubTab = 'overview' | 'sizing' | 'timing' | 'competition' | 'opportunities' | 'positioning'
 
 interface ResearchTabsContextType {
   activeTab: TabValue
   setActiveTab: (tab: TabValue) => void
   communitySubTab: CommunitySubTab
   setCommunitySubTab: (subTab: CommunitySubTab) => void
+  marketSubTab: MarketSubTab
+  setMarketSubTab: (subTab: MarketSubTab) => void
 }
 
 const ResearchTabsContext = createContext<ResearchTabsContextType | null>(null)
@@ -30,6 +33,7 @@ interface ResearchTabsProviderProps {
 export function ResearchTabsProvider({ children, defaultTab = 'summary' }: ResearchTabsProviderProps) {
   const [activeTab, setActiveTabState] = useState<TabValue>(defaultTab)
   const [communitySubTab, setCommunitySubTabState] = useState<CommunitySubTab>('themes')
+  const [marketSubTab, setMarketSubTabState] = useState<MarketSubTab>('overview')
 
   const setActiveTab = useCallback((tab: TabValue) => {
     setActiveTabState(tab)
@@ -46,8 +50,12 @@ export function ResearchTabsProvider({ children, defaultTab = 'summary' }: Resea
     setCommunitySubTabState(subTab)
   }, [])
 
+  const setMarketSubTab = useCallback((subTab: MarketSubTab) => {
+    setMarketSubTabState(subTab)
+  }, [])
+
   return (
-    <ResearchTabsContext.Provider value={{ activeTab, setActiveTab, communitySubTab, setCommunitySubTab }}>
+    <ResearchTabsContext.Provider value={{ activeTab, setActiveTab, communitySubTab, setCommunitySubTab, marketSubTab, setMarketSubTab }}>
       {children}
     </ResearchTabsContext.Provider>
   )

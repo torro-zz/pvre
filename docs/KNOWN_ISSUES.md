@@ -1,6 +1,6 @@
 # PVRE Known Issues
 
-*Last updated: January 16, 2026*
+*Last updated: January 18, 2026*
 
 **For resolved issues, see: `docs/archive/RESOLVED_ISSUES.md`**
 
@@ -43,20 +43,6 @@ Each issue MUST include a **Verify** field with manual testing steps:
 ---
 
 ### 🟡 MEDIUM
-
-#### Summary Tab Navigation Buttons Don't Work
-**Impact:** Users can't navigate to other tabs from the Summary tab buttons
-**Location:** `src/components/research/summary-tab.tsx`
-
-The simplified Summary tab (Jan 16) has [Evidence] [Market] [Gaps] [Next Steps] buttons, but:
-- Only two callbacks exist: `onViewEvidence` and `onViewAction`
-- Market and Gaps buttons both use `onViewAction` (wrong target)
-- Buttons appear disabled when callbacks aren't provided
-
-**Fix:** Add proper tab navigation callbacks or use a tab context to switch tabs directly.
-**Verify:** Run Hypothesis search → Summary tab → Click each button → Should navigate to correct tab
-
----
 
 #### Market Score Unexplained
 **Impact:** Users don't understand score meaning

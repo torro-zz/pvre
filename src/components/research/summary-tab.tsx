@@ -15,6 +15,7 @@ import { CompetitorIntelligenceResult } from '@/app/api/research/competitor-inte
 import { ViabilityVerdict } from '@/lib/analysis/viability-calculator'
 import { AnimatedCard } from '@/components/ui/animated-components'
 import { cn } from '@/lib/utils'
+import { useResearchTabs } from '@/components/research/research-tabs-context'
 
 // ============================================
 // Types
@@ -57,8 +58,6 @@ interface SummaryTabProps {
     coreSignals?: number
     relatedSignals?: number
   }
-  onViewEvidence?: () => void
-  onViewAction?: () => void
 }
 
 // ============================================
@@ -177,9 +176,8 @@ export function SummaryTab({
   marketData,
   timingData,
   filteringMetrics,
-  onViewEvidence,
-  onViewAction,
 }: SummaryTabProps) {
+  const { setActiveTab, setMarketSubTab } = useResearchTabs()
   const insights = extractTopInsights(
     communityVoiceResult,
     competitorResult,
@@ -245,32 +243,31 @@ export function SummaryTab({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onViewEvidence}
-                disabled={!onViewEvidence}
+                onClick={() => setActiveTab('evidence')}
               >
                 Evidence
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onViewAction}
-                disabled={!onViewAction}
+                onClick={() => setActiveTab('market')}
               >
                 Market
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onViewAction}
-                disabled={!onViewAction}
+                onClick={() => {
+                  setMarketSubTab('opportunities')
+                  setActiveTab('market')
+                }}
               >
                 Gaps
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onViewAction}
-                disabled={!onViewAction}
+                onClick={() => setActiveTab('action')}
               >
                 Next Steps
               </Button>

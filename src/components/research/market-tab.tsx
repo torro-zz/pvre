@@ -14,6 +14,7 @@
 
 import { useState } from 'react'
 import { useResearchData } from '@/components/research/research-data-provider'
+import { useResearchTabs, type MarketSubTab } from '@/components/research/research-tabs-context'
 import { CompetitorResults } from '@/components/research/competitor-results'
 import { CompetitorRunner } from '@/components/research/competitor-runner'
 import { TrustBadge } from '@/components/ui/trust-badge'
@@ -44,7 +45,6 @@ import { MarketSignals } from '@/components/research/market-signals'
 import { TrendSparkline } from '@/components/research/trend-sparkline'
 import type { MarketWarning } from '@/lib/analysis/viability-calculator'
 
-type MarketSubTab = 'overview' | 'sizing' | 'timing' | 'competition' | 'opportunities' | 'positioning'
 
 /**
  * Format large market numbers into human-readable format
@@ -89,7 +89,7 @@ interface MarketTabProps {
 }
 
 export function MarketTab({ jobId, hypothesis }: MarketTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<MarketSubTab>('overview')
+  const { marketSubTab: activeSubTab, setMarketSubTab: setActiveSubTab } = useResearchTabs()
   const data = useResearchData()
   const { marketData, timingData, competitorResult, communityVoiceResult } = data
 
