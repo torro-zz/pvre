@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, Zap, Target, MessageSquare, TrendingUp, Clock, FileSearch, Brain, X, Check, ChevronRight } from 'lucide-react'
+import { WaitlistForm } from '@/components/waitlist-form'
 
 // Scroll-triggered fade in
 function useFadeIn() {
@@ -26,6 +27,9 @@ function useFadeIn() {
   return { ref, isVisible }
 }
 
+// Check if in waitlist-only mode (UI flag - real security is in middleware)
+const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === 'true'
+
 export default function Home() {
   const oldWayRef = useFadeIn()
   const newWayRef = useFadeIn()
@@ -44,12 +48,16 @@ export default function Home() {
               <Link href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 How It Works
               </Link>
-              <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Sign In
-              </Link>
-              <Link href="/login">
-                <Button size="sm" className="font-medium">Get Started</Button>
-              </Link>
+              {!isWaitlistMode && (
+                <>
+                  <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                    Sign In
+                  </Link>
+                  <Link href="/login">
+                    <Button size="sm" className="font-medium">Get Started</Button>
+                  </Link>
+                </>
+              )}
             </nav>
           </div>
         </div>
@@ -124,15 +132,31 @@ export default function Home() {
               className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in"
               style={{ animationDelay: '300ms' }}
             >
-              <Link href="/login">
-                <Button size="lg" className="group px-8 h-14 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all">
-                  Run Free Research
-                  <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
-              <span className="text-sm text-muted-foreground">
-                Free to start · No credit card required
-              </span>
+              {isWaitlistMode ? (
+                <>
+                  <Link href="#waitlist">
+                    <Button size="lg" className="group px-8 h-14 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all">
+                      Join the Waitlist
+                      <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" />
+                    </Button>
+                  </Link>
+                  <span className="text-sm text-muted-foreground">
+                    Be first to get access
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Link href="/login">
+                    <Button size="lg" className="group px-8 h-14 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all">
+                      Run Free Research
+                      <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" />
+                    </Button>
+                  </Link>
+                  <span className="text-sm text-muted-foreground">
+                    Free to start · No credit card required
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -414,7 +438,7 @@ export default function Home() {
       </section>
 
       {/* Final CTA */}
-      <section className="py-28 relative overflow-hidden">
+      <section id="waitlist" className="py-28 relative overflow-hidden scroll-mt-20">
         {/* Background effects */}
         <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
         <div
@@ -433,19 +457,10 @@ export default function Home() {
 
             <p className="text-lg text-muted-foreground mb-10 max-w-xl mx-auto">
               Every week you spend building without validation is a week you might be wasting.
-              Find out if people actually want what you&apos;re building — in 5 minutes, not 5 months.
+              Be the first to know when we launch.
             </p>
 
-            <Link href="/login">
-              <Button size="lg" className="group px-10 h-14 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all">
-                Run Free Research
-                <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" />
-              </Button>
-            </Link>
-
-            <p className="text-sm text-muted-foreground mt-5">
-              No credit card required · Results in ~5 minutes
-            </p>
+            <WaitlistForm />
           </div>
         </div>
       </section>
